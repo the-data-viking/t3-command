@@ -23,3 +23,13 @@ Deploy the built `designlab.html` and hashed `dist/assets` into the existing Tai
 ## Selected direction follow-up
 
 The user selected orbit + central commons + network + attached modules + ambient information + all projects. This is now the default and Constellation preset. Ship silhouettes have been removed from this review page in favor of power, engine, or sleeping-quarters nodes. Power represents environment compute capacity; engine represents throughput; quarters represents parked crew. These are alternative metaphors for review, not live metrics. Attached modules have short solid conduits to the bottom of their station. Project-to-operations links leave the sides independently, avoiding a route through the utility node. Old six-axis URLs and saved studies acquire the power-module default. All three variants were checked for four rendered environment nodes and correct share URL updates; mobile layout still has no horizontal overflow. Original sprite files remain unchanged.
+
+## StarNet-inspired integrated environment pass
+
+The compact alternatives above are superseded by a full environment deck. Research: inspected [StarNet's live embedded starter station](https://starnetos.com/) visually and read [Station & capabilities](https://starnetos.com/docs/station.html). The observed station uses a substantial external hull, a traversable floor, and perimeter gear. The docs tie placed equipment to capabilities, bays to concurrency, and workstation visits to tool use. This pass adapts those spatial ideas, retaining our original FTL sprites and Night Shift palette rather than borrowing StarNet art.
+
+Each attached facility combines an execution/storage plant, power/cooling/engine room, and crew habitat. All sections share a service corridor and visibly cut doorways. A reinforced chamfered hull and exterior ribs join the project deck and environment deck into one facility. Environment emphasis now highlights compute, engines, or quarters without removing the other sections. Integrated is the default. Old power/engine/quarters links remain valid emphasis choices. The enlarged interior includes the environment deck, and the orbital map has more vertical room for the larger facilities. Shared-service placement previews the selected project's environment in a central service deck.
+
+This remains a review mock with fictional activity. It does not adopt StarNet's permission/build system or claim live capacity/throughput measurements.
+
+Validation for this pass: build and lint pass; native browser checked all 12 map/emphasis combinations for four environments, all three sections retained, and valid SVG geometry. Enlarged facility view and 390px mobile layout checked; no horizontal overflow. Sprite source files are unchanged.
