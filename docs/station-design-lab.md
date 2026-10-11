@@ -33,3 +33,9 @@ Each attached facility combines an execution/storage plant, power/cooling/engine
 This remains a review mock with fictional activity. It does not adopt StarNet's permission/build system or claim live capacity/throughput measurements.
 
 Validation for this pass: build and lint pass; native browser checked all 12 map/emphasis combinations for four environments, all three sections retained, and valid SVG geometry. Enlarged facility view and 390px mobile layout checked; no horizontal overflow. Sprite source files are unchanged.
+
+## Shipped project attachments
+
+The selected orbital/commons design now drives the live Pixi map. Engineering facilities are separate nodes, attached directly to project modules with short orthogonal conduits. Each participating environment gets a node on each project it serves; shared repositories retain one common project interior and distinct environment nodes. Quarters and history stay in the project, with side doors into its central commons. Unassigned environments retain standalone service nodes. Environment navigation frames all associated projects and nodes; node clicks open the corresponding environment/project panel. Engine lights and packets derive only from that project/environment pair's real activity and connection state, not environment-wide totals or invented capacity metrics.
+
+Validation: 24 tests pass, including door crossing samples on all generated room pairs, initial placement, a 108-crew commons, shared-environment attachments, overlap/bounds checks, GPU render-loop behavior, and thread image handling. Production build, ESLint, and diff whitespace checks pass. Native T3 browser verified real four-environment rendering, engineering-node selection, project archive selection, and environment navigation. Latest main's image relay and render-loop performance fixes are included. No sprite source files changed.
