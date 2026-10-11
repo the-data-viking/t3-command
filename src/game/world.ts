@@ -51,10 +51,10 @@ function truncate(s: string, n: number): string {
 
 /** Fixed supply-line geometry is independent of the animated packets travelling along it. */
 function linkPoint(from: Point, to: Point, k: number): Point {
-  const midY = (from.y + to.y) / 2;
-  if (k < 1 / 3) return { x: from.x, y: from.y + (midY - from.y) * k * 3 };
-  if (k < 2 / 3) return { x: from.x + (to.x - from.x) * (k * 3 - 1), y: midY };
-  return { x: to.x, y: midY + (to.y - midY) * (k * 3 - 2) };
+  const midX = (from.x + to.x) / 2;
+  if (k < 1 / 3) return { x: from.x + (midX - from.x) * k * 3, y: from.y };
+  if (k < 2 / 3) return { x: midX, y: from.y + (to.y - from.y) * (k * 3 - 1) };
+  return { x: midX + (to.x - midX) * (k * 3 - 2), y: to.y };
 }
 
 function sprite(texture: ReturnType<typeof tex>, x: number, y: number, ax = 0, ay = 0, scale = PX): Sprite {
@@ -454,8 +454,7 @@ class EnvironmentNodeSprite {
     this.root.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
       sfx.building();
-      if (node.projectId) setSelection({ kind: 'building', envId: node.envId, projectId: node.projectId });
-      else worldRef.current?.focusStation(node.envId);
+      worldRef.current?.focusStation(node.envId);
     });
   }
 
@@ -679,7 +678,10 @@ export class World {
     let rect: Rect = { ...nodes[0].hull };
     const include=(r:Rect)=>{const x=Math.min(rect.x,r.x),y=Math.min(rect.y,r.y);
       rect={x,y,w:Math.max(rect.x+rect.w,r.x+r.w)-x,h:Math.max(rect.y+rect.h,r.y+r.h)-y};};
-    for(const node of nodes){include(node.hull);const project=this.layout.stations.get(node.stationKey);if(project)include(project.bounds);}
+    for(const node of nodes){
+      include(node.hull);
+      for(const link of node.links){const project=this.layout.stations.get(link.stationKey);if(project)include(project.bounds);}
+    }
 
     this.focusRect(rect);
   }
@@ -908,7 +910,7 @@ export class World {
       if (sprite.state === "alert" || sprite.state === "question") u.attention = true;
       stationUse.set(lay.stationKey, u);
       if (!lay.sleeping) {
-        const key = `${lay.envId}|${lay.stationKey}`;
+        const key = lay.envId;
         let states = environmentStates.get(key);
         if (!states) environmentStates.set(key, (states = []));
         states.push(sprite.state);
@@ -960,16 +962,16 @@ export class World {
       }
     }
 
-    // Environment nodes: project-specific live engine cells and connection/state indicators.
+    // Environment nodes: environment-wide live engine cells and connection/state indicators.
     for (const node of this.layout.environmentNodes.values()) {
       const env = state.envs[node.envId];
       const live = env?.connection === "live";
-      const states = environmentStates.get(node.key) ?? [];
+      const states = environmentStates.get(node.envId) ?? [];
       const h = node.hull;
       const sprite = this.environmentNodes.get(node.key)?.root;
       if (sprite) sprite.alpha = live ? 1 : 0.45;
       if (states.includes("working") && live) {
-        // Embedded engine cells light only for live work on this project/environment pair.
+        // Embedded engine cells light only for live work in this environment.
         for(let k=0;k<4;k++) g.rect(h.x+112+k*18,h.y+69,4,14).fill({color:0x59e1ff,alpha:frame%2?1:.6});
 
       }

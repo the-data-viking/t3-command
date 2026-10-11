@@ -62,16 +62,14 @@ export interface StationLayout {
   bounds: Rect;
 }
 
-/** An environment service node attached to one project module. */
+/** One station-wide engineering node per environment, serving all its projects. */
 export interface EnvironmentNodeLayout {
   key: string;
-  stationKey: string;
-  projectId?: string;
   envId: string;
   color: number;
   hull: Rect;
   plate: Rect;
-  /** Direct physical attachment to the owning project module. */
+  /** Direct physical connections to every project served by this environment. */
   links: Array<{ stationKey: string; from: Point; to: Point }>;
 }
 
@@ -103,7 +101,6 @@ const HULL_PAD = 22;
 export const ENV_NODE_W = 224;
 export const ENV_NODE_H = 152;
 const NODE_GAP = 24;
-const ATTACHMENT_GAP = 36;
 const CAMPUS_GAP = 360;
 const STATION_GAP_Y = 180;
 
@@ -359,45 +356,37 @@ export function computeFleetLayout(state: GameState): FleetLayout {
 
   const crew: CrewLayout[] = [];
   const previews = groups.map(group => layoutStation(group, HULL_PAD, 0, []));
-  const extent = (station: StationLayout) => Math.max(station.bounds.w,
-    new Set(station.members.map(m => m.envId)).size * (ENV_NODE_W + NODE_GAP) - NODE_GAP);
-  const columnW = Math.max(ENV_NODE_W, ...previews.map(extent));
+  const columnW = Math.max(ENV_NODE_W, ...previews.map(station => station.bounds.w));
   let y = 0, rowH = 0;
   groups.forEach((group, i) => {
     if (i > 0 && i % 2 === 0) { y += rowH + STATION_GAP_Y; rowH = 0; }
-    const x = (i % 2) * (columnW + CAMPUS_GAP);
+    const x = i % 2 === 0 ? columnW - previews[i].bounds.w : columnW + CAMPUS_GAP;
     const station = layoutStation(group, x + HULL_PAD, y, crew);
     station.port = { x: i % 2 === 0 ? station.bounds.x + station.bounds.w : station.bounds.x,
       y: station.interior.y + station.interior.h / 2 };
     fleet.stations.set(station.key, station);
-    const unique = [...new Map(group.members.map(m => [m.env.summary.id, m])).values()];
-    unique.forEach((ref, k) => {
-      const nodeX = x + k * (ENV_NODE_W + NODE_GAP);
-      const nodeY = station.bounds.y + station.bounds.h + ATTACHMENT_GAP;
-      const from = { x: nodeX + ENV_NODE_W / 2, y: nodeY };
-      const to = { x: station.interior.x + station.interior.w * (k + 1) / (unique.length + 1),
-        y: station.bounds.y + station.bounds.h };
-      const key = `${ref.env.summary.id}|${station.key}`;
-      fleet.environmentNodes.set(key, { key, stationKey: station.key, projectId: ref.project.id,
-        envId: ref.env.summary.id, color: teamColor(ref.index),
-        hull: { x: nodeX, y: nodeY, w: ENV_NODE_W, h: ENV_NODE_H },
-        plate: { x: nodeX + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 },
-        links: [{ stationKey: station.key, from, to }] });
-    });
-    rowH = Math.max(rowH, station.bounds.h + ATTACHMENT_GAP + ENV_NODE_H);
+    rowH = Math.max(rowH, station.bounds.h);
   });
-  // Environments without projects still get a selectable service node.
-  let emptyY = y + rowH + STATION_GAP_Y;
+  // A shared engineering spine: membership adds a conduit, never another chassis.
+  const nodeX = columnW + (CAMPUS_GAP - ENV_NODE_W) / 2;
   envs.forEach((env, index) => {
-    if (groups.some(g => g.members.some(m => m.env === env))) return;
-    const key = `${env.summary.id}|unassigned`;
-    fleet.environmentNodes.set(key, { key, stationKey: '', envId: env.summary.id, color: teamColor(index),
-      hull: { x: 0, y: emptyY, w: ENV_NODE_W, h: ENV_NODE_H },
-      plate: { x: 8, y: emptyY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links: [] });
-    emptyY += ENV_NODE_H + NODE_GAP;
+    const key = env.summary.id;
+    const nodeY = index * (ENV_NODE_H + NODE_GAP);
+    const projects = [...fleet.stations.values()].filter(station => station.members.some(m => m.envId === key));
+    const links = projects.map(station => {
+      const left = station.port.x < nodeX;
+      const members = [...new Set(station.members.map(m => m.envId))];
+      const offset = (members.indexOf(key) - (members.length - 1) / 2) * 12;
+      return { stationKey: station.key,
+        from: { x: left ? nodeX : nodeX + ENV_NODE_W, y: nodeY + ENV_NODE_H / 2 },
+        to: { x: station.port.x, y: station.port.y + offset } };
+    });
+    fleet.environmentNodes.set(key, { key, envId: key, color: teamColor(index),
+      hull: { x: nodeX, y: nodeY, w: ENV_NODE_W, h: ENV_NODE_H },
+      plate: { x: nodeX + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links });
   });
   if (groups.length > 1) fleet.hub = { x: columnW + CAMPUS_GAP / 2 - 70,
-    y: (y + rowH) / 2 - 40, w: 140, h: 80 };
+    y: -116, w: 140, h: 80 };
 
   for (const c of crew) fleet.crew.set(c.key, c);
   let bounds: Rect | undefined;
