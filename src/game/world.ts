@@ -3,12 +3,12 @@
 // between warm plating and Night Shift; everything re-textures from the same sprites.
 //
 // FTL-style: every project is a station seen in cross-section, and everyone working on it, from
-// any environment, works side by side in its rooms. Each environment is one ship in the fleet
-// row, with supply lines to the stations it crews; its crew wear its team color. Crew walk room
+// any environment, works side by side in its commons. Each participating environment has a
+// separate compute/engine node directly attached to the project; crew wear its team color. Crew walk room
 // to room through doors to use the system their open tool call needs.
 //
 // Rule borrowed from StarNet: the map never shows activity T3 can't prove. Screens and system
-// icons light up only for real work, crew walk only for real tool calls, a ship's engine burns
+// icons light up only for real work, crew walk only for real tool calls, a node's engine lights
 // and its supply lines carry packets only while its crew are working, and idle crew stand still.
 
 import { Application, Container, Graphics, Rectangle, Sprite, Text, TilingSprite, type FederatedPointerEvent, type TextStyleOptions } from "pixi.js";
@@ -18,7 +18,7 @@ import { setSelection, unitKey, useGame, type GameState, type Selection } from "
 import { isHistory, unitState, type UnitState } from "../t3/derive";
 import { telemetry, type Telemetry } from "../t3/telemetry";
 import type { ThreadShell } from "../t3/types";
-import { computeFleetLayout, QUARTERS_SHOWN, TILE, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type ShipLayout, type StationLayout, type SystemRoom } from "./layout";
+import { computeFleetLayout, QUARTERS_SHOWN, TILE, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type EnvironmentNodeLayout, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
 import { CrewMotion } from "./crew-motion";
 import { RenderLoop } from "./render-loop";
@@ -51,12 +51,10 @@ function truncate(s: string, n: number): string {
 
 /** Fixed supply-line geometry is independent of the animated packets travelling along it. */
 function linkPoint(from: Point, to: Point, k: number): Point {
-  const u = 1 - k;
   const midY = (from.y + to.y) / 2;
-  return {
-    x: u * u * u * from.x + 3 * u * u * k * from.x + 3 * u * k * k * to.x + k * k * k * to.x,
-    y: u * u * u * from.y + 3 * u * u * k * midY + 3 * u * k * k * midY + k * k * k * to.y,
-  };
+  if (k < 1 / 3) return { x: from.x, y: from.y + (midY - from.y) * k * 3 };
+  if (k < 2 / 3) return { x: from.x + (to.x - from.x) * (k * 3 - 1), y: midY };
+  return { x: to.x, y: midY + (to.y - midY) * (k * 3 - 2) };
 }
 
 function sprite(texture: ReturnType<typeof tex>, x: number, y: number, ax = 0, ay = 0, scale = PX): Sprite {
@@ -304,10 +302,10 @@ class StationSprite {
       g.rect(x, hullTop + 10, 2, i.y - hullTop - 14).fill(c.D);
       g.rect(x, i.y + i.h + 4, 2, hullBottom - i.y - i.h - 12).fill(c.D);
     }
-    // Antenna mast and the supply port where ships' lines arrive.
+    // Antenna mast and the side port to the operations network.
     g.rect(i.x + i.w - 42, hullTop - 28, 4, 28).fill(c.k);
     g.rect(i.x + i.w - 44, hullTop - 32, 8, 6).fill(c.a);
-    g.rect(s.port.x - 18, s.port.y - 6, 36, 10).fill(c.D).stroke({ color: c.k, width: 2 });
+    g.rect(s.port.x - 5, s.port.y - 18, 10, 36).fill(c.D).stroke({ color: c.k, width: 2 });
 
     // Deck plating.
     const floor = new TilingSprite({ texture: tex(A.FLOOR), width: i.w, height: i.h });
@@ -370,18 +368,21 @@ class StationSprite {
       this.root.addChild(door);
     }
 
-    // The whole interior opens the project panel (recruit on any member environment there).
+    // Own the hit area on the rendered facility, rather than an empty child container.
     const first = s.members[0];
-    const interior = new Container();
-    interior.eventMode = "static";
-    interior.cursor = "pointer";
-    interior.hitArea = new Rectangle(i.x, i.y, i.w, i.h);
-    interior.on("pointertap", (e: FederatedPointerEvent) => {
+    this.root.eventMode = 'static';
+    this.root.cursor = 'pointer';
+    this.root.hitArea = new Rectangle(s.bounds.x, s.bounds.y, s.bounds.w, s.bounds.h);
+    this.root.removeAllListeners('pointertap');
+    this.root.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
       sfx.building();
-      if (first) setSelection({ kind: "building", envId: first.envId, projectId: first.projectId });
+      const point = e.getLocalPosition(this.root);
+      if (point.y < i.y) worldRef.current?.focusRect(s.bounds);
+      else if (first && ar && point.x >= ar.x && point.x <= ar.x + ar.w && point.y >= ar.y && point.y <= ar.y + ar.h)
+        setSelection({ kind: 'library', envId: first.envId, projectId: first.projectId });
+      else if (first) setSelection({ kind: 'building', envId: first.envId, projectId: first.projectId });
     });
-    this.root.addChild(interior);
 
     // Nameplate.
     const machines = new Set(s.members.map((m) => m.envId)).size;
@@ -400,29 +401,7 @@ class StationSprite {
     sub.position.set(s.nameplate.x + 2, s.nameplate.y + 26);
     this.root.addChild(sub);
     this.labels.push(sub);
-    const nameHit = new Container();
-    nameHit.eventMode = "static";
-    nameHit.cursor = "pointer";
-    nameHit.hitArea = new Rectangle(s.nameplate.x, s.nameplate.y, 420, 40);
-    nameHit.on("pointertap", (e: FederatedPointerEvent) => {
-      e.stopPropagation();
-      sfx.building();
-      worldRef.current?.focusRect(s.bounds);
-    });
-    this.root.addChild(nameHit);
 
-    if (ar && first) {
-      const hit = new Container();
-      hit.eventMode = "static";
-      hit.cursor = "pointer";
-      hit.hitArea = new Rectangle(ar.x, ar.y, ar.w, ar.h);
-      hit.on("pointertap", (e: FederatedPointerEvent) => {
-        e.stopPropagation();
-        sfx.building();
-        setSelection({ kind: "library", envId: first.envId, projectId: first.projectId });
-      });
-      this.root.addChild(hit);
-    }
   }
 
   setZoom(zoom: number): void {
@@ -434,47 +413,50 @@ class StationSprite {
   }
 }
 
-// ---- Ships -----------------------------------------------------------------------------
+// ---- Environment service nodes -----------------------------------------------------------------------------
 
-/** One environment's ship in the fleet row. */
-class ShipSprite {
+/** Separate compute/engine node directly attached to a project module. */
+class EnvironmentNodeSprite {
   readonly envId: string;
   readonly root = new Container();
-  hullSprite?: Sprite;
   private name?: Text;
 
   constructor(envId: string) {
     this.envId = envId;
   }
 
-  build(ship: ShipLayout, state: GameState): void {
+  build(node: EnvironmentNodeLayout, state: GameState): void {
     for (const child of this.root.removeChildren()) child.destroy({ children: true });
-    const h = ship.hull;
-    this.hullSprite = sprite(tex(A.SHIP, { team: ship.color }), h.x, h.y, 0, 0, 3);
-    this.root.addChild(this.hullSprite);
-
+    const h = node.hull, style = currentStyle(), c = style.colors;
     const g = new Graphics();
-    const p = ship.plate;
-    g.rect(p.x, p.y, p.w, p.h).fill({ color: 0x0b0e12, alpha: 0.92 }).stroke({ color: ship.color, width: 2 });
-    g.rect(p.x, p.y, 5, p.h).fill(ship.color);
+    g.poly([h.x+16,h.y,h.x+h.w-16,h.y,h.x+h.w,h.y+16,h.x+h.w,h.y+h.h-16,h.x+h.w-16,h.y+h.h,h.x+16,h.y+h.h,h.x,h.y+h.h-16,h.x,h.y+16])
+      .fill(c.H).stroke({color:c.k,width:4});
+    g.rect(h.x+8,h.y+8,h.w-16,h.h-16).fill(c.k);
+    g.rect(h.x+12,h.y+34,64,86).fill(0x1a2b39).stroke({color:c.D,width:2});
+    g.rect(h.x+82,h.y+34,h.w-94,86).fill(0x1a2b39).stroke({color:c.D,width:2});
+    g.rect(h.x+96,h.y+56,h.w-122,40).fill(c.D).stroke({color:c.h,width:2});
+    g.rect(h.x+102,h.y+62,h.w-134,28).fill(c.k);
+    for(let k=0;k<4;k++) g.rect(h.x+110+k*18,h.y+66,8,20).fill(c.G);
+    g.moveTo(h.x+96,h.y+50).lineTo(h.x+96,h.y+43).lineTo(h.x+h.w-26,h.y+43).lineTo(h.x+h.w-26,h.y+50).stroke({color:c.D,width:4});
+    g.moveTo(h.x+96,h.y+102).lineTo(h.x+96,h.y+110).lineTo(h.x+h.w-26,h.y+110).lineTo(h.x+h.w-26,h.y+102).stroke({color:c.D,width:4});
+    g.rect(h.x+h.w/2-18,h.y-4,36,8).fill(c.D).stroke({color:c.k,width:2});
     this.root.addChild(g);
-    this.name = label(9, 0xf2f4f6, { letterSpacing: 1.5 });
-    this.name.text = truncate((state.envs[ship.envId]?.summary.label ?? "?").toUpperCase(), 16);
-    this.name.anchor.set(0, 0.5);
-    this.name.position.set(p.x + 11, p.y + p.h / 2);
-    this.root.addChild(this.name);
-
-    // Clicking a ship frames every station it crews.
-    const hit = new Container();
-    hit.eventMode = "static";
-    hit.cursor = "pointer";
-    hit.hitArea = new Rectangle(h.x - 14, h.y, h.w + 14, p.y + p.h - h.y);
-    hit.on("pointertap", (e: FederatedPointerEvent) => {
+    this.root.addChild(sprite(tex(A.FILES),h.x+44,h.y+68,.5,.5));
+    this.name=label(10,node.color,{letterSpacing:1});
+    this.name.text=truncate((state.envs[node.envId]?.summary.label??'?').toUpperCase(),24);
+    this.name.position.set(h.x+12,h.y+13); this.root.addChild(this.name);
+    const caption=label(7,0xa7bdcb,{letterSpacing:.6}); caption.text='COMPUTE  /  POWER · COOLING';
+    caption.position.set(h.x+12,h.y+104);this.root.addChild(caption);
+    this.root.eventMode = 'static';
+    this.root.cursor = 'pointer';
+    this.root.hitArea = new Rectangle(h.x, h.y, h.w, h.h);
+    this.root.removeAllListeners('pointertap');
+    this.root.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
       sfx.building();
-      worldRef.current?.focusStation(ship.envId);
+      if (node.projectId) setSelection({ kind: 'building', envId: node.envId, projectId: node.projectId });
+      else worldRef.current?.focusStation(node.envId);
     });
-    this.root.addChild(hit);
   }
 
   setZoom(zoom: number): void {
@@ -501,19 +483,20 @@ export class World {
   private sky?: TilingSprite;
   private camera = new Container();
   private grid = new Graphics();
+  private operations = new Container();
   private links = new Graphics();
   private packets = new Graphics();
   private stationLayer = new Container();
-  private shipLayer = new Container();
+  private environmentLayer = new Container();
   private lights = new Graphics();
   private crewLayer = new Container();
   private overlay = new Graphics();
   private edge = new Graphics();
   private edgeHits = new Container();
   private stations = new Map<string, StationSprite>();
-  private ships = new Map<string, ShipSprite>();
+  private environmentNodes = new Map<string, EnvironmentNodeSprite>();
   private crew = new Map<string, CrewSprite>();
-  private layout: FleetLayout = { stations: new Map(), ships: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
+  private layout: FleetLayout = { stations: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
   private zoom = 1;
   private time = 0;
   /** Set once the user pans, zooms or jumps somewhere; until then the view keeps fitting the fleet. */
@@ -551,7 +534,7 @@ export class World {
 
     this.sky = new TilingSprite({ texture: this.makeStarTexture(), width: this.app.screen.width, height: this.app.screen.height });
     this.crewLayer.sortableChildren = true;
-    this.camera.addChild(this.grid, this.links, this.packets, this.stationLayer, this.shipLayer, this.lights, this.crewLayer, this.overlay);
+    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.lights, this.crewLayer, this.overlay);
     this.app.stage.addChild(this.sky, this.camera, this.edge, this.edgeHits);
     this.setupCamera();
 
@@ -689,18 +672,15 @@ export class World {
     this.frame(rect, 2, Math.min(460, this.app.screen.width * 0.3), Math.min(300, this.app.screen.width * 0.2));
   }
 
-  /** Frame an environment's ship and every station it crews. */
+  /** Frame all service nodes and project modules belonging to an environment. */
   focusStation(envId: string): void {
-    const ship = this.layout.ships.get(envId);
-    if (!ship) return;
-    let rect: Rect = { ...ship.hull, h: ship.plate.y + ship.plate.h - ship.hull.y };
-    for (const link of ship.links) {
-      const r = this.layout.stations.get(link.stationKey)?.bounds;
-      if (!r) continue;
-      const x = Math.min(rect.x, r.x);
-      const y = Math.min(rect.y, r.y);
-      rect = { x, y, w: Math.max(rect.x + rect.w, r.x + r.w) - x, h: Math.max(rect.y + rect.h, r.y + r.h) - y };
-    }
+    const nodes = [...this.layout.environmentNodes.values()].filter(node => node.envId === envId);
+    if (!nodes.length) return;
+    let rect: Rect = { ...nodes[0].hull };
+    const include=(r:Rect)=>{const x=Math.min(rect.x,r.x),y=Math.min(rect.y,r.y);
+      rect={x,y,w:Math.max(rect.x+rect.w,r.x+r.w)-x,h:Math.max(rect.y+rect.h,r.y+r.h)-y};};
+    for(const node of nodes){include(node.hull);const project=this.layout.stations.get(node.stationKey);if(project)include(project.bounds);}
+
     this.focusRect(rect);
   }
 
@@ -744,7 +724,7 @@ export class World {
     return {
       bounds: this.layout.bounds,
       hubs: [...this.layout.stations.values()].map((s) => s.interior),
-      stations: [...this.layout.ships.values()].map((sh) => ({ rect: sh.hull, color: sh.color, live: state.envs[sh.envId]?.connection === "live" })),
+      stations: [...this.layout.environmentNodes.values()].map((sh) => ({ rect: sh.hull, color: sh.color, live: state.envs[sh.envId]?.connection === "live" })),
       dots: [...this.crew.values()]
         .filter((c) => c.state !== "sleeping")
         .map((c) => ({ x: c.pos.x, y: c.pos.y, color: STATUS[c.state], big: c.state === "alert" || c.state === "question" })),
@@ -787,19 +767,19 @@ export class World {
         sprite.destroy();
         this.stations.delete(key);
       }
-      for (const [envId, ship] of this.layout.ships) {
-        let sprite = this.ships.get(envId);
+      for (const [envId, node] of this.layout.environmentNodes) {
+        let sprite = this.environmentNodes.get(envId);
         if (!sprite) {
-          sprite = new ShipSprite(envId);
-          this.ships.set(envId, sprite);
-          this.shipLayer.addChild(sprite.root);
+          sprite = new EnvironmentNodeSprite(node.envId);
+          this.environmentNodes.set(envId, sprite);
+          this.environmentLayer.addChild(sprite.root);
         }
-        sprite.build(ship, state);
+        sprite.build(node, state);
       }
-      for (const [envId, sprite] of this.ships) {
-        if (this.layout.ships.has(envId)) continue;
+      for (const [envId, sprite] of this.environmentNodes) {
+        if (this.layout.environmentNodes.has(envId)) continue;
         sprite.destroy();
-        this.ships.delete(envId);
+        this.environmentNodes.delete(envId);
       }
       this.drawGrid();
       this.drawLinks(state);
@@ -834,6 +814,18 @@ export class World {
 
   private drawGrid(): void {
     const g = this.grid.clear();
+    for(const child of this.operations.removeChildren())child.destroy({children:true});
+    const hub=this.layout.hub;
+    if(hub){
+      g.roundRect(hub.x,hub.y,hub.w,hub.h,12).fill(0x172c3c).stroke({color:0x698d9f,width:2});
+      const title=label(12,0xc9e1e8);title.text='OPERATIONS';title.position.set(hub.x+18,hub.y+22);this.operations.addChild(title);
+      const count=label(8,0x7eaaa8);count.text=`${this.layout.stations.size} PROJECT MODULES`;count.position.set(hub.x+18,hub.y+48);this.operations.addChild(count);
+      for(const station of this.layout.stations.values()){
+        const left=station.port.x<hub.x, lane=left?hub.x-50:hub.x+hub.w+50;
+        const targetY=hub.y+hub.h/2;
+        g.moveTo(station.port.x,station.port.y).lineTo(lane,station.port.y).lineTo(lane,targetY).lineTo(left?hub.x:hub.x+hub.w,targetY).stroke({color:0x547388,width:2,alpha:.6});
+      }
+    }
     const b = this.layout.bounds;
     const step = 400;
     const pad = 2400;
@@ -849,16 +841,16 @@ export class World {
 
   private drawLinks(state: GameState): void {
     const g = this.links.clear();
-    for (const ship of this.layout.ships.values()) {
-      const live = state.envs[ship.envId]?.connection === "live";
-      for (const link of ship.links) {
+    for (const node of this.layout.environmentNodes.values()) {
+      const live = state.envs[node.envId]?.connection === "live";
+      for (const link of node.links) {
         const points: number[] = [];
         for (let k = 0; k <= 24; k++) {
           const p = linkPoint(link.from, link.to, k / 24);
           points.push(p.x, p.y);
         }
-        g.poly(points, false).stroke({ color: ship.color, width: 5, alpha: live ? 0.1 : 0.04 });
-        g.poly(points, false).stroke({ color: ship.color, width: 2, alpha: live ? 0.6 : 0.15 });
+        g.poly(points, false).stroke({ color: node.color, width: 5, alpha: live ? 0.1 : 0.04 });
+        g.poly(points, false).stroke({ color: node.color, width: 2, alpha: live ? 0.6 : 0.15 });
       }
     }
   }
@@ -887,7 +879,7 @@ export class World {
     }
     this.drawLights(state, sel, t, frame);
     for (const station of this.stations.values()) station.setZoom(this.zoom);
-    for (const ship of this.ships.values()) ship.setZoom(this.zoom);
+    for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
     this.drawEdgeIndicators(t);
     return [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
@@ -898,9 +890,9 @@ export class World {
     const g = this.lights.clear();
     const o = this.overlay.clear();
 
-    // Per-station and per-ship tallies from the crew.
+    // Per-station and per-node tallies from the crew.
     const stationUse = new Map<string, Record<SystemRoom, boolean> & { attention: boolean; monitoringOnly: boolean }>();
-    const shipStates = new Map<string, UnitState[]>();
+    const environmentStates = new Map<string, UnitState[]>();
     const workingAt = new Set<string>(); // envId|stationKey with crew working
     for (const sprite of this.crew.values()) {
       const lay = this.layout.crew.get(sprite.key);
@@ -916,8 +908,9 @@ export class World {
       if (sprite.state === "alert" || sprite.state === "question") u.attention = true;
       stationUse.set(lay.stationKey, u);
       if (!lay.sleeping) {
-        let states = shipStates.get(lay.envId);
-        if (!states) shipStates.set(lay.envId, (states = []));
+        const key = `${lay.envId}|${lay.stationKey}`;
+        let states = environmentStates.get(key);
+        if (!states) environmentStates.set(key, (states = []));
         states.push(sprite.state);
         if (sprite.state === "working") workingAt.add(`${lay.envId}|${lay.stationKey}`);
       }
@@ -951,35 +944,36 @@ export class World {
       }
     }
 
-    // Supply lines: one per (ship, station it crews); packets flow while that crew is working.
+
+    // Supply lines: one per (node, station it crews); packets flow while that crew is working.
     const l = this.packets.clear();
-    for (const ship of this.layout.ships.values()) {
-      const live = state.envs[ship.envId]?.connection === "live";
-      for (const link of ship.links) {
-        if (live && workingAt.has(`${ship.envId}|${link.stationKey}`)) {
+    for (const node of this.layout.environmentNodes.values()) {
+      const live = state.envs[node.envId]?.connection === "live";
+      for (const link of node.links) {
+        if (live && workingAt.has(`${node.envId}|${link.stationKey}`)) {
           for (let k = 0; k < 4; k++) {
             const p = linkPoint(link.from, link.to, (t * 0.3 + k / 4) % 1);
-            l.rect(Math.round(p.x) - 3, Math.round(p.y) - 3, 6, 6).fill(ship.color);
+            l.rect(Math.round(p.x) - 3, Math.round(p.y) - 3, 6, 6).fill(node.color);
+
           }
         }
       }
     }
 
-    // Ships: engine burn while their crew work, connection light, FTL power bar on the plate.
-    for (const ship of this.layout.ships.values()) {
-      const env = state.envs[ship.envId];
+    // Environment nodes: project-specific live engine cells and connection/state indicators.
+    for (const node of this.layout.environmentNodes.values()) {
+      const env = state.envs[node.envId];
       const live = env?.connection === "live";
-      const states = shipStates.get(ship.envId) ?? [];
-      const h = ship.hull;
-      const sprite = this.ships.get(ship.envId)?.hullSprite;
+      const states = environmentStates.get(node.key) ?? [];
+      const h = node.hull;
+      const sprite = this.environmentNodes.get(node.key)?.root;
       if (sprite) sprite.alpha = live ? 1 : 0.45;
       if (states.includes("working") && live) {
-        // Exhaust at the stern, in sprite pixels.
-        const len = frame % 2 ? 24 : 18;
-        g.rect(h.x - len, h.y + 15, len, 12).fill({ color: 0x59e1ff, alpha: 0.8 });
-        g.rect(h.x - len / 2, h.y + 18, len / 2, 6).fill(0xffffff);
+        // Embedded engine cells light only for live work on this project/environment pair.
+        for(let k=0;k<4;k++) g.rect(h.x+112+k*18,h.y+69,4,14).fill({color:0x59e1ff,alpha:frame%2?1:.6});
+
       }
-      const p = ship.plate;
+      const p = node.plate;
       const lightColor = live ? 0x6fe37a : env?.connection === "reconnecting" || env?.connection === "connecting" ? STATUS.question : 0x59626c;
       g.rect(p.x + p.w - 13, p.y + p.h / 2 - 4, 8, 8).fill({ color: lightColor, alpha: live || frame % 2 ? 1 : 0.4 });
       states.slice(0, 8).forEach((st, k) => g.rect(p.x + p.w - 22 - (Math.min(8, states.length) - k) * 8, p.y + 5, 6, p.h - 10).fill(STATUS[st]));

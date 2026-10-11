@@ -1,19 +1,6 @@
-// Fleet layout: pure geometry computed from the game store. No rendering here.
-//
-// Every project is a station, shared by every environment that works on it (matched by git
-// identity). Crew from all those environments work side by side in the station's rooms and wear
-// their environment's team color. Each environment is one ship in the fleet row above the
-// stations, with a supply line to every station it has crew on.
-//
-//    [ship A]      [ship B]      [ship C]       fleet row: one ship per environment
-//        \  ______/   \______        |          supply lines
-//   ┌──────────┬──────────┬──────────┐
-//   │ TERMINAL │  FILES   │  COMMS   │   systems row: crew walk here for real tool calls
-//   ├────■─────┴────■─────┴────■─────┤   ■ = doors to the bridge
-//   │  BRIDGE   one console per awake crew member, from any environment
-//   ├──────■──────────────────┬──■───┤
-//   │ QUARTERS (3 latest)     │ARCHIVE│   only the most recently settled crew stay aboard
-//   └─────────────────────────┴──────┘
+// Orbital project campus: shared project modules around an operations hub.
+// Each participating environment gets its own engine/compute node directly attached
+// to the project it serves. Crew remain inside connected, door-routed project rooms.
 
 import type { EnvWorld, GameState } from "../store";
 import { unitKey } from "../store";
@@ -69,19 +56,22 @@ export interface StationLayout {
   archived: number;
   /** Settled crew not shown aboard (only the most recent few are). */
   settledHidden: number;
-  /** Where supply lines from ships arrive (top of the hull). */
+  /** Side port to the operations network. */
   port: Point;
   nameplate: Point;
   bounds: Rect;
 }
 
-/** One environment's ship in the fleet row. */
-export interface ShipLayout {
+/** An environment service node attached to one project module. */
+export interface EnvironmentNodeLayout {
+  key: string;
+  stationKey: string;
+  projectId?: string;
   envId: string;
   color: number;
   hull: Rect;
   plate: Rect;
-  /** Supply lines to every station this environment has crew on. */
+  /** Direct physical attachment to the owning project module. */
   links: Array<{ stationKey: string; from: Point; to: Point }>;
 }
 
@@ -100,21 +90,22 @@ export interface CrewLayout {
 
 export interface FleetLayout {
   stations: Map<string, StationLayout>;
-  ships: Map<string, ShipLayout>;
+  environmentNodes: Map<string, EnvironmentNodeLayout>;
   crew: Map<string, CrewLayout>;
   bounds: Rect;
+  hub?: Rect;
 }
 
 export const TILE = 32;
 /** How many settled crew each station keeps aboard, most recently settled first. */
 export const QUARTERS_SHOWN = 3;
 const HULL_PAD = 22;
-export const SHIP_W = 162; // ship sprite (54 px) at 3x
-const SHIP_H = 42; // ship sprite (14 px) at 3x
-const SHIP_GAP = 60;
-const FLEET_GAP = 190; // between the fleet row and the stations
-const STATION_GAP_X = 200;
-const STATION_GAP_Y = 140;
+export const ENV_NODE_W = 224;
+export const ENV_NODE_H = 152;
+const NODE_GAP = 24;
+const ATTACHMENT_GAP = 36;
+const CAMPUS_GAP = 360;
+const STATION_GAP_Y = 180;
 
 export function sortedEnvs(state: GameState): EnvWorld[] {
   return Object.values(state.envs).sort((a, b) => a.summary.addedAt.localeCompare(b.summary.addedAt));
@@ -207,85 +198,55 @@ function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLa
 
   const cols = Math.min(6, Math.max(3, Math.ceil(Math.sqrt(awake.length * 1.5))));
   const rows = Math.max(1, Math.ceil(awake.length / cols));
-  const archiveW = archived ? 2 : 0;
-  const w = Math.max(9, cols * 2);
-  const quartersW = w - archiveW;
-  const bottomH = asleep.length || archived ? (archived ? 2 : 1) : 0;
-  const h = 2 + rows * 2 + bottomH;
+  const W = (cols * 2 + 9) * T;
+  const H = Math.max(6, rows * 2, archived ? 8 : 6) * T;
   const key = group.key;
   const rooms: Partial<Record<RoomKind, Room>> = {};
   const doors: Door[] = [];
-  const iy = y0 + 70; // nameplate above
-  const W = w * T;
-
-  // Systems row.
-  const a = Math.floor(w / 3);
-  const widths = [a, a, w - 2 * a];
-  let x = x0;
-  (["terminal", "files", "comms"] as const).forEach((kind, i) => {
-    const rect = { x, y: iy, w: widths[i] * T, h: 2 * T };
-    const door = { x: x + rect.w / 2, y: iy + 2 * T };
+  const iy = y0 + 70;
+  const leftW = 3 * T, rightW = 6 * T;
+  const bridge = { x: x0 + leftW, y: iy, w: W - leftW - rightW, h: H };
+  rooms.bridge = { kind: 'bridge', rect: bridge };
+  const addSide = (kind: RoomKind, rect: Rect, left: boolean) => {
+    const door = { x: left ? rect.x + rect.w : rect.x, y: rect.y + rect.h / 2 };
     rooms[kind] = { kind, rect, door };
-    doors.push({ ...door, vertical: false, rooms: [kind, "bridge"] });
-    if (i > 0) doors.push({ x, y: iy + T, vertical: true, rooms: [i === 1 ? "terminal" : "files", kind] });
-    x += rect.w;
-  });
-
-  // Bridge: everyone's consoles together.
-  const bridge = { x: x0, y: iy + 2 * T, w: W, h: rows * 2 * T };
-  rooms.bridge = { kind: "bridge", rect: bridge };
+    doors.push({ ...door, vertical: true, rooms: [kind, 'bridge'] });
+  };
+  addSide('terminal', { x: x0, y: iy, w: leftW, h: H / 2 }, true);
+  addSide('files', { x: x0, y: iy + H / 2, w: leftW, h: H / 2 }, true);
+  doors.push({ x: x0 + leftW / 2, y: iy + H / 2, vertical: false, rooms: ['terminal', 'files'] });
+  const rx = bridge.x + bridge.w;
+  const commsH = H / 2;
+  addSide('comms', { x: rx, y: iy, w: rightW, h: commsH }, false);
+  const qH = archived ? (H - commsH) / 2 : H - commsH;
+  const q = { x: rx, y: iy + commsH, w: rightW, h: qH };
+  addSide('quarters', q, false);
+  doors.push({ x: rx + rightW / 2, y: q.y, vertical: false, rooms: ['comms', 'quarters'] });
+  if (archived) {
+    const ar = { x: rx, y: q.y + q.h, w: rightW, h: H - commsH - qH };
+    addSide('archive', ar, false);
+    doors.push({ x: rx + rightW / 2, y: ar.y, vertical: false, rooms: ['quarters', 'archive'] });
+  }
   const consoles: Point[] = [];
   awake.forEach((c, k) => {
-    const col = k % cols;
-    const row = Math.floor(k / cols);
+    const col = k % cols, row = Math.floor(k / cols);
     const inRow = Math.min(cols, awake.length - row * cols);
-    const cx = x0 + W / 2 + (col - (inRow - 1) / 2) * 2 * T;
-    const cy = bridge.y + row * 2 * T + T * 0.55;
+    const cx = bridge.x + bridge.w / 2 + (col - (inRow - 1) / 2) * 2 * T;
+    const cy = bridge.y + row * 2 * T + T * 0.9;
     consoles.push({ x: cx, y: cy });
     const envId = c.ref.env.summary.id;
-    crew.push({
-      key: unitKey(envId, c.thread.id),
-      envId,
-      threadId: c.thread.id,
-      stationKey: key,
-      color: teamColor(c.ref.index),
-      home: { x: cx, y: cy + T * 0.85 },
-      homeRoom: "bridge",
-      console: { x: cx, y: cy },
-      sleeping: false,
-    });
+    crew.push({ key: unitKey(envId, c.thread.id), envId, threadId: c.thread.id,
+      stationKey: key, color: teamColor(c.ref.index), home: { x: cx, y: cy + T * 0.85 },
+      homeRoom: 'bridge', console: { x: cx, y: cy }, sleeping: false });
+  });
+  asleep.forEach((c, k) => {
+    const envId = c.ref.env.summary.id;
+    crew.push({ key: unitKey(envId, c.thread.id), envId, threadId: c.thread.id,
+      stationKey: key, color: teamColor(c.ref.index), home: { x: q.x + T * 1.5 + k * T * 1.5, y: q.y + q.h - T / 2 },
+      homeRoom: 'quarters', sleeping: true });
   });
 
-  // Quarters (the most recently settled crew) and the archive.
-  if (bottomH) {
-    const by = bridge.y + bridge.h;
-    const q = { x: x0, y: by, w: quartersW * T, h: bottomH * T };
-    const qDoor = { x: q.x + q.w / 2, y: by };
-    rooms.quarters = { kind: "quarters", rect: q, door: qDoor };
-    doors.push({ ...qDoor, vertical: false, rooms: ["quarters", "bridge"] });
-    asleep.forEach((c, k) => {
-      const envId = c.ref.env.summary.id;
-      crew.push({
-        key: unitKey(envId, c.thread.id),
-        envId,
-        threadId: c.thread.id,
-        stationKey: key,
-        color: teamColor(c.ref.index),
-        home: { x: q.x + T * 1.5 + k * T * 1.5, y: q.y + q.h - T / 2 },
-        homeRoom: "quarters",
-        sleeping: true,
-      });
-    });
-    if (archived) {
-      const ar = { x: x0 + quartersW * T, y: by, w: archiveW * T, h: bottomH * T };
-      const door = { x: ar.x + ar.w / 2, y: by };
-      rooms.archive = { kind: "archive", rect: ar, door };
-      doors.push({ ...door, vertical: false, rooms: ["archive", "bridge"] });
-      doors.push({ x: ar.x, y: by + T / 2, vertical: true, rooms: ["quarters", "archive"] });
-    }
-  }
-
-  const interior = { x: x0, y: iy, w: W, h: h * T };
+  const interior = { x: x0, y: iy, w: W, h: H };
   const hx = interior.x - HULL_PAD;
   const hy = interior.y - HULL_PAD;
   const hw = interior.w + HULL_PAD * 2;
@@ -392,54 +353,57 @@ export function route(s: StationLayout, from: RoomKind, to: RoomKind, target: Po
 
 export function computeFleetLayout(state: GameState): FleetLayout {
   const envs = sortedEnvs(state);
-  const fleet: FleetLayout = { stations: new Map(), ships: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
+  const fleet: FleetLayout = { stations: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
   const groups = groupProjects(envs);
   if (envs.length === 0) return fleet;
 
-  // Stations on a roughly square grid below the fleet row, biggest first.
   const crew: CrewLayout[] = [];
-  const top = SHIP_H + 20 + FLEET_GAP;
-  const columns = Math.max(1, Math.ceil(Math.sqrt(groups.length)));
-  let x = 0;
-  let y = top;
-  let rowH = 0;
-  let width = 0;
+  const previews = groups.map(group => layoutStation(group, HULL_PAD, 0, []));
+  const extent = (station: StationLayout) => Math.max(station.bounds.w,
+    new Set(station.members.map(m => m.envId)).size * (ENV_NODE_W + NODE_GAP) - NODE_GAP);
+  const columnW = Math.max(ENV_NODE_W, ...previews.map(extent));
+  let y = 0, rowH = 0;
   groups.forEach((group, i) => {
-    if (i > 0 && i % columns === 0) {
-      x = 0;
-      y += rowH + STATION_GAP_Y;
-      rowH = 0;
-    }
-    const station = layoutStation(group, x + 22, y, crew);
+    if (i > 0 && i % 2 === 0) { y += rowH + STATION_GAP_Y; rowH = 0; }
+    const x = (i % 2) * (columnW + CAMPUS_GAP);
+    const station = layoutStation(group, x + HULL_PAD, y, crew);
+    station.port = { x: i % 2 === 0 ? station.bounds.x + station.bounds.w : station.bounds.x,
+      y: station.interior.y + station.interior.h / 2 };
     fleet.stations.set(station.key, station);
-    x = station.bounds.x + station.bounds.w + STATION_GAP_X;
-    rowH = Math.max(rowH, station.bounds.h);
-    width = Math.max(width, station.bounds.x + station.bounds.w);
-  });
-
-  // Fleet row: one ship per environment, evenly spread across the stations' width.
-  const span = Math.max(width, envs.length * (SHIP_W + SHIP_GAP) - SHIP_GAP);
-  const step = envs.length > 1 ? (span - SHIP_W) / (envs.length - 1) : 0;
-  envs.forEach((env, index) => {
-    const sx = envs.length > 1 ? index * step : span / 2 - SHIP_W / 2;
-    const hull = { x: sx, y: 0, w: SHIP_W, h: SHIP_H };
-    const from = { x: sx + SHIP_W / 2, y: SHIP_H + 20 + 22 };
-    const links = [...fleet.stations.values()]
-      .filter((s) => s.members.some((m) => m.envId === env.summary.id))
-      .map((s) => ({ stationKey: s.key, from, to: s.port }));
-    fleet.ships.set(env.summary.id, {
-      envId: env.summary.id,
-      color: teamColor(index),
-      hull,
-      plate: { x: sx, y: SHIP_H + 8, w: SHIP_W, h: 20 },
-      links,
+    const unique = [...new Map(group.members.map(m => [m.env.summary.id, m])).values()];
+    unique.forEach((ref, k) => {
+      const nodeX = x + k * (ENV_NODE_W + NODE_GAP);
+      const nodeY = station.bounds.y + station.bounds.h + ATTACHMENT_GAP;
+      const from = { x: nodeX + ENV_NODE_W / 2, y: nodeY };
+      const to = { x: station.interior.x + station.interior.w * (k + 1) / (unique.length + 1),
+        y: station.bounds.y + station.bounds.h };
+      const key = `${ref.env.summary.id}|${station.key}`;
+      fleet.environmentNodes.set(key, { key, stationKey: station.key, projectId: ref.project.id,
+        envId: ref.env.summary.id, color: teamColor(ref.index),
+        hull: { x: nodeX, y: nodeY, w: ENV_NODE_W, h: ENV_NODE_H },
+        plate: { x: nodeX + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 },
+        links: [{ stationKey: station.key, from, to }] });
     });
+    rowH = Math.max(rowH, station.bounds.h + ATTACHMENT_GAP + ENV_NODE_H);
   });
+  // Environments without projects still get a selectable service node.
+  let emptyY = y + rowH + STATION_GAP_Y;
+  envs.forEach((env, index) => {
+    if (groups.some(g => g.members.some(m => m.env === env))) return;
+    const key = `${env.summary.id}|unassigned`;
+    fleet.environmentNodes.set(key, { key, stationKey: '', envId: env.summary.id, color: teamColor(index),
+      hull: { x: 0, y: emptyY, w: ENV_NODE_W, h: ENV_NODE_H },
+      plate: { x: 8, y: emptyY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links: [] });
+    emptyY += ENV_NODE_H + NODE_GAP;
+  });
+  if (groups.length > 1) fleet.hub = { x: columnW + CAMPUS_GAP / 2 - 70,
+    y: (y + rowH) / 2 - 40, w: 140, h: 80 };
 
   for (const c of crew) fleet.crew.set(c.key, c);
   let bounds: Rect | undefined;
   for (const s of fleet.stations.values()) bounds = bounds ? union(bounds, s.bounds) : s.bounds;
-  for (const s of fleet.ships.values()) bounds = bounds ? union(bounds, { ...s.hull, x: s.hull.x - 40, w: s.hull.w + 40, h: s.plate.y + s.plate.h }) : s.hull;
+  for (const s of fleet.environmentNodes.values()) bounds = bounds ? union(bounds, { ...s.hull, x: s.hull.x - 40, w: s.hull.w + 40, h: s.hull.h }) : s.hull;
+  if (fleet.hub) bounds = bounds ? union(bounds, fleet.hub) : fleet.hub;
   fleet.bounds = bounds ?? { x: 0, y: 0, w: 0, h: 0 };
   return fleet;
 }
