@@ -20,6 +20,7 @@ function upsertMessage(thread: OrchestrationThread, p: Record<string, unknown>, 
       streaming,
       turnId: (p.turnId as string | null | undefined) ?? prev.turnId,
       updatedAt: (p.updatedAt as string | undefined) ?? at,
+      ...(p.attachments !== undefined ? { attachments: p.attachments as Message["attachments"] } : {}),
     };
     messages = thread.messages.slice();
     messages[index] = next;
@@ -32,6 +33,7 @@ function upsertMessage(thread: OrchestrationThread, p: Record<string, unknown>, 
       turnId: (p.turnId as string | null | undefined) ?? null,
       createdAt: (p.createdAt as string | undefined) ?? at,
       updatedAt: (p.updatedAt as string | undefined) ?? at,
+      ...(p.attachments !== undefined ? { attachments: p.attachments as Message["attachments"] } : {}),
     };
     messages = [...thread.messages, created].slice(-MESSAGE_CAP);
   }

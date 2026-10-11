@@ -1,0 +1,69 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { RenderLoop } from './render-loop';
+
+function harness(draw: (dt: number) => boolean) {
+  const frames = new Map<number, FrameRequestCallback>();
+  let id = 0;
+  const loop = new RenderLoop(draw, callback => { frames.set(++id, callback); return id; }, id => { frames.delete(id); });
+  const advance = (now: number) => {
+    const pending = [...frames.values()];
+    frames.clear();
+    for (const callback of pending) callback(now);
+  };
+  return { loop, frames, advance };
+}
+
+test('idle maps draw once, sleep, and coalesce new invalidations', () => {
+  let draws = 0;
+  const h = harness(() => { draws++; return false; });
+  h.loop.invalidate(); h.loop.invalidate(); h.loop.invalidate();
+  assert.equal(h.frames.size, 1);
+  h.advance(0);
+  assert.equal(draws, 1);
+  assert.equal(h.frames.size, 0);
+  h.advance(1000);
+  assert.equal(draws, 1);
+  h.loop.invalidate();
+  h.advance(2000);
+  assert.equal(draws, 2);
+  assert.equal(h.frames.size, 0);
+});
+
+test('busy maps stay at 30 FPS on 60, 120 and 144 Hz displays', () => {
+  for (const hz of [60, 120, 144]) {
+    let draws = 0;
+    const h = harness(() => { draws++; return true; });
+    h.loop.invalidate();
+    for (let n = 0; n < hz * 3; n++) h.advance(n * 1000 / hz);
+    assert.ok(draws >= 89 && draws <= 91, `${hz} Hz produced ${draws} draws in 3 seconds`);
+    h.loop.destroy();
+    assert.equal(h.frames.size, 0);
+  }
+});
+
+test('hidden maps ignore updates and resume without catching up hidden time', () => {
+  const deltas: number[] = [];
+  const h = harness(dt => { deltas.push(dt); return true; });
+  h.loop.invalidate(); h.advance(0);
+  h.loop.setVisible(false);
+  h.loop.invalidate(); h.advance(60_000);
+  assert.equal(deltas.length, 1);
+  assert.equal(h.frames.size, 0);
+  h.loop.setVisible(true); h.advance(120_000);
+  assert.equal(deltas.length, 2);
+  assert.ok(deltas[1] <= 1 / 30);
+  h.loop.destroy(); h.loop.invalidate();
+  assert.equal(h.frames.size, 0);
+});
+
+test('idle wake and slow frames keep movement deltas bounded', () => {
+  const deltas: number[] = [];
+  let animated = false;
+  const h = harness(dt => { deltas.push(dt); return animated; });
+  h.loop.invalidate(); h.advance(0);
+  animated = true;
+  h.loop.invalidate(); h.advance(120_000); h.advance(240_000);
+  assert.ok(deltas[1] <= 1 / 30);
+  assert.ok(deltas[2] <= 0.1);
+});

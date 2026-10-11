@@ -21,6 +21,7 @@ import type { ThreadShell } from "../t3/types";
 import { computeFleetLayout, QUARTERS_SHOWN, TILE, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type EnvironmentNodeLayout, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
 import { CrewMotion } from "./crew-motion";
+import { RenderLoop } from "./render-loop";
 import { crewTex, currentStyle, PX, tex } from "./textures";
 import { HUD, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
 
@@ -46,6 +47,14 @@ function hash(s: string): number {
 
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
+/** Fixed supply-line geometry is independent of the animated packets travelling along it. */
+function linkPoint(from: Point, to: Point, k: number): Point {
+  const midY = (from.y + to.y) / 2;
+  if (k < 1 / 3) return { x: from.x, y: from.y + (midY - from.y) * k * 3 };
+  if (k < 2 / 3) return { x: from.x + (to.x - from.x) * (k * 3 - 1), y: midY };
+  return { x: to.x, y: midY + (to.y - midY) * (k * 3 - 2) };
 }
 
 function sprite(texture: ReturnType<typeof tex>, x: number, y: number, ax = 0, ay = 0, scale = PX): Sprite {
@@ -116,6 +125,12 @@ class CrewSprite extends Container {
   atConsole = true;
   /** At the system room their current work needs. */
   atStation = false;
+
+  /** Sleepers' decorative drift doesn't keep an otherwise idle fleet rendering. */
+  get animated(): boolean {
+    return this.motion.moving || this.state === "working" || this.state === "monitoring"
+      || this.state === "alert" || this.state === "question" || !!this.info?.tasks;
+  }
 
   constructor(layout: CrewLayout) {
     super();
@@ -470,6 +485,7 @@ export class World {
   private grid = new Graphics();
   private operations = new Container();
   private links = new Graphics();
+  private packets = new Graphics();
   private stationLayer = new Container();
   private environmentLayer = new Container();
   private lights = new Graphics();
@@ -490,6 +506,9 @@ export class World {
   private initialized = false;
   private unsubscribe?: () => void;
   private ready: Promise<void>;
+  private renderLoop?: RenderLoop;
+  private resizeObserver?: ResizeObserver;
+  private edgeTargets = new Map<string, Container>();
   private lastEnvs?: GameState["envs"];
   private lastDetails?: GameState["details"];
   private lastStyle?: GameState["artStyle"];
@@ -499,7 +518,8 @@ export class World {
   }
 
   private async init(host: HTMLElement): Promise<void> {
-    await this.app.init({ resizeTo: host, background: currentStyle().space, antialias: false, autoDensity: true, resolution: window.devicePixelRatio || 1 });
+    // Pixel art needs one backing pixel per CSS pixel, not a Retina-sized framebuffer.
+    await this.app.init({ width: host.clientWidth, height: host.clientHeight, background: currentStyle().space, antialias: false, autoDensity: true, resolution: 1, autoStart: false, powerPreference: "low-power" });
     try {
       await Promise.all([document.fonts.load("600 10px 'Chakra Petch'"), document.fonts.load("10px 'IBM Plex Mono'")]);
     } catch {
@@ -514,18 +534,39 @@ export class World {
 
     this.sky = new TilingSprite({ texture: this.makeStarTexture(), width: this.app.screen.width, height: this.app.screen.height });
     this.crewLayer.sortableChildren = true;
-    this.camera.addChild(this.grid, this.operations, this.links, this.stationLayer, this.environmentLayer, this.lights, this.crewLayer, this.overlay);
+    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.lights, this.crewLayer, this.overlay);
     this.app.stage.addChild(this.sky, this.camera, this.edge, this.edgeHits);
     this.setupCamera();
 
-    this.sync(useGame.getState());
-    this.unsubscribe = useGame.subscribe((s) => this.sync(s));
-    this.app.ticker.add((ticker) => this.tick(ticker.deltaMS / 1000));
+    this.renderLoop = new RenderLoop((dt) => {
+      this.sync(useGame.getState());
+      const animated = this.tick(dt);
+      this.app.render();
+      return animated;
+    });
+    this.unsubscribe = useGame.subscribe((s, prev) => {
+      if (s.envs !== prev.envs || s.details !== prev.details || s.selection !== prev.selection || s.artStyle !== prev.artStyle) this.invalidate();
+    });
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.destroyed) return;
+      this.app.renderer.resize(host.clientWidth, host.clientHeight);
+      this.invalidate();
+    });
+    this.resizeObserver.observe(host);
+    document.addEventListener("visibilitychange", this.onVisibility);
+    this.onVisibility();
   }
+
+  private invalidate = (): void => { this.renderLoop?.invalidate(); };
+
+  private onVisibility = (): void => { this.renderLoop?.setVisible(!document.hidden); };
 
   destroy(): void {
     this.destroyed = true;
     this.unsubscribe?.();
+    this.renderLoop?.destroy();
+    this.resizeObserver?.disconnect();
+    document.removeEventListener("visibilitychange", this.onVisibility);
     void this.ready.then(() => {
       if (this.app.renderer) this.app.destroy(true, { children: true });
     });
@@ -551,7 +592,9 @@ export class World {
       const px = m > 0.985 ? 2 : 1;
       g.rect(Math.round(x), Math.round(y), px, px).fill({ color, alpha: 0.25 + m * 0.6 });
     }
-    return this.app.renderer.generateTexture({ target: g, frame: new Rectangle(0, 0, size, size) });
+    const texture = this.app.renderer.generateTexture({ target: g, frame: new Rectangle(0, 0, size, size) });
+    g.destroy();
+    return texture;
   }
 
   // ---- Camera ----
@@ -560,6 +603,9 @@ export class World {
     const stage = this.app.stage;
     stage.eventMode = "static";
     stage.hitArea = this.app.screen;
+    stage.on("pointermove", this.invalidate);
+    stage.on("pointerover", this.invalidate);
+    stage.on("pointerout", this.invalidate);
     let drag: { x: number; y: number; camX: number; camY: number; moved: boolean } | null = null;
     stage.on("pointerdown", (e: FederatedPointerEvent) => {
       drag = { x: e.global.x, y: e.global.y, camX: this.camera.x, camY: this.camera.y, moved: false };
@@ -572,6 +618,7 @@ export class World {
       if (drag.moved) {
         this.userMoved = true;
         this.camera.position.set(drag.camX + dx, drag.camY + dy);
+        this.invalidate();
       }
     });
     stage.on("pointerup", (e: FederatedPointerEvent) => {
@@ -601,6 +648,7 @@ export class World {
     const wy = (sy - this.camera.y) / this.zoom;
     this.setZoom(this.zoom * factor);
     this.camera.position.set(sx - wx * this.zoom, sy - wy * this.zoom);
+    this.invalidate();
   }
 
   private frame(rect: Rect, maxZoom: number, rightInset = 0, leftInset = 0): void {
@@ -610,6 +658,7 @@ export class World {
     const z = Math.min(maxZoom, Math.min(usableW / (rect.w + 120), (height - topInset) / (rect.h + 120)));
     this.setZoom(z);
     this.camera.position.set(leftInset + usableW / 2 - (rect.x + rect.w / 2) * this.zoom, topInset + (height - topInset) / 2 - (rect.y + rect.h / 2) * this.zoom);
+    this.invalidate();
   }
 
   fitAll(): void {
@@ -646,6 +695,7 @@ export class World {
     this.userMoved = true;
     const { width, height } = this.app.screen;
     this.camera.position.set(width / 2 - x * this.zoom, height / 2 - y * this.zoom);
+    this.invalidate();
   }
 
   /** Center the camera on a unit, station or archive, leaving room for the side panel. */
@@ -663,6 +713,7 @@ export class World {
     const { width, height } = this.app.screen;
     this.setZoom(Math.max(this.zoom, 2));
     this.camera.position.set(width * 0.4 - p.x * this.zoom, height / 2 + 20 - p.y * this.zoom);
+    this.invalidate();
   }
 
   minimap(): MinimapData | undefined {
@@ -693,7 +744,9 @@ export class World {
 
     if (styleChanged && this.initialized && this.sky) {
       this.app.renderer.background.color = currentStyle().space;
+      const previous = this.sky.texture;
       this.sky.texture = this.makeStarTexture();
+      previous.destroy(true);
     }
 
     if (layoutChanged || styleChanged) {
@@ -729,6 +782,7 @@ export class World {
         this.environmentNodes.delete(envId);
       }
       this.drawGrid();
+      this.drawLinks(state);
     }
 
     const seenCrew = new Set<string>();
@@ -785,9 +839,25 @@ export class World {
     }
   }
 
+  private drawLinks(state: GameState): void {
+    const g = this.links.clear();
+    for (const node of this.layout.environmentNodes.values()) {
+      const live = state.envs[node.envId]?.connection === "live";
+      for (const link of node.links) {
+        const points: number[] = [];
+        for (let k = 0; k <= 24; k++) {
+          const p = linkPoint(link.from, link.to, k / 24);
+          points.push(p.x, p.y);
+        }
+        g.poly(points, false).stroke({ color: node.color, width: 5, alpha: live ? 0.1 : 0.04 });
+        g.poly(points, false).stroke({ color: node.color, width: 2, alpha: live ? 0.6 : 0.15 });
+      }
+    }
+  }
+
   // ---- Frame ----
 
-  private tick(dt: number): void {
+  private tick(dt: number): boolean {
     this.time += dt;
     const state = useGame.getState();
     const t = this.time;
@@ -811,6 +881,8 @@ export class World {
     for (const station of this.stations.values()) station.setZoom(this.zoom);
     for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
     this.drawEdgeIndicators(t);
+    return [...this.crew.values()].some((crew) => crew.animated)
+      || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
   }
 
   /** Everything that changes frame to frame: screens, system icons, engines, plates, alerts. */
@@ -836,7 +908,10 @@ export class World {
       if (sprite.state === "alert" || sprite.state === "question") u.attention = true;
       stationUse.set(lay.stationKey, u);
       if (!lay.sleeping) {
-        environmentStates.set(`${lay.envId}|${lay.stationKey}`, [...(environmentStates.get(`${lay.envId}|${lay.stationKey}`) ?? []), sprite.state]);
+        const key = `${lay.envId}|${lay.stationKey}`;
+        let states = environmentStates.get(key);
+        if (!states) environmentStates.set(key, (states = []));
+        states.push(sprite.state);
         if (sprite.state === "working") workingAt.add(`${lay.envId}|${lay.stationKey}`);
       }
 
@@ -869,29 +944,17 @@ export class World {
       }
     }
 
+
     // Supply lines: one per (node, station it crews); packets flow while that crew is working.
-    const l = this.links.clear();
+    const l = this.packets.clear();
     for (const node of this.layout.environmentNodes.values()) {
       const live = state.envs[node.envId]?.connection === "live";
       for (const link of node.links) {
-        const at = (k: number): Point => {
-          const midY=(link.from.y+link.to.y)/2;
-          if(k<1/3)return {x:link.from.x,y:link.from.y+(midY-link.from.y)*k*3};
-          if(k<2/3)return {x:link.from.x+(link.to.x-link.from.x)*(k*3-1),y:midY};
-          return {x:link.to.x,y:midY+(link.to.y-midY)*(k*3-2)};
-
-        };
-        const pts: number[] = [];
-        for (let k = 0; k <= 24; k++) {
-          const p = at(k / 24);
-          pts.push(p.x, p.y);
-        }
-        l.poly(pts, false).stroke({ color: node.color, width: 5, alpha: live ? 0.1 : 0.04 });
-        l.poly(pts, false).stroke({ color: node.color, width: 2, alpha: live ? 0.6 : 0.15 });
         if (live && workingAt.has(`${node.envId}|${link.stationKey}`)) {
           for (let k = 0; k < 4; k++) {
-            const p = at((t * 0.3 + k / 4) % 1);
+            const p = linkPoint(link.from, link.to, (t * 0.3 + k / 4) % 1);
             l.rect(Math.round(p.x) - 3, Math.round(p.y) - 3, 6, 6).fill(node.color);
+
           }
         }
       }
@@ -926,7 +989,7 @@ export class World {
   /** Arrows on the screen edge pointing at off-screen crew who need you. */
   private drawEdgeIndicators(t: number): void {
     const g = this.edge.clear();
-    for (const child of this.edgeHits.removeChildren()) child.destroy();
+    const seen = new Set<string>();
     const { width, height } = this.app.screen;
     const margin = 26;
     const top = 64;
@@ -948,20 +1011,30 @@ export class World {
       const tip = (r: number, da: number) => [ex + Math.cos(a + da) * r, ey + Math.sin(a + da) * r];
       g.poly([...tip(14 * pulse, 0), ...tip(10, 2.5), ...tip(10, -2.5)]).fill(color).stroke({ color: 0x000000, width: 1.5 });
       g.circle(ex - Math.cos(a) * 6, ey - Math.sin(a) * 6, 3).fill(sprite.team);
-      const hit = new Container();
-      hit.eventMode = "static";
-      hit.cursor = "pointer";
-      hit.hitArea = new Rectangle(ex - 16, ey - 16, 32, 32);
-      const envId = sprite.envId;
-      const threadId = sprite.threadId;
-      hit.on("pointertap", (e: FederatedPointerEvent) => {
-        e.stopPropagation();
-        sfx.select();
-        const s = { kind: "unit" as const, envId, threadId };
-        setSelection(s);
-        this.focus(s);
-      });
-      this.edgeHits.addChild(hit);
+      seen.add(sprite.key);
+      let hit = this.edgeTargets.get(sprite.key);
+      if (!hit) {
+        hit = new Container();
+        hit.eventMode = "static";
+        hit.cursor = "pointer";
+        hit.hitArea = new Rectangle(-16, -16, 32, 32);
+        const { envId, threadId } = sprite;
+        hit.on("pointertap", (e: FederatedPointerEvent) => {
+          e.stopPropagation();
+          sfx.select();
+          const s = { kind: "unit" as const, envId, threadId };
+          setSelection(s);
+          this.focus(s);
+        });
+        this.edgeTargets.set(sprite.key, hit);
+        this.edgeHits.addChild(hit);
+      }
+      hit.position.set(ex, ey);
+    }
+    for (const [key, hit] of this.edgeTargets) {
+      if (seen.has(key)) continue;
+      hit.destroy();
+      this.edgeTargets.delete(key);
     }
   }
 }

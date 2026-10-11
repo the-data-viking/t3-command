@@ -6,7 +6,10 @@ import { addLog, unitKey, updateEnv, useGame, type Connection, type EnvWorld } f
 import { unitState, type UnitState } from "./derive";
 import { applyThreadEvent } from "./reducer";
 import { RpcConnection, RpcError } from "./rpc";
+import { assetProxyUrl } from "./assets";
 import type {
+  AssetUrl,
+  ImageResource,
   ApprovalDecision,
   InteractionMode,
   ModelSelection,
@@ -286,6 +289,13 @@ export class EnvironmentClient {
   }
 
   // ---- Commands ------------------------------------------------------------------
+
+  /** Mint a short-lived URL using the same authenticated connection as this thread. */
+  async imageUrl(resource: ImageResource): Promise<{ url: string; expiresAt: number }> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    const asset = await this.rpc.request<AssetUrl>("assets.createUrl", { resource });
+    return { url: assetProxyUrl(this.id, asset.relativeUrl), expiresAt: asset.expiresAt };
+  }
 
   private dispatch(command: Record<string, unknown>): Promise<{ sequence: number }> {
     if (!this.rpc?.isOpen) return Promise.reject(new RpcError("Disconnected", `${this.summary.label} is not connected`));

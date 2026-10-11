@@ -37,6 +37,11 @@ The map uses compact suited crew and wraparound system consoles. Switch between 
 and warm Flight Deck plating with the style button. Existing Kestrel/Night Shift browser
 preferences carry forward to the corresponding Flight Deck palette.
 
+The pixel-art map renders at one backing pixel per CSS pixel and at most 30 FPS. It stops
+redrawing when the fleet is idle and pauses while the page is hidden; live connections and
+thread updates continue. Camera controls and incoming updates wake it automatically. The
+minimap also skips unchanged frames and pauses while hidden.
+
 The production build includes `/styleboard.html` for palette and asset review, with pause,
 scale controls and scene PNG export. Open `/styleboard.html?palette=flightdeck-nightshift`
 for the shipped direction. Earlier concept studies remain available for comparison.

@@ -13,16 +13,19 @@ export function Minimap() {
 
   useEffect(() => {
     const el = canvas.current!;
-    const dpr = window.devicePixelRatio || 1;
-    el.width = W * dpr;
-    el.height = H * dpr;
+    el.width = W;
+    el.height = H;
     const ctx = el.getContext("2d")!;
-    ctx.scale(dpr, dpr);
     let frame = 0;
+    let previous = "";
 
     const draw = () => {
       frame++;
       const data = worldRef.current?.minimap();
+      const blink = frame % 4 < 2;
+      const signature = JSON.stringify([data, data?.dots.some((d) => d.big) ? blink : false]);
+      if (signature === previous) return;
+      previous = signature;
       ctx.clearRect(0, 0, W, H);
       if (!data || data.bounds.w === 0) return;
       const pad = 10;
@@ -45,7 +48,6 @@ export function Minimap() {
         ctx.fillRect(ox + s.rect.x * scale, oy + s.rect.y * scale, s.rect.w * scale, s.rect.h * scale);
         ctx.strokeRect(ox + s.rect.x * scale + 0.5, oy + s.rect.y * scale + 0.5, s.rect.w * scale, s.rect.h * scale);
       }
-      const blink = frame % 4 < 2;
       for (const d of data.dots) {
         const size = d.big ? (blink ? 5 : 3) : 2;
         ctx.fillStyle = css(d.color);
@@ -56,9 +58,19 @@ export function Minimap() {
       ctx.lineWidth = 1;
       ctx.strokeRect(ox + v.x * scale + 0.5, oy + v.y * scale + 0.5, v.w * scale, v.h * scale);
     };
-    const id = setInterval(draw, 1000 / FPS);
-    draw();
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setInterval> | undefined;
+    const visibility = () => {
+      clearInterval(id);
+      if (document.hidden) return;
+      draw();
+      id = setInterval(draw, 1000 / FPS);
+    };
+    document.addEventListener("visibilitychange", visibility);
+    visibility();
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", visibility);
+    };
   }, []);
 
   const moveTo = (e: React.PointerEvent<HTMLCanvasElement>) => {

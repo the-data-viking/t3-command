@@ -90,10 +90,28 @@ export type ShellStreamItem =
   | { kind: "thread-upserted"; sequence: number; thread: ThreadShell }
   | { kind: "thread-removed"; sequence: number; threadId: string };
 
+export interface MessageAttachment {
+  type: string;
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
+export type ImageResource =
+  | { _tag: "media-file"; threadId: string; path: string }
+  | { _tag: "attachment"; attachmentId: string; fileName?: string; mimeType?: string; disposition?: "inline" };
+
+export interface AssetUrl {
+  relativeUrl: string;
+  expiresAt: number;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system" | "reasoning";
   text: string;
+  attachments?: MessageAttachment[];
   turnId: string | null;
   streaming: boolean;
   createdAt: string;
