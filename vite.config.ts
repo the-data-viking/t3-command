@@ -6,6 +6,11 @@ const server = `http://127.0.0.1:${process.env.T3C_PORT ?? 4773}`
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      input: { app: 'index.html', styleboard: 'styleboard.html' },
+    },
+  },
   server: {
     // During development the t3-command server runs separately; forward API and relay traffic to it.
     proxy: {

@@ -40,7 +40,7 @@ function findT3Cli() {
     ],
     darwin: [
       "/Applications/T3 Code (Alpha).app/Contents/MacOS/T3 Code (Alpha)",
-      "/Applications/T3 Code (Alpha).app/Contents/Resources/server.asar",
+      "/Applications/T3 Code (Alpha).app/Contents/Resources/app.asar",
     ],
   }[process.platform];
 

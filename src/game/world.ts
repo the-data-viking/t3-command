@@ -1,6 +1,6 @@
 // The fleet map, rendered with PixiJS from the hand-authored pixel-art kit (src/art). A view of
-// the game store: it reads state, and clicks become store selections. The art style (Kestrel or
-// Night Shift) can be switched live; everything re-textures from the same sprites.
+// the game store: it reads state, and clicks become store selections. Flight Deck switches
+// between warm plating and Night Shift; everything re-textures from the same sprites.
 //
 // FTL-style: every project is a station seen in cross-section, and everyone working on it, from
 // any environment, works side by side in its rooms. Each environment is one ship in the fleet
@@ -321,6 +321,14 @@ class StationSprite {
     floor.tileScale.set(PX);
     floor.position.set(i.x, i.y);
     this.root.addChild(floor);
+    for (const [kind, grid] of [["bridge", A.FLOOR_BRIDGE], ["quarters", A.FLOOR_QUARTERS]] as const) {
+      const room = s.rooms[kind]?.rect;
+      if (!room) continue;
+      const deck = new TilingSprite({ texture: tex(grid), width: room.w, height: room.h });
+      deck.tileScale.set(PX);
+      deck.position.set(room.x, room.y);
+      this.root.addChild(deck);
+    }
     const fixtures = new Container();
     this.root.addChild(fixtures);
 
@@ -337,7 +345,7 @@ class StationSprite {
     // Bridge consoles with chairs (screens update live).
     for (const p of s.consoles) {
       fixtures.addChild(sprite(tex(A.CHAIR), p.x, p.y + 22, 0.5, 1));
-      const con = sprite(tex(A.CONSOLE, { screen: SCREEN_OFF }), p.x, p.y - 14, 0.5, 0);
+      const con = sprite(tex(A.CONSOLE, { screen: SCREEN_OFF }), p.x, p.y - 26, 0.5, 0);
       fixtures.addChild(con);
       this.consoles.set(`${p.x},${p.y}`, con);
     }
@@ -869,7 +877,7 @@ export class World {
           const live = state.envs[sprite.envId]?.connection === "live";
           con.texture = tex(A.CONSOLE, { screen: live ? screenColor(sprite.state, frame, sprite.atConsole) : SCREEN_OFF });
           // A team-colored tab on each console shows whose desk it is.
-          g.rect(lay.console.x - 24, lay.console.y - 14, 4, 12).fill(sprite.team);
+          g.rect(lay.console.x - 26, lay.console.y - 26, 4, 12).fill(sprite.team);
         }
       }
     }

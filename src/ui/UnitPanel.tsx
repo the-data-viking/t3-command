@@ -8,11 +8,16 @@ import { envClient, logError } from "../t3/environment";
 import type { Activity, ApprovalDecision, Message, PendingRequest } from "../t3/types";
 import { modelName, providerName, STATE_LABELS, timeAgo } from "./util";
 
+import { MessageMarkdown } from "./MessageMarkdown";
+import { PanelResize } from "./PanelResize";
+import { usePanelWidth } from "./usePanelWidth";
+
 type Entry = { kind: "message"; at: string; message: Message } | { kind: "activity"; at: string; activity: Activity };
 
 const TRANSCRIPT_LIMIT = 120;
 
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
+  const panelWidth = usePanelWidth();
   const env = useGame((s) => s.envs[envId]);
   const thread = env?.threads[threadId];
   const detail = useGame((s) => s.details[unitKey(envId, threadId)]);
@@ -61,7 +66,8 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
   };
 
   return (
-    <aside className="panel unit-panel">
+    <aside className="panel unit-panel" style={{ width: panelWidth.width }}>
+      <PanelResize {...panelWidth} />
       <header className="panel-head">
         <div className={`portrait provider-${thread.modelSelection.instanceId}`} />
         <div className="panel-title">
@@ -175,7 +181,7 @@ function MessageView({ message, unitName }: { message: Message; unitName: string
     return (
       <details className="msg reasoning">
         <summary>thinking…</summary>
-        <div className="msg-text">{message.text}</div>
+        <div className="msg-text markdown"><MessageMarkdown text={message.text} /></div>
       </details>
     );
   }
@@ -185,8 +191,8 @@ function MessageView({ message, unitName }: { message: Message; unitName: string
       <div className="msg-who">
         {who} <span className="muted">{timeAgo(message.createdAt)}</span>
       </div>
-      <div className="msg-text">
-        {message.text}
+      <div className="msg-text markdown">
+        <MessageMarkdown text={message.text} />
         {message.streaming && <span className="cursor">▍</span>}
       </div>
     </div>

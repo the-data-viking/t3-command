@@ -32,7 +32,7 @@
       }
       .style {
         display: grid;
-        grid-template-columns: 240px auto;
+        grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
         gap: 24px;
         margin-bottom: 32px;
         align-items: start;
@@ -57,7 +57,22 @@
         border: 2px solid #2a3036;
         border-radius: 6px;
         max-width: 100%;
+        height: auto !important;
+        box-sizing: border-box;
       }
+      .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 24px 0; padding: 16px; background: #101720; border: 1px solid #2a3036; }
+      button, select { font: inherit; color: #e6edf3; background: #1b2633; border: 1px solid #46576a; border-radius: 4px; padding: 8px 10px; }
+      button { cursor: pointer; }
+      button:hover { background: #2a394a; }
+      button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid #59e1ff; outline-offset: 3px; }
+      .style button { margin-top: 16px; }
+      .style[hidden] { display: none; }
+      .assets { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px; padding: 16px; background: #0c1119; border: 1px solid #2a3036; }
+      figure { margin: 0; min-width: 100px; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 12px; padding: 12px; }
+      figure canvas { border: 0; border-radius: 0; }
+      figcaption { font-size: 11px; color: #a8b7c8; }
+      .note { max-width: 900px; line-height: 1.6; color: #a8b7c8; }
+      a { color: #7fd8f0; }
       @media (max-width: 900px) {
         .style {
           grid-template-columns: 1fr;
@@ -67,12 +82,13 @@
   </head>
   <body>
     <h1>T3 COMMAND · STYLE BOARD</h1>
-    <p class="intro">
-      Same hand-authored sprites, three palettes. Each scene shows one project station: a machine's ship above it, terminal / files / comms
-      rooms, crew on the bridge (working, needs approval, report ready, walking), an inspector monitoring at comms, two settled crew in
-      quarters, and the archive. Below is every crew variant (Claude round · Codex angular × scout · specialist · heavy · inspector) and the
-      status badges.
-    </p>
+    <p class="intro">Art pass 04 · Flight Deck. A stronger FTL influence: compact suited crew, broad wraparound workstations, inset screens and equipment arranged for a clear ship-interior view.</p>
+    <p class="note">Compare Flight Deck with Signal Workshop and Kestrel. Look at the crew’s smaller heads and broader suits, the recessed operator position, and the terminal, file-bank and comms silhouettes. This is a concept review; the <a href="/">live command map</a> uses the existing kit. Activity in these scenes is illustrative.</p>
+    <div class="toolbar" role="group" aria-label="Art review controls">
+      <label>Palette <select id="palette"><option value="all">Compare all</option><option value="flightdeck-nightshift">Flight Deck · Night Shift</option><option value="flightdeck">Flight Deck · new</option><option value="signal">Signal Workshop</option><option value="kestrel">Kestrel</option><option value="nightshift">Night Shift</option><option value="pastel">Pastel Ops</option></select></label>
+      <label>Scene scale <select id="zoom"><option value="1">1× · sprite pixels</option><option value="2" selected>2× · map scale</option><option value="3">3× · detail</option></select></label>
+      <button id="pause" aria-pressed="false">Pause animation</button>
+    </div>
     <div id="board"></div>
     <script type="module" src="/src/styleboard.ts"></script>
   </body>

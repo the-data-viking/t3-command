@@ -1174,3 +1174,24 @@ select:focus {
     font-size: 13px;
   }
 }
+
+/* Thread chat: adjustable width and readable message markup. */
+.unit-panel { max-width: calc(100vw - 16px); padding-left: 18px; }
+.panel-resize { position: absolute; inset: 0 auto 0 0; width: 10px; cursor: ew-resize; touch-action: none; user-select: none; display: flex; align-items: center; justify-content: center; color: var(--muted); z-index: 1; }
+.panel-resize:hover, .panel-resize:focus-visible { background: #59e1ff22; color: var(--cyan); outline: 1px solid var(--cyan); outline-offset: -1px; }
+.msg-text.markdown { white-space: normal; }
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown p { margin: 0 0 0.65em; white-space: pre-wrap; }
+.markdown a { color: var(--cyan); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.markdown a:hover { color: var(--text); }
+.markdown a:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.markdown ul, .markdown ol { margin: 0.5em 0; padding-left: 1.5em; }
+.markdown li > p { margin: 0.25em 0; }
+.markdown pre { max-width: 100%; overflow-x: auto; white-space: pre; background: #ffffff08; padding: 8px; border: 1px solid var(--line); }
+.markdown code { font-family: var(--mono); background: #ffffff08; padding: 1px 3px; }
+.markdown pre code { background: none; padding: 0; }
+.markdown blockquote { margin: 0.5em 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--muted); }
+.markdown img { max-width: 100%; }
+.markdown table { display: block; overflow-x: auto; border-collapse: collapse; }
+.markdown td, .markdown th { border: 1px solid var(--line); padding: 4px 8px; }

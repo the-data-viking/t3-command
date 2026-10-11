@@ -95,11 +95,11 @@ export function TopBar() {
       </button>
       <button
         className="icon-btn style-toggle"
-        title={artStyle === "kestrel" ? "Kestrel (light). Switch to Night Shift (dark)" : "Night Shift (dark). Switch to Kestrel (light)"}
+        title={artStyle === "flightdeck" ? "Flight Deck (warm). Switch to Night Shift" : "Flight Deck · Night Shift. Switch to warm plating"}
         aria-label="Switch map style"
-        onClick={() => setArtStyle(artStyle === "kestrel" ? "nightshift" : "kestrel")}
+        onClick={() => setArtStyle(artStyle === "flightdeck" ? "flightdeck-nightshift" : "flightdeck")}
       >
-        {artStyle === "kestrel" ? "☀" : "☾"}
+        {artStyle === "flightdeck" ? "☀" : "☾"}
       </button>
       <button className="icon-btn" title={muted ? "Unmute" : "Mute"} onClick={() => setMuted(!muted)}>
         {muted ? "🔇" : "🔊"}
