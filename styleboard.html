@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <title>T3 Command Style Board</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        background: #05070b;
+        color: #e6edf3;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        padding: 24px;
+      }
+      h1 {
+        font-family: "Chakra Petch", sans-serif;
+        letter-spacing: 3px;
+        margin: 0 0 4px;
+      }
+      .intro {
+        color: #8a96a8;
+        margin: 0 0 24px;
+        max-width: 820px;
+        line-height: 1.5;
+      }
+      .style {
+        display: grid;
+        grid-template-columns: 240px auto;
+        gap: 24px;
+        margin-bottom: 32px;
+        align-items: start;
+      }
+      .style h2 {
+        font-family: "Chakra Petch", sans-serif;
+        letter-spacing: 2px;
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+      .style p {
+        color: #8a96a8;
+        line-height: 1.5;
+        margin: 0;
+      }
+      .legend {
+        margin-top: 10px !important;
+        font-size: 12px;
+      }
+      canvas {
+        image-rendering: pixelated;
+        border: 2px solid #2a3036;
+        border-radius: 6px;
+        max-width: 100%;
+      }
+      @media (max-width: 900px) {
+        .style {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>T3 COMMAND · STYLE BOARD</h1>
+    <p class="intro">
+      Same hand-authored sprites, three palettes. Each scene shows one project station: a machine's ship above it, terminal / files / comms
+      rooms, crew on the bridge (working, needs approval, report ready, walking), an inspector monitoring at comms, two settled crew in
+      quarters, and the archive. Below is every crew variant (Claude round · Codex angular × scout · specialist · heavy · inspector) and the
+      status badges.
+    </p>
+    <div id="board"></div>
+    <script type="module" src="/src/styleboard.ts"></script>
+  </body>
+</html>
