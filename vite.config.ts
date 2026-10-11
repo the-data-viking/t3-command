@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     rollupOptions: {
-      input: { app: 'index.html', styleboard: 'styleboard.html' },
+      input: { app: 'index.html', styleboard: 'styleboard.html', designlab: 'designlab.html' },
     },
   },
   server: {
