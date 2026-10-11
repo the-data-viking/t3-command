@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { sfx } from "../game/sfx";
 import { setSelection, unitKey, useGame } from "../store";
 import { isHistory, pendingRequests, unitState } from "../t3/derive";
+import { telemetry } from "../t3/telemetry";
 import { envClient, logError } from "../t3/environment";
 import type { Activity, ApprovalDecision, Message, PendingRequest } from "../t3/types";
 import { modelName, providerName, STATE_LABELS, timeAgo } from "./util";
@@ -49,6 +50,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
 
   const state = unitState(thread);
   const archived = isHistory(thread);
+  const info = detail ? telemetry(detail.thread) : undefined;
   const project = env.projects[thread.projectId];
   const client = envClient(envId);
   const unitName = thread.title || "Untitled";
@@ -106,6 +108,38 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
           )
         )}
       </div>
+      )}
+
+      {info && !archived && (info.context !== undefined || info.tasks > 0 || (state === "working" && info.doing)) && (
+        <div className="telemetry">
+          {state === "working" && (
+            <div className="tele-row">
+              <span className="tele-key">AT</span>
+              <span className="tele-val">
+                {info.workstation === "console" ? "console · thinking" : info.workstation}
+                {info.doing && info.workstation !== "console" ? ` · ${info.doing.split("\n")[0].slice(0, 80)}` : ""}
+              </span>
+            </div>
+          )}
+          {info.context !== undefined && (
+            <div className="tele-row">
+              <span className="tele-key">CONTEXT</span>
+              <span className="hp">
+                <span
+                  className="hp-fill"
+                  style={{ width: `${Math.round((1 - info.context) * 100)}%`, background: info.context < 0.6 ? "var(--done)" : info.context < 0.85 ? "var(--question)" : "var(--alert)" }}
+                />
+              </span>
+              <span className="tele-val">{Math.round((1 - info.context) * 100)}% left</span>
+            </div>
+          )}
+          {info.tasks > 0 && (
+            <div className="tele-row">
+              <span className="tele-key">DRONES</span>
+              <span className="tele-val">{info.tasks} background task{info.tasks === 1 ? "" : "s"} running</span>
+            </div>
+          )}
+        </div>
       )}
 
       <div

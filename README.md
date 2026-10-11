@@ -10,18 +10,24 @@ give it orders, watch it work, and respond to approval requests when they come u
 
 ## Status
 
-Playable first slice, tested against T3 Code 0.0.44:
+Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-command styling
+(procedural art for now; designed so a sprite set can drop in later):
 
-- Every connected T3 environment is a base on the map, each project is a building with a crystal
-  mine, and each thread is a worker. Workers run trips to the mine while a turn runs, mill about
-  when idle, show **!** / **?** when they need approval or an answer, and sleep in camp once settled.
-- Select a worker to read its live transcript, give it orders, halt it, approve or deny tool use,
-  or send it to camp. Select a building to recruit a new worker (new thread) with any model.
-- Hotkeys: **Space** jumps to the next worker waiting on you, **.** to the next report,
-  **W** to the next busy worker, **F** fits the view, **Esc** deselects.
-- Synthesized sound effects (mutable) and an event log ("Job's done!").
-
-Placeholder art throughout.
+- **Stations**: every T3 environment is a station in a sector grid, with its own team color. Each
+  project is a module docked to the station core, crewed by its threads.
+- **Truthful telemetry** (borrowed from [StarNet](https://starnetos.com/)): the map never shows
+  activity T3 can't prove. Consoles light up only during a real turn; crew walk to the terminal,
+  file archive or comms dish only for a real open tool call; drones orbit crew for each running
+  background task; a health bar shows how much context window is left.
+- **Attention**: an always-on **Inbox** of everything waiting on you (approvals, questions, failed
+  turns, reports), edge-of-screen arrows for off-screen alerts, and RTS hotkeys: **Space** next
+  alert, **.** next report, **W** next active crew, **F** fit the fleet, **Esc** deselect.
+- **Navigation**: sector minimap, station chips in the top bar that jump to their station, and
+  station banners that stay readable when zoomed out.
+- **Command**: select crew to read the live transcript, give orders, halt, approve or deny tool
+  use, or send them to quarters. Select a module to recruit new crew (a new thread) with any model.
+  Imported CLI history lives in each module's archive pod.
+- Synthesized sound effects (mutable) and a comms feed of events.
 
 ## Architecture
 

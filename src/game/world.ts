@@ -1,570 +1,550 @@
-// The RTS map, rendered with PixiJS. Purely a view of the game store: it reads state, and
-// clicks turn into store selections. All art is procedural placeholder Graphics.
+// The fleet map, rendered with PixiJS. A view of the game store: it reads state, and clicks
+// become store selections. All art is procedural (vector "tactical display" style) so a sprite
+// set can replace it later without touching layout or behavior.
+//
+// Rule borrowed from StarNet: the map never shows activity T3 can't prove. Consoles light up
+// only during a real turn, crew walk to a workstation only for a real open tool call, and idle
+// crew stand still.
 
-import { Application, Container, Graphics, Text, type FederatedPointerEvent, type TextStyleOptions } from "pixi.js";
+import {
+  Application,
+  Container,
+  Graphics,
+  Rectangle,
+  Text,
+  TilingSprite,
+  type FederatedPointerEvent,
+  type TextStyleOptions,
+} from "pixi.js";
 import { setSelection, unitKey, useGame, type EnvWorld, type GameState, type Selection } from "../store";
 import { isHistory, unitState, type UnitState } from "../t3/derive";
-import type { ProjectShell, ThreadShell } from "../t3/types";
+import { telemetry, type Telemetry } from "../t3/telemetry";
+import type { ThreadShell } from "../t3/types";
+import { computeFleetLayout, type CrewLayout, type FleetLayout, type ModuleLayout, type Point, type Rect, type StationLayout } from "./layout";
 import { sfx } from "./sfx";
+import { HUD, PROVIDER_VISOR, STATUS } from "./theme";
 
-// ---- Layout --------------------------------------------------------------------------
+const FONT = "'Chakra Petch', 'IBM Plex Mono', ui-monospace, monospace";
+const MONO = "'IBM Plex Mono', ui-monospace, monospace";
 
-interface Point {
-  x: number;
-  y: number;
+function label(size: number, fill: number, extra: Partial<TextStyleOptions> = {}): Text {
+  const t = new Text({ text: "", style: { fontFamily: FONT, fontSize: size, fill, fontWeight: "600", letterSpacing: 1, ...extra } });
+  t.resolution = 3;
+  return t;
 }
-
-const BASE_SPACING = 1700;
-const PROJECT_RING = 430;
-const MINE_DISTANCE = 210;
 
 function hash(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-  // Final avalanche (murmur3 fmix) so similar keys like "gx1"/"gx2" don't produce correlated values.
   h ^= h >>> 16;
   h = Math.imul(h, 0x85ebca6b);
   h ^= h >>> 13;
   h = Math.imul(h, 0xc2b2ae35);
   h ^= h >>> 16;
-  return (h >>> 0) / 4294967296; // [0, 1)
+  return (h >>> 0) / 4294967296;
 }
-
-interface ProjectLayout {
-  building: Point;
-  mine: Point;
-  /** Archive building for imported history, on the opposite side from the camp. */
-  library: Point;
-  archived: number;
-  /** Unit direction from HQ to building (used to lay out slots). */
-  out: Point;
-}
-
-interface UnitLayout {
-  home: Point;
-  mine: Point;
-  sleeping: boolean;
-}
-
-interface Layout {
-  hq: Map<string, Point>;
-  projects: Map<string, ProjectLayout>; // key: envId:projectId
-  units: Map<string, UnitLayout>; // key: unitKey
-  bounds: { minX: number; minY: number; maxX: number; maxY: number };
-}
-
-function sortedEnvs(state: GameState): EnvWorld[] {
-  return Object.values(state.envs).sort((a, b) => a.summary.addedAt.localeCompare(b.summary.addedAt));
-}
-
-function computeLayout(state: GameState): Layout {
-  const layout: Layout = {
-    hq: new Map(),
-    projects: new Map(),
-    units: new Map(),
-    bounds: { minX: -600, minY: -600, maxX: 600, maxY: 600 },
-  };
-  const grow = (p: Point, pad: number) => {
-    const b = layout.bounds;
-    b.minX = Math.min(b.minX, p.x - pad);
-    b.minY = Math.min(b.minY, p.y - pad);
-    b.maxX = Math.max(b.maxX, p.x + pad);
-    b.maxY = Math.max(b.maxY, p.y + pad);
-  };
-
-  sortedEnvs(state).forEach((env, envIndex) => {
-    // Bases on a grid, roughly square, so many environments stay compact.
-    const columns = Math.ceil(Math.sqrt(Object.keys(state.envs).length));
-    const hq = { x: (envIndex % columns) * BASE_SPACING, y: Math.floor(envIndex / columns) * BASE_SPACING };
-    layout.hq.set(env.summary.id, hq);
-    grow(hq, 300);
-
-    const projects = Object.values(env.projects).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    const threadsByProject = new Map<string, ThreadShell[]>();
-    const archivedByProject = new Map<string, number>();
-    for (const t of Object.values(env.threads)) {
-      if (isHistory(t)) {
-        archivedByProject.set(t.projectId, (archivedByProject.get(t.projectId) ?? 0) + 1);
-        continue;
-      }
-      const list = threadsByProject.get(t.projectId) ?? [];
-      list.push(t);
-      threadsByProject.set(t.projectId, list);
-    }
-
-    projects.forEach((project, i) => {
-      const angle = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(projects.length, 1) + (projects.length === 2 ? Math.PI / 2 : 0);
-      const out = { x: Math.cos(angle), y: Math.sin(angle) };
-      const building = { x: hq.x + out.x * PROJECT_RING, y: hq.y + out.y * PROJECT_RING };
-      const mine = { x: building.x + out.x * MINE_DISTANCE, y: building.y + out.y * MINE_DISTANCE };
-      const side0 = { x: -out.y, y: out.x };
-      const library = { x: building.x - side0.x * 165, y: building.y - side0.y * 165 };
-      const archived = archivedByProject.get(project.id) ?? 0;
-      layout.projects.set(`${env.summary.id}:${project.id}`, { building, mine, out, library, archived });
-      grow(mine, 200);
-      grow(library, 120);
-
-      const threads = (threadsByProject.get(project.id) ?? []).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      const awake = threads.filter((t) => unitState(t) !== "sleeping");
-      const asleep = threads.filter((t) => unitState(t) === "sleeping");
-      const side = { x: -out.y, y: out.x }; // perpendicular to `out`
-
-      // Awake units stand in an arc on the HQ side of their building.
-      awake.forEach((t, k) => {
-        const row = Math.floor(k / 7);
-        const inRow = Math.min(7, awake.length - row * 7);
-        const col = (k % 7) - (inRow - 1) / 2; // centered on the line toward HQ
-        const radius = 110 + row * 44;
-        const a = Math.atan2(-out.y, -out.x) + col * 0.5 + (row % 2) * 0.25;
-        layout.units.set(unitKey(env.summary.id, t.id), {
-          home: { x: building.x + Math.cos(a) * radius, y: building.y + Math.sin(a) * radius },
-          mine,
-          sleeping: false,
-        });
-      });
-      // Sleeping units camp in a grid beside the building.
-      asleep.forEach((t, k) => {
-        const col = k % 6;
-        const row = Math.floor(k / 6);
-        const origin = { x: building.x + side.x * 150, y: building.y + side.y * 150 };
-        const home = {
-          x: origin.x + side.x * col * 30 + out.x * (row * 30 - 30),
-          y: origin.y + side.y * col * 30 + out.y * (row * 30 - 30),
-        };
-        layout.units.set(unitKey(env.summary.id, t.id), { home, mine, sleeping: true });
-        grow(home, 60);
-      });
-    });
-  });
-  return layout;
-}
-
-// ---- Colors & styles -----------------------------------------------------------------
-
-const PROVIDER_COLORS: Record<string, number> = {
-  claudeAgent: 0xe2884f,
-  codex: 0x46b7a6,
-  cursor: 0x8f8fe8,
-  grok: 0xc9c9c9,
-  opencode: 0xd8c25a,
-};
-
-const STATE_COLORS: Record<UnitState, number> = {
-  alert: 0xff4d4d,
-  question: 0xffcc33,
-  working: 0x7fd4ff,
-  error: 0xff6b3d,
-  done: 0x6fe37a,
-  idle: 0xbfc7d5,
-  sleeping: 0x6b7385,
-};
-
-const CONNECTION_COLORS: Record<string, number> = {
-  live: 0x6fe37a,
-  connecting: 0xffcc33,
-  reconnecting: 0xffcc33,
-  "needs-pairing": 0xff6b3d,
-  "needs-update": 0xff6b3d,
-  offline: 0x888888,
-};
-
-const LABEL: TextStyleOptions = {
-  fontFamily: "'Press Start 2P', ui-monospace, monospace",
-  fontSize: 8,
-  fill: 0xf1f1e6,
-  stroke: { color: 0x0b0f0a, width: 3 },
-  align: "center",
-};
 
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
-// ---- Sprites -------------------------------------------------------------------------
+/** Zoom below which stations collapse to their banners and fine detail fades. */
+const STRATEGIC_ZOOM = 0.55;
 
-class UnitSprite extends Container {
+// ---- Crew ------------------------------------------------------------------------------
+
+class CrewSprite extends Container {
   readonly key: string;
   readonly envId: string;
   readonly threadId: string;
+  private seed: number;
   private shadow = new Graphics();
   private ring = new Graphics();
   private body = new Graphics();
-  private badge = new Graphics();
-  private badgeText = new Text({ text: "", style: { ...LABEL, fontSize: 10 } });
-  private cargo = new Graphics();
-  private nameText = new Text({ text: "", style: LABEL });
-  private seed: number;
-  private bodyColor = -1;
-  private drawnState?: UnitState;
+  private fx = new Graphics();
+  private nameText = label(7, HUD.text);
   pos: Point;
   state: UnitState = "idle";
   thread!: ThreadShell;
+  info?: Telemetry;
   hovered = false;
+  /** Whether the crew member is currently at its own console (vs. a workstation or bunk). */
+  atConsole = true;
 
-  constructor(key: string, envId: string, threadId: string, start: Point) {
+  constructor(layout: CrewLayout, start: Point) {
     super();
-    this.key = key;
-    this.envId = envId;
-    this.threadId = threadId;
-    this.seed = hash(key);
+    this.key = layout.key;
+    this.envId = layout.envId;
+    this.threadId = layout.threadId;
+    this.seed = hash(layout.key);
     this.pos = { ...start };
-    this.badgeText.anchor.set(0.5);
-    this.badgeText.resolution = 2;
     this.nameText.anchor.set(0.5, 0);
-    this.nameText.resolution = 2;
-    this.nameText.y = 16;
-    this.addChild(this.ring, this.shadow, this.cargo, this.body, this.badge, this.badgeText, this.nameText);
+    this.nameText.y = 8;
+    this.addChild(this.ring, this.shadow, this.body, this.fx, this.nameText);
     this.eventMode = "static";
     this.cursor = "pointer";
-    this.hitArea = { contains: (x: number, y: number) => x * x + (y + 8) * (y + 8) < 22 * 22 };
+    this.hitArea = new Rectangle(-10, -26, 20, 32);
     this.on("pointerover", () => (this.hovered = true));
     this.on("pointerout", () => (this.hovered = false));
     this.on("pointertap", (e: FederatedPointerEvent) => {
       e.stopPropagation();
       sfx.select();
-      setSelection({ kind: "unit", envId, threadId });
+      setSelection({ kind: "unit", envId: this.envId, threadId: this.threadId });
     });
   }
 
-  setThread(thread: ThreadShell): void {
+  update(thread: ThreadShell, info: Telemetry | undefined): void {
     this.thread = thread;
     this.state = unitState(thread);
-    const color = PROVIDER_COLORS[thread.modelSelection.instanceId] ?? 0x9aa6c4;
-    if (color !== this.bodyColor || this.drawnState !== this.state) {
-      this.bodyColor = color;
-      this.drawnState = this.state;
-      this.drawBody();
-    }
-    this.nameText.text = truncate(thread.title || "Untitled", 22);
+    this.info = info;
+    this.nameText.text = truncate((thread.title || "Untitled").toUpperCase(), 26);
   }
 
-  private drawBody(): void {
-    const sleeping = this.state === "sleeping";
-    const c = sleeping ? 0x59606e : this.bodyColor;
-    this.shadow.clear().ellipse(0, 4, 12, 5).fill({ color: 0x000000, alpha: 0.35 });
-    const b = this.body.clear();
-    if (sleeping) {
-      // Lying down in a bedroll.
-      b.roundRect(-14, -6, 28, 10, 5).fill(0x3b4251);
-      b.circle(-9, -2, 6).fill(c);
-      return;
-    }
-    b.roundRect(-9, -16, 18, 18, 7).fill(c); // torso
-    b.circle(0, -21, 7).fill(0xf0d2b0); // head
-    b.rect(-7, -27, 14, 4).fill(c); // cap
-    b.circle(3, -21, 1.3).fill(0x1a1a1a); // eye
-    b.rect(-7, 1, 5, 4).fill(0x2a2f38); // legs
-    b.rect(2, 1, 5, 4).fill(0x2a2f38);
-  }
-
-  /** Where the unit wants to be right now. */
-  private target(layout: UnitLayout, t: number): Point {
-    if (this.state === "working") {
-      // Mining loop: walk to the mine, dig, carry back, drop off.
-      const period = 7 + this.seed * 3;
-      const phase = ((t / period + this.seed) % 1 + 1) % 1;
-      const lateral = (this.seed - 0.5) * 40;
-      const dx = layout.mine.x - layout.home.x;
-      const dy = layout.mine.y - layout.home.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const nx = -dy / len;
-      const ny = dx / len;
-      const mine = { x: layout.mine.x - (dx / len) * 34 + nx * lateral, y: layout.mine.y - (dy / len) * 34 + ny * lateral };
-      let f: number;
-      if (phase < 0.35) f = phase / 0.35;
-      else if (phase < 0.55) f = 1;
-      else if (phase < 0.9) f = 1 - (phase - 0.55) / 0.35;
-      else f = 0;
-      this.cargo.visible = phase >= 0.55 && phase < 0.9;
-      return { x: layout.home.x + (mine.x - layout.home.x) * f, y: layout.home.y + (mine.y - layout.home.y) * f };
-    }
-    this.cargo.visible = false;
-    if (this.state === "idle" || this.state === "done") {
-      // Mill about near home.
-      const bucket = Math.floor(t / 5 + this.seed * 10);
-      const a = hash(`${this.key}:${bucket}`) * Math.PI * 2;
-      return { x: layout.home.x + Math.cos(a) * 14, y: layout.home.y + Math.sin(a) * 10 };
+  private target(layout: CrewLayout, modules: Map<string, ModuleLayout>): Point {
+    if (this.state === "working" && this.info && this.info.workstation !== "console") {
+      const ws = modules.get(layout.moduleKey)?.workstations[this.info.workstation];
+      if (ws) return { x: ws.x + (this.seed - 0.5) * 22, y: ws.y + 16 };
     }
     return layout.home;
   }
 
-  tick(layout: UnitLayout, t: number, dt: number, selected: boolean, zoom: number): void {
-    const target = this.target(layout, t);
-    const speed = this.state === "working" ? 9 : 2.5;
-    const k = Math.min(1, dt * speed);
-    const prevX = this.pos.x;
+  tick(layout: CrewLayout, modules: Map<string, ModuleLayout>, t: number, dt: number, selected: boolean, zoom: number): void {
+    const target = this.target(layout, modules);
+    const k = Math.min(1, dt * 3.2);
+    const px = this.pos.x;
+    const py = this.pos.y;
     this.pos.x += (target.x - this.pos.x) * k;
     this.pos.y += (target.y - this.pos.y) * k;
+    const moving = Math.hypot(this.pos.x - px, this.pos.y - py) > 0.08;
+    this.atConsole = !layout.sleeping && Math.hypot(this.pos.x - layout.home.x, this.pos.y - layout.home.y) < 3;
     this.position.set(this.pos.x, this.pos.y);
     this.zIndex = this.pos.y;
 
-    const moving = Math.abs(this.pos.x - prevX) > 0.05;
-    if (moving) this.body.scale.x = this.pos.x < prevX ? -1 : 1;
-    const bob = this.state === "sleeping" ? 0 : moving ? Math.abs(Math.sin(t * 14 + this.seed * 9)) * 2.5 : Math.sin(t * 2 + this.seed * 9) * 0.6;
-    this.body.y = -bob;
+    // Up close crew are drawn at true size; zoomed out they grow a little so they stay visible.
+    const scale = zoom < STRATEGIC_ZOOM ? Math.min(2.2, STRATEGIC_ZOOM / zoom) : 1;
+    this.scale.set(scale);
 
-    this.cargo.clear();
-    if (this.cargo.visible) {
-      this.cargo.poly([0, -6, 5, 0, 0, 6, -5, 0]).fill(0x8ff7ff).stroke({ color: 0x2f8fa3, width: 1 });
-      this.cargo.position.set(10 * this.body.scale.x, -14 - bob);
-    }
-
-    this.drawBadge(t);
+    this.drawBody(t, moving);
+    this.drawFx(t, selected, zoom);
     this.drawRing(selected, t);
-    // Names only up close, so neighbors' labels don't pile up; always for the selected/hovered unit.
-    this.nameText.visible = selected || this.hovered || (zoom > 1.4 && this.state !== "sleeping");
-    this.alpha = this.state === "sleeping" && !selected ? 0.8 : 1;
+    this.nameText.visible = !layout.sleeping && (selected || this.hovered || zoom > 1.6);
   }
 
-  private drawBadge(t: number): void {
-    const b = this.badge.clear();
-    const y = this.state === "sleeping" ? -18 : -40;
-    const pulse = 1 + Math.sin(t * 6) * 0.12;
-    this.badgeText.visible = true;
-    this.badgeText.position.set(0, y);
-    this.badgeText.scale.set(1);
+  private drawBody(t: number, moving: boolean): void {
+    const b = this.body.clear();
+    const s = this.shadow.clear();
+    const visor = PROVIDER_VISOR[this.thread.modelSelection.instanceId] ?? 0x9fb3d1;
+    if (this.state === "sleeping") {
+      // Lying in a bunk with the lights off.
+      b.roundRect(-7, -4, 14, 6, 3).fill(0x3b4352);
+      b.circle(-5, -2, 3).fill(0x59616f);
+      return;
+    }
+    s.ellipse(0, 1, 7, 2.5).fill({ color: 0x000000, alpha: 0.5 });
+    const step = moving ? Math.sin(t * 16 + this.seed * 9) : 0;
+    const typing = this.state === "working" && this.atConsole ? Math.sin(t * 22 + this.seed * 5) * 0.8 : 0;
+    // legs
+    b.rect(-4, -4 + Math.max(0, step) * 1.5, 3, 4).fill(0xaeb8c4);
+    b.rect(1, -4 + Math.max(0, -step) * 1.5, 3, 4).fill(0xaeb8c4);
+    // suit + backpack
+    b.roundRect(-6, -14, 12, 11, 3).fill(0xdde4ec);
+    b.rect(-7, -13, 2, 7).fill(0x9aa5b2);
+    // arms (typing at the console moves them)
+    b.rect(5, -12 + typing, 2, 5).fill(0xc9d2dc);
+    b.rect(-5, -12 - typing, 2, 5).fill(0xc9d2dc);
+    // helmet + visor in the provider's color
+    b.circle(0, -18, 6).fill(0xeef2f6);
+    b.roundRect(-1, -21, 6, 5, 2).fill(visor);
+    b.rect(1, -20, 2, 1).fill({ color: 0xffffff, alpha: 0.6 });
+  }
+
+  private drawFx(t: number, selected: boolean, zoom: number): void {
+    const f = this.fx.clear();
+    const y = -32;
+    const pulse = 1 + Math.sin(t * 7) * 0.15;
     switch (this.state) {
       case "alert":
-        b.circle(0, y, 9 * pulse).fill(STATE_COLORS.alert).stroke({ color: 0xffffff, width: 2 });
-        this.badgeText.text = "!";
+        f.poly([0, y - 8 * pulse, 7 * pulse, y, 0, y + 8 * pulse, -7 * pulse, y]).fill(STATUS.alert).stroke({ color: 0xffffff, width: 1.5 });
+        f.rect(-1, y - 4, 2, 5).fill(0xffffff).rect(-1, y + 2.5, 2, 2).fill(0xffffff);
         break;
       case "question":
-        b.circle(0, y, 9 * pulse).fill(STATE_COLORS.question).stroke({ color: 0xffffff, width: 2 });
-        this.badgeText.text = "?";
+        f.circle(0, y, 7 * pulse).fill(STATUS.question).stroke({ color: 0xffffff, width: 1.5 });
+        f.rect(-1, y + 2, 2, 2).fill(0x111111).rect(-1, y - 4, 2, 4).fill(0x111111);
+        break;
+      case "done":
+        f.circle(0, y + 2, 5).fill(STATUS.done);
+        f.moveTo(-2.5, y + 2).lineTo(-0.5, y + 4).lineTo(3, y - 0.5).stroke({ color: 0x08210f, width: 1.5 });
         break;
       case "error":
-        b.circle(0, y, 8).fill(STATE_COLORS.error);
-        this.badgeText.text = "x";
+        f.circle(0, y + 2, 5).fill(STATUS.error);
+        f.moveTo(-2, y).lineTo(2, y + 4).moveTo(2, y).lineTo(-2, y + 4).stroke({ color: 0x2a0d00, width: 1.5 });
         break;
-      case "done": {
-        const hop = Math.abs(Math.sin(t * 3 + this.seed * 5)) * 3;
-        b.circle(0, y - hop, 8).fill(STATE_COLORS.done);
-        this.badgeText.text = "✓";
-        this.badgeText.y = y - hop;
-        break;
-      }
       case "working": {
-        // Little swinging pick.
-        const swing = Math.sin(t * 10 + this.seed * 7) * 0.8;
-        b.moveTo(0, y + 6).lineTo(Math.sin(swing) * 10, y + 6 - Math.cos(swing) * 10).stroke({ color: 0xc8b28a, width: 2 });
-        b.circle(Math.sin(swing) * 10, y + 6 - Math.cos(swing) * 10, 2.5).fill(0x9aa3ad);
-        this.badgeText.visible = false;
+        const a = t * 5 + this.seed * 6;
+        f.arc(0, y + 2, 4, a, a + Math.PI * 1.3).stroke({ color: STATUS.working, width: 1.5 });
         break;
       }
-      case "sleeping": {
-        const drift = (t * 0.6 + this.seed) % 1;
-        this.badgeText.text = "z";
-        this.badgeText.position.set(6 + drift * 6, y - drift * 14);
-        this.badgeText.alpha = 1 - drift;
-        return;
-      }
-      default:
-        this.badgeText.visible = false;
     }
-    this.badgeText.alpha = 1;
+    // Drones: one per running background task (subagent, shell…).
+    const tasks = Math.min(4, this.info?.tasks ?? 0);
+    for (let i = 0; i < tasks; i++) {
+      const a = t * 2.2 + (i / tasks) * Math.PI * 2;
+      f.circle(Math.cos(a) * 13, -12 + Math.sin(a) * 6, 1.8).fill(STATUS.working);
+    }
+    // Context window as a health bar (only when T3 has reported it).
+    const ctx = this.info?.context;
+    if (ctx !== undefined && (selected || this.hovered || zoom > 1.3)) {
+      const left = 1 - ctx;
+      const color = left > 0.4 ? STATUS.done : left > 0.15 ? STATUS.question : STATUS.alert;
+      f.rect(-9, 4, 18, 2.5).fill({ color: 0x000000, alpha: 0.7 });
+      f.rect(-9, 4, 18 * left, 2.5).fill(color);
+    }
   }
 
   private drawRing(selected: boolean, t: number): void {
     const r = this.ring.clear();
     if (selected) {
-      r.ellipse(0, 4, 20, 9).stroke({ color: 0x9cff6b, width: 2 });
+      r.ellipse(0, 1, 12, 5).stroke({ color: HUD.amber, width: 1.5 });
     } else if (this.state === "alert" || this.state === "question") {
-      const grow = (t * 1.2 + this.seed) % 1;
-      r.ellipse(0, 4, 14 + grow * 26, 6 + grow * 12).stroke({ color: STATE_COLORS[this.state], width: 2, alpha: 1 - grow });
+      const g = (t * 1.1 + this.seed) % 1;
+      r.ellipse(0, 1, 8 + g * 20, 3 + g * 8).stroke({ color: STATUS[this.state], width: 1.5, alpha: 1 - g });
     } else if (this.hovered) {
-      r.ellipse(0, 4, 18, 8).stroke({ color: 0xffffff, width: 1, alpha: 0.6 });
+      r.ellipse(0, 1, 11, 4.5).stroke({ color: 0xffffff, width: 1, alpha: 0.6 });
     }
   }
 }
 
-class BuildingSprite extends Container {
-  private base = new Graphics();
-  private mine = new Graphics();
-  private nameText = new Text({ text: "", style: { ...LABEL, fontSize: 9 } });
-  private mineLabel = new Text({ text: "", style: { ...LABEL, fontSize: 7, fill: 0x8ff7ff } });
-  readonly envId: string;
-  readonly projectId: string;
-  private hovered = false;
+// ---- Stations --------------------------------------------------------------------------
 
-  constructor(envId: string, projectId: string, mineLayer: Container) {
-    super();
+/** Static hull geometry for one station, plus its live lights and screen-space banner. */
+class StationSprite {
+  readonly envId: string;
+  readonly hull = new Container();
+  readonly lights = new Graphics();
+  readonly banner = new Container();
+  private bannerBg = new Graphics();
+  private bannerName = label(13, HUD.text, { fontWeight: "700", letterSpacing: 2 });
+  private bannerStatus = new Text({ text: "", style: { fontFamily: MONO, fontSize: 11, fill: HUD.muted, letterSpacing: 0.5 } });
+  private moduleLabels: Text[] = [];
+  layout!: StationLayout;
+
+  constructor(envId: string) {
     this.envId = envId;
-    this.projectId = projectId;
-    this.nameText.anchor.set(0.5, 0);
-    this.nameText.resolution = 2;
-    this.nameText.y = 34;
-    this.mineLabel.anchor.set(0.5, 0);
-    this.mineLabel.resolution = 2;
-    this.addChild(this.base, this.nameText);
-    mineLayer.addChild(this.mine, this.mineLabel);
-    this.eventMode = "static";
-    this.cursor = "pointer";
-    this.hitArea = { contains: (x: number, y: number) => Math.abs(x) < 50 && y > -70 && y < 40 };
-    this.on("pointerover", () => (this.hovered = true));
-    this.on("pointerout", () => (this.hovered = false));
-    this.on("pointertap", (e: FederatedPointerEvent) => {
+    this.bannerStatus.resolution = 3;
+    this.bannerName.position.set(14, 6);
+    this.bannerStatus.position.set(14, 26);
+    this.banner.addChild(this.bannerBg, this.bannerName, this.bannerStatus);
+    this.banner.eventMode = "static";
+    this.banner.cursor = "pointer";
+    this.banner.on("pointertap", (e: FederatedPointerEvent) => {
       e.stopPropagation();
       sfx.building();
-      setSelection({ kind: "building", envId, projectId });
+      worldRef.current?.focusStation(envId);
     });
   }
 
-  update(project: ProjectShell, layout: ProjectLayout, selected: boolean, busy: number, t: number): void {
-    this.position.set(layout.building.x, layout.building.y);
-    this.zIndex = layout.building.y;
-    this.nameText.text = truncate(project.title, 24);
+  /** Redraw the hull (called when the layout changes, not every frame). */
+  build(layout: StationLayout, env: EnvWorld): void {
+    this.layout = layout;
+    for (const child of this.hull.removeChildren()) child.destroy({ children: true });
+    this.moduleLabels = [];
+    const team = layout.color;
+    const g = new Graphics();
+    this.hull.addChild(g);
 
-    const g = this.base.clear();
-    g.ellipse(0, 22, 62, 20).fill({ color: 0x000000, alpha: 0.3 });
-    if (selected || this.hovered) g.ellipse(0, 22, 66, 24).stroke({ color: selected ? 0x9cff6b : 0xffffff, width: 2, alpha: selected ? 1 : 0.6 });
-    g.rect(-44, -26, 88, 46).fill(0x8a6a48).stroke({ color: 0x4a3626, width: 2 }); // walls
-    g.poly([-52, -24, 0, -62, 52, -24]).fill(0xb2483a).stroke({ color: 0x5a221b, width: 2 }); // roof
-    g.rect(-10, -2, 20, 22).fill(0x3a2a1c); // door
-    g.rect(-34, -14, 12, 10).fill(busy > 0 ? 0xffe28a : 0x2c3640); // windows light up while busy
-    g.rect(22, -14, 12, 10).fill(busy > 0 ? 0xffe28a : 0x2c3640);
-    // Chimney smoke while anyone is working.
-    g.rect(24, -58, 10, 20).fill(0x6e5a4a);
-    if (busy > 0) {
-      for (let i = 0; i < 3; i++) {
-        const p = (t * 0.5 + i / 3) % 1;
-        g.circle(29 + Math.sin(p * 6 + i) * 4, -62 - p * 40, 4 + p * 6).fill({ color: 0xcfcfcf, alpha: 0.5 * (1 - p) });
+    // Corridors first, so rooms sit on top of them.
+    for (const m of layout.modules) {
+      const [a, b] = m.corridor;
+      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color: HUD.hullEdge, width: 26 });
+      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color: HUD.hull, width: 20 });
+      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color: team, width: 2, alpha: 0.5 });
+    }
+
+    // Core hub: an octagon with the team color ring.
+    const c = layout.center;
+    const oct = (r: number) => {
+      const pts: number[] = [];
+      for (let i = 0; i < 8; i++) {
+        const a = Math.PI / 8 + (i * Math.PI) / 4;
+        pts.push(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r);
+      }
+      return pts;
+    };
+    g.poly(oct(layout.coreRadius + 6)).fill(HUD.hullEdge);
+    g.poly(oct(layout.coreRadius)).fill(HUD.hull).stroke({ color: team, width: 2.5 });
+    g.poly(oct(layout.coreRadius - 16)).fill(HUD.floor).stroke({ color: HUD.hullLight, width: 1.5 });
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2 + Math.PI / 4;
+      g.rect(c.x + Math.cos(a) * (layout.coreRadius - 8) - 2, c.y + Math.sin(a) * (layout.coreRadius - 8) - 2, 4, 4).fill(HUD.amber);
+    }
+
+    for (const m of layout.modules) this.buildModule(g, m, env, team);
+  }
+
+  private buildModule(g: Graphics, m: ModuleLayout, env: EnvWorld, team: number): void {
+    const r = m.room;
+    // Hull walls, floor tiles, team stripe.
+    g.rect(r.x - 6, r.y - 6, r.w + 12, r.h + 12).fill(HUD.hullEdge);
+    g.rect(r.x - 3, r.y - 3, r.w + 6, r.h + 6).fill(HUD.hull).stroke({ color: HUD.hullLight, width: 1 });
+    g.rect(r.x, r.y, r.w, r.h).fill(HUD.floor);
+    for (let x = r.x + 12; x < r.x + r.w; x += 24) g.moveTo(x, r.y).lineTo(x, r.y + r.h).stroke({ color: HUD.floorTile, width: 1 });
+    for (let y = r.y + 12; y < r.y + r.h; y += 24) g.moveTo(r.x, y).lineTo(r.x + r.w, y).stroke({ color: HUD.floorTile, width: 1 });
+    g.rect(r.x - 3, r.y - 3, r.w + 6, 3).fill(team);
+    // Corner bolts.
+    for (const [x, y] of [[r.x - 3, r.y - 3], [r.x + r.w, r.y - 3], [r.x - 3, r.y + r.h], [r.x + r.w, r.y + r.h]] as const) {
+      g.rect(x, y, 3, 3).fill(HUD.amberDim);
+    }
+
+    // Workstation strip: terminal, file archive, comms dish.
+    const strip = { x: r.x, y: r.y, w: r.w, h: 40 };
+    g.rect(strip.x, strip.y, strip.w, strip.h).fill({ color: 0x0b0f15, alpha: 0.8 });
+    g.moveTo(strip.x, strip.y + strip.h).lineTo(strip.x + strip.w, strip.y + strip.h).stroke({ color: HUD.amberDim, width: 1, alpha: 0.8 });
+    const { terminal, files, comms } = m.workstations;
+    g.roundRect(terminal.x - 11, terminal.y - 12, 22, 14, 2).fill(0x202a36).stroke({ color: 0x3a4757, width: 1 });
+    g.rect(terminal.x - 8, terminal.y - 9, 16, 8).fill(0x06231a);
+    g.rect(files.x - 9, files.y - 14, 18, 18).fill(0x2a3240).stroke({ color: 0x3a4757, width: 1 });
+    for (let i = 0; i < 3; i++) g.rect(files.x - 7, files.y - 12 + i * 6, 14, 4).fill(0x3a4554);
+    g.moveTo(comms.x, comms.y + 2).lineTo(comms.x, comms.y - 6).stroke({ color: 0x5b6676, width: 2 });
+    g.arc(comms.x, comms.y - 6, 9, Math.PI * 1.05, Math.PI * 1.95).stroke({ color: 0xaeb8c4, width: 2.5 });
+    g.circle(comms.x, comms.y - 10, 1.5).fill(HUD.amber);
+
+    // Console desks (screens are drawn live in drawLights).
+    for (const p of m.consoles) {
+      g.roundRect(p.x - 15, p.y - 4, 30, 9, 2).fill(0x232c38).stroke({ color: 0x334051, width: 1 });
+      g.rect(p.x - 12, p.y - 13, 24, 9).fill(0x0a0e13);
+      g.rect(p.x - 4, p.y + 13, 8, 5).fill(0x2b3442); // chair
+    }
+
+    // Quarters: bunks for settled crew.
+    if (m.quarters) {
+      const q = m.quarters;
+      g.rect(q.x, q.y, q.w, q.h).fill({ color: 0x0b0e13, alpha: 0.9 }).stroke({ color: 0x1f2631, width: 1 });
+      for (let x = q.x + 4; x < q.x + q.w - 14; x += 18) {
+        for (let y = q.y + 6; y < q.y + q.h - 8; y += 16) g.roundRect(x, y, 16, 10, 2).fill(0x161b23);
       }
     }
 
-    // The project's crystal mine.
-    const m = this.mine.clear();
-    const { x, y } = layout.mine;
-    m.ellipse(x, y + 14, 46, 16).fill({ color: 0x000000, alpha: 0.25 });
-    m.ellipse(x, y + 8, 40, 14).fill(0x5d5a52);
-    const glow = busy > 0 ? 0.6 + Math.sin(t * 4) * 0.3 : 0.25;
-    const crystals: Array<[number, number, number]> = [[-16, 4, 14], [0, -6, 22], [16, 2, 16], [-4, 8, 10]];
-    for (const [cx, cy, h] of crystals) {
-      m.poly([x + cx, y + cy - h, x + cx + 7, y + cy, x + cx, y + cy + 5, x + cx - 7, y + cy]).fill(0x5fd8ee).stroke({ color: 0x2f8fa3, width: 1.5 });
+    // Archive pod for imported history.
+    if (m.archive) {
+      const a = m.archive;
+      g.rect(a.x - 4, a.y - 4, a.w + 8, a.h + 8).fill(HUD.hullEdge);
+      g.rect(a.x, a.y, a.w, a.h).fill(0x161c26).stroke({ color: 0x6f8aa0, width: 1.5 });
+      for (let i = 0; i < 4; i++) g.rect(a.x + 6 + i * 9, a.y + 8, 6, a.h - 16).fill(0x22344a).stroke({ color: 0x3f6a8f, width: 1 });
+      const hit = new Container();
+      hit.eventMode = "static";
+      hit.cursor = "pointer";
+      hit.hitArea = new Rectangle(a.x - 4, a.y - 4, a.w + 8, a.h + 8);
+      hit.on("pointertap", (e: FederatedPointerEvent) => {
+        e.stopPropagation();
+        sfx.building();
+        setSelection({ kind: "library", envId: m.envId, projectId: m.projectId });
+      });
+      this.hull.addChild(hit);
     }
-    m.circle(x, y - 4, 30).fill({ color: 0x8ff7ff, alpha: glow * 0.25 });
-    this.mineLabel.position.set(x, y + 26);
-    this.mineLabel.text = busy > 0 ? `${busy} mining` : "";
-  }
 
-  destroyAll(): void {
-    this.mine.destroy();
-    this.mineLabel.destroy();
-    this.destroy({ children: true });
-  }
-}
-
-class LibrarySprite extends Container {
-  private g = new Graphics();
-  private nameText = new Text({ text: "", style: { ...LABEL, fontSize: 7, fill: 0xd9c9a3 } });
-  readonly envId: string;
-  readonly projectId: string;
-  private hovered = false;
-
-  constructor(envId: string, projectId: string) {
-    super();
-    this.envId = envId;
-    this.projectId = projectId;
-    this.nameText.anchor.set(0.5, 0);
-    this.nameText.resolution = 2;
-    this.nameText.y = 24;
-    this.addChild(this.g, this.nameText);
-    this.eventMode = "static";
-    this.cursor = "pointer";
-    this.hitArea = { contains: (x: number, y: number) => Math.abs(x) < 38 && y > -60 && y < 30 };
-    this.on("pointerover", () => (this.hovered = true));
-    this.on("pointerout", () => (this.hovered = false));
-    this.on("pointertap", (e: FederatedPointerEvent) => {
+    // The whole room selects the module (project).
+    const room = new Container();
+    room.eventMode = "static";
+    room.cursor = "pointer";
+    room.hitArea = new Rectangle(r.x - 6, r.y - 6, r.w + 12, r.h + 12);
+    room.on("pointertap", (e: FederatedPointerEvent) => {
       e.stopPropagation();
       sfx.building();
-      setSelection({ kind: "library", envId, projectId });
+      setSelection({ kind: "building", envId: m.envId, projectId: m.projectId });
     });
+    this.hull.addChildAt(room, 0);
+
+    const project = env.projects[m.projectId];
+    const name = label(8, HUD.amber, { letterSpacing: 1.5 });
+    name.text = truncate((project?.title ?? "?").toUpperCase(), 28) + (m.archived ? `  ·  ARCHIVE ${m.archived}` : "");
+    name.anchor.set(0, 1);
+    name.position.set(r.x - 2, r.y - 9);
+    this.hull.addChild(name);
+    this.moduleLabels.push(name);
   }
 
-  update(layout: ProjectLayout, selected: boolean): void {
-    this.position.set(layout.library.x, layout.library.y);
-    this.zIndex = layout.library.y;
-    const g = this.g.clear();
-    g.ellipse(0, 16, 40, 13).fill({ color: 0x000000, alpha: 0.3 });
-    if (selected || this.hovered) g.ellipse(0, 16, 44, 16).stroke({ color: selected ? 0x9cff6b : 0xffffff, width: 2, alpha: selected ? 1 : 0.6 });
-    // A small stone archive with a dome.
-    g.rect(-28, -18, 56, 32).fill(0x8d8577).stroke({ color: 0x4a453d, width: 2 });
-    g.arc(0, -18, 22, Math.PI, 0).fill(0x6f8aa0).stroke({ color: 0x34424e, width: 2 });
-    for (const x of [-20, -8, 4, 16]) g.rect(x, -14, 4, 26).fill(0xb3ab9c); // columns
-    // Book stack out front grows with the archive (one book per ~2 imports, capped).
-    const books = Math.min(8, Math.ceil(layout.archived / 2));
-    const colors = [0xb2483a, 0x3a6fb2, 0x4f8a3a, 0xc9a23a];
-    for (let i = 0; i < books; i++) g.rect(30 - (i % 2), 10 - i * 4, 14, 4).fill(colors[i % colors.length]).stroke({ color: 0x1a1a1a, width: 1 });
-    this.nameText.text = `Archive (${layout.archived})`;
+  /** Live per-frame details: console screens, core glow, labels, banner. */
+  drawLights(env: EnvWorld, crew: Map<string, CrewSprite>, layouts: FleetLayout, t: number, zoom: number, selection: Selection): void {
+    const g = this.lights.clear();
+    const live = env.connection === "live";
+    const L = this.layout;
+    const counts = { working: 0, attention: 0, done: 0, total: 0 };
+    const terminalBusy = new Set<string>();
+
+    for (const m of L.modules) {
+      const selected = selection && selection.kind !== "unit" && selection.envId === m.envId && selection.projectId === m.projectId;
+      if (selected) {
+        const r = m.room;
+        g.rect(r.x - 8, r.y - 8, r.w + 16, r.h + 16).stroke({ color: HUD.amber, width: 2 });
+      }
+    }
+
+    for (const sprite of crew.values()) {
+      if (sprite.envId !== this.envId) continue;
+      const lay = layouts.crew.get(sprite.key);
+      counts.total++;
+      if (sprite.state === "working") counts.working++;
+      if (sprite.state === "alert" || sprite.state === "question") counts.attention++;
+      if (sprite.state === "done") counts.done++;
+      if (sprite.state === "working" && sprite.info?.workstation === "terminal" && lay) terminalBusy.add(lay.moduleKey);
+      if (!lay?.console) continue;
+      const p = lay.console;
+      // Screen color = what the crew member at this console is actually doing.
+      let color: number = 0x1a2430;
+      let alpha = 1;
+      switch (sprite.state) {
+        case "working":
+          color = STATUS.working;
+          alpha = sprite.atConsole ? 0.75 + Math.sin(t * 18 + p.x) * 0.2 : 0.35;
+          break;
+        case "alert":
+        case "question":
+          color = STATUS[sprite.state];
+          alpha = 0.5 + Math.sin(t * 6) * 0.4;
+          break;
+        case "done":
+          color = STATUS.done;
+          alpha = 0.55;
+          break;
+        case "error":
+          color = STATUS.error;
+          alpha = 0.6;
+          break;
+      }
+      if (!live) alpha *= 0.25;
+      g.rect(p.x - 12, p.y - 13, 24, 9).fill({ color, alpha });
+      if (sprite.state === "working" && sprite.atConsole && live) {
+        for (let i = 0; i < 3; i++) g.rect(p.x - 10, p.y - 11 + i * 2.5, 6 + ((t * 30 + i * 7 + p.x) % 14), 1).fill({ color: 0xffffff, alpha: 0.35 });
+      }
+    }
+
+    // Terminal screens glow while someone is running a command there.
+    for (const m of L.modules) {
+      const p = m.workstations.terminal;
+      const busy = terminalBusy.has(m.key) && live;
+      g.rect(p.x - 8, p.y - 9, 16, 8).fill({ color: 0x3dff8a, alpha: busy ? 0.5 + Math.sin(t * 20) * 0.3 : 0.08 });
+    }
+
+    // Core glow reflects the connection.
+    const c = L.center;
+    const coreColor = live ? L.color : env.connection === "reconnecting" || env.connection === "connecting" ? STATUS.question : 0x3a4250;
+    g.circle(c.x, c.y, 18 + (live ? Math.sin(t * 2) * 2 : 0)).fill({ color: coreColor, alpha: live ? 0.25 : 0.15 });
+    g.circle(c.x, c.y, 8).fill({ color: coreColor, alpha: live ? 0.9 : 0.4 });
+
+    this.hull.alpha = live ? 1 : 0.45;
+    for (const l of this.moduleLabels) {
+      l.visible = zoom > 0.3;
+      l.scale.set(Math.max(1, 0.9 / zoom));
+    }
+
+    this.drawBanner(env, counts, zoom);
   }
-}
 
-class HqSprite extends Container {
-  private g = new Graphics();
-  private nameText = new Text({ text: "", style: { ...LABEL, fontSize: 11 } });
-  private status = new Text({ text: "", style: { ...LABEL, fontSize: 7 } });
-
-  constructor() {
-    super();
-    this.nameText.anchor.set(0.5, 0);
-    this.nameText.resolution = 2;
-    this.nameText.y = 48;
-    this.status.anchor.set(0.5, 0);
-    this.status.resolution = 2;
-    this.status.y = 66;
-    this.addChild(this.g, this.nameText, this.status);
+  private drawBanner(env: EnvWorld, counts: { working: number; attention: number; done: number; total: number }, zoom: number): void {
+    const L = this.layout;
+    const live = env.connection === "live";
+    // Constant on-screen size regardless of zoom.
+    const s = 1 / zoom;
+    const scale = s * (zoom < STRATEGIC_ZOOM ? 1.15 : 0.9);
+    this.banner.scale.set(scale);
+    // Sit above the module name labels (which keep a minimum on-screen size) with a small gap.
+    const labelHeight = 14 * Math.max(1, 0.9 / zoom);
+    this.banner.position.set(L.bounds.x, L.bounds.y - 10 - labelHeight - 8 * s - 44 * scale);
+    this.bannerName.text = env.summary.label.toUpperCase();
+    const status = live
+      ? [
+          "● LIVE",
+          counts.attention && `${counts.attention} ALERT${counts.attention > 1 ? "S" : ""}`,
+          counts.working && `${counts.working} ACTIVE`,
+          counts.done && `${counts.done} REPORT${counts.done > 1 ? "S" : ""}`,
+          `${counts.total} CREW`,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : env.connection === "needs-update"
+        ? "▲ NEEDS T3-COMMAND UPDATE"
+        : env.connection === "needs-pairing"
+          ? "▲ NEEDS PAIRING"
+          : env.connection === "offline"
+            ? "○ OFFLINE"
+            : "◌ NO SIGNAL · RETRYING";
+    this.bannerStatus.text = status;
+    this.bannerStatus.style.fill = !live ? STATUS.question : counts.attention ? STATUS.alert : HUD.muted;
+    const w = Math.max(this.bannerName.width, this.bannerStatus.width) + 28;
+    const b = this.bannerBg.clear();
+    b.rect(0, 0, w, 44).fill({ color: 0x05080d, alpha: 0.85 }).stroke({ color: live ? L.color : 0x3a4250, width: 1, alpha: 0.8 });
+    b.rect(0, 0, 4, 44).fill(live ? L.color : 0x3a4250);
+    // HUD corner brackets
+    b.moveTo(w - 10, 0).lineTo(w, 0).lineTo(w, 10).stroke({ color: HUD.amber, width: 1.5 });
+    b.moveTo(w, 34).lineTo(w, 44).lineTo(w - 10, 44).stroke({ color: HUD.amber, width: 1.5 });
+    if (counts.attention && live) b.rect(w - 8, 18, 4, 8).fill(STATUS.alert);
   }
 
-  update(env: EnvWorld, at: Point, t: number): void {
-    this.position.set(at.x, at.y);
-    this.zIndex = at.y;
-    const color = CONNECTION_COLORS[env.connection] ?? 0x888888;
-    const g = this.g.clear();
-    g.ellipse(0, 30, 90, 30).fill({ color: 0x000000, alpha: 0.3 });
-    g.poly([-60, 30, -50, -20, 50, -20, 60, 30]).fill(0x59616e).stroke({ color: 0x2b3038, width: 3 });
-    g.rect(-30, -60, 60, 42).fill(0x6c7684).stroke({ color: 0x2b3038, width: 3 });
-    g.rect(-6, -100, 4, 42).fill(0x2b3038); // flagpole
-    const wave = Math.sin(t * 3) * 3;
-    g.poly([-2, -100, 26, -94 + wave, -2, -86]).fill(color);
-    g.circle(0, -38, 10).fill({ color, alpha: env.connection === "live" ? 0.9 : 0.4 + Math.sin(t * 5) * 0.3 });
-    this.nameText.text = truncate(env.summary.label, 28);
-    this.status.text = env.connection === "live" ? `T3 ${env.summary.serverVersion ?? ""}`.trim() : env.connection.toUpperCase();
+  destroy(): void {
+    this.hull.destroy({ children: true });
+    this.lights.destroy();
+    this.banner.destroy({ children: true });
   }
 }
 
 // ---- World -----------------------------------------------------------------------------
 
+export interface MinimapData {
+  bounds: Rect;
+  stations: Array<{ rect: Rect; color: number; live: boolean }>;
+  dots: Array<{ x: number; y: number; color: number; big: boolean }>;
+  view: Rect;
+}
+
 export class World {
   private app = new Application();
+  private sky?: TilingSprite;
   private camera = new Container();
-  private ground = new Graphics();
-  private mines = new Container();
-  private entities = new Container();
-  private units = new Map<string, UnitSprite>();
-  private buildings = new Map<string, BuildingSprite>();
-  private libraries = new Map<string, LibrarySprite>();
-  private hqs = new Map<string, HqSprite>();
-  private layout: Layout = computeLayout(useGame.getState());
+  private grid = new Graphics();
+  private hulls = new Container();
+  private lights = new Container();
+  private crewLayer = new Container();
+  private banners = new Container();
+  private edge = new Graphics();
+  private edgeHits = new Container();
+  private stations = new Map<string, StationSprite>();
+  private crew = new Map<string, CrewSprite>();
+  private layout: FleetLayout = { stations: new Map(), modules: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
   private zoom = 1;
   private time = 0;
-  private unsubscribe?: () => void;
-  private fittedOnce = false;
+  private fitted = false;
+  /** Set once the user pans, zooms or jumps somewhere; until then the view keeps fitting the fleet. */
+  private userMoved = false;
   private destroyed = false;
+  /** Pixi finished initializing; until then the camera API is a no-op. */
+  private initialized = false;
+  private unsubscribe?: () => void;
   private ready: Promise<void>;
+  private lastEnvs?: GameState["envs"];
+  private lastDetails?: GameState["details"];
 
   constructor(host: HTMLElement) {
     this.ready = this.init(host);
   }
 
   private async init(host: HTMLElement): Promise<void> {
-    await this.app.init({ resizeTo: host, background: 0x24361f, antialias: true, autoDensity: true, resolution: window.devicePixelRatio || 1 });
+    await this.app.init({ resizeTo: host, background: HUD.space, antialias: true, autoDensity: true, resolution: window.devicePixelRatio || 1 });
+    try {
+      await Promise.all([document.fonts.load("600 10px 'Chakra Petch'"), document.fonts.load("10px 'IBM Plex Mono'")]);
+    } catch {
+      // Fallback fonts are fine.
+    }
     if (this.destroyed) {
       this.app.destroy(true);
       return;
     }
     host.appendChild(this.app.canvas);
-    this.entities.sortableChildren = true;
-    this.camera.addChild(this.ground, this.mines, this.entities);
-    this.app.stage.addChild(this.camera);
+    this.initialized = true;
+
+    this.sky = new TilingSprite({ texture: this.makeStarTexture(), width: this.app.screen.width, height: this.app.screen.height });
+    this.crewLayer.sortableChildren = true;
+    this.camera.addChild(this.grid, this.hulls, this.lights, this.crewLayer, this.banners);
+    this.app.stage.addChild(this.sky, this.camera, this.edge, this.edgeHits);
     this.setupCamera();
 
     this.sync(useGame.getState());
@@ -578,6 +558,30 @@ export class World {
     void this.ready.then(() => {
       if (this.app.renderer) this.app.destroy(true, { children: true });
     });
+  }
+
+  private makeStarTexture() {
+    const size = 1024;
+    const g = new Graphics();
+    g.rect(0, 0, size, size).fill(HUD.space);
+    // Faint nebula blotches.
+    for (let i = 0; i < 6; i++) {
+      const x = hash(`nx${i}`) * size;
+      const y = hash(`ny${i}`) * size;
+      const color = [0x1a1033, 0x0b1f2e, 0x2a1220][i % 3];
+      for (let j = 0; j < 40; j++) {
+        g.circle(x + (hash(`n${i}${j}x`) - 0.5) * 360, y + (hash(`n${i}${j}y`) - 0.5) * 240, 20 + hash(`n${i}${j}r`) * 60).fill({ color, alpha: 0.05 });
+      }
+    }
+    for (let i = 0; i < 520; i++) {
+      const x = hash(`sx${i}`) * size;
+      const y = hash(`sy${i}`) * size;
+      const m = hash(`sm${i}`);
+      const color = m > 0.97 ? 0xffd9a0 : m > 0.94 ? 0xa0d8ff : 0xffffff;
+      const px = m > 0.985 ? 2 : 1;
+      g.rect(Math.round(x), Math.round(y), px, px).fill({ color, alpha: 0.25 + m * 0.6 });
+    }
+    return this.app.renderer.generateTexture({ target: g, frame: new Rectangle(0, 0, size, size) });
   }
 
   // ---- Camera ----
@@ -595,21 +599,21 @@ export class World {
       const dx = e.global.x - drag.x;
       const dy = e.global.y - drag.y;
       if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
-      if (drag.moved) this.camera.position.set(drag.camX + dx, drag.camY + dy);
+      if (drag.moved) {
+        this.userMoved = true;
+        this.camera.position.set(drag.camX + dx, drag.camY + dy);
+      }
     });
-    const end = () => {
-      drag = null;
-    };
     stage.on("pointerup", (e: FederatedPointerEvent) => {
-      // A click on empty ground clears the selection.
       if (drag && !drag.moved && e.target === stage) setSelection(null);
-      end();
+      drag = null;
     });
-    stage.on("pointerupoutside", end);
+    stage.on("pointerupoutside", () => (drag = null));
     this.app.canvas.addEventListener(
       "wheel",
       (e) => {
         e.preventDefault();
+        this.userMoved = true;
         const rect = this.app.canvas.getBoundingClientRect();
         this.zoomAt(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-e.deltaY * 0.0015));
       },
@@ -617,130 +621,157 @@ export class World {
     );
   }
 
+  private setZoom(z: number): void {
+    this.zoom = Math.min(3, Math.max(0.12, z));
+    this.camera.scale.set(this.zoom);
+  }
+
   private zoomAt(sx: number, sy: number, factor: number): void {
-    const next = Math.min(2.5, Math.max(0.25, this.zoom * factor));
     const wx = (sx - this.camera.x) / this.zoom;
     const wy = (sy - this.camera.y) / this.zoom;
-    this.zoom = next;
-    this.camera.scale.set(next);
-    this.camera.position.set(sx - wx * next, sy - wy * next);
+    this.setZoom(this.zoom * factor);
+    this.camera.position.set(sx - wx * this.zoom, sy - wy * this.zoom);
+  }
+
+  private frame(rect: Rect, maxZoom: number, rightInset = 0): void {
+    const { width, height } = this.app.screen;
+    const usableW = width - rightInset;
+    const topInset = 70;
+    const z = Math.min(maxZoom, Math.min(usableW / (rect.w + 160), (height - topInset) / (rect.h + 220)));
+    this.setZoom(z);
+    this.camera.position.set(usableW / 2 - (rect.x + rect.w / 2) * this.zoom, topInset / 2 + height / 2 - (rect.y + rect.h / 2) * this.zoom);
   }
 
   fitAll(): void {
-    const b = this.layout.bounds;
-    const { width, height } = this.app.screen;
-    const zoom = Math.min(1.2, Math.max(0.25, Math.min(width / (b.maxX - b.minX), height / (b.maxY - b.minY))));
-    this.zoom = zoom;
-    this.camera.scale.set(zoom);
-    this.camera.position.set(width / 2 - ((b.minX + b.maxX) / 2) * zoom, height / 2 - ((b.minY + b.maxY) / 2) * zoom);
+    if (!this.initialized) return;
+    this.frame(this.layout.bounds, 1.1);
   }
 
-  /** Center the camera on a unit or building. */
-  focus(selection: Selection): void {
-    if (!selection) return;
-    let p: Point | undefined;
-    if (selection.kind === "unit") p = this.units.get(unitKey(selection.envId, selection.threadId))?.pos;
-    else if (selection.kind === "library") p = this.layout.projects.get(`${selection.envId}:${selection.projectId}`)?.library;
-    else p = this.layout.projects.get(`${selection.envId}:${selection.projectId}`)?.building;
-    if (!p) return;
+  focusStation(envId: string): void {
+    const s = this.layout.stations.get(envId);
+    this.userMoved = true;
+    if (s && this.initialized) this.frame(s.bounds, 1.6, Math.min(460, this.app.screen.width * 0.3));
+  }
+
+  centerOn(x: number, y: number): void {
+    if (!this.initialized) return;
+    this.userMoved = true;
     const { width, height } = this.app.screen;
-    // Leave room for the side panel on the right.
-    const zoom = Math.max(this.zoom, 1);
-    this.zoom = zoom;
-    this.camera.scale.set(zoom);
-    this.camera.position.set(width * 0.38 - p.x * zoom, height / 2 - p.y * zoom);
+    this.camera.position.set(width / 2 - x * this.zoom, height / 2 - y * this.zoom);
+  }
+
+  /** Center the camera on a unit, module or archive, leaving room for the side panel. */
+  focus(selection: Selection): void {
+    if (!selection || !this.initialized) return;
+    let p: Point | undefined;
+    if (selection.kind === "unit") p = this.crew.get(unitKey(selection.envId, selection.threadId))?.pos;
+    else {
+      const m = this.layout.modules.get(`${selection.envId}:${selection.projectId}`);
+      const r = selection.kind === "library" ? m?.archive : m?.room;
+      if (r) p = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+    }
+    if (!p) return;
+    this.userMoved = true;
+    const { width, height } = this.app.screen;
+    this.setZoom(Math.max(this.zoom, 1.6));
+    this.camera.position.set(width * 0.36 - p.x * this.zoom, height / 2 - p.y * this.zoom);
+  }
+
+  minimap(): MinimapData | undefined {
+    if (!this.initialized) return undefined;
+    const { width, height } = this.app.screen;
+    const view = { x: -this.camera.x / this.zoom, y: -this.camera.y / this.zoom, w: width / this.zoom, h: height / this.zoom };
+    const state = useGame.getState();
+    return {
+      bounds: this.layout.bounds,
+      stations: [...this.layout.stations.values()].map((s) => ({ rect: s.bounds, color: s.color, live: state.envs[s.envId]?.connection === "live" })),
+      dots: [...this.crew.values()]
+        .filter((c) => c.state !== "sleeping")
+        .map((c) => ({ x: c.pos.x, y: c.pos.y, color: STATUS[c.state], big: c.state === "alert" || c.state === "question" })),
+      view,
+    };
   }
 
   // ---- Sync with the store ----
 
   private sync(state: GameState): void {
-    this.layout = computeLayout(state);
-    const seenUnits = new Set<string>();
-    const seenBuildings = new Set<string>();
-    const seenHqs = new Set<string>();
+    if (state.envs === this.lastEnvs && state.details === this.lastDetails) return;
+    const layoutChanged = state.envs !== this.lastEnvs;
+    this.lastEnvs = state.envs;
+    this.lastDetails = state.details;
 
+    if (layoutChanged) {
+      this.layout = computeFleetLayout(state);
+      const seen = new Set<string>();
+      for (const [envId, sl] of this.layout.stations) {
+        seen.add(envId);
+        let station = this.stations.get(envId);
+        if (!station) {
+          station = new StationSprite(envId);
+          this.stations.set(envId, station);
+          this.hulls.addChild(station.hull);
+          this.lights.addChild(station.lights);
+          this.banners.addChild(station.banner);
+        }
+        station.build(sl, state.envs[envId]);
+      }
+      for (const [envId, station] of this.stations) {
+        if (seen.has(envId)) continue;
+        station.destroy();
+        this.stations.delete(envId);
+      }
+      this.drawGrid();
+    }
+
+    const seenCrew = new Set<string>();
     for (const env of Object.values(state.envs)) {
-      const envId = env.summary.id;
-      seenHqs.add(envId);
-      if (!this.hqs.has(envId)) {
-        const hq = new HqSprite();
-        this.hqs.set(envId, hq);
-        this.entities.addChild(hq);
-      }
-      for (const project of Object.values(env.projects)) {
-        const key = `${envId}:${project.id}`;
-        seenBuildings.add(key);
-        if (!this.buildings.has(key)) {
-          const b = new BuildingSprite(envId, project.id, this.mines);
-          this.buildings.set(key, b);
-          this.entities.addChild(b);
-        }
-        if ((this.layout.projects.get(key)?.archived ?? 0) > 0 && !this.libraries.has(key)) {
-          const lib = new LibrarySprite(envId, project.id);
-          this.libraries.set(key, lib);
-          this.entities.addChild(lib);
-        }
-      }
       for (const thread of Object.values(env.threads)) {
-        const key = unitKey(envId, thread.id);
-        const layout = this.layout.units.get(key);
-        if (!layout) continue; // thread in a project we don't know about
-        seenUnits.add(key);
-        let unit = this.units.get(key);
-        if (!unit) {
-          // New recruits walk out of their building.
-          const building = this.layout.projects.get(`${envId}:${thread.projectId}`)?.building ?? layout.home;
-          unit = new UnitSprite(key, envId, thread.id, this.fittedOnce ? { x: building.x, y: building.y + 10 } : layout.home);
-          this.units.set(key, unit);
-          this.entities.addChild(unit);
+        if (isHistory(thread)) continue;
+        const key = unitKey(env.summary.id, thread.id);
+        const lay = this.layout.crew.get(key);
+        if (!lay) continue;
+        seenCrew.add(key);
+        let sprite = this.crew.get(key);
+        if (!sprite) {
+          // New crew step out of the core; on first load everyone starts at their post.
+          const station = this.layout.stations.get(env.summary.id);
+          sprite = new CrewSprite(lay, this.fitted && station ? { ...station.center } : lay.home);
+          this.crew.set(key, sprite);
+          this.crewLayer.addChild(sprite);
         }
-        unit.setThread(thread);
+        const detail = state.details[key];
+        sprite.update(thread, detail ? telemetry(detail.thread) : undefined);
       }
     }
-
-    for (const [key, unit] of this.units) {
-      if (seenUnits.has(key)) continue;
-      unit.destroy({ children: true });
-      this.units.delete(key);
-    }
-    for (const [key, building] of this.buildings) {
-      if (seenBuildings.has(key)) continue;
-      building.destroyAll();
-      this.buildings.delete(key);
-    }
-    for (const [key, lib] of this.libraries) {
-      if (seenBuildings.has(key) && (this.layout.projects.get(key)?.archived ?? 0) > 0) continue;
-      lib.destroy({ children: true });
-      this.libraries.delete(key);
-    }
-    for (const [key, hq] of this.hqs) {
-      if (seenHqs.has(key)) continue;
-      hq.destroy({ children: true });
-      this.hqs.delete(key);
+    for (const [key, sprite] of this.crew) {
+      if (seenCrew.has(key)) continue;
+      sprite.destroy({ children: true });
+      this.crew.delete(key);
     }
 
-    if (!this.fittedOnce && Object.values(state.envs).some((e) => e.synced)) {
-      this.fittedOnce = true;
-      this.drawGround();
-      this.fitAll();
+    if (Object.values(state.envs).some((e) => e.synced)) {
+      // New crew walk out of the core once the first snapshot has been placed.
+      this.fitted = true;
+      if (layoutChanged && !this.userMoved) this.fitAll();
     }
   }
 
-  private drawGround(): void {
-    const g = this.ground.clear();
+  private drawGrid(): void {
+    const g = this.grid.clear();
     const b = this.layout.bounds;
-    const pad = 1500;
-    // Scattered grass tufts and pebbles, seeded so they stay put.
-    for (let i = 0; i < 900; i++) {
-      const x = b.minX - pad + hash(`gx${i}`) * (b.maxX - b.minX + pad * 2);
-      const y = b.minY - pad + hash(`gy${i}`) * (b.maxY - b.minY + pad * 2);
-      if (hash(`gk${i}`) < 0.8) g.rect(x, y, 3, 6).fill({ color: 0x3c5a2e, alpha: 0.8 });
-      else g.circle(x, y, 3).fill({ color: 0x5b5f55, alpha: 0.7 });
-    }
-    // A dirt clearing around each base.
-    for (const hq of this.layout.hq.values()) {
-      g.circle(hq.x, hq.y, PROJECT_RING + 120).fill({ color: 0x4a3f2c, alpha: 0.35 });
-      g.circle(hq.x, hq.y, 170).fill({ color: 0x5a4c34, alpha: 0.45 });
+    const step = 400;
+    const pad = 2400;
+    const x0 = Math.floor((b.x - pad) / step) * step;
+    const y0 = Math.floor((b.y - pad) / step) * step;
+    const x1 = b.x + b.w + pad;
+    const y1 = b.y + b.h + pad;
+    for (let x = x0; x < x1; x += step) g.moveTo(x, y0).lineTo(x, y1).stroke({ color: HUD.cyan, width: 1, alpha: 0.05 });
+    for (let y = y0; y < y1; y += step) g.moveTo(x0, y).lineTo(x1, y).stroke({ color: HUD.cyan, width: 1, alpha: 0.05 });
+    for (let x = x0; x < x1; x += step) {
+      for (let y = y0; y < y1; y += step) {
+        g.rect(x - 3, y, 7, 1).fill({ color: HUD.cyan, alpha: 0.18 });
+        g.rect(x, y - 3, 1, 7).fill({ color: HUD.cyan, alpha: 0.18 });
+      }
     }
   }
 
@@ -752,35 +783,66 @@ export class World {
     const t = this.time;
     const sel = state.selection;
 
-    const busyByBuilding = new Map<string, number>();
-    for (const unit of this.units.values()) {
-      if (unit.state !== "working") continue;
-      const key = `${unit.envId}:${unit.thread.projectId}`;
-      busyByBuilding.set(key, (busyByBuilding.get(key) ?? 0) + 1);
+    if (this.sky) {
+      this.sky.width = this.app.screen.width;
+      this.sky.height = this.app.screen.height;
+      this.sky.tilePosition.set(this.camera.x * 0.15, this.camera.y * 0.15);
     }
+    this.grid.visible = this.zoom > 0.2;
 
-    for (const [envId, hq] of this.hqs) {
-      const env = state.envs[envId];
-      const at = this.layout.hq.get(envId);
-      if (env && at) hq.update(env, at, t);
+    for (const [key, sprite] of this.crew) {
+      const lay = this.layout.crew.get(key);
+      if (!lay) continue;
+      const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
+      sprite.tick(lay, this.layout.modules, t, dt, selected, this.zoom);
     }
-    for (const [key, building] of this.buildings) {
-      const project = state.envs[building.envId]?.projects[building.projectId];
-      const layout = this.layout.projects.get(key);
-      if (!project || !layout) continue;
-      const selected = sel?.kind === "building" && sel.envId === building.envId && sel.projectId === building.projectId;
-      building.update(project, layout, selected, busyByBuilding.get(key) ?? 0, t);
+    for (const station of this.stations.values()) {
+      const env = state.envs[station.envId];
+      if (env) station.drawLights(env, this.crew, this.layout, t, this.zoom, sel);
     }
-    for (const [key, lib] of this.libraries) {
-      const layout = this.layout.projects.get(key);
-      if (!layout) continue;
-      lib.update(layout, sel?.kind === "library" && `${sel.envId}:${sel.projectId}` === key);
-    }
-    for (const [key, unit] of this.units) {
-      const layout = this.layout.units.get(key);
-      if (!layout) continue;
-      const selected = sel?.kind === "unit" && sel.envId === unit.envId && sel.threadId === unit.threadId;
-      unit.tick(layout, t, dt, selected, this.zoom);
+    this.drawEdgeIndicators(t);
+  }
+
+  /** Arrows on the screen edge pointing at off-screen crew who need you. */
+  private drawEdgeIndicators(t: number): void {
+    const g = this.edge.clear();
+    for (const child of this.edgeHits.removeChildren()) child.destroy();
+    const { width, height } = this.app.screen;
+    const margin = 26;
+    const top = 64;
+    for (const sprite of this.crew.values()) {
+      if (sprite.state !== "alert" && sprite.state !== "question") continue;
+      const sx = this.camera.x + sprite.pos.x * this.zoom;
+      const sy = this.camera.y + sprite.pos.y * this.zoom;
+      if (sx > margin && sx < width - margin && sy > top && sy < height - margin) continue;
+      const cx = width / 2;
+      const cy = (height + top) / 2;
+      const dx = sx - cx;
+      const dy = sy - cy;
+      const scale = Math.min((width / 2 - margin) / Math.abs(dx || 1e-6), ((height - top) / 2 - margin) / Math.abs(dy || 1e-6));
+      const ex = cx + dx * scale;
+      const ey = cy + dy * scale;
+      const a = Math.atan2(dy, dx);
+      const color = STATUS[sprite.state];
+      const pulse = 1 + Math.sin(t * 6) * 0.15;
+      const tip = (r: number, da: number) => [ex + Math.cos(a + da) * r, ey + Math.sin(a + da) * r];
+      g.poly([...tip(14 * pulse, 0), ...tip(10, 2.5), ...tip(10, -2.5)]).fill(color).stroke({ color: 0x000000, width: 1.5 });
+      const station = this.layout.stations.get(sprite.envId);
+      if (station) g.circle(ex - Math.cos(a) * 6, ey - Math.sin(a) * 6, 3).fill(station.color);
+      const hit = new Container();
+      hit.eventMode = "static";
+      hit.cursor = "pointer";
+      hit.hitArea = new Rectangle(ex - 16, ey - 16, 32, 32);
+      const envId = sprite.envId;
+      const threadId = sprite.threadId;
+      hit.on("pointertap", (e: FederatedPointerEvent) => {
+        e.stopPropagation();
+        sfx.select();
+        const s = { kind: "unit" as const, envId, threadId };
+        setSelection(s);
+        this.focus(s);
+      });
+      this.edgeHits.addChild(hit);
     }
   }
 }

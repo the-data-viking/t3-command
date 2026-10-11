@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { MeResponse } from "../shared/api";
 import { sfx } from "./game/sfx";
+import { installActiveWatches } from "./game/watch";
 import { addLog, useGame } from "./store";
 import { fetchJson, onUnitTransition, refreshEnvironments } from "./t3/environment";
 import { BuildingPanel } from "./ui/BuildingPanel";
@@ -9,6 +10,8 @@ import { EventLog } from "./ui/EventLog";
 import { LibraryPanel } from "./ui/LibraryPanel";
 import { installHotkeys } from "./ui/hotkeys";
 import { MapView } from "./ui/MapView";
+import { Minimap } from "./ui/Minimap";
+import { NeedsYou } from "./ui/NeedsYou";
 import { TopBar } from "./ui/TopBar";
 import { UnitPanel } from "./ui/UnitPanel";
 
@@ -57,10 +60,12 @@ export default function App() {
     })();
     const offHotkeys = installHotkeys();
     const offTransitions = announceTransitions();
+    const offWatches = installActiveWatches();
     return () => {
       clearInterval(timer);
       offHotkeys();
       offTransitions();
+      offWatches();
     };
   }, []);
 
@@ -77,11 +82,13 @@ export default function App() {
     <div className="game">
       <MapView />
       <TopBar />
+      <NeedsYou />
+      <Minimap />
       <EventLog />
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
       {selection?.kind === "library" && <LibraryPanel key={`lib:${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
       {selection?.kind === "building" && <BuildingPanel key={`${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
-      <div className="hint muted small">Drag to pan · Scroll to zoom · Space: next alert · . : next report · W: next busy · F: fit</div>
+      <div className="hint">DRAG pan · SCROLL zoom · SPACE next alert · . next report · W next active · F fit fleet</div>
       {showEnvManager && <EnvManager />}
     </div>
   );
