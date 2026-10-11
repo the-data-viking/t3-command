@@ -12,8 +12,9 @@ export class RenderLoop {
 
   constructor(
     draw: (dt: number) => boolean,
-    request: (callback: FrameRequestCallback) => number = requestAnimationFrame,
-    cancel: (id: number) => void = cancelAnimationFrame,
+    // Native animation APIs require Window as their receiver, even when stored on a loop.
+    request: (callback: FrameRequestCallback) => number = callback => window.requestAnimationFrame(callback),
+    cancel: (id: number) => void = id => window.cancelAnimationFrame(id),
     fps = 30,
   ) {
     this.draw = draw;

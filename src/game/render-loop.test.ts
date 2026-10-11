@@ -14,6 +14,47 @@ function harness(draw: (dt: number) => boolean) {
   return { loop, frames, advance };
 }
 
+test('default animation APIs retain their Window receiver when scheduling and cancelling', () => {
+  const frames = new Map<number, FrameRequestCallback>();
+  let id = 0;
+  let draws = 0;
+  const browser = {
+    requestAnimationFrame(callback: FrameRequestCallback) {
+      if (this !== browser) throw new TypeError('Illegal invocation');
+      frames.set(++id, callback);
+      return id;
+    },
+    cancelAnimationFrame(id: number) {
+      if (this !== browser) throw new TypeError('Illegal invocation');
+      frames.delete(id);
+    },
+  };
+  const globals = { window: browser, requestAnimationFrame: browser.requestAnimationFrame, cancelAnimationFrame: browser.cancelAnimationFrame };
+  const descriptors = Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const);
+  for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, value });
+  try {
+    const loop = new RenderLoop(() => { draws++; return true; });
+    loop.invalidate();
+    assert.equal(frames.size, 1);
+    const callback = frames.get(id)!;
+    frames.clear();
+    callback(0);
+    assert.equal(draws, 1);
+    assert.equal(frames.size, 1);
+    loop.setVisible(false);
+    assert.equal(frames.size, 0);
+    loop.setVisible(true);
+    assert.equal(frames.size, 1);
+    loop.destroy();
+    assert.equal(frames.size, 0);
+  } finally {
+    for (const [key, descriptor] of descriptors) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+});
+
 test('idle maps draw once, sleep, and coalesce new invalidations', () => {
   let draws = 0;
   const h = harness(() => { draws++; return false; });
