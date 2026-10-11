@@ -143,6 +143,8 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
   // Providers arrive after connecting; pick a default once they do.
   const current = selection ?? defaultSelection(providers, [prefs.modelSelection, project?.defaultModelSelection]);
   const provider = providers.find((p) => p.instanceId === current?.instanceId);
+  const runtimeModes = provider?.runtimeModes?.length ? provider.runtimeModes : RUNTIME_MODES;
+  const currentRuntimeMode = runtimeModes.some((mode) => mode.id === runtimeMode) ? runtimeMode : runtimeModes[0].id;
   const model = provider?.models.find((m) => m.slug === current?.model);
   const descriptors = model?.capabilities?.optionDescriptors ?? [];
 
@@ -158,8 +160,8 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
     if (!task || !current || sending) return;
     setSending(true);
     try {
-      const threadId = await envClient(envId)!.recruit({ projectId, text: task, modelSelection: current, runtimeMode });
-      savePrefs(envId, { modelSelection: current, runtimeMode });
+      const threadId = await envClient(envId)!.recruit({ projectId, text: task, modelSelection: current, runtimeMode: currentRuntimeMode });
+      savePrefs(envId, { modelSelection: current, runtimeMode: currentRuntimeMode });
       sfx.recruit();
       addLog({ tone: "good", text: `New worker recruited at ${project?.title ?? "base"}`, envId, threadId });
       setText("");
@@ -230,8 +232,8 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
               ))}
             </select>
           ))}
-        <select value={runtimeMode} onChange={(e) => setRuntimeMode(e.target.value as RuntimeMode)} title="Permissions">
-          {RUNTIME_MODES.map((m) => (
+        <select value={currentRuntimeMode} onChange={(e) => setRuntimeMode(e.target.value as RuntimeMode)} title="Permissions">
+          {runtimeModes.map((m) => (
             <option key={m.id} value={m.id}>
               {m.label}
             </option>

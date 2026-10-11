@@ -9,6 +9,7 @@ import path from "node:path";
 import { SUPPORTED_PROTOCOL_VERSIONS, type EnvStatus, type EnvSummary } from "../shared/api.ts";
 import { CatalogError, forgetCachedCatalog, readDesktopConnections } from "./desktop-catalog.ts";
 import { createPairingCredential, discover, SshError, SshTunnels, validateTarget, type SshTarget } from "./ssh.ts";
+import { probeHermes } from "./hermes/acp.ts";
 
 interface StoredEnv {
   id: string;
@@ -22,6 +23,7 @@ interface StoredEnv {
   tokenExpiresAt?: string;
   scopes?: string;
   addedAt: string;
+  hermes?: { workspaceRoot: string };
 }
 
 interface EnvironmentDescriptor {
@@ -84,9 +86,11 @@ export class Registry {
   private statusCache = new Map<string, { at: number; summary: EnvSummary }>();
   private readonly file: string;
   private readonly dataDir: string;
+  private readonly hermesLaunch: { command: string; args: string[] };
 
-  constructor(dataDir: string) {
+  constructor(dataDir: string, hermesLaunch = { command: "hermes", args: ["acp"] }) {
     this.dataDir = dataDir;
+    this.hermesLaunch = hermesLaunch;
     this.file = path.join(dataDir, "environments.json");
   }
 
@@ -112,12 +116,14 @@ export class Registry {
 
   /** Where to reach an environment's T3 server right now (opens the SSH tunnel if needed). */
   resolveUrl(env: StoredEnv): Promise<string> {
+    if (env.hermes) return Promise.reject(new UserError("Hermes uses local ACP, not a T3 server URL"));
     if (env.ssh) return this.tunnels.ensure(env.id, env.ssh);
     return Promise.resolve(env.url!);
   }
 
   /** The bearer token to use for an environment right now. */
   async tokenFor(env: StoredEnv): Promise<string> {
+    if (env.hermes) throw new UserError("Hermes has no T3 pairing token");
     if (!env.linked) return env.token!;
     const connection = (await readDesktopConnections()).find((c) => c.connectionId === env.linked!.connectionId);
     if (!connection) throw new CatalogError(`T3 desktop no longer has a connection to "${env.label}"`);
@@ -170,6 +176,30 @@ export class Registry {
     if (!input.credential) throw new UserError("Pairing link or credential is required");
     if (!input.url) throw new UserError("T3 server URL is required");
     return this.pair(normalizeUrl(input.url), input.credential, label, {});
+  }
+
+  async addHermes(rawWorkspace: string, label?: string): Promise<EnvSummary> {
+    const expanded = rawWorkspace.trim().replace(/^~(?=\/|$)/, process.env.HOME ?? "~");
+    if (!path.isAbsolute(expanded)) throw new UserError("Hermes workspace must be an absolute local directory path");
+    let workspaceRoot: string;
+    try {
+      workspaceRoot = await fs.realpath(expanded);
+      if (!(await fs.stat(workspaceRoot)).isDirectory()) throw new Error("Not a directory");
+      await probeHermes(this.hermesLaunch.command, this.hermesLaunch.args, workspaceRoot);
+    } catch (err) {
+      throw new UserError(`Couldn't launch local Hermes: ${(err as Error).message}. Run hermes setup and hermes acp --check on this host.`);
+    }
+    const existing = [...this.envs.values()].find((env) => env.hermes?.workspaceRoot === workspaceRoot);
+    const stored: StoredEnv = {
+      id: existing?.id ?? `hermes-${randomUUID()}`,
+      label: label?.trim() || existing?.label || `Hermes · ${path.basename(workspaceRoot)}`,
+      hermes: { workspaceRoot },
+      addedAt: existing?.addedAt ?? new Date().toISOString(),
+    };
+    this.envs.set(stored.id, stored);
+    this.statusCache.delete(stored.id);
+    await this.save();
+    return this.summary(stored);
   }
 
   /** Add a T3 server reached over SSH: find it, tunnel to it, and pair using T3's own CLI there. */
@@ -268,7 +298,8 @@ export class Registry {
     const base: EnvSummary = {
       id: env.id,
       label: env.label,
-      url: env.ssh ? `ssh://${env.ssh.target}${env.ssh.port ? `:${env.ssh.port}` : ""}` : env.url!,
+      url: env.hermes ? env.hermes.workspaceRoot : env.ssh ? `ssh://${env.ssh.target}${env.ssh.port ? `:${env.ssh.port}` : ""}` : env.url!,
+      ...(env.hermes ? { kind: "hermes" as const } : {}),
       status: "ok",
       tokenExpiresAt: env.tokenExpiresAt,
       addedAt: env.addedAt,
@@ -279,6 +310,13 @@ export class Registry {
       this.statusCache.set(env.id, { at: Date.now(), summary });
       return summary;
     };
+
+    if (env.hermes) {
+      try {
+        base.serverVersion = await probeHermes(this.hermesLaunch.command, this.hermesLaunch.args, env.hermes.workspaceRoot);
+        return set("ok");
+      } catch (err) { return set("unreachable", (err as Error).message); }
+    }
 
     let url: string;
     try {

@@ -9,10 +9,23 @@ import type { AddEnvRequest, MeResponse } from "../shared/api.ts";
 import { loadConfig, type Config } from "./config.ts";
 import { Registry, UserError } from "./registry.ts";
 import { serveEnvironmentAsset } from "./assets.ts";
+import { HermesBridge } from "./hermes/bridge.ts";
 
 const config = loadConfig();
-const registry = new Registry(config.dataDir);
+const hermesLaunch = { command: config.hermesCommand, args: config.hermesArgs };
+const registry = new Registry(config.dataDir, hermesLaunch);
 await registry.load();
+const hermesBridges = new Map<string, Promise<HermesBridge>>();
+
+function hermesBridge(envId: string, workspaceRoot: string): Promise<HermesBridge> {
+  let bridge = hermesBridges.get(envId);
+  if (!bridge) {
+    const instance = new HermesBridge(config.dataDir, envId, workspaceRoot, hermesLaunch);
+    bridge = instance.load().then(() => instance).catch((err) => { hermesBridges.delete(envId); throw err; });
+    hermesBridges.set(envId, bridge);
+  }
+  return bridge;
+}
 
 // ---- Access control --------------------------------------------------------------
 
@@ -128,6 +141,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (pathname === "/api/envs" && method === "POST") {
     const body = await readJson<AddEnvRequest>(req);
+    if (body.hermes) {
+      return sendJson(res, 200, await registry.addHermes(String(body.hermes.workspaceRoot ?? ""), body.label));
+    }
     if (body.ssh) {
       const port = body.ssh.port ? Number(body.ssh.port) : undefined;
       return sendJson(res, 200, await registry.addSsh(String(body.ssh.target ?? ""), port, body.label));
@@ -139,7 +155,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   const envMatch = pathname.match(/^\/api\/envs\/([^/]+)$/);
   if (envMatch && method === "DELETE") {
-    const removed = await registry.remove(decodeURIComponent(envMatch[1]));
+    const envId = decodeURIComponent(envMatch[1]);
+    const env = registry.get(envId);
+    // Load persisted Hermes state too, even when no browser has connected yet.
+    const bridge = env?.hermes ? await hermesBridge(envId, env.hermes.workspaceRoot) : undefined;
+    const removed = await registry.remove(envId);
+    if (bridge) { await bridge.close(true); hermesBridges.delete(envId); }
     return sendJson(res, removed ? 200 : 404, { removed });
   }
   if (pathname.startsWith("/api/")) return sendJson(res, 404, { error: "Not found" });
@@ -174,13 +195,27 @@ server.on("upgrade", (req, socket, head) => {
     return;
   }
   const envId = decodeURIComponent(match[1]);
-  wss.handleUpgrade(req, socket, head, (client) => void relay(client, envId));
+  wss.handleUpgrade(req, socket, head, (client) => {
+    void relay(client, envId).catch(() => client.close(CLOSE.upstreamFailed, "Could not open environment"));
+  });
 });
 
 async function relay(client: WebSocket, envId: string): Promise<void> {
   const env = registry.get(envId);
   if (!env) {
     client.close(CLOSE.unknownEnv, "Unknown environment");
+    return;
+  }
+  if (env.hermes) {
+    // Hold the first subscription requests while loading the persisted fleet state.
+    const early: RawData[] = [];
+    const hold = (data: RawData) => early.push(data);
+    client.on("message", hold);
+    const bridge = await hermesBridge(envId, env.hermes.workspaceRoot);
+    client.off("message", hold);
+    if (client.readyState !== WebSocket.OPEN) return;
+    bridge.attach(client);
+    for (const data of early) client.emit("message", data);
     return;
   }
 
@@ -255,3 +290,10 @@ server.listen(config.port, config.host, () => {
     console.log(`  allowed users: ${[...config.allowedUsers].join(", ")}`);
   }
 });
+
+async function shutdown(): Promise<void> {
+  await Promise.all([...hermesBridges.values()].map(async (bridge) => (await bridge).close()));
+  process.exit(0);
+}
+process.once("SIGTERM", () => void shutdown());
+process.once("SIGINT", () => void shutdown());

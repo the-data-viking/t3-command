@@ -90,6 +90,51 @@ Why it needs a server of its own:
 Each environment sees t3-command as its own connection under **Settings → Connections**, separate
 from the stock app's, and you can revoke it there at any time.
 
+### Local Hermes workers
+
+T3 Command can also launch [Hermes Agent](https://github.com/NousResearch/hermes-agent) workers
+on the same machine as the Command server. Hermes appears as its own base; T3 Code does not
+need a Hermes provider or any changes. The browser uses the same authenticated Command server,
+which launches `hermes acp` and translates its local Agent Client Protocol stream into crew state.
+
+1. Install and configure Hermes on the Command host as the same OS user that runs Command:
+   run `hermes setup`, then `hermes acp --check`. Use a Hermes release with ACP session modes
+   (`default` and `accept_edits`) and session loading.
+2. Open **Bases → Local Hermes**, enter an existing absolute workspace directory on that host,
+   and choose **Connect Hermes**. No T3 pairing link or additional network listener is needed.
+3. Select that base's workspace module and recruit a worker. Each worker gets its own Hermes
+   process and session, using Hermes's configured model, credentials, tools, and memory.
+
+Replies and reasoning stream into the crew log. Tool calls drive workstation activity; permission
+requests use the existing approval controls. **Halt** sends ACP cancellation and waits for the
+agent's prompt to finish before showing it as interrupted. The available permission choices are
+**Ask before edits** and **Accept workspace edits**; Hermes retains its own command and sensitive
+path approval rules. Change the configured model with `hermes model` before recruiting, or use
+Hermes's `/model` command in an existing worker's orders.
+
+Closing or reconnecting the browser leaves workers running. Command stores its transcripts and
+Hermes session IDs in owner-only files under `T3C_DATA_DIR`. After a Command host restart, prior
+running turns become interrupted; the next order reloads the saved Hermes session. Removing a
+Hermes base stops its processes and deletes Command's transcripts; Hermes's own saved sessions
+remain. Command does not attach to an existing Hermes CLI/gateway session, import its history,
+or currently provide Hermes images, structured questions, background-task telemetry, or spend
+estimates.
+
+The Command service must be able to find Hermes on its `PATH`. For launchers outside that path,
+set the executable and arguments on the host, then restart Command:
+
+```sh
+T3C_HERMES_COMMAND=/absolute/path/to/hermes npm start
+# Alternative: launch the ACP module through Hermes's Python environment.
+T3C_HERMES_COMMAND=/absolute/path/to/hermes/.venv/bin/python \
+T3C_HERMES_ARGS='["-m","acp_adapter"]' npm start
+```
+
+`T3C_HERMES_COMMAND` defaults to `hermes`; `T3C_HERMES_ARGS` defaults to `["acp"]` and must be a
+JSON array of strings. These settings are server-only; the browser chooses the workspace, never
+an executable or shell command. Verification uses an ACP fixture through the actual HTTP and
+WebSocket server; a configured real Hermes installation is still needed for a model-backed smoke test.
+
 ### Protocol versions
 
 On connect, t3-command reads each environment's `GET /.well-known/t3/environment` and checks

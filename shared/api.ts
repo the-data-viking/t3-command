@@ -12,8 +12,9 @@ export type EnvStatus =
 
 export interface EnvSummary {
   id: string;
+  kind?: "t3" | "hermes";
   label: string;
-  /** How the t3-command server reaches it: http(s)://host:port, or ssh://destination for SSH bases. */
+  /** T3: HTTP URL or SSH destination. Local Hermes: workspace directory on the Command host. */
   url: string;
   status: EnvStatus;
   statusDetail?: string;
@@ -36,6 +37,8 @@ export interface MeResponse {
 }
 
 export interface AddEnvRequest {
+  /** Local Hermes ACP sessions, launched by the command host in this workspace. */
+  hermes?: { workspaceRoot: string };
   /** Direct base: T3 server URL (optional when `credential` is a full pairing link). */
   url?: string;
   /** One-time pairing credential or pairing link from T3's Settings → Connections. */

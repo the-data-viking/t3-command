@@ -27,6 +27,8 @@ export interface Config {
   /** Extra origins accepted on state-changing requests and WebSocket upgrades. */
   allowedOrigins: Set<string>;
   staticDir: string;
+  hermesCommand: string;
+  hermesArgs: string[];
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -38,7 +40,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     devNoAuth: env.T3C_DEV_NO_AUTH === "1",
     allowedOrigins: new Set(list(env.T3C_ALLOWED_ORIGINS)),
     staticDir: path.resolve(here, "../dist"),
+    hermesCommand: env.T3C_HERMES_COMMAND || "hermes",
+    hermesArgs: JSON.parse(env.T3C_HERMES_ARGS ?? '["acp"]') as string[],
   };
+  if (!Array.isArray(config.hermesArgs) || !config.hermesArgs.every((arg) => typeof arg === "string")) {
+    throw new Error("T3C_HERMES_ARGS must be a JSON array of strings");
+  }
   if (!Number.isInteger(config.port) || config.port <= 0) {
     throw new Error(`T3C_PORT must be a port number, got ${env.T3C_PORT}`);
   }

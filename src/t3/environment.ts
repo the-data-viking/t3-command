@@ -174,6 +174,10 @@ export class EnvironmentClient {
   }
 
   private async loadUsage(): Promise<void> {
+    if (this.summary.kind === "hermes") {
+      updateEnv(this.id, (env) => ({ ...env, usage: { error: "Hermes usage estimates are unavailable" } }));
+      return;
+    }
     const rpc = this.rpc;
     if (!rpc?.isOpen || this.disposed || this.usagePending === rpc) return;
     clearTimeout(this.usageTimer);
@@ -265,6 +269,14 @@ export class EnvironmentClient {
       for (const item of items) {
         switch (item.kind) {
           case "snapshot":
+            if (synced && this.summary.kind === "hermes") {
+              for (const thread of item.snapshot.threads) {
+                const prev = threads[thread.id];
+                const from = prev ? unitState(prev) : "idle";
+                const to = unitState(thread);
+                if (from !== to || !prev) transitions.push({ envId: this.id, thread, from, to });
+              }
+            }
             projects = Object.fromEntries(item.snapshot.projects.map((p) => [p.id, p]));
             threads = Object.fromEntries(item.snapshot.threads.map((t) => [t.id, t]));
             this.shellSequence = item.snapshot.snapshotSequence;

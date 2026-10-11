@@ -7,7 +7,8 @@ import { timeAgo } from "./util";
 
 export function EnvManager() {
   const envs = useGame((s) => s.envs);
-  const [mode, setMode] = useState<"ssh" | "link">("ssh");
+  const [mode, setMode] = useState<"ssh" | "link" | "hermes">("ssh");
+  const [workspaceRoot, setWorkspaceRoot] = useState("");
   const [sshTarget, setSshTarget] = useState("");
   const [sshPort, setSshPort] = useState("");
   const [url, setUrl] = useState("");
@@ -24,7 +25,9 @@ export function EnvManager() {
       await fetchJson<EnvSummary>("/api/envs", {
         method: "POST",
         body: JSON.stringify(
-          (mode === "ssh"
+          (mode === "hermes"
+            ? { hermes: { workspaceRoot }, label: label || undefined }
+            : mode === "ssh"
             ? { ssh: { target: sshTarget, ...(sshPort ? { port: Number(sshPort) } : {}) }, label: label || undefined }
             : { url, credential, label: label || undefined }) satisfies AddEnvRequest,
         ),
@@ -69,7 +72,9 @@ export function EnvManager() {
   };
 
   const remove = async (env: EnvSummary) => {
-    const message = env.linked
+    const message = env.kind === "hermes"
+      ? `Remove "${env.label}"?\n\nThis stops its Hermes sessions and removes their T3 Command transcripts. Hermes keeps its own saved sessions.`
+      : env.linked
       ? `Unlink "${env.label}" from t3-command?\n\nT3 desktop keeps its connection; you can link it again with "Import from T3 desktop".`
       : `Remove "${env.label}" from t3-command?\n\nThis forgets its token here. To fully revoke access, also remove "t3-command" under Settings → Connections in that T3.`;
     if (!confirm(message)) return;
@@ -93,13 +98,14 @@ export function EnvManager() {
           </button>
         </header>
 
-        {list.length === 0 && <p className="muted">No bases yet. Pair your first T3 environment below.</p>}
+        {list.length === 0 && <p className="muted">No bases yet. Connect a T3 environment or local Hermes workspace below.</p>}
         <ul className="env-list">
           {list.map((env) => (
             <li key={env.summary.id}>
               <span className={`base-chip conn-${env.connection}`}>●</span>
               <div className="env-info">
                 <strong>{env.summary.label}</strong>{" "}
+                {env.summary.kind === "hermes" && <span className="linked-badge">Hermes · local</span>}{" "}
                 {env.summary.linked && (
                   <span className="linked-badge" title="Uses T3 desktop's saved connection on the t3-command host">
                     linked
@@ -109,7 +115,7 @@ export function EnvManager() {
                 <div className="muted small">
                   {env.connection}
                   {env.error ? ` — ${env.error}` : ""}
-                  {env.summary.serverVersion ? ` · T3 ${env.summary.serverVersion} (protocol v${env.summary.protocolVersion})` : ""}
+                  {env.summary.serverVersion ? env.summary.kind === "hermes" ? ` · Hermes ${env.summary.serverVersion}` : ` · T3 ${env.summary.serverVersion} (protocol v${env.summary.protocolVersion})` : ""}
                   {env.summary.tokenExpiresAt ? ` · token expires ${new Date(env.summary.tokenExpiresAt).toLocaleDateString()}` : ""}
                   {` · added ${timeAgo(env.summary.addedAt)}`}
                 </div>
@@ -131,13 +137,16 @@ export function EnvManager() {
         </button>
         {imported && <p className="small">{imported}</p>}
 
-        <h3>Pair a base</h3>
+        <h3>Connect a base</h3>
         <div className="tabs">
           <button className={`tab ${mode === "ssh" ? "active" : ""}`} onClick={() => setMode("ssh")}>
             SSH host
           </button>
           <button className={`tab ${mode === "link" ? "active" : ""}`} onClick={() => setMode("link")}>
             Pairing link
+          </button>
+          <button className={`tab ${mode === "hermes" ? "active" : ""}`} onClick={() => setMode("hermes")}>
+            Local Hermes
           </button>
         </div>
         {mode === "ssh" ? (
@@ -161,6 +170,23 @@ export function EnvManager() {
               <label>
                 Name (optional)
                 <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Workstation" />
+              </label>
+            </div>
+          </>
+        ) : mode === "hermes" ? (
+          <>
+            <p className="muted small">
+              Use Hermes installed on the T3 Command host. Run <code>hermes setup</code> and <code>hermes acp --check</code> there first.
+              Each recruited worker gets a local session using Hermes’s configured model, tools, and memory. Sessions keep running when you close the browser.
+            </p>
+            <div className="form-grid">
+              <label>
+                Workspace directory on this host
+                <input value={workspaceRoot} onChange={(e) => setWorkspaceRoot(e.target.value)} placeholder="/absolute/path/to/project" />
+              </label>
+              <label>
+                Name (optional)
+                <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Hermes workstation" />
               </label>
             </div>
           </>
@@ -190,8 +216,8 @@ export function EnvManager() {
           </>
         )}
         {error && <p className="error">{error}</p>}
-        <button className="btn primary" disabled={busy || (mode === "ssh" ? !sshTarget.trim() : !credential)} onClick={() => void add()}>
-          {busy ? (mode === "ssh" ? "Connecting over SSH…" : "Pairing…") : "Pair base"}
+        <button className="btn primary" disabled={busy || (mode === "hermes" ? !workspaceRoot.trim() : mode === "ssh" ? !sshTarget.trim() : !credential)} onClick={() => void add()}>
+          {busy ? (mode === "hermes" ? "Checking Hermes…" : mode === "ssh" ? "Connecting over SSH…" : "Pairing…") : mode === "hermes" ? "Connect Hermes" : "Pair base"}
         </button>
       </div>
     </div>
