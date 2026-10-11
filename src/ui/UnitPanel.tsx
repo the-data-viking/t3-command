@@ -51,6 +51,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
   }
 
   const state = unitState(thread);
+  const canHalt = state === "working" || (env.summary.kind === "hermes" && thread.latestTurn?.state === "running");
   const archived = isHistory(thread);
   const info = detail ? telemetry(detail.thread) : undefined;
   const project = env.projects[thread.projectId];
@@ -95,7 +96,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         <span className="muted small">{thread.runtimeMode}</span>
         <ThreadTiming thread={thread} detail={detail?.thread} />
         <span className="spacer" />
-        {state === "working" && (
+        {canHalt && (
           <button className="btn danger" onClick={() => run("Interrupt", () => client?.interrupt(threadId))}>
             ■ Halt
           </button>
@@ -105,7 +106,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
             Wake
           </button>
         ) : (
-          state !== "working" && (
+          !canHalt && (
             <button className="btn" onClick={() => run("Send to camp", () => client?.settle(threadId))} title="Mark the thread settled">
               ⛺ To camp
             </button>

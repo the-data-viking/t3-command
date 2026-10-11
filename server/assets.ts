@@ -21,6 +21,7 @@ export async function serveEnvironmentAsset(req: http.IncomingMessage, res: http
   };
   const env = registry.get(envId);
   if (!env) return fail(404, "Unknown environment");
+  if (env.hermes) return fail(404, "Hermes image assets are not supported");
   try {
     const url = upstreamAssetUrl(await registry.resolveUrl(env), assetPath);
     const token = await registry.tokenFor(env);

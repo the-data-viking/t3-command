@@ -178,6 +178,8 @@ export interface Provider {
   installed: boolean;
   status: string;
   models: ProviderModel[];
+  /** An adapter can expose only the permission modes its agent actually supports. */
+  runtimeModes?: Array<{ id: RuntimeMode; label: string }>;
 }
 
 export interface ServerConfig {
