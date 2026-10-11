@@ -10,6 +10,15 @@ export type UnitState =
   | "idle" // nothing to report
   | "sleeping"; // settled or snoozed
 
+/**
+ * Imported CLI session history: a transcript that never ran as a T3 turn. T3 can import old
+ * Claude/Codex sessions, and resumed/forked sessions import as near-duplicates. These live in a
+ * project's archive building instead of the workforce.
+ */
+export function isHistory(t: ThreadShell): boolean {
+  return t.latestTurn === null && t.session === null && t.latestUserMessageAt === null;
+}
+
 export function isSettled(t: ThreadShell): boolean {
   if (!t.settledAt) return false;
   return !t.unsettledAt || Date.parse(t.settledAt) >= Date.parse(t.unsettledAt);

@@ -3,7 +3,7 @@
 
 import { Application, Container, Graphics, Text, type FederatedPointerEvent, type TextStyleOptions } from "pixi.js";
 import { setSelection, unitKey, useGame, type EnvWorld, type GameState, type Selection } from "../store";
-import { unitState, type UnitState } from "../t3/derive";
+import { isHistory, unitState, type UnitState } from "../t3/derive";
 import type { ProjectShell, ThreadShell } from "../t3/types";
 import { sfx } from "./sfx";
 
@@ -33,6 +33,9 @@ function hash(s: string): number {
 interface ProjectLayout {
   building: Point;
   mine: Point;
+  /** Archive building for imported history, on the opposite side from the camp. */
+  library: Point;
+  archived: number;
   /** Unit direction from HQ to building (used to lay out slots). */
   out: Point;
 }
@@ -76,7 +79,12 @@ function computeLayout(state: GameState): Layout {
 
     const projects = Object.values(env.projects).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     const threadsByProject = new Map<string, ThreadShell[]>();
+    const archivedByProject = new Map<string, number>();
     for (const t of Object.values(env.threads)) {
+      if (isHistory(t)) {
+        archivedByProject.set(t.projectId, (archivedByProject.get(t.projectId) ?? 0) + 1);
+        continue;
+      }
       const list = threadsByProject.get(t.projectId) ?? [];
       list.push(t);
       threadsByProject.set(t.projectId, list);
@@ -87,8 +95,12 @@ function computeLayout(state: GameState): Layout {
       const out = { x: Math.cos(angle), y: Math.sin(angle) };
       const building = { x: hq.x + out.x * PROJECT_RING, y: hq.y + out.y * PROJECT_RING };
       const mine = { x: building.x + out.x * MINE_DISTANCE, y: building.y + out.y * MINE_DISTANCE };
-      layout.projects.set(`${env.summary.id}:${project.id}`, { building, mine, out });
+      const side0 = { x: -out.y, y: out.x };
+      const library = { x: building.x - side0.x * 165, y: building.y - side0.y * 165 };
+      const archived = archivedByProject.get(project.id) ?? 0;
+      layout.projects.set(`${env.summary.id}:${project.id}`, { building, mine, out, library, archived });
       grow(mine, 200);
+      grow(library, 120);
 
       const threads = (threadsByProject.get(project.id) ?? []).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       const awake = threads.filter((t) => unitState(t) !== "sleeping");
@@ -439,6 +451,51 @@ class BuildingSprite extends Container {
   }
 }
 
+class LibrarySprite extends Container {
+  private g = new Graphics();
+  private nameText = new Text({ text: "", style: { ...LABEL, fontSize: 7, fill: 0xd9c9a3 } });
+  readonly envId: string;
+  readonly projectId: string;
+  private hovered = false;
+
+  constructor(envId: string, projectId: string) {
+    super();
+    this.envId = envId;
+    this.projectId = projectId;
+    this.nameText.anchor.set(0.5, 0);
+    this.nameText.resolution = 2;
+    this.nameText.y = 24;
+    this.addChild(this.g, this.nameText);
+    this.eventMode = "static";
+    this.cursor = "pointer";
+    this.hitArea = { contains: (x: number, y: number) => Math.abs(x) < 38 && y > -60 && y < 30 };
+    this.on("pointerover", () => (this.hovered = true));
+    this.on("pointerout", () => (this.hovered = false));
+    this.on("pointertap", (e: FederatedPointerEvent) => {
+      e.stopPropagation();
+      sfx.building();
+      setSelection({ kind: "library", envId, projectId });
+    });
+  }
+
+  update(layout: ProjectLayout, selected: boolean): void {
+    this.position.set(layout.library.x, layout.library.y);
+    this.zIndex = layout.library.y;
+    const g = this.g.clear();
+    g.ellipse(0, 16, 40, 13).fill({ color: 0x000000, alpha: 0.3 });
+    if (selected || this.hovered) g.ellipse(0, 16, 44, 16).stroke({ color: selected ? 0x9cff6b : 0xffffff, width: 2, alpha: selected ? 1 : 0.6 });
+    // A small stone archive with a dome.
+    g.rect(-28, -18, 56, 32).fill(0x8d8577).stroke({ color: 0x4a453d, width: 2 });
+    g.arc(0, -18, 22, Math.PI, 0).fill(0x6f8aa0).stroke({ color: 0x34424e, width: 2 });
+    for (const x of [-20, -8, 4, 16]) g.rect(x, -14, 4, 26).fill(0xb3ab9c); // columns
+    // Book stack out front grows with the archive (one book per ~2 imports, capped).
+    const books = Math.min(8, Math.ceil(layout.archived / 2));
+    const colors = [0xb2483a, 0x3a6fb2, 0x4f8a3a, 0xc9a23a];
+    for (let i = 0; i < books; i++) g.rect(30 - (i % 2), 10 - i * 4, 14, 4).fill(colors[i % colors.length]).stroke({ color: 0x1a1a1a, width: 1 });
+    this.nameText.text = `Archive (${layout.archived})`;
+  }
+}
+
 class HqSprite extends Container {
   private g = new Graphics();
   private nameText = new Text({ text: "", style: { ...LABEL, fontSize: 11 } });
@@ -482,6 +539,7 @@ export class World {
   private entities = new Container();
   private units = new Map<string, UnitSprite>();
   private buildings = new Map<string, BuildingSprite>();
+  private libraries = new Map<string, LibrarySprite>();
   private hqs = new Map<string, HqSprite>();
   private layout: Layout = computeLayout(useGame.getState());
   private zoom = 1;
@@ -580,6 +638,7 @@ export class World {
     if (!selection) return;
     let p: Point | undefined;
     if (selection.kind === "unit") p = this.units.get(unitKey(selection.envId, selection.threadId))?.pos;
+    else if (selection.kind === "library") p = this.layout.projects.get(`${selection.envId}:${selection.projectId}`)?.library;
     else p = this.layout.projects.get(`${selection.envId}:${selection.projectId}`)?.building;
     if (!p) return;
     const { width, height } = this.app.screen;
@@ -614,6 +673,11 @@ export class World {
           this.buildings.set(key, b);
           this.entities.addChild(b);
         }
+        if ((this.layout.projects.get(key)?.archived ?? 0) > 0 && !this.libraries.has(key)) {
+          const lib = new LibrarySprite(envId, project.id);
+          this.libraries.set(key, lib);
+          this.entities.addChild(lib);
+        }
       }
       for (const thread of Object.values(env.threads)) {
         const key = unitKey(envId, thread.id);
@@ -641,6 +705,11 @@ export class World {
       if (seenBuildings.has(key)) continue;
       building.destroyAll();
       this.buildings.delete(key);
+    }
+    for (const [key, lib] of this.libraries) {
+      if (seenBuildings.has(key) && (this.layout.projects.get(key)?.archived ?? 0) > 0) continue;
+      lib.destroy({ children: true });
+      this.libraries.delete(key);
     }
     for (const [key, hq] of this.hqs) {
       if (seenHqs.has(key)) continue;
@@ -699,6 +768,11 @@ export class World {
       if (!project || !layout) continue;
       const selected = sel?.kind === "building" && sel.envId === building.envId && sel.projectId === building.projectId;
       building.update(project, layout, selected, busyByBuilding.get(key) ?? 0, t);
+    }
+    for (const [key, lib] of this.libraries) {
+      const layout = this.layout.projects.get(key);
+      if (!layout) continue;
+      lib.update(layout, sel?.kind === "library" && `${sel.envId}:${sel.projectId}` === key);
     }
     for (const [key, unit] of this.units) {
       const layout = this.layout.units.get(key);

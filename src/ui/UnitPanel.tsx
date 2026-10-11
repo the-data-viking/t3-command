@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sfx } from "../game/sfx";
 import { setSelection, unitKey, useGame } from "../store";
-import { pendingRequests, unitState } from "../t3/derive";
+import { isHistory, pendingRequests, unitState } from "../t3/derive";
 import { envClient, logError } from "../t3/environment";
 import type { Activity, ApprovalDecision, Message, PendingRequest } from "../t3/types";
 import { modelName, providerName, STATE_LABELS, timeAgo } from "./util";
@@ -48,6 +48,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
   }
 
   const state = unitState(thread);
+  const archived = isHistory(thread);
   const project = env.projects[thread.projectId];
   const client = envClient(envId);
   const unitName = thread.title || "Untitled";
@@ -75,6 +76,15 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         </button>
       </header>
 
+      {archived ? (
+        <div className="status-row">
+          <span className="pill state-sleeping">Archived import</span>
+          <span className="spacer" />
+          <button className="btn" onClick={() => setSelection({ kind: "library", envId, projectId: thread.projectId })}>
+            ← Archive
+          </button>
+        </div>
+      ) : (
       <div className="status-row">
         <span className={`pill state-${state}`}>{STATE_LABELS[state]}</span>
         <span className="muted small">{thread.runtimeMode}</span>
@@ -96,6 +106,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
           )
         )}
       </div>
+      )}
 
       <div
         className="transcript"
@@ -119,7 +130,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         ))}
       </div>
 
-      <OrderBox envId={envId} threadId={threadId} disabled={env.connection !== "live"} working={state === "working"} />
+      {!archived && <OrderBox envId={envId} threadId={threadId} disabled={env.connection !== "live"} working={state === "working"} />}
     </aside>
   );
 }

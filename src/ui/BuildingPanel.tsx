@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
 import { addLog, setSelection, useGame } from "../store";
-import { unitState } from "../t3/derive";
+import { isHistory, unitState } from "../t3/derive";
 import { envClient, logError } from "../t3/environment";
 import type { ModelSelection, Provider, RuntimeMode } from "../t3/types";
 import { STATE_LABELS, timeAgo } from "./util";
@@ -58,7 +58,7 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
   const roster = useMemo(() => {
     if (!env) return [];
     return Object.values(env.threads)
-      .filter((t) => t.projectId === projectId)
+      .filter((t) => t.projectId === projectId && !isHistory(t))
       .map((t) => ({ thread: t, state: unitState(t) }))
       .sort((a, b) => (b.thread.latestUserMessageAt ?? b.thread.createdAt).localeCompare(a.thread.latestUserMessageAt ?? a.thread.createdAt));
   }, [env, projectId]);
@@ -71,6 +71,7 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
     );
   }
 
+  const archived = Object.values(env.threads).filter((t) => t.projectId === projectId && isHistory(t)).length;
   const awake = roster.filter((r) => r.state !== "sleeping");
   const asleep = roster.filter((r) => r.state === "sleeping");
 
@@ -113,6 +114,11 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
           </button>
         ))}
         {roster.length === 0 && <p className="muted">No workers yet. Recruit one above.</p>}
+        {archived > 0 && (
+          <button className="btn wide archive-link" onClick={() => (sfx.building(), setSelection({ kind: "library", envId, projectId }))}>
+            📚 Archive: {archived} imported conversation{archived === 1 ? "" : "s"}
+          </button>
+        )}
       </div>
     </aside>
   );

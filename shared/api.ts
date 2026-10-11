@@ -13,7 +13,7 @@ export type EnvStatus =
 export interface EnvSummary {
   id: string;
   label: string;
-  /** T3 server base URL as seen from the t3-command server, e.g. http://127.0.0.1:3773 */
+  /** How the t3-command server reaches it: http(s)://host:port, or ssh://destination for SSH bases. */
   url: string;
   status: EnvStatus;
   statusDetail?: string;
@@ -29,9 +29,12 @@ export interface MeResponse {
 }
 
 export interface AddEnvRequest {
-  url: string;
-  /** One-time pairing credential from T3's Settings → Connections or `t3 auth pairing create`. */
-  credential: string;
+  /** Direct base: T3 server URL (optional when `credential` is a full pairing link). */
+  url?: string;
+  /** One-time pairing credential or pairing link from T3's Settings → Connections. */
+  credential?: string;
+  /** SSH base: t3-command finds the T3 server over SSH, tunnels to it, and pairs automatically. */
+  ssh?: { target: string; port?: number };
   label?: string;
 }
 

@@ -136,7 +136,20 @@ The UI is now at `https://<host>.<your-tailnet>.ts.net/`, with a certificate iss
 
 ### 4. Add your T3 environments
 
-For each environment, including the T3 instance on the host itself:
+**SSH environments** (ones T3 desktop reaches over SSH) are the easiest: in t3-command open
+**Bases → SSH host** and enter the same destination you use in T3 (`user@host` or an
+`~/.ssh/config` alias). t3-command finds the T3 server that T3 desktop's SSH launcher left
+running there, opens its own `ssh -L` tunnel to it, and pairs automatically using T3's own CLI on
+that machine. Requirements:
+
+- The host running t3-command needs non-interactive (key or agent) SSH access to that machine.
+  Password prompts aren't supported.
+- T3 desktop must have connected to that machine at least once, so T3 and its server are there.
+  t3-command doesn't start or stop remote servers; if the server isn't running, the base shows
+  as unreachable until T3 desktop starts it again.
+- Set `T3C_SSH` to use a specific `ssh` binary.
+
+For other environments (direct URLs), including the T3 instance on the host itself:
 
 1. In that environment's T3 Code app, open **Settings → Connections** and create a pairing link.
    On a headless T3 server, use its CLI instead:

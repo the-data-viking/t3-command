@@ -1,5 +1,5 @@
 import type { EnvWorld } from "../store";
-import { unitState, type UnitState } from "../t3/derive";
+import { isHistory, unitState, type UnitState } from "../t3/derive";
 import type { ThreadShell } from "../t3/types";
 
 export const STATE_LABELS: Record<UnitState, string> = {
@@ -33,6 +33,7 @@ export function allUnits(envs: Record<string, EnvWorld>): UnitRef[] {
   const units: UnitRef[] = [];
   for (const env of Object.values(envs)) {
     for (const thread of Object.values(env.threads)) {
+      if (isHistory(thread)) continue;
       units.push({ envId: env.summary.id, thread, state: unitState(thread) });
     }
   }

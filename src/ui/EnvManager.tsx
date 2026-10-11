@@ -7,6 +7,9 @@ import { timeAgo } from "./util";
 
 export function EnvManager() {
   const envs = useGame((s) => s.envs);
+  const [mode, setMode] = useState<"ssh" | "link">("ssh");
+  const [sshTarget, setSshTarget] = useState("");
+  const [sshPort, setSshPort] = useState("");
   const [url, setUrl] = useState("");
   const [credential, setCredential] = useState("");
   const [label, setLabel] = useState("");
@@ -20,10 +23,16 @@ export function EnvManager() {
     try {
       await fetchJson<EnvSummary>("/api/envs", {
         method: "POST",
-        body: JSON.stringify({ url, credential, label: label || undefined } satisfies AddEnvRequest),
+        body: JSON.stringify(
+          (mode === "ssh"
+            ? { ssh: { target: sshTarget, ...(sshPort ? { port: Number(sshPort) } : {}) }, label: label || undefined }
+            : { url, credential, label: label || undefined }) satisfies AddEnvRequest,
+        ),
       });
       sfx.recruit();
       setCredential("");
+      setSshTarget("");
+      setSshPort("");
       setLabel("");
       await refreshEnvironments();
     } catch (err) {
@@ -79,6 +88,40 @@ export function EnvManager() {
         </ul>
 
         <h3>Pair a base</h3>
+        <div className="tabs">
+          <button className={`tab ${mode === "ssh" ? "active" : ""}`} onClick={() => setMode("ssh")}>
+            SSH host
+          </button>
+          <button className={`tab ${mode === "link" ? "active" : ""}`} onClick={() => setMode("link")}>
+            Pairing link
+          </button>
+        </div>
+        {mode === "ssh" ? (
+          <>
+            <ol className="muted small steps">
+              <li>Use the same host you connected to from T3 desktop (it must have connected at least once, so T3 is installed there).</li>
+              <li>
+                The t3-command host needs working key-based SSH to it (no password prompts). t3-command finds the T3 server, opens its own tunnel, and
+                pairs automatically.
+              </li>
+            </ol>
+            <div className="form-grid">
+              <label>
+                SSH destination
+                <input value={sshTarget} onChange={(e) => setSshTarget(e.target.value)} placeholder="user@host or an ~/.ssh/config alias" />
+              </label>
+              <label>
+                SSH port <span className="muted">(optional)</span>
+                <input value={sshPort} onChange={(e) => setSshPort(e.target.value.replace(/D/g, ""))} placeholder="22" inputMode="numeric" />
+              </label>
+              <label>
+                Name (optional)
+                <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Workstation" />
+              </label>
+            </div>
+          </>
+        ) : (
+          <>
         <ol className="muted small steps">
           <li>
             In that T3 Code, open <strong>Settings → Connections</strong> and create a pairing link. (On this machine you can also run{" "}
@@ -100,9 +143,11 @@ export function EnvManager() {
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Workstation" />
           </label>
         </div>
+          </>
+        )}
         {error && <p className="error">{error}</p>}
-        <button className="btn primary" disabled={busy || !credential} onClick={() => void add()}>
-          {busy ? "Pairing…" : "Pair base"}
+        <button className="btn primary" disabled={busy || (mode === "ssh" ? !sshTarget.trim() : !credential)} onClick={() => void add()}>
+          {busy ? (mode === "ssh" ? "Connecting over SSH…" : "Pairing…") : "Pair base"}
         </button>
       </div>
     </div>

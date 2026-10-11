@@ -6,6 +6,7 @@ import { fetchJson, onUnitTransition, refreshEnvironments } from "./t3/environme
 import { BuildingPanel } from "./ui/BuildingPanel";
 import { EnvManager } from "./ui/EnvManager";
 import { EventLog } from "./ui/EventLog";
+import { LibraryPanel } from "./ui/LibraryPanel";
 import { installHotkeys } from "./ui/hotkeys";
 import { MapView } from "./ui/MapView";
 import { TopBar } from "./ui/TopBar";
@@ -78,6 +79,7 @@ export default function App() {
       <TopBar />
       <EventLog />
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
+      {selection?.kind === "library" && <LibraryPanel key={`lib:${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
       {selection?.kind === "building" && <BuildingPanel key={`${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
       <div className="hint muted small">Drag to pan · Scroll to zoom · Space: next alert · . : next report · W: next busy · F: fit</div>
       {showEnvManager && <EnvManager />}

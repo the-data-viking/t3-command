@@ -23,6 +23,7 @@ export interface ThreadDetail {
 export type Selection =
   | { kind: "unit"; envId: string; threadId: string }
   | { kind: "building"; envId: string; projectId: string }
+  | { kind: "library"; envId: string; projectId: string }
   | null;
 
 export type LogTone = "info" | "good" | "alert" | "bad";

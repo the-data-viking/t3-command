@@ -6,11 +6,14 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { SUPPORTED_PROTOCOL_VERSIONS, type EnvStatus, type EnvSummary } from "../shared/api.ts";
+import { createPairingCredential, discover, SshError, SshTunnels, validateTarget, type SshTarget } from "./ssh.ts";
 
 interface StoredEnv {
   id: string;
   label: string;
-  url: string;
+  /** Direct bases: the T3 server's URL. SSH bases: unset; the URL is a local tunnel. */
+  url?: string;
+  ssh?: SshTarget;
   token: string;
   tokenExpiresAt?: string;
   scopes?: string;
@@ -73,6 +76,7 @@ async function fetchDescriptor(baseUrl: string): Promise<EnvironmentDescriptor> 
 
 export class Registry {
   private envs = new Map<string, StoredEnv>();
+  private tunnels = new SshTunnels();
   private statusCache = new Map<string, { at: number; summary: EnvSummary }>();
   private readonly file: string;
   private readonly dataDir: string;
@@ -102,14 +106,46 @@ export class Registry {
     return this.envs.get(id);
   }
 
+  /** Where to reach an environment's T3 server right now (opens the SSH tunnel if needed). */
+  resolveUrl(env: StoredEnv): Promise<string> {
+    if (env.ssh) return this.tunnels.ensure(env.id, env.ssh);
+    return Promise.resolve(env.url!);
+  }
+
   /** Exchange a one-time pairing credential for a token and remember the environment. */
   async add(rawUrl: string, rawCredential: string, label?: string): Promise<EnvSummary> {
     const input = parsePairingInput(rawUrl, rawCredential);
     if (!input.credential) throw new UserError("Pairing link or credential is required");
     if (!input.url) throw new UserError("T3 server URL is required");
-    const url = normalizeUrl(input.url);
-    const credential = input.credential;
+    return this.pair(normalizeUrl(input.url), input.credential, label, {});
+  }
 
+  /** Add a T3 server reached over SSH: find it, tunnel to it, and pair using T3's own CLI there. */
+  async addSsh(rawTarget: string, port: number | undefined, label?: string): Promise<EnvSummary> {
+    let ssh: SshTarget;
+    try {
+      ssh = { target: validateTarget(rawTarget), ...(port ? { port } : {}) };
+    } catch (err) {
+      throw new UserError((err as Error).message);
+    }
+    const tempId = `pending-ssh:${ssh.target}`;
+    try {
+      const { runner } = await discover(ssh);
+      if (!runner) {
+        throw new UserError(`${ssh.target} has no T3 SSH launcher yet. Connect to it once from T3 desktop, then retry.`);
+      }
+      const url = await this.tunnels.ensure(tempId, ssh);
+      const credential = await createPairingCredential(ssh, runner);
+      return await this.pair(url, credential, label || ssh.target, { ssh });
+    } catch (err) {
+      if (err instanceof SshError) throw new UserError(err.message);
+      throw err;
+    } finally {
+      this.tunnels.close(tempId);
+    }
+  }
+
+  private async pair(url: string, credential: string, label: string | undefined, where: { ssh?: SshTarget }): Promise<EnvSummary> {
     let descriptor: EnvironmentDescriptor;
     try {
       descriptor = await fetchDescriptor(url);
@@ -147,7 +183,7 @@ export class Registry {
     const stored: StoredEnv = {
       id,
       label: label?.trim() || existing?.label || descriptor.label || new URL(url).hostname,
-      url,
+      ...(where.ssh ? { ssh: where.ssh } : { url }),
       token: token.access_token,
       tokenExpiresAt: token.expires_in
         ? new Date(Date.now() + token.expires_in * 1000).toISOString()
@@ -162,6 +198,7 @@ export class Registry {
   }
 
   async remove(id: string): Promise<boolean> {
+    this.tunnels.close(id);
     const existed = this.envs.delete(id);
     this.statusCache.delete(id);
     if (existed) await this.save();
@@ -184,7 +221,7 @@ export class Registry {
     const base: EnvSummary = {
       id: env.id,
       label: env.label,
-      url: env.url,
+      url: env.ssh ? `ssh://${env.ssh.target}${env.ssh.port ? `:${env.ssh.port}` : ""}` : env.url!,
       status: "ok",
       tokenExpiresAt: env.tokenExpiresAt,
       addedAt: env.addedAt,
@@ -195,8 +232,14 @@ export class Registry {
       return summary;
     };
 
+    let url: string;
     try {
-      const descriptor = await fetchDescriptor(env.url);
+      url = await this.resolveUrl(env);
+    } catch (err) {
+      return set("unreachable", (err as Error).message);
+    }
+    try {
+      const descriptor = await fetchDescriptor(url);
       base.serverVersion = descriptor.serverVersion;
       base.protocolVersion = descriptor.orchestrationProtocolVersion ?? 1;
     } catch (err) {
@@ -206,7 +249,7 @@ export class Registry {
       return set("needs-update", `T3 ${base.serverVersion} uses orchestration protocol v${base.protocolVersion}`);
     }
     try {
-      const res = await fetchWithTimeout(`${env.url}/api/auth/session`, {
+      const res = await fetchWithTimeout(`${url}/api/auth/session`, {
         headers: { authorization: `Bearer ${env.token}` },
       });
       const session = (await res.json()) as { authenticated?: boolean };

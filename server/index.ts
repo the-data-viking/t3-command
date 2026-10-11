@@ -121,6 +121,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (pathname === "/api/envs" && method === "POST") {
     const body = await readJson<AddEnvRequest>(req);
+    if (body.ssh) {
+      const port = body.ssh.port ? Number(body.ssh.port) : undefined;
+      return sendJson(res, 200, await registry.addSsh(String(body.ssh.target ?? ""), port, body.label));
+    }
     return sendJson(res, 200, await registry.add(String(body.url ?? ""), String(body.credential ?? ""), body.label));
   }
   const envMatch = pathname.match(/^\/api\/envs\/([^/]+)$/);
@@ -160,17 +164,31 @@ server.on("upgrade", (req, socket, head) => {
     return;
   }
   const envId = decodeURIComponent(match[1]);
-  wss.handleUpgrade(req, socket, head, (client) => relay(client, envId));
+  wss.handleUpgrade(req, socket, head, (client) => void relay(client, envId));
 });
 
-function relay(client: WebSocket, envId: string): void {
+async function relay(client: WebSocket, envId: string): Promise<void> {
   const env = registry.get(envId);
   if (!env) {
     client.close(CLOSE.unknownEnv, "Unknown environment");
     return;
   }
 
-  const upstreamUrl = new URL("/ws", env.url);
+  // Hold what the browser sends while we resolve the URL (an SSH base may need a tunnel first).
+  const early: Array<[RawData, boolean]> = [];
+  const hold = (data: RawData, isBinary: boolean) => early.push([data, isBinary]);
+  client.on("message", hold);
+  let baseUrl: string;
+  try {
+    baseUrl = await registry.resolveUrl(env);
+  } catch (err) {
+    if (client.readyState === WebSocket.OPEN) client.close(CLOSE.upstreamFailed, (err as Error).message.slice(0, 120));
+    return;
+  }
+  client.off("message", hold);
+  if (client.readyState !== WebSocket.OPEN) return;
+
+  const upstreamUrl = new URL("/ws", baseUrl);
   upstreamUrl.protocol = upstreamUrl.protocol === "https:" ? "wss:" : "ws:";
   upstreamUrl.searchParams.set("clientSurface", "web");
   upstreamUrl.searchParams.set("clientAppVersion", "t3-command");
@@ -180,7 +198,7 @@ function relay(client: WebSocket, envId: string): void {
   });
 
   // Frames the browser sends before the upstream connection is open.
-  const pending: Array<[RawData, boolean]> = [];
+  const pending: Array<[RawData, boolean]> = early;
 
   client.on("message", (data, isBinary) => {
     if (upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary });
