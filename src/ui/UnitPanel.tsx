@@ -10,6 +10,7 @@ import { modelName, providerName, STATE_LABELS, timeAgo } from "./util";
 import { ThreadImage } from "./ThreadImage";
 
 import { MessageMarkdown } from "./MessageMarkdown";
+import { QuestionForm } from "./QuestionForm";
 import { PanelResize } from "./PanelResize";
 import { usePanelWidth } from "./usePanelWidth";
 
@@ -233,28 +234,10 @@ function PendingCard({ request, envId, threadId }: { request: PendingRequest; en
   const client = envClient(envId);
 
   if (request.kind === "user-input") {
-    const questions = (p.questions as Array<{ question?: string; header?: string }> | undefined) ?? [];
     return (
       <div className="pending question">
         <div className="pending-title">? The unit has a question</div>
-        {questions.map((q, i) => (
-          <div key={i} className="pending-detail">
-            {q.question ?? q.header}
-          </div>
-        ))}
-        <div className="muted small">Answer it with an order below, or dismiss it.</div>
-        <div className="pending-actions">
-          <button
-            className="btn"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              client?.dismissQuestion(threadId, request.requestId).catch((err: unknown) => (setBusy(false), logError("Dismiss", err)));
-            }}
-          >
-            Dismiss
-          </button>
-        </div>
+        <QuestionForm key={request.requestId} request={request} envId={envId} threadId={threadId} />
       </div>
     );
   }

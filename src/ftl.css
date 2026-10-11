@@ -408,6 +408,80 @@ button.ftl-tab {
   margin-bottom: 10px;
 }
 
+.event-body {
+  max-height: calc(100dvh - 170px);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.question-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.question-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.question-field legend {
+  width: 100%;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+
+.question-header {
+  display: block;
+  color: var(--question);
+  font-family: var(--display);
+  margin-bottom: 4px;
+}
+
+.question-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #ffffff30;
+  cursor: pointer;
+}
+
+.question-option.selected,
+.question-option:focus-within {
+  border-color: var(--question);
+  background: rgba(255, 210, 63, 0.07);
+}
+
+.question-option input {
+  flex: none;
+  margin: 3px 0 0;
+  accent-color: var(--question);
+}
+
+.question-description {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.question-field textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.question-field:disabled .question-option {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .event-text {
   font-size: 14px;
   line-height: 1.55;

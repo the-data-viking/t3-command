@@ -4,6 +4,7 @@ import { worldRef } from "../game/world";
 import { openEvent, setSelection, unitKey, useGame } from "../store";
 import { pendingRequests } from "../t3/derive";
 import { envClient, logError } from "../t3/environment";
+import { QuestionForm } from "./QuestionForm";
 import type { ApprovalDecision, PendingRequest } from "../t3/types";
 
 const DEFAULT_OPTIONS: Array<{ decision: ApprovalDecision; label: string }> = [
@@ -26,7 +27,7 @@ interface Choice {
   run: () => Promise<unknown> | void;
 }
 
-/** FTL-style event box for a crew member's pending approval or question. Keys 1–9 choose. */
+/** FTL-style event box for approvals and questions. Keys 1–9 choose approval actions. */
 export function EventDialog() {
   const event = useGame((s) => s.event);
   if (!event) return null;
@@ -72,13 +73,6 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
         },
       });
     }
-  } else if (request?.kind === "user-input") {
-    choices.push({ label: "Reply in the crew log.", tone: "good", run: openLog });
-    choices.push({
-      label: "Dismiss the question.",
-      tone: "bad",
-      run: () => envClient(envId)?.dismissQuestion(threadId, request.requestId),
-    });
   }
   choices.push({ label: "Open the crew log.", run: openLog });
 
@@ -97,6 +91,9 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (request?.kind === "user-input" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable]")) return;
       const n = Number(e.key);
       if (Number.isInteger(n) && n >= 1 && n <= choices.length) {
         e.preventDefault();
@@ -112,7 +109,6 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
   const project = env.projects[thread.projectId];
   const p = request?.activity.payload ?? {};
   const detailText = typeof p.detail === "string" ? p.detail : undefined;
-  const questions = (p.questions as Array<{ question?: string; header?: string }> | undefined) ?? [];
 
   return (
     <div className="event-backdrop" onClick={close}>
@@ -122,37 +118,37 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
           {env.summary.label} · {project?.title ?? "?"}
           {pending.length > 1 && ` · 1 of ${pending.length}`}
         </div>
-        {!request ? (
-          <p className="event-text muted">Receiving transmission…</p>
-        ) : request.kind === "approval" ? (
-          <>
-            <p className="event-text">
-              <strong>{thread.title || "A crew member"}</strong> requests permission to {VERB[String(p.requestKind)] ?? "proceed"}.
-            </p>
-            {detailText && <pre className="event-detail">{detailText}</pre>}
-          </>
-        ) : (
-          <>
-            <p className="event-text">
-              <strong>{thread.title || "A crew member"}</strong> needs an answer before continuing:
-            </p>
-            {questions.map((q, i) => (
-              <p key={i} className="event-text quote">
-                “{q.question ?? q.header}”
+        <div className="event-body">
+          {!request ? (
+            <p className="event-text muted">Receiving transmission…</p>
+          ) : request.kind === "approval" ? (
+            <>
+              <p className="event-text">
+                <strong>{thread.title || "A crew member"}</strong> requests permission to {VERB[String(p.requestKind)] ?? "proceed"}.
               </p>
+              {detailText && <pre className="event-detail">{detailText}</pre>}
+            </>
+          ) : (
+            <>
+              <p className="event-text">
+                <strong>{thread.title || "A crew member"}</strong> needs an answer before continuing:
+              </p>
+              <QuestionForm key={request.requestId} request={request} envId={envId} threadId={threadId} />
+            </>
+          )}
+          {request?.kind === "user-input" ? (
+            <button className="btn" onClick={openLog}>Open the crew log</button>
+          ) : <ol className="event-choices">
+            {choices.map((c, i) => (
+              <li key={i}>
+                <button className={`event-choice ${c.tone ?? ""}`} disabled={busy || (!request && i < choices.length - 1)} onClick={() => void choose(c)}>
+                  <span className="choice-num">{i + 1}.</span> {c.label}
+                </button>
+              </li>
             ))}
-          </>
-        )}
-        <ol className="event-choices">
-          {choices.map((c, i) => (
-            <li key={i}>
-              <button className={`event-choice ${c.tone ?? ""}`} disabled={busy || (!request && i < choices.length - 1)} onClick={() => void choose(c)}>
-                <span className="choice-num">{i + 1}.</span> {c.label}
-              </button>
-            </li>
-          ))}
-        </ol>
-        <div className="event-foot muted">Press a number to choose · Esc to decide later</div>
+          </ol>}
+        </div>
+        <div className="event-foot muted">{request?.kind === "user-input" ? "Select or type your answers · Esc to decide later" : "Press a number to choose · Esc to decide later"}</div>
       </div>
     </div>
   );

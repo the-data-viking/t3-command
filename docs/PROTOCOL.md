@@ -273,6 +273,13 @@ Approval flow: a pending request shows up as a thread activity
 it is pending until a matching `kind:"approval.resolved"` (same `payload.requestId`, `payload.decision`) appears. The shell exposes
 `hasPendingApprovals` / `hasPendingUserInput` per thread. Agent questions: `kind:"user-input.requested"` `payload:{requestId, questions, responseMode?}`
 → resolved by `user-input.resolved`. Failures: `provider.approval.respond.failed`, `provider.user-input.respond.failed`.
+
+Each question carries `{id, header, question, options: [{label, description, value?}], multiSelect?, allowCustomAnswer?}`.
+The question UI displays options and descriptions, supports custom answers unless explicitly disabled,
+and sends `thread.user-input.respond` with answers keyed by the original question IDs. Option values
+fall back to their labels; multiple selections are joined with `, `, matching the string answer format
+accepted by T3 providers and `responseMode:"message"`. A normal order is a separate turn-start command.
+
 Other activity kinds seen: `tool.started|updated|completed|progress`, `task.started|updated|progress|completed`,
 `turn.plan.updated`, `context-window.updated`, `context-compaction`, `runtime.warning`, `runtime.error`, `tool.denied`.
 `activity.payload` is open-ended (`Unknown`).
