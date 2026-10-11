@@ -129,7 +129,7 @@ test('real fleet layouts expose side doors and valid routes for every generated 
   } } } as unknown as GameState;
   const s = [...computeFleetLayout(state).stations.values()][0];
   assert.equal(Object.keys(s.rooms).length, 6);
-  assert.equal(s.doors.filter(door => door.vertical).length, 3);
+  assert.equal(s.doors.filter(door => door.vertical).length, 5);
   for (const from of Object.keys(s.rooms) as RoomKind[]) for (const to of Object.keys(s.rooms) as RoomKind[]) {
     const start = center(s, from), target = center(s, to);
     const points = route(s, from, to, target, start);
