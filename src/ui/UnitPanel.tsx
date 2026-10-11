@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sfx } from "../game/sfx";
 import { setSelection, unitKey, useGame } from "../store";
 import { isHistory, pendingRequests, unitState } from "../t3/derive";
@@ -7,6 +7,7 @@ import { modelTier, TIER_LABEL } from "../game/theme";
 import { envClient, logError } from "../t3/environment";
 import type { Activity, ApprovalDecision, Message, PendingRequest } from "../t3/types";
 import { modelName, providerName, STATE_LABELS, timeAgo } from "./util";
+import { ThreadImage } from "./ThreadImage";
 
 import { MessageMarkdown } from "./MessageMarkdown";
 import { PanelResize } from "./PanelResize";
@@ -41,6 +42,10 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
 
   const scroller = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+  const onImageLoad = useCallback(() => {
+    const el = scroller.current;
+    if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
+  }, []);
   useEffect(() => {
     const el = scroller.current;
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
@@ -161,7 +166,8 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         {detail && entries.length === 0 && <p className="muted">No reports yet.</p>}
         {entries.map((e) =>
           e.kind === "message" ? (
-            <MessageView key={e.message.id} message={e.message} unitName={unitName} />
+            <MessageView key={e.message.id} message={e.message} unitName={unitName} envId={envId} threadId={threadId}
+              onImageLoad={onImageLoad} />
           ) : (
             <ActivityView key={e.activity.id} activity={e.activity} />
           ),
@@ -176,12 +182,19 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
   );
 }
 
-function MessageView({ message, unitName }: { message: Message; unitName: string }) {
+function MessageView({ message, unitName, envId, threadId, onImageLoad }: { message: Message; unitName: string; envId: string; threadId: string; onImageLoad: () => void }) {
+  const content = <>
+    <MessageMarkdown text={message.text} envId={envId} threadId={threadId} onImageLoad={onImageLoad} />
+    {message.attachments?.filter((a) => a.type === "image" || (a.type === "file" && /^image\//i.test(a.mimeType))).map((a) => (
+      <ThreadImage key={a.id} envId={envId} resource={{ _tag: "attachment", attachmentId: a.id,
+        fileName: a.name, mimeType: a.mimeType, disposition: "inline" }} alt={a.name} onLoad={onImageLoad} />
+    ))}
+  </>;
   if (message.role === "reasoning") {
     return (
       <details className="msg reasoning">
         <summary>thinking…</summary>
-        <div className="msg-text markdown"><MessageMarkdown text={message.text} /></div>
+        <div className="msg-text markdown">{content}</div>
       </details>
     );
   }
@@ -192,7 +205,7 @@ function MessageView({ message, unitName }: { message: Message; unitName: string
         {who} <span className="muted">{timeAgo(message.createdAt)}</span>
       </div>
       <div className="msg-text markdown">
-        <MessageMarkdown text={message.text} />
+        {content}
         {message.streaming && <span className="cursor">▍</span>}
       </div>
     </div>

@@ -8,6 +8,7 @@ import { WebSocket, WebSocketServer, type RawData } from "ws";
 import type { AddEnvRequest, MeResponse } from "../shared/api.ts";
 import { loadConfig, type Config } from "./config.ts";
 import { Registry, UserError } from "./registry.ts";
+import { serveEnvironmentAsset } from "./assets.ts";
 
 const config = loadConfig();
 const registry = new Registry(config.dataDir);
@@ -111,6 +112,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   const method = req.method ?? "GET";
   if (method !== "GET" && method !== "HEAD" && !originAllowed(req, config)) {
     return sendJson(res, 403, { error: "Cross-origin request blocked" });
+  }
+
+  const assetMatch = pathname.match(/^\/env\/([^/]+)\/assets\/(.+)$/);
+  if (assetMatch && (method === "GET" || method === "HEAD")) {
+    const search = new URL(req.url ?? "/", "http://localhost").search;
+    return serveEnvironmentAsset(req, res, registry, decodeURIComponent(assetMatch[1]), `/api/assets/${assetMatch[2]}${search}`);
   }
 
   if (pathname === "/api/me" && method === "GET") {
