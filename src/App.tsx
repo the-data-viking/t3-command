@@ -1,35 +1,86 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useEffect, useState } from "react";
+import type { MeResponse } from "../shared/api";
+import { sfx } from "./game/sfx";
+import { addLog, useGame } from "./store";
+import { fetchJson, onUnitTransition, refreshEnvironments } from "./t3/environment";
+import { BuildingPanel } from "./ui/BuildingPanel";
+import { EnvManager } from "./ui/EnvManager";
+import { EventLog } from "./ui/EventLog";
+import { installHotkeys } from "./ui/hotkeys";
+import { MapView } from "./ui/MapView";
+import { TopBar } from "./ui/TopBar";
+import { UnitPanel } from "./ui/UnitPanel";
 
-function App() {
-  const [count, setCount] = useState(0)
+const ENV_REFRESH_MS = 30_000;
 
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+/** Turn unit state changes into sound effects and event-log lines. */
+function announceTransitions(): () => void {
+  return onUnitTransition(({ envId, thread, from, to }) => {
+    const name = `"${thread.title || "Untitled"}"`;
+    const at = { envId, threadId: thread.id };
+    if (to === "alert") {
+      sfx.alert();
+      addLog({ tone: "alert", text: `${name} needs your approval`, ...at });
+    } else if (to === "question") {
+      sfx.alert();
+      addLog({ tone: "alert", text: `${name} has a question`, ...at });
+    } else if (to === "error") {
+      sfx.error();
+      addLog({ tone: "bad", text: `${name} was hurt — the turn failed`, ...at });
+    } else if (to === "done" && from === "working") {
+      sfx.done();
+      addLog({ tone: "good", text: `Job's done: ${name}`, ...at });
+    } else if (to === "working" && from !== "alert" && from !== "question") {
+      addLog({ tone: "info", text: `${name} got to work`, ...at });
+    }
+  });
 }
 
-export default App
+export default function App() {
+  const selection = useGame((s) => s.selection);
+  const showEnvManager = useGame((s) => s.showEnvManager);
+  const [fatal, setFatal] = useState<string>();
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    (async () => {
+      try {
+        const me = await fetchJson<MeResponse>("/api/me");
+        useGame.setState({ me });
+        await refreshEnvironments();
+        if (Object.keys(useGame.getState().envs).length === 0) useGame.setState({ showEnvManager: true });
+        timer = setInterval(() => void refreshEnvironments().catch(() => {}), ENV_REFRESH_MS);
+      } catch (err) {
+        setFatal((err as Error).message);
+      }
+    })();
+    const offHotkeys = installHotkeys();
+    const offTransitions = announceTransitions();
+    return () => {
+      clearInterval(timer);
+      offHotkeys();
+      offTransitions();
+    };
+  }, []);
+
+  if (fatal) {
+    return (
+      <div className="fatal">
+        <h1>T3 COMMAND</h1>
+        <p>Can't reach the t3-command server: {fatal}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="game">
+      <MapView />
+      <TopBar />
+      <EventLog />
+      {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
+      {selection?.kind === "building" && <BuildingPanel key={`${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
+      <div className="hint muted small">Drag to pan · Scroll to zoom · Space: next alert · . : next report · W: next busy · F: fit</div>
+      {showEnvManager && <EnvManager />}
+    </div>
+  );
+}

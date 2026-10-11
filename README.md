@@ -10,7 +10,18 @@ give it orders, watch it work, and respond to approval requests when they come u
 
 ## Status
 
-Scaffolding only. Nothing is playable yet. Everything below describes the planned design.
+Playable first slice, tested against T3 Code 0.0.44:
+
+- Every connected T3 environment is a base on the map, each project is a building with a crystal
+  mine, and each thread is a worker. Workers run trips to the mine while a turn runs, mill about
+  when idle, show **!** / **?** when they need approval or an answer, and sleep in camp once settled.
+- Select a worker to read its live transcript, give it orders, halt it, approve or deny tool use,
+  or send it to camp. Select a building to recruit a new worker (new thread) with any model.
+- Hotkeys: **Space** jumps to the next worker waiting on you, **.** to the next report,
+  **W** to the next busy worker, **F** fits the view, **Esc** deselects.
+- Synthesized sound effects (mutable) and an event log ("Job's done!").
+
+Placeholder art throughout.
 
 ## Architecture
 
@@ -80,7 +91,7 @@ npm start
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `T3C_PORT` | `4773` | Local port the server listens on (always `127.0.0.1`). |
-| `T3C_DATA_DIR` | `~/.t3-command` | Environment registry and T3 tokens. Created with owner-only permissions. |
+| `T3C_DATA_DIR` | `~/.t3-command` | Environment registry and T3 tokens. Created with owner-only permissions on Linux/macOS; on Windows it relies on your user profile's permissions. |
 | `T3C_ALLOWED_USERS` | *(required)* | Comma-separated Tailscale login names allowed to use the UI. Requests without a matching `Tailscale-User-Login` header are rejected. |
 
 To keep it running on Linux, use a systemd unit like this:
@@ -130,8 +141,10 @@ For each environment, including the T3 instance on the host itself:
 1. In that environment's T3 Code app, open **Settings → Connections** and create a pairing link.
    On a headless T3 server, use its CLI instead:
    `t3 auth pairing create --label t3-command --ttl 10m --json`
-2. In t3-command, open **Environments → Add**. Enter the environment's URL as seen *from the host*
-   and paste the pairing credential:
+   For the T3 on the host itself, the shortcut is
+   `npm run pair:local -- --user you@example.com`, which pairs it in one step.
+2. In t3-command, open **Bases** and paste the pairing link. If the host reaches that T3 at a different address than the link shows, also enter its URL as seen *from the host*
+   (for example):
    - the host's own T3: `http://127.0.0.1:3773`
    - another machine on the tailnet: `http://<machine>.<your-tailnet>.ts.net:3773`, or its
      `https://…` address if that environment is itself behind `tailscale serve`
@@ -148,8 +161,27 @@ encrypted by WireGuard, and browsers never see those addresses.
 
 ```sh
 npm install
-npm run dev
+T3C_DEV_NO_AUTH=1 npm run dev     # t3-command server on :4773 + Vite UI on http://localhost:5173
+npm run pair:local                 # pair the T3 Code running on this machine (in another terminal)
 ```
+
+`T3C_DEV_NO_AUTH=1` turns off the Tailscale identity check so you can use it from localhost.
+Never run it that way behind `tailscale serve`.
+
+`npm run pair:local` uses the installed T3 Code desktop app's own CLI to create a one-time
+pairing credential and hands it straight to the t3-command server, so it's never printed. On a
+headless T3 install, set `T3_CLI` to your `t3` executable.
+
+Other scripts: `npm run typecheck`, `npm run lint`, `npm run build`.
+
+Layout:
+
+- `server/`: the t3-command server (Node 22.18+ runs the TypeScript directly; no build step)
+- `src/t3/`: T3 protocol client. Everything protocol-specific lives here, so a T3 protocol
+  change should only touch this folder.
+- `src/game/`: the PixiJS map and sound effects
+- `src/ui/`: React HUD (panels, top bar, modals)
+- `shared/`: types shared by server and UI
 
 ## Tools
 

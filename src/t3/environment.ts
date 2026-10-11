@@ -1,0 +1,429 @@
+// One live connection to one T3 environment, relayed through the t3-command server.
+// Keeps that environment's slice of the game store up to date and sends commands to it.
+
+import type { EnvSummary } from "../../shared/api";
+import { addLog, unitKey, updateEnv, useGame, type Connection, type EnvWorld } from "../store";
+import { unitState, type UnitState } from "./derive";
+import { applyThreadEvent } from "./reducer";
+import { RpcConnection, RpcError } from "./rpc";
+import type {
+  ApprovalDecision,
+  InteractionMode,
+  ModelSelection,
+  RuntimeMode,
+  ServerConfig,
+  ShellStreamItem,
+  ThreadShell,
+  ThreadStreamItem,
+} from "./types";
+
+/** Close codes sent by the t3-command relay (server/index.ts). */
+const CLOSE_NEEDS_PAIRING = 4401;
+const CLOSE_UNKNOWN_ENV = 4404;
+
+/** How many recent turns to load when opening a thread. */
+const THREAD_TURN_LIMIT = 6;
+
+export interface UnitTransition {
+  envId: string;
+  thread: ThreadShell;
+  from: UnitState;
+  to: UnitState;
+}
+
+type TransitionListener = (t: UnitTransition) => void;
+const transitionListeners = new Set<TransitionListener>();
+
+/** Subscribe to unit state changes (e.g. working → done) for sound effects and the event log. */
+export function onUnitTransition(fn: TransitionListener): () => void {
+  transitionListeners.add(fn);
+  return () => transitionListeners.delete(fn);
+}
+
+function uuid(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+function emptyWorld(summary: EnvSummary, connection: Connection): EnvWorld {
+  return { summary, connection, synced: false, projects: {}, threads: {}, providers: [] };
+}
+
+interface ThreadSub {
+  refs: number;
+  sequence: number;
+  cancel?: () => void;
+}
+
+export class EnvironmentClient {
+  readonly id: string;
+  private summary: EnvSummary;
+  private rpc?: RpcConnection;
+  private shellSequence = 0;
+  private threadSubs = new Map<string, ThreadSub>();
+  private retries = 0;
+  private retryTimer?: ReturnType<typeof setTimeout>;
+  private disposed = false;
+
+  constructor(summary: EnvSummary) {
+    this.id = summary.id;
+    this.summary = summary;
+  }
+
+  start(): void {
+    const blocked: Partial<Record<EnvSummary["status"], Connection>> = {
+      "needs-pairing": "needs-pairing",
+      "needs-update": "needs-update",
+    };
+    const connection = blocked[this.summary.status];
+    useGame.setState((s) => ({
+      envs: { ...s.envs, [this.id]: emptyWorld(this.summary, connection ?? "connecting") },
+    }));
+    if (connection) {
+      updateEnv(this.id, (e) => ({ ...e, error: this.summary.statusDetail }));
+      return;
+    }
+    this.connect();
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    clearTimeout(this.retryTimer);
+    this.rpc?.close();
+    useGame.setState((s) => {
+      const envs = { ...s.envs };
+      delete envs[this.id];
+      const details = Object.fromEntries(Object.entries(s.details).filter(([k]) => !k.startsWith(`${this.id}:`)));
+      const selection = s.selection?.envId === this.id ? null : s.selection;
+      return { envs, details, selection };
+    });
+  }
+
+  // ---- Connection lifecycle ------------------------------------------------------
+
+  private connect(): void {
+    const scheme = location.protocol === "https:" ? "wss" : "ws";
+    const url = `${scheme}://${location.host}/env/${encodeURIComponent(this.id)}/ws`;
+    this.rpc = new RpcConnection(url, {
+      onOpen: () => this.onOpen(),
+      onClose: (code, reason) => this.onClose(code, reason),
+    });
+  }
+
+  private setConnection(connection: Connection, error?: string): void {
+    updateEnv(this.id, (e) => ({ ...e, connection, error }));
+  }
+
+  private onOpen(): void {
+    this.retries = 0;
+    this.setConnection("live");
+    this.loadConfig();
+    this.subscribeShell();
+    for (const [threadId, sub] of this.threadSubs) this.subscribeThread(threadId, sub);
+  }
+
+  private onClose(code: number, reason: string): void {
+    for (const sub of this.threadSubs.values()) sub.cancel = undefined;
+    if (this.disposed) return;
+    if (code === CLOSE_NEEDS_PAIRING) {
+      this.setConnection("needs-pairing", reason || "T3 rejected t3-command's token");
+      return;
+    }
+    if (code === CLOSE_UNKNOWN_ENV) {
+      this.setConnection("offline", "This environment was removed from t3-command");
+      return;
+    }
+    const delay = Math.min(30_000, 1000 * 2 ** this.retries++);
+    this.setConnection("reconnecting", reason || `Connection lost; retrying in ${Math.round(delay / 1000)}s`);
+    this.retryTimer = setTimeout(() => this.connect(), delay);
+  }
+
+  private async loadConfig(): Promise<void> {
+    try {
+      const config = await this.rpc!.request<ServerConfig>("server.getConfig");
+      updateEnv(this.id, (e) => ({ ...e, providers: config.providers }));
+    } catch (err) {
+      console.warn(`[${this.summary.label}] server.getConfig failed`, err);
+    }
+  }
+
+  // ---- Shell: projects + threads -------------------------------------------------
+
+  private subscribeShell(): void {
+    const payload = {
+      requestCompletionMarker: true,
+      ...(this.shellSequence > 0 ? { afterSequence: this.shellSequence } : {}),
+    };
+    this.rpc!.stream<ShellStreamItem>(
+      "orchestration.subscribeShell",
+      payload,
+      (items) => this.applyShell(items),
+      (err) => {
+        // Disconnects are handled by onClose. Anything else (e.g. "live event buffer is full")
+        // means the stream died on a live connection: resume from where we were.
+        if (err && err.tag !== "Disconnected" && !this.disposed && this.rpc?.isOpen) {
+          console.warn(`[${this.summary.label}] shell stream ended`, err);
+          setTimeout(() => this.rpc?.isOpen && this.subscribeShell(), 1000);
+        }
+      },
+    );
+  }
+
+  private applyShell(items: ShellStreamItem[]): void {
+    const transitions: UnitTransition[] = [];
+    updateEnv(this.id, (env) => {
+      let { projects, threads, synced } = env;
+      for (const item of items) {
+        switch (item.kind) {
+          case "snapshot":
+            projects = Object.fromEntries(item.snapshot.projects.map((p) => [p.id, p]));
+            threads = Object.fromEntries(item.snapshot.threads.map((t) => [t.id, t]));
+            this.shellSequence = item.snapshot.snapshotSequence;
+            break;
+          case "synchronized":
+            synced = true;
+            break;
+          case "project-upserted":
+            if (item.sequence <= this.shellSequence) break;
+            projects = { ...projects, [item.project.id]: item.project };
+            this.shellSequence = item.sequence;
+            break;
+          case "project-removed":
+            if (item.sequence <= this.shellSequence) break;
+            projects = { ...projects };
+            delete projects[item.projectId];
+            this.shellSequence = item.sequence;
+            break;
+          case "thread-upserted": {
+            if (item.sequence <= this.shellSequence) break;
+            const prev = threads[item.thread.id];
+            if (synced) {
+              const from = prev ? unitState(prev) : "idle";
+              const to = unitState(item.thread);
+              if (from !== to || !prev) transitions.push({ envId: this.id, thread: item.thread, from, to });
+            }
+            threads = { ...threads, [item.thread.id]: item.thread };
+            this.shellSequence = item.sequence;
+            break;
+          }
+          case "thread-removed":
+            if (item.sequence <= this.shellSequence) break;
+            threads = { ...threads };
+            delete threads[item.threadId];
+            this.shellSequence = item.sequence;
+            break;
+        }
+      }
+      return { ...env, projects, threads, synced };
+    });
+    for (const t of transitions) for (const fn of transitionListeners) fn(t);
+  }
+
+  // ---- Thread detail subscriptions -----------------------------------------------
+
+  /** Start following a thread's messages and activity. Returns a function to stop. */
+  watchThread(threadId: string): () => void {
+    let sub = this.threadSubs.get(threadId);
+    if (!sub) {
+      sub = { refs: 0, sequence: 0 };
+      this.threadSubs.set(threadId, sub);
+      if (this.rpc?.isOpen) this.subscribeThread(threadId, sub);
+    }
+    sub.refs++;
+    const s = sub;
+    return () => {
+      if (--s.refs > 0) return;
+      s.cancel?.();
+      this.threadSubs.delete(threadId);
+      useGame.setState((state) => {
+        const details = { ...state.details };
+        delete details[unitKey(this.id, threadId)];
+        return { details };
+      });
+    };
+  }
+
+  private subscribeThread(threadId: string, sub: ThreadSub): void {
+    const key = unitKey(this.id, threadId);
+    const payload = {
+      threadId,
+      reasoningMessages: true,
+      requestCompletionMarker: true,
+      turnLimit: THREAD_TURN_LIMIT,
+      ...(sub.sequence > 0 ? { afterSequence: sub.sequence } : {}),
+    };
+    sub.cancel = this.rpc!.stream<ThreadStreamItem>(
+      "orchestration.subscribeThread",
+      payload,
+      (items) => {
+        useGame.setState((state) => {
+          let detail = state.details[key];
+          for (const item of items) {
+            if (item.kind === "snapshot") {
+              detail = { thread: item.snapshot.thread, synced: false };
+              sub.sequence = item.snapshot.snapshotSequence;
+            } else if (item.kind === "synchronized") {
+              if (detail) detail = { ...detail, synced: true };
+            } else if (detail && item.event.sequence > sub.sequence) {
+              detail = { ...detail, thread: applyThreadEvent(detail.thread, item.event) };
+              sub.sequence = item.event.sequence;
+            }
+          }
+          return detail ? { details: { ...state.details, [key]: detail } } : {};
+        });
+      },
+      (err) => {
+        if (err && err.tag !== "Disconnected" && this.threadSubs.get(threadId) === sub && this.rpc?.isOpen) {
+          console.warn(`[${this.summary.label}] thread stream ended`, err);
+          setTimeout(() => this.threadSubs.get(threadId) === sub && this.rpc?.isOpen && this.subscribeThread(threadId, sub), 1000);
+        }
+      },
+    );
+  }
+
+  // ---- Commands ------------------------------------------------------------------
+
+  private dispatch(command: Record<string, unknown>): Promise<{ sequence: number }> {
+    if (!this.rpc?.isOpen) return Promise.reject(new RpcError("Disconnected", `${this.summary.label} is not connected`));
+    return this.rpc.request("orchestration.dispatchCommand", { commandId: uuid(), ...command });
+  }
+
+  private thread(threadId: string): ThreadShell {
+    const thread = useGame.getState().envs[this.id]?.threads[threadId];
+    if (!thread) throw new Error("Unknown thread");
+    return thread;
+  }
+
+  /** Send a follow-up message to an existing thread, keeping its model and modes. */
+  order(threadId: string, text: string): Promise<unknown> {
+    const t = this.thread(threadId);
+    return this.dispatch({
+      type: "thread.turn.start",
+      threadId,
+      message: { messageId: uuid(), role: "user", text, attachments: [] },
+      modelSelection: t.modelSelection,
+      runtimeMode: t.runtimeMode,
+      interactionMode: t.interactionMode,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  /** Create a new thread in a project and start its first turn, atomically. */
+  async recruit(opts: {
+    projectId: string;
+    text: string;
+    modelSelection: ModelSelection;
+    runtimeMode: RuntimeMode;
+    interactionMode?: InteractionMode;
+  }): Promise<string> {
+    const threadId = uuid();
+    const createdAt = new Date().toISOString();
+    const interactionMode = opts.interactionMode ?? "default";
+    const firstLine = opts.text.trim().split("\n")[0];
+    const title = firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
+    await this.dispatch({
+      type: "thread.turn.start",
+      threadId,
+      message: { messageId: uuid(), role: "user", text: opts.text, attachments: [] },
+      modelSelection: opts.modelSelection,
+      titleSeed: opts.text,
+      runtimeMode: opts.runtimeMode,
+      interactionMode,
+      bootstrap: {
+        createThread: {
+          projectId: opts.projectId,
+          title,
+          modelSelection: opts.modelSelection,
+          runtimeMode: opts.runtimeMode,
+          interactionMode,
+          branch: null,
+          worktreePath: null,
+          createdAt,
+        },
+      },
+      createdAt,
+    });
+    return threadId;
+  }
+
+  interrupt(threadId: string): Promise<unknown> {
+    const t = this.thread(threadId);
+    const turnId = t.latestTurn?.state === "running" ? t.latestTurn.turnId : undefined;
+    return this.dispatch({
+      type: "thread.turn.interrupt",
+      threadId,
+      ...(turnId ? { turnId } : {}),
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  respondToApproval(threadId: string, requestId: string, decision: ApprovalDecision): Promise<unknown> {
+    return this.dispatch({ type: "thread.approval.respond", threadId, requestId, decision, createdAt: new Date().toISOString() });
+  }
+
+  dismissQuestion(threadId: string, requestId: string): Promise<unknown> {
+    return this.dispatch({ type: "thread.user-input.dismiss", threadId, requestId, createdAt: new Date().toISOString() });
+  }
+
+  /** Send a unit to camp (mark the thread settled). */
+  settle(threadId: string): Promise<unknown> {
+    return this.dispatch({ type: "thread.settle", threadId });
+  }
+
+  /** Wake a unit back up (unsettle the thread). */
+  unsettle(threadId: string): Promise<unknown> {
+    return this.dispatch({ type: "thread.unsettle", threadId, reason: "user" });
+  }
+}
+
+// ---- Hub: one client per environment registered with the t3-command server ----------
+
+const clients = new Map<string, EnvironmentClient>();
+
+export function envClient(envId: string): EnvironmentClient | undefined {
+  return clients.get(envId);
+}
+
+export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    ...init,
+    headers: { "content-type": "application/json", ...init?.headers },
+  });
+  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+  return body;
+}
+
+/** Reconcile live connections with the server's environment list. */
+export async function refreshEnvironments(): Promise<void> {
+  const summaries = await fetchJson<EnvSummary[]>("/api/envs");
+  const seen = new Set<string>();
+  for (const summary of summaries) {
+    seen.add(summary.id);
+    const existing = clients.get(summary.id);
+    const world = useGame.getState().envs[summary.id];
+    // Re-create a client that was blocked (e.g. needs pairing) once the server says it's fine.
+    const blocked = world && (world.connection === "needs-pairing" || world.connection === "needs-update");
+    if (existing && !(blocked && summary.status === "ok")) {
+      updateEnv(summary.id, (e) => ({ ...e, summary }));
+      continue;
+    }
+    existing?.dispose();
+    const client = new EnvironmentClient(summary);
+    clients.set(summary.id, client);
+    client.start();
+  }
+  for (const [id, client] of clients) {
+    if (seen.has(id)) continue;
+    client.dispose();
+    clients.delete(id);
+  }
+}
+
+export function logError(context: string, err: unknown): void {
+  addLog({ tone: "bad", text: `${context}: ${err instanceof Error ? err.message : String(err)}` });
+}
