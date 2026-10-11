@@ -15,6 +15,7 @@ import { CrewRoster } from "./ui/CrewRoster";
 import { EventDialog } from "./ui/EventDialog";
 import { TopBar } from "./ui/TopBar";
 import { UnitPanel } from "./ui/UnitPanel";
+import { HostPanel } from "./ui/HostPanel";
 
 const ENV_REFRESH_MS = 30_000;
 
@@ -45,6 +46,7 @@ function announceTransitions(): () => void {
 
 export default function App() {
   const selection = useGame((s) => s.selection);
+  const hostPanel = useGame((s) => s.hostPanel);
   const showEnvManager = useGame((s) => s.showEnvManager);
   const [fatal, setFatal] = useState<string>();
 
@@ -88,6 +90,7 @@ export default function App() {
       <CrewRoster />
       <Minimap />
       <EventLog />
+      {hostPanel && <HostPanel envId={hostPanel} />}
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
       {selection?.kind === "library" && <LibraryPanel key={`lib:${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
       {selection?.kind === "building" && <BuildingPanel key={`${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}

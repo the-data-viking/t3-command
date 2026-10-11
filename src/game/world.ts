@@ -8,13 +8,13 @@
 // to room through doors to use the system their open tool call needs.
 //
 // Rule borrowed from StarNet: the map never shows activity T3 can't prove. Screens and system
-// icons light up only for real work, crew walk only for real tool calls, a node's engine lights
-// and its supply lines carry packets only while its crew are working, and idle crew stand still.
+// icons light up only for real work, crew walk only for real tool calls, and supply lines carry
+// packets only while crew are working. Engineering gauges show measured whole-host load.
 
 import { Application, Container, Graphics, Rectangle, Sprite, Text, TilingSprite, type FederatedPointerEvent, type TextStyleOptions } from "pixi.js";
 import * as A from "../art/sprites";
 import type { Arms, Legs } from "../art/render";
-import { setSelection, unitKey, useGame, type GameState, type Selection } from "../store";
+import { openHost, setSelection, unitKey, useGame, type GameState, type Selection } from "../store";
 import { isHistory, unitState, type UnitState } from "../t3/derive";
 import { telemetry, type Telemetry } from "../t3/telemetry";
 import type { ThreadShell } from "../t3/types";
@@ -22,6 +22,7 @@ import { computeFleetLayout, QUARTERS_SHOWN, TILE, type CrewLayout, type FleetLa
 import { sfx } from "./sfx";
 import { CrewMotion } from "./crew-motion";
 import { RenderLoop } from "./render-loop";
+import { hostView, type HostState } from "../t3/host";
 import { crewTex, currentStyle, PX, tex } from "./textures";
 import { HUD, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
 
@@ -420,6 +421,10 @@ class EnvironmentNodeSprite {
   readonly envId: string;
   readonly root = new Container();
   private name?: Text;
+  private meters?: Graphics;
+  private cpuText?: Text;
+  private memoryText?: Text;
+  private caption?: Text;
 
   constructor(envId: string) {
     this.envId = envId;
@@ -434,19 +439,18 @@ class EnvironmentNodeSprite {
     g.rect(h.x+8,h.y+8,h.w-16,h.h-16).fill(c.k);
     g.rect(h.x+12,h.y+34,64,86).fill(0x1a2b39).stroke({color:c.D,width:2});
     g.rect(h.x+82,h.y+34,h.w-94,86).fill(0x1a2b39).stroke({color:c.D,width:2});
-    g.rect(h.x+96,h.y+56,h.w-122,40).fill(c.D).stroke({color:c.h,width:2});
-    g.rect(h.x+102,h.y+62,h.w-134,28).fill(c.k);
-    for(let k=0;k<4;k++) g.rect(h.x+110+k*18,h.y+66,8,20).fill(c.G);
-    g.moveTo(h.x+96,h.y+50).lineTo(h.x+96,h.y+43).lineTo(h.x+h.w-26,h.y+43).lineTo(h.x+h.w-26,h.y+50).stroke({color:c.D,width:4});
-    g.moveTo(h.x+96,h.y+102).lineTo(h.x+96,h.y+110).lineTo(h.x+h.w-26,h.y+110).lineTo(h.x+h.w-26,h.y+102).stroke({color:c.D,width:4});
     g.rect(h.x+h.w/2-18,h.y-4,36,8).fill(c.D).stroke({color:c.k,width:2});
     this.root.addChild(g);
     this.root.addChild(sprite(tex(A.FILES),h.x+44,h.y+68,.5,.5));
     this.name=label(10,node.color,{letterSpacing:1});
     this.name.text=truncate((state.envs[node.envId]?.summary.label??'?').toUpperCase(),24);
     this.name.position.set(h.x+12,h.y+13); this.root.addChild(this.name);
-    const caption=label(7,0xa7bdcb,{letterSpacing:.6}); caption.text='COMPUTE  /  POWER · COOLING';
-    caption.position.set(h.x+12,h.y+104);this.root.addChild(caption);
+    this.meters = new Graphics();
+    this.cpuText = label(10, 0x59e1ff); this.cpuText.position.set(h.x+94,h.y+42);
+    this.memoryText = label(9, 0x6fe37a); this.memoryText.position.set(h.x+94,h.y+78);
+    this.caption = label(7,0xa7bdcb,{letterSpacing:.6}); this.caption.position.set(h.x+12,h.y+111);
+    this.root.addChild(this.meters, this.cpuText, this.memoryText, this.caption);
+    this.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
     this.root.eventMode = 'static';
     this.root.cursor = 'pointer';
     this.root.hitArea = new Rectangle(h.x, h.y, h.w, h.h);
@@ -454,8 +458,27 @@ class EnvironmentNodeSprite {
     this.root.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
       sfx.building();
-      worldRef.current?.focusStation(node.envId);
+      openHost(node.envId);
+      worldRef.current?.focusEngineering(node.envId);
     });
+  }
+
+  updateResources(node: EnvironmentNodeLayout, state: HostState | undefined, connection: string): void {
+    const view = hostView(state, connection);
+    const h = node.hull;
+    this.cpuText!.text = view.cpuFraction === undefined ? "CPU —" : `CPU ${Math.round(view.cpuFraction * 100)}%`;
+    this.memoryText!.text = view.memoryFraction === undefined ? "RAM USED —" : `RAM USED ${Math.round(view.memoryFraction * 100)}%`;
+    this.cpuText!.style.fill = view.stale ? 0x8a96a8 : view.cpuColor;
+    this.memoryText!.style.fill = view.stale ? 0x8a96a8 : view.memoryColor;
+    this.caption!.text = view.stale ? "LAST SAMPLE · STALE" : view.snapshot ? "WHOLE HOST · UTILIZATION" : "HOST METRICS UNAVAILABLE";
+    const g = this.meters!.clear();
+    for (const [fraction, y, color] of [[view.cpuFraction, 60, view.cpuColor], [view.memoryFraction, 95, view.memoryColor]] as const) {
+      for (let i = 0; i < 10; i++) {
+        const x = h.x + 94 + i * 11;
+        g.rect(x, h.y+y, 9, 10).fill(0x263845);
+        if (fraction !== undefined && fraction > i / 10) g.rect(x, h.y+y, Math.min(1, fraction * 10 - i) * 9, 10).fill({ color, alpha: view.stale ? 0.35 : 1 });
+      }
+    }
   }
 
   setZoom(zoom: number): void {
@@ -510,6 +533,7 @@ export class World {
   private edgeTargets = new Map<string, Container>();
   private lastEnvs?: GameState["envs"];
   private lastDetails?: GameState["details"];
+  private lastHosts?: GameState["hosts"];
   private lastStyle?: GameState["artStyle"];
 
   constructor(host: HTMLElement) {
@@ -544,7 +568,7 @@ export class World {
       return animated;
     });
     this.unsubscribe = useGame.subscribe((s, prev) => {
-      if (s.envs !== prev.envs || s.details !== prev.details || s.selection !== prev.selection || s.artStyle !== prev.artStyle) this.invalidate();
+      if (s.envs !== prev.envs || s.details !== prev.details || s.hosts !== prev.hosts || s.selection !== prev.selection || s.artStyle !== prev.artStyle) this.invalidate();
     });
     this.resizeObserver = new ResizeObserver(() => {
       if (this.destroyed) return;
@@ -686,6 +710,12 @@ export class World {
     this.focusRect(rect);
   }
 
+  /** Zoom in on the host gauges, leaving room for the resource panel. */
+  focusEngineering(envId: string): void {
+    const node = [...this.layout.environmentNodes.values()].find((n) => n.envId === envId);
+    if (node) this.focusRect(node.hull);
+  }
+
   /** The station holding a given environment's project. */
   stationFor(envId: string, projectId: string): StationLayout | undefined {
     for (const s of this.layout.stations.values()) if (s.members.some((m) => m.envId === envId && m.projectId === projectId)) return s;
@@ -737,6 +767,13 @@ export class World {
   // ---- Sync with the store ----
 
   private sync(state: GameState): void {
+    if (state.hosts !== this.lastHosts || state.envs !== this.lastEnvs) {
+      this.lastHosts = state.hosts;
+      for (const [key, sprite] of this.environmentNodes) {
+        const node = this.layout.environmentNodes.get(key);
+        if (node) sprite.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
+      }
+    }
     const styleChanged = state.artStyle !== this.lastStyle;
     if (state.envs === this.lastEnvs && state.details === this.lastDetails && !styleChanged) return;
     const layoutChanged = state.envs !== this.lastEnvs;
@@ -967,14 +1004,8 @@ export class World {
       const env = state.envs[node.envId];
       const live = env?.connection === "live";
       const states = environmentStates.get(node.envId) ?? [];
-      const h = node.hull;
       const sprite = this.environmentNodes.get(node.key)?.root;
       if (sprite) sprite.alpha = live ? 1 : 0.45;
-      if (states.includes("working") && live) {
-        // Embedded engine cells light only for live work in this environment.
-        for(let k=0;k<4;k++) g.rect(h.x+112+k*18,h.y+69,4,14).fill({color:0x59e1ff,alpha:frame%2?1:.6});
-
-      }
       const p = node.plate;
       const lightColor = live ? 0x6fe37a : env?.connection === "reconnecting" || env?.connection === "connecting" ? STATUS.question : 0x59626c;
       g.rect(p.x + p.w - 13, p.y + p.h / 2 - 4, 8, 8).fill({ color: lightColor, alpha: live || frame % 2 ? 1 : 0.4 });

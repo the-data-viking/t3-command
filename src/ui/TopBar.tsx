@@ -1,18 +1,32 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { css, teamColor } from "../game/theme";
 import { worldRef } from "../game/world";
-import { setArtStyle, setMuted, useGame } from "../store";
+import { openHost, setArtStyle, setMuted, useGame } from "../store";
+import { hostView } from "../t3/host";
 import { isHistory, unitState } from "../t3/derive";
 import { jumpTo } from "./hotkeys";
 import { allUnits } from "./util";
+import { SpendTelemetry } from "./SpendTelemetry";
 
 export function TopBar() {
+  const bar = useRef<HTMLElement>(null);
   const envs = useGame((s) => s.envs);
+  const hosts = useGame((s) => s.hosts);
   const muted = useGame((s) => s.muted);
   const artStyle = useGame((s) => s.artStyle);
   const stations = useMemo(() => sortedEnvs(useGame.getState()), [envs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const element = bar.current;
+    if (!element) return;
+    const measure = () => document.documentElement.style.setProperty("--topbar-bottom", `${Math.ceil(element.getBoundingClientRect().bottom) + 8}px`);
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    measure();
+    return () => { observer.disconnect(); document.documentElement.style.removeProperty("--topbar-bottom"); };
+  }, []);
 
   const totals = useMemo(() => {
     const c = { working: 0, monitoring: 0, attention: 0, done: 0, hurt: 0, crew: 0, awake: 0 };
@@ -29,7 +43,7 @@ export function TopBar() {
   }, [envs]);
 
   return (
-    <header className="topbar hud-frame">
+    <header ref={bar} className="topbar hud-frame">
       <div className="logo">
         T3<span className="logo-slash">//</span>COMMAND
       </div>
@@ -57,20 +71,25 @@ export function TopBar() {
           </span>
         </span>
       </div>
+      <SpendTelemetry />
       <div className="spacer" />
       <nav className="stations">
         {stations.map((env, i) => {
           const units = Object.values(env.threads).filter((t) => !isHistory(t));
           const attention = units.filter((t) => ["alert", "question"].includes(unitState(t))).length;
           const working = units.filter((t) => unitState(t) === "working").length;
+          const resources = hostView(hosts[env.summary.id], env.connection);
+          const description = `${env.summary.label} — ${env.connection}${env.error ? `: ${env.error}` : ""} · CPU ${resources.cpuFraction === undefined ? "unavailable" : `${Math.round(resources.cpuFraction * 100)}%`} · RAM ${resources.memoryFraction === undefined ? "unavailable" : `${Math.round(resources.memoryFraction * 100)}% used`}${resources.stale ? " · stale sample" : ""}`;
           return (
             <button
               key={env.summary.id}
               className={`station-chip conn-${env.connection} ${attention ? "hot" : ""}`}
               style={{ ["--team" as string]: css(teamColor(i)) }}
-              title={`${env.summary.label} — ${env.connection}${env.error ? `: ${env.error}` : ""}`}
+              title={description}
+              aria-label={`${description}. Open engineering details`}
               onClick={() => {
                 sfx.building();
+                openHost(env.summary.id);
                 worldRef.current?.focusStation(env.summary.id);
               }}
             >

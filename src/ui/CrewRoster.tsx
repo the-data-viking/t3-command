@@ -7,6 +7,7 @@ import { openEvent, setSelection, unitKey, useGame } from "../store";
 import type { UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { allUnits, STATE_LABELS, type UnitRef } from "./util";
+import { ThreadTiming } from "./ThreadTiming";
 
 const NEEDS_YOU: UnitState[] = ["alert", "question", "error", "done"];
 const ON_DUTY: UnitState[] = ["working", "monitoring", "idle"];
@@ -57,6 +58,7 @@ export function CrewRoster() {
               <span className={`crew-state st-${u.state}`}>{STATE_LABELS[u.state]}</span>
               <span className="muted"> · {envs[u.envId]?.summary.label}</span>
             </span>
+            <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
             {ctx !== undefined && (
               <span className="crew-hp" title={`${Math.round((1 - ctx) * 100)}% context left`}>
                 {Array.from({ length: 10 }, (_, i) => (

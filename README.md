@@ -21,9 +21,20 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   activity T3 can't prove. Consoles light up only during a real turn; crew walk to the terminal,
   file archive or comms dish only for a real open tool call; drones orbit crew for each running
   background task; a health bar shows how much context window is left.
+- **Host resources**: engineering nodes show whole-host CPU load and RAM used as utilization
+  gauges: fuller means busier, with matching cyan/amber/red thresholds. Click a node to zoom in and open its readings and recent CPU history;
+  environment chips also open the host panel. Samples refresh every 10 seconds while visible,
+  with stale readings clearly marked. RAM used is total minus reported availability, not a measurement of memory pressure.
+- **Usage estimates**: the top bar shows today's fleet API-equivalent value, with per-environment
+  breakdowns, seven-day daily totals, cached-input share and estimated cache savings. T3's
+  provider-history scan includes work outside T3; shared physical sources count once. This is
+  estimated usage value, not subscription billing. Usage refreshes every minute while visible.
 - **Attention**: an always-on **Inbox** of everything waiting on you (approvals, questions, failed
   turns, reports), edge-of-screen arrows for off-screen alerts, and RTS hotkeys: **Space** next
   alert, **.** next report, **W** next active crew, **F** fit the fleet, **Esc** deselect.
+  Waiting badges use the oldest unanswered request timestamp when available; crew show running
+  turn duration, and the thread panel also shows the last completed turn's duration. Live timers
+  tick every second while visible.
 - **Navigation**: sector minimap, station chips in the top bar that jump to their station, and
   project banners that stay readable when zoomed out. Environment chips frame all of that environment’s
   project modules and attached engineering nodes.

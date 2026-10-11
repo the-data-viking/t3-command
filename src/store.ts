@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import type { EnvSummary, MeResponse } from "../shared/api";
 import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
+import type { UsageState } from "./t3/usage";
+import type { HostState } from "./t3/host";
 
 export type Connection = "connecting" | "live" | "reconnecting" | "needs-pairing" | "needs-update" | "offline";
 
@@ -13,6 +15,7 @@ export interface EnvWorld {
   projects: Record<string, ProjectShell>;
   threads: Record<string, ThreadShell>;
   providers: Provider[];
+  usage?: UsageState;
 }
 
 export interface ThreadDetail {
@@ -42,6 +45,9 @@ export interface GameState {
   envs: Record<string, EnvWorld>;
   /** Open thread subscriptions, keyed by unitKey(envId, threadId). */
   details: Record<string, ThreadDetail>;
+  /** Kept separate from shells so resource samples don't rebuild map geometry. */
+  hosts: Record<string, HostState>;
+  hostPanel: string | null;
   selection: Selection;
   log: LogEntry[];
   muted: boolean;
@@ -88,6 +94,8 @@ function loadMuted(): boolean {
 export const useGame = create<GameState>()(() => ({
   envs: {},
   details: {},
+  hosts: {},
+  hostPanel: null,
   selection: null,
   log: [],
   muted: loadMuted(),
@@ -104,7 +112,11 @@ export function updateEnv(envId: string, fn: (env: EnvWorld) => EnvWorld): void 
 }
 
 export function setSelection(selection: Selection): void {
-  useGame.setState({ selection });
+  useGame.setState({ selection, hostPanel: null });
+}
+
+export function openHost(envId: string): void {
+  useGame.setState({ hostPanel: envId, selection: null });
 }
 
 export function openEvent(event: GameState["event"]): void {
