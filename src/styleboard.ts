@@ -4,8 +4,13 @@
 import { STYLES, type Style } from "./art/palettes";
 import { crewGrid, rasterize, type Arms, type Legs, type Silhouette, type Tier } from "./art/render";
 import * as S from "./art/sprites";
+import { SIGNAL_KIT, signalCrew } from "./art/signal";
+import { FLIGHT_KIT, flightCrew } from "./art/flightdeck";
 
-const SCALE = 3;
+let scale = 2;
+let paused = false;
+let elapsed = 0;
+let previousTime = 0;
 const T = 16; // tile size in sprite pixels
 const COLS = 15;
 const W = COLS * T + 40; // scene width in sprite pixels
@@ -38,25 +43,26 @@ interface Crew {
 }
 
 function drawCrew(ctx: Ctx, style: Style, c: Crew): void {
-  const grid = crewGrid(c.silhouette, c.tier, c.legs, c.arms);
+  const grid = (style.id.startsWith("flightdeck") ? flightCrew : style.id === "signal" ? signalCrew : crewGrid)(c.silhouette, c.tier, c.legs, c.arms);
   const visor = c.silhouette === "round" ? VISOR.claude : VISOR.codex;
   // Feet at (x, y).
   blit(ctx, rasterize(grid, style, { team: c.team, visor }, c.mirror), c.x - S.CREW_W / 2, c.y - S.CREW_H);
 }
 
 function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
+  const kit = style.id.startsWith("flightdeck") ? FLIGHT_KIT : style.id === "signal" ? SIGNAL_KIT : S;
   rect(ctx, style.space, 0, 0, W, H);
   // A few stars.
   for (let i = 0; i < 60; i++) rect(ctx, 0xffffff, (i * 97) % W, (i * 53) % 60, 1, 1);
 
   // Ship above the station.
-  const ship = rasterize(S.SHIP, style, { team: TEAM.amber });
+  const ship = rasterize(kit.SHIP, style, { team: TEAM.amber });
   blit(ctx, ship, 40, 8);
   // Engine glow (the ship's crew are working).
   rect(ctx, 0x59e1ff, 32 - (frame % 2) * 2, 15, 8 + (frame % 2) * 2, 4);
   rect(ctx, 0xffffff, 37, 16, 3, 2);
   // Supply line down to the station.
-  for (let y = 24; y < 52; y += 3) rect(ctx, TEAM.amber, 64, y, 1, 2);
+  for (let y = style.id === "signal" ? 34 : 24; y < 52; y += 3) rect(ctx, TEAM.amber, 64, y, 1, 2);
 
   // Station hull.
   const ox = 20;
@@ -69,9 +75,31 @@ function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
   rect(ctx, style.colors.D, ox - 6, oy + ih + 4, iw + 12, 2);
   rect(ctx, style.colors.D, 58, oy - 10, 12, 4); // supply port
 
+  if (style.id === "signal") {
+    // Exposed copper services and ceramic buttresses give the hull its own construction language.
+    for (const x of [ox - 10, ox + iw + 6]) {
+      rect(ctx, style.colors.k, x - 2, oy + 8, 6, ih - 16);
+      rect(ctx, style.colors.M, x, oy + 8, 2, ih - 16);
+      for (const y of [oy + 6, oy + 48, oy + 96]) {
+        rect(ctx, style.colors.k, x - 4, y, 10, 8);
+        rect(ctx, style.colors.h, x - 3, y + 1, 8, 3);
+        rect(ctx, style.colors.H, x - 3, y + 4, 8, 3);
+      }
+    }
+    for (let x = ox + 16; x < ox + iw; x += 32) {
+      rect(ctx, style.colors.k, x, oy - 7, 16, 5);
+      rect(ctx, style.colors.m, x + 1, oy - 6, 14, 2);
+    }
+  }
+
   // Floor.
   const floor = rasterize(S.FLOOR, style);
   for (let y = 0; y < 7; y++) for (let x = 0; x < COLS; x++) blit(ctx, floor, ox + x * T, oy + y * T);
+
+  const bridgeFloor = rasterize(S.FLOOR_BRIDGE, style);
+  const quartersFloor = rasterize(S.FLOOR_QUARTERS, style);
+  for (let y = 2; y < 5; y++) for (let x = 0; x < COLS; x++) blit(ctx, bridgeFloor, ox + x * T, oy + y * T);
+  for (let y = 5; y < 7; y++) for (let x = 0; x < 11; x++) blit(ctx, quartersFloor, ox + x * T, oy + y * T);
 
   // Walls: systems row (3 rooms × 5 tiles), bridge (3 tiles), quarters (11) + archive (4).
   const wall = (x: number, y: number, w: number, h: number) => rect(ctx, style.wall, x, y, w, h);
@@ -84,15 +112,15 @@ function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
   wall(ox + 10 * T - 1, oy, 2, 2 * T);
   wall(ox, oy + 5 * T - 1, iw, 2);
   wall(ox + 11 * T - 1, oy + 5 * T, 2, 2 * T);
-  const door = rasterize(S.DOOR_H, style);
+  const door = rasterize(kit.DOOR_H, style);
   for (const dx of [2.5, 7.5, 12.5]) blit(ctx, door, ox + dx * T - 8, oy + 2 * T - 2);
   blit(ctx, door, ox + 5.5 * T - 8, oy + 5 * T - 2);
   blit(ctx, door, ox + 13 * T - 8, oy + 5 * T - 2);
 
   // Systems.
-  blit(ctx, rasterize(S.TERMINAL, style), ox + 2.5 * T - 8, oy + 6);
-  blit(ctx, rasterize(S.FILES, style), ox + 7.5 * T - 7, oy + 6);
-  blit(ctx, rasterize(S.COMMS, style), ox + 12.5 * T - 8, oy + 8);
+  blit(ctx, rasterize(kit.TERMINAL, style), ox + 2.5 * T - kit.TERMINAL[0].length / 2, oy + 6);
+  blit(ctx, rasterize(kit.FILES, style), ox + 7.5 * T - kit.FILES[0].length / 2, oy + 6);
+  blit(ctx, rasterize(kit.COMMS, style), ox + 12.5 * T - kit.COMMS[0].length / 2, oy + 6);
 
   // Bridge consoles and crew.
   const consoles: Array<{ x: number; screen: number; crew?: Crew; badge?: S.Grid }> = [
@@ -103,9 +131,9 @@ function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
   for (const c of consoles) {
     const cx = ox + c.x * T;
     const cy = oy + 2 * T + 3;
-    blit(ctx, rasterize(S.CONSOLE, style, { screen: c.screen }), cx - 12, cy);
-    blit(ctx, rasterize(S.CHAIR, style), cx - 5, cy + 26);
-    if (c.crew) drawCrew(ctx, style, { ...c.crew, x: cx, y: cy + 30 });
+    blit(ctx, rasterize(kit.CONSOLE, style, { screen: c.screen }), cx - kit.CONSOLE[0].length / 2, cy);
+    blit(ctx, rasterize(kit.CHAIR, style), cx - 5, cy + 26);
+    if (c.crew) drawCrew(ctx, style, { ...c.crew, x: cx, y: cy + (style.id.startsWith("flightdeck") ? 27 : 30) });
     // Badge floats beside the helmet, clear of the console.
     if (c.badge) blit(ctx, rasterize(c.badge, style, { visor: SCREEN.monitoring }), cx + 9, cy + 6 - (c.badge === S.BADGE_ALERT ? frame % 2 : 0));
   }
@@ -149,24 +177,93 @@ const scenes: Array<{ ctx: Ctx; style: Style }> = [];
 for (const style of Object.values(STYLES)) {
   const section = document.createElement("section");
   section.className = "style";
+  section.dataset.style = style.id;
   section.innerHTML = `<div><h2>${style.name.toUpperCase()}</h2><p>${style.blurb}</p><p class="legend">Lineup, left to right: Claude scout · specialist · heavy · inspector, then the same for Codex. Badges: approval · question · report ready · failed · monitoring.</p></div>`;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
-  canvas.style.width = `${W * SCALE}px`;
-  canvas.style.height = `${H * SCALE}px`;
+  canvas.style.width = `${W * scale}px`;
+  canvas.style.height = `${H * scale}px`;
   section.appendChild(canvas);
   board.appendChild(section);
   const ctx = canvas.getContext("2d")!;
   ctx.imageSmoothingEnabled = false;
   scenes.push({ ctx, style });
+  const download = document.createElement("button");
+  download.textContent = "Save scene PNG";
+  download.addEventListener("click", () => {
+    const link = document.createElement("a");
+    link.download = `t3-command-${style.id}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  });
+  section.firstElementChild!.appendChild(download);
+  const gallery = document.createElement("div");
+  gallery.className = "assets";
+  const kit = style.id.startsWith("flightdeck") ? FLIGHT_KIT : style.id === "signal" ? SIGNAL_KIT : S;
+  const assets: Array<[string, S.Grid]> = [
+    ["Utility deck", S.FLOOR], ["Bridge alloy", S.FLOOR_BRIDGE], ["Quarters panels", S.FLOOR_QUARTERS],
+    ["Console", kit.CONSOLE], ["Terminal", kit.TERMINAL], ["File bank", kit.FILES], ["Comms", kit.COMMS],
+    ["Bunk", S.BUNK_EMPTY], ["Archive", S.SHELF], ["Ship", kit.SHIP],
+    ["Approval", S.BADGE_ALERT], ["Question", S.BADGE_QUESTION], ["Report ready", S.BADGE_DONE],
+    ["Failed", S.BADGE_ERROR], ["Monitoring", S.BADGE_MONITOR],
+  ];
+  if (style.id === "signal" || style.id.startsWith("flightdeck")) {
+    for (const silhouette of ["round", "angular"] as const) for (const tier of ["light", "standard", "heavy", "reviewer"] as const) {
+      assets.push([`${silhouette === "round" ? "Claude" : "Codex"} ${tier}`, (style.id.startsWith("flightdeck") ? flightCrew : signalCrew)(silhouette, tier)]);
+    }
+  }
+  for (const [name, grid] of assets) {
+    const figure = document.createElement("figure");
+    const asset = document.createElement("canvas");
+    const source = rasterize(grid, style, { team: TEAM.amber, screen: SCREEN.working, visor: name.startsWith("Claude") ? VISOR.claude : name.startsWith("Codex") ? VISOR.codex : SCREEN.monitoring });
+    asset.width = source.width;
+    asset.height = source.height;
+    asset.getContext("2d")!.drawImage(source, 0, 0);
+    asset.style.width = `${source.width * 3}px`;
+    asset.style.height = `${source.height * 3}px`;
+    const caption = document.createElement("figcaption");
+    caption.textContent = name;
+    figure.append(asset, caption);
+    gallery.appendChild(figure);
+  }
+  section.appendChild(gallery);
 }
 
-const start = performance.now();
+const zoom = document.getElementById("zoom") as HTMLSelectElement;
+zoom.addEventListener("change", () => {
+  scale = Number(zoom.value);
+  for (const scene of scenes) {
+    scene.ctx.canvas.style.width = `${W * scale}px`;
+    scene.ctx.canvas.style.height = `${H * scale}px`;
+  }
+});
+const pause = document.getElementById("pause") as HTMLButtonElement;
+pause.addEventListener("click", () => {
+  paused = !paused;
+  pause.textContent = paused ? "Play animation" : "Pause animation";
+  pause.setAttribute("aria-pressed", String(paused));
+});
+const palette = document.getElementById("palette") as HTMLSelectElement;
+palette.addEventListener("change", () => {
+  for (const section of board.querySelectorAll<HTMLElement>("section")) {
+    section.hidden = palette.value !== "all" && section.dataset.style !== palette.value;
+  }
+});
+const requestedPalette = new URLSearchParams(location.search).get("palette");
+if (requestedPalette && [...palette.options].some(option => option.value === requestedPalette)) {
+  palette.value = requestedPalette;
+  palette.dispatchEvent(new Event("change"));
+}
+paused = matchMedia("(prefers-reduced-motion: reduce)").matches;
+pause.textContent = paused ? "Play animation" : "Pause animation";
+pause.setAttribute("aria-pressed", String(paused));
 function loop(now: number): void {
-  const t = (now - start) / 1000;
+  if (previousTime && !paused) elapsed += Math.min(now - previousTime, 100);
+  previousTime = now;
+  const t = elapsed / 1000;
   const frame = Math.floor(t * 4);
-  for (const s of scenes) drawScene(s.ctx, s.style, frame, t);
+  for (const scene of scenes) drawScene(scene.ctx, scene.style, frame, t);
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

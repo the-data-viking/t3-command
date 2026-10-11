@@ -11,7 +11,7 @@ give it orders, watch it work, and respond to approval requests when they come u
 ## Status
 
 Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-command styling
-(procedural art for now; designed so a sprite set can drop in later):
+(hand-authored pixel sprites, with Flight Deck in Night Shift as the default):
 
 - **Stations**: every T3 environment is a station in a sector grid, with its own team color. Each
   project is a module docked to the station core, crewed by its threads.
@@ -24,10 +24,19 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   alert, **.** next report, **W** next active crew, **F** fit the fleet, **Esc** deselect.
 - **Navigation**: sector minimap, station chips in the top bar that jump to their station, and
   station banners that stay readable when zoomed out.
-- **Command**: select crew to read the live transcript, give orders, halt, approve or deny tool
+- **Command**: select crew to read the live Markdown transcript with clickable links, give orders, halt, approve or deny tool
   use, or send them to quarters. Select a module to recruit new crew (a new thread) with any model.
-  Imported CLI history lives in each module's archive pod.
+  Imported CLI history lives in each module's archive pod. Drag the chat panel's left edge to resize it,
+  use its arrow-key controls, or double-click the edge to reset; width is saved per browser.
 - Synthesized sound effects (mutable) and a comms feed of events.
+
+The map uses compact suited crew and wraparound system consoles. Switch between Night Shift
+and warm Flight Deck plating with the style button. Existing Kestrel/Night Shift browser
+preferences carry forward to the corresponding Flight Deck palette.
+
+The production build includes `/styleboard.html` for palette and asset review, with pause,
+scale controls and scene PNG export. Open `/styleboard.html?palette=flightdeck-nightshift`
+for the shipped direction. Earlier concept studies remain available for comparison.
 
 ## Architecture
 

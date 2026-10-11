@@ -12,6 +12,7 @@
 //   h  hull light   H  hull   D  hull dark
 //   m  metal light  M  metal dark
 //   f  floor        F  floor seam
+//   p/P bridge deck/seam   q/Q quarters deck/seam
 //   a  amber light  r  red light   n  green light   c  cyan glow
 //   b  book/data blue
 
@@ -288,6 +289,15 @@ export const FLOOR: Grid = [
   "Ffffffffffffffff",
 ];
 
+/** Cool alloy bridge decking and warm acoustic quarters panels. No status colors. */
+export const FLOOR_BRIDGE: Grid = FLOOR.map((row, y) => {
+  const deck = row.replace(/f/g, "p").replace(/F/g, "P");
+  return y === 7 || y === 8 ? "P" + "p".repeat(6) + "PP" + "p".repeat(7) : deck;
+});
+export const FLOOR_QUARTERS: Grid = Array.from({ length: 16 }, (_, y) =>
+  y % 8 === 0 ? "Q".repeat(16) : (y < 8 ? "Q" + "q".repeat(15) : "q".repeat(8) + "Q" + "q".repeat(7)),
+);
+
 export const DOOR_H: Grid = ["kkkkkkkkkkkkkkkk", "kaaaaaaakaaaaaak", "kDDDDDDDkDDDDDDk", "kkkkkkkkkkkkkkkk"];
 
 /** One environment's ship: engine left, bow right, team stripe along the hull. */
@@ -396,6 +406,8 @@ export const ALL: Record<string, Grid> = {
   BUNK_SLEEPER,
   SHELF,
   FLOOR,
+  FLOOR_BRIDGE,
+  FLOOR_QUARTERS,
   DOOR_H,
   SHIP,
   BADGE_ALERT,

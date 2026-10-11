@@ -45,7 +45,7 @@ export interface GameState {
   selection: Selection;
   log: LogEntry[];
   muted: boolean;
-  /** Map art style: Kestrel (light) or Night Shift (dark). */
+  /** Flight Deck map palette: warm plating or Night Shift. */
   artStyle: ArtStyle;
   showEnvManager: boolean;
   /** The crew member whose pending approval/question is shown as an event dialog. */
@@ -54,20 +54,17 @@ export interface GameState {
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
 
-export type ArtStyle = "kestrel" | "nightshift";
+export type ArtStyle = "flightdeck" | "flightdeck-nightshift";
 
 function loadArtStyle(): ArtStyle {
   try {
     const saved = localStorage.getItem("t3c:art-style");
-    if (saved === "kestrel" || saved === "nightshift") return saved;
+    if (saved === "flightdeck" || saved === "flightdeck-nightshift") return saved;
+    if (saved === "kestrel") return "flightdeck";
   } catch {
-    // Fall through to the OS preference.
+    // Per-browser convenience only.
   }
-  try {
-    return window.matchMedia("(prefers-color-scheme: light)").matches ? "kestrel" : "nightshift";
-  } catch {
-    return "nightshift";
-  }
+  return "flightdeck-nightshift";
 }
 
 export function setArtStyle(artStyle: ArtStyle): void {
