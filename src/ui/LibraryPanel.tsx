@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { sfx } from "../game/sfx";
+import { groupFor } from "../game/layout";
 import { setSelection, useGame } from "../store";
 import { isHistory } from "../t3/derive";
 import type { ThreadShell } from "../t3/types";
@@ -16,18 +17,26 @@ export function LibraryPanel({ envId, projectId }: { envId: string; projectId: s
   const env = useGame((s) => s.envs[envId]);
   const project = env?.projects[projectId];
 
-  const volumes = useMemo<Volume[]>(() => {
-    if (!env) return [];
+  // The station's archive holds history from every environment docked at this project.
+  const envs = useGame((s) => s.envs);
+  const { volumes, owners } = useMemo(() => {
+    const owners = new Map<string, string>();
+    if (!env) return { volumes: [] as Volume[], owners };
+    const members = groupFor(useGame.getState(), envId, projectId)?.members ?? [];
     const byTitle = new Map<string, ThreadShell[]>();
-    for (const t of Object.values(env.threads)) {
-      if (t.projectId !== projectId || !isHistory(t)) continue;
-      const key = (t.title || "Untitled").trim();
-      byTitle.set(key, [...(byTitle.get(key) ?? []), t]);
+    for (const m of members) {
+      for (const t of Object.values(m.env.threads)) {
+        if (t.projectId !== m.project.id || !isHistory(t)) continue;
+        const key = (t.title || "Untitled").trim();
+        byTitle.set(key, [...(byTitle.get(key) ?? []), t]);
+        owners.set(t.id, m.env.summary.id);
+      }
     }
-    return [...byTitle.entries()]
+    const volumes = [...byTitle.entries()]
       .map(([title, copies]) => ({ title, copies: copies.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }))
       .sort((a, b) => b.copies[0].updatedAt.localeCompare(a.copies[0].updatedAt));
-  }, [env, projectId]);
+    return { volumes, owners };
+  }, [env, envId, projectId, envs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!env || !project) {
     return (
@@ -40,7 +49,7 @@ export function LibraryPanel({ envId, projectId }: { envId: string; projectId: s
   const total = volumes.reduce((n, v) => n + v.copies.length, 0);
   const open = (thread: ThreadShell) => {
     sfx.select();
-    setSelection({ kind: "unit", envId, threadId: thread.id });
+    setSelection({ kind: "unit", envId: owners.get(thread.id) ?? envId, threadId: thread.id });
   };
 
   return (

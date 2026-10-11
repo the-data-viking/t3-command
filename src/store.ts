@@ -46,6 +46,8 @@ export interface GameState {
   log: LogEntry[];
   muted: boolean;
   showEnvManager: boolean;
+  /** The crew member whose pending approval/question is shown as an event dialog. */
+  event: { envId: string; threadId: string } | null;
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
@@ -65,6 +67,7 @@ export const useGame = create<GameState>()(() => ({
   log: [],
   muted: loadMuted(),
   showEnvManager: false,
+  event: null,
 }));
 
 export function updateEnv(envId: string, fn: (env: EnvWorld) => EnvWorld): void {
@@ -76,6 +79,10 @@ export function updateEnv(envId: string, fn: (env: EnvWorld) => EnvWorld): void 
 
 export function setSelection(selection: Selection): void {
   useGame.setState({ selection });
+}
+
+export function openEvent(event: GameState["event"]): void {
+  useGame.setState({ event });
 }
 
 export function setMuted(muted: boolean): void {

@@ -2,16 +2,17 @@
 
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
-import { setSelection, useGame } from "../store";
+import { openEvent, setSelection, useGame } from "../store";
 import type { UnitState } from "../t3/derive";
 import { allUnits } from "./util";
 
-export type JumpGroup = "attention" | "done" | "working" | "error";
+export type JumpGroup = "attention" | "done" | "working" | "monitoring" | "error";
 
 const GROUPS: Record<JumpGroup, UnitState[]> = {
   attention: ["alert", "question"],
   done: ["done", "idle"],
   working: ["working"],
+  monitoring: ["monitoring"],
   error: ["error"],
 };
 
@@ -31,6 +32,7 @@ export function jumpTo(group: JumpGroup): void {
   sfx.select();
   setSelection(sel);
   worldRef.current?.focus(sel);
+  if (group === "attention") openEvent({ envId: next.envId, threadId: next.thread.id });
 }
 
 function typing(target: EventTarget | null): boolean {
@@ -41,7 +43,8 @@ function typing(target: EventTarget | null): boolean {
 export function installHotkeys(): () => void {
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
-      if (useGame.getState().showEnvManager) useGame.setState({ showEnvManager: false });
+      if (useGame.getState().event) openEvent(null);
+      else if (useGame.getState().showEnvManager) useGame.setState({ showEnvManager: false });
       else setSelection(null);
       (document.activeElement as HTMLElement | null)?.blur?.();
       return;
@@ -51,6 +54,7 @@ export function installHotkeys(): () => void {
       " ": () => jumpTo("attention"),
       ".": () => jumpTo("done"),
       w: () => jumpTo("working"),
+      m: () => jumpTo("monitoring"),
       f: () => worldRef.current?.fitAll(),
     };
     const action = actions[e.key];

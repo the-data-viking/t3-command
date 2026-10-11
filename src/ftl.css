@@ -1,0 +1,480 @@
+/* FTL chrome: bevelled gray frames with title tabs, plain slab buttons, the crew roster and
+   event dialogs. Loaded after index.css and overrides its frame styles. */
+
+:root {
+  --ftl-frame: #aeb7be;
+  --ftl-ink: #0d1114;
+  --ftl-bg: rgba(22, 27, 32, 0.95);
+  --ftl-slot: #11161a;
+  --ftl-hp: #6fe37a;
+}
+
+.hud-frame,
+.ftl-frame,
+.panel,
+.modal {
+  background: var(--ftl-bg);
+  border: 3px solid var(--ftl-frame);
+  border-radius: 7px;
+  box-shadow:
+    inset 0 0 0 2px var(--ftl-ink),
+    0 0 0 2px var(--ftl-ink),
+    0 8px 22px rgba(0, 0, 0, 0.55);
+  backdrop-filter: none;
+}
+
+.hud-frame::before,
+.hud-frame::after,
+.panel::before,
+.panel::after,
+.modal::before,
+.modal::after {
+  content: none;
+}
+
+.ftl-frame {
+  position: absolute;
+}
+
+/* Title tab sitting on the top edge of a frame. */
+.ftl-tab,
+.minimap .hud-label {
+  position: absolute;
+  top: -15px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ftl-frame);
+  color: var(--ftl-ink);
+  border: 2px solid var(--ftl-ink);
+  border-bottom: none;
+  border-radius: 5px 5px 0 0;
+  padding: 2px 12px 1px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: default;
+}
+
+button.ftl-tab {
+  cursor: pointer;
+}
+
+.ftl-tab .count {
+  color: var(--ftl-ink);
+}
+
+.ftl-tab .count.hot {
+  color: #b3121f;
+}
+
+/* Buttons: plain FTL slabs, no brackets. */
+.btn {
+  border: 2px solid var(--ftl-frame);
+  border-radius: 4px;
+  color: #eef2f5;
+  background: #20272d;
+  font-weight: 700;
+}
+
+.btn::before,
+.btn::after {
+  content: none;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--ftl-frame);
+  color: var(--ftl-ink);
+}
+
+.btn.primary {
+  border-color: var(--ftl-hp);
+  color: var(--ftl-hp);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--ftl-hp);
+  color: var(--ftl-ink);
+}
+
+.btn.danger {
+  border-color: var(--alert);
+  color: var(--alert);
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: var(--alert);
+  color: #fff;
+}
+
+/* Top bar */
+.topbar {
+  padding: 6px 12px;
+}
+
+.logo {
+  color: #eef2f5;
+  text-shadow: none;
+}
+
+.logo-slash {
+  color: var(--ftl-hp);
+}
+
+.resource,
+.station-chip {
+  background: var(--ftl-slot);
+  border: 2px solid #3a444d;
+  border-radius: 4px;
+}
+
+.station-chip {
+  border-left: 4px solid var(--team);
+}
+
+.resource:hover,
+.station-chip:hover {
+  border-color: var(--ftl-frame);
+}
+
+.station-chip:hover {
+  border-left-color: var(--team);
+}
+
+/* Side panel and modal */
+.panel h3,
+.modal h3,
+.modal h2 {
+  color: var(--ftl-frame);
+}
+
+.transcript,
+.telemetry {
+  background: var(--ftl-slot);
+  border: 2px solid #2c343b;
+  border-radius: 4px;
+}
+
+.msg.user .msg-who {
+  color: var(--ftl-frame);
+}
+
+.msg.user .msg-text {
+  border-left-color: var(--ftl-frame);
+}
+
+.minimap {
+  padding: 12px 8px 8px;
+}
+
+/* ---- Crew roster ---- */
+
+.crew-roster {
+  top: 74px;
+  left: 10px;
+  width: 290px;
+  max-height: calc(100vh - 74px - 200px);
+  display: flex;
+  flex-direction: column;
+  z-index: 1;
+  padding-top: 6px;
+}
+
+.crew-roster.collapsed {
+  height: 14px;
+  padding: 0;
+}
+
+.roster-body {
+  overflow-y: auto;
+  padding: 4px 6px 6px;
+}
+
+.roster-heading {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 6px 4px 4px;
+}
+
+.crew-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.crew-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+  background: var(--ftl-slot);
+  border: 2px solid #2c343b;
+  border-radius: 4px;
+  padding: 4px 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.crew-row:hover {
+  border-color: var(--ftl-frame);
+}
+
+.crew-row.active {
+  border-color: var(--ftl-hp);
+}
+
+.crew-row.row-alert {
+  border-color: var(--alert);
+  animation: row-alert 1s ease-in-out infinite alternate;
+}
+
+.crew-row.row-question {
+  border-color: var(--question);
+}
+
+@keyframes row-alert {
+  to {
+    background: rgba(255, 70, 85, 0.18);
+  }
+}
+
+.crew-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.crew-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-sub {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-state {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.st-alert {
+  color: var(--alert);
+}
+.st-question {
+  color: var(--question);
+}
+.st-working {
+  color: var(--working);
+}
+.st-monitoring {
+  color: var(--monitoring);
+}
+.st-done {
+  color: var(--done);
+}
+.st-error {
+  color: var(--error);
+}
+.st-idle {
+  color: var(--idle);
+}
+
+/* Segmented FTL health bar = context window left. */
+.crew-hp {
+  display: flex;
+  gap: 2px;
+}
+
+.crew-hp i {
+  width: 12px;
+  height: 5px;
+  background: #2a3036;
+}
+
+.crew-hp i.ok {
+  background: var(--ftl-hp);
+}
+.crew-hp i.warn {
+  background: var(--question);
+}
+.crew-hp i.bad {
+  background: var(--alert);
+}
+
+/* Tiny crew portrait: helmet shape by provider, size by model tier, frame in team color. */
+.mini-portrait {
+  --team: var(--muted);
+  --visor: #9fb3d1;
+  --size: 15px;
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  background: #1d252d;
+  border: 2px solid var(--team);
+  border-radius: 4px;
+}
+
+.mini-portrait.tier-light {
+  --size: 11px;
+}
+.mini-portrait.tier-heavy {
+  --size: 19px;
+}
+.mini-portrait.tier-reviewer {
+  --size: 14px;
+}
+
+.mini-portrait::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--size);
+  height: var(--size);
+  transform: translate(-50%, -50%);
+  background: #e6ebf0;
+  border: 1px solid #0d1114;
+  border-radius: 50%;
+}
+
+.mini-portrait.angular::before {
+  border-radius: 3px;
+}
+
+.mini-portrait::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - var(--size) * 0.1);
+  top: calc(50% - var(--size) * 0.18);
+  width: calc(var(--size) * 0.55);
+  height: calc(var(--size) * 0.32);
+  background: var(--visor);
+  border-radius: 2px;
+}
+
+.mini-portrait.angular::after {
+  left: calc(50% - var(--size) * 0.35);
+  width: calc(var(--size) * 0.7);
+}
+
+/* ---- Event dialog ---- */
+
+.event-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 4, 8, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 6;
+}
+
+.event {
+  position: relative;
+  width: min(580px, 100%);
+  padding: 22px 22px 14px;
+  /* Not scrollable itself, so the title tab above the frame isn't clipped; long details scroll. */
+  overflow: visible;
+}
+
+.event-meta {
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.event-text {
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0 0 10px;
+}
+
+.event-text.quote {
+  border-left: 3px solid var(--question);
+  padding-left: 10px;
+}
+
+.event-detail {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 12px;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--ftl-slot);
+  border: 2px solid #2c343b;
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0 0 12px;
+}
+
+.event-choices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.event-choice {
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 6px 4px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #eef2f5;
+}
+
+.event-choice:hover:not(:disabled) {
+  color: #ffd56b;
+}
+
+.event-choice.bad:hover:not(:disabled) {
+  color: #ff8a93;
+}
+
+.event-choice:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.choice-num {
+  font-family: var(--display);
+  font-weight: 700;
+  color: var(--ftl-frame);
+  margin-right: 4px;
+}
+
+.event-foot {
+  font-size: 11px;
+  margin-top: 10px;
+  text-align: right;
+}

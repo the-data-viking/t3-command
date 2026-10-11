@@ -4,7 +4,8 @@ import type { OrchestrationThread, PendingRequest, ThreadShell } from "./types";
 export type UnitState =
   | "alert" // waiting for a tool-use approval
   | "question" // waiting for an answer to a question
-  | "working" // a turn is running
+  | "working" // a turn is running, or background agents are
+  | "monitoring" // the turn is over, but watch loops (monitors, background shells) are still live
   | "error" // last turn or session failed
   | "done" // finished a turn and hasn't been reviewed (settled) yet
   | "idle" // nothing to report
@@ -29,6 +30,8 @@ export function unitState(t: ThreadShell): UnitState {
   if (t.hasPendingUserInput) return "question";
   const status = t.session?.status;
   if (status === "running" || status === "starting" || t.latestTurn?.state === "running") return "working";
+  if (t.backgroundLiveness === "working") return "working";
+  if (t.backgroundLiveness === "monitoring") return "monitoring";
   if (isSettled(t) || (t.snoozedUntil && Date.parse(t.snoozedUntil) > Date.now())) return "sleeping";
   if (status === "error" || t.latestTurn?.state === "error") return "error";
   if (t.latestTurn?.state === "completed") return "done";

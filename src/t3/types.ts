@@ -67,6 +67,12 @@ export interface ThreadShell {
   hasPendingApprovals: boolean;
   hasPendingUserInput: boolean;
   hasActionableProposedPlan?: boolean;
+  /**
+   * Work still running after the turn settled. "working": background agents (subagents,
+   * workflows). "monitoring": only watch loops (monitor tasks, background shells) remain.
+   * In-memory on the T3 server, so it resets to null when that server restarts.
+   */
+  backgroundLiveness?: "working" | "monitoring" | null;
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;

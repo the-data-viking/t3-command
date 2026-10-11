@@ -1,15 +1,22 @@
 // Fleet layout: pure geometry computed from the game store. No rendering here.
 //
-//   hub      = one project, shared across every environment that has it (matched by git identity)
-//   bay      = one environment's copy of a project, docked to the hub: consoles, workstations,
-//              quarters, maybe an archive pod. Bays are the "modules" panels select.
-//   station  = one T3 environment: a home ship in orbit above the hubs, linked to each of its bays
-//   crew     = one thread: a seat at a console in its bay, or a bunk in quarters when settled
+// Every project is a station, shared by every environment that works on it (matched by git
+// identity). Crew from all those environments work side by side in the station's rooms;
+// each environment is a ship docked to the station, and its crew wear its team color.
+//
+//   ┌──────────┬──────────┬──────────┐
+//   │ TERMINAL │  FILES   │  COMMS   │   systems row: crew walk here for real tool calls
+//   ├────■─────┴────■─────┴────■─────┤   ■ = doors to the bridge
+//   │  BRIDGE   one console per awake crew member, from any environment
+//   ├──────■──────────────────┬──■───┤
+//   │ QUARTERS  bunks         │ARCHIVE│
+//   └─────────────────────────┴──────┘
+//        ║            ║            ║      airlocks
+//    [ship A]     [ship B]     [ship C]   one docked ship per environment
 
 import type { EnvWorld, GameState } from "../store";
 import { unitKey } from "../store";
 import { isHistory, unitState } from "../t3/derive";
-import type { Workstation } from "../t3/telemetry";
 import type { ProjectShell, ThreadShell } from "../t3/types";
 import { teamColor } from "./theme";
 
@@ -25,81 +32,82 @@ export interface Rect {
   h: number;
 }
 
-/** One environment's bay on a project hub. */
-export interface ModuleLayout {
+export type RoomKind = "terminal" | "files" | "comms" | "bridge" | "quarters" | "archive";
+export type SystemRoom = "terminal" | "files" | "comms";
+
+export interface Room {
+  kind: RoomKind;
+  rect: Rect;
+  /** Doorway into the bridge (every room except the bridge has one). */
+  door?: Point;
+}
+
+export interface Door {
+  x: number;
+  y: number;
+  /** Door in a vertical wall (between side-by-side rooms) vs. a horizontal one. */
+  vertical: boolean;
+}
+
+/** One environment's ship, docked at a project station. Panels call this a "bay". */
+export interface DockLayout {
   key: string; // envId:projectId
   envId: string;
   projectId: string;
-  hubKey: string;
-  color: number; // the owning station's team color
-  room: Rect;
-  /** Short corridor from the bay down to the hub spine. */
-  corridor: [Point, Point];
-  /** Where the station's data link plugs in (top of the bay). */
-  port: Point;
-  workstations: Record<Exclude<Workstation, "console">, Point>;
+  stationKey: string;
+  color: number; // team color
+  hull: Rect;
+  /** Airlock tube from the ship up to the station. */
+  airlock: [Point, Point];
+  plate: Rect;
+}
+
+/** One project station. */
+export interface StationLayout {
+  key: string;
+  name: string;
+  /** "github.com/owner/repo" when T3 identified the repository. */
+  repo?: string;
+  interior: Rect;
+  hull: number[]; // outline polygon
+  rooms: Partial<Record<RoomKind, Room>>;
+  doors: Door[];
   consoles: Point[];
-  archive?: Rect;
+  workstations: Record<SystemRoom, Point>;
   archived: number;
-  quarters?: Rect;
+  docks: string[];
+  nameplate: Point;
+  bounds: Rect;
 }
 
 export interface CrewLayout {
   key: string;
   envId: string;
   threadId: string;
-  moduleKey: string;
-  /** Where the crew member sits (in front of its console) or sleeps (bunk). */
+  stationKey: string;
+  dockKey: string;
+  /** Seat in front of the console, or bunk. */
   home: Point;
+  homeRoom: RoomKind;
   console?: Point;
   sleeping: boolean;
 }
 
-export interface HubLayout {
-  key: string;
-  name: string;
-  /** "github.com/owner/repo" when T3 identified the repository. */
-  repo?: string;
-  spine: Rect;
-  modules: string[];
-  bounds: Rect;
-}
-
-export interface StationLayout {
-  envId: string;
-  index: number;
-  color: number;
-  center: Point;
-  coreRadius: number;
-  bounds: Rect;
-  /** Data links from the station to each of its bays. */
-  links: Array<{ moduleKey: string; from: Point; to: Point }>;
-}
-
 export interface FleetLayout {
   stations: Map<string, StationLayout>;
-  hubs: Map<string, HubLayout>;
-  modules: Map<string, ModuleLayout>;
+  docks: Map<string, DockLayout>;
   crew: Map<string, CrewLayout>;
   bounds: Rect;
 }
 
-const CONSOLE_W = 46;
-const CONSOLE_H = 50;
-const STRIP_H = 46; // workstation strip at the top of each bay
-const BUNK_W = 18;
-const BUNK_H = 12;
-const PAD = 14;
-const ARCHIVE_W = 44;
-const ARCHIVE_H = 40;
-const BAY_GAP = 34;
-const SPINE_H = 46;
-const DOCK = 30; // corridor between a bay and its spine
-const HUB_GAP = 170;
-const STATION_CORE = 34;
-const STATION_SPACING = 300;
-const ORBIT_GAP = 230; // between the tallest bay and the station row
-const STAGGER = 120; // every other station sits higher
+export const TILE = 32;
+const HULL_PAD = 22;
+const SHIP_W = 150;
+const SHIP_H = 54;
+const SHIP_GAP = 26;
+const AIRLOCK = 46;
+const STATION_GAP_X = 220;
+const STATION_GAP_Y = 160;
 
 export function sortedEnvs(state: GameState): EnvWorld[] {
   return Object.values(state.envs).sort((a, b) => a.summary.addedAt.localeCompare(b.summary.addedAt));
@@ -113,13 +121,13 @@ function union(a: Rect, b: Rect): Rect {
 
 // ---- Grouping projects across environments ------------------------------------------
 
-interface ProjectRef {
+export interface ProjectRef {
   env: EnvWorld;
-  index: number; // station index
+  index: number; // environment (team) index
   project: ProjectShell;
 }
 
-interface HubDraft {
+export interface ProjectGroup {
   key: string;
   name: string;
   repo?: string;
@@ -131,11 +139,11 @@ function basename(p: string): string {
 }
 
 /**
- * Projects with the same git identity are one hub. Projects T3 couldn't identify join a hub
- * whose repository name matches their folder name; otherwise they stay local to their station.
+ * Projects with the same git identity are one station. Projects T3 couldn't identify join a
+ * station whose repository name matches their folder name; otherwise they get their own.
  */
-export function groupProjects(envs: EnvWorld[]): HubDraft[] {
-  const hubs = new Map<string, HubDraft>();
+export function groupProjects(envs: EnvWorld[]): ProjectGroup[] {
+  const groups = new Map<string, ProjectGroup>();
   const unidentified: ProjectRef[] = [];
   envs.forEach((env, index) => {
     for (const project of Object.values(env.projects)) {
@@ -145,175 +153,257 @@ export function groupProjects(envs: EnvWorld[]): HubDraft[] {
         continue;
       }
       const key = `repo:${id.canonicalKey.toLowerCase()}`;
-      const hub = hubs.get(key) ?? { key, name: id.name ?? project.title, repo: id.canonicalKey, members: [] };
-      hub.members.push({ env, index, project });
-      hubs.set(key, hub);
+      const group = groups.get(key) ?? { key, name: id.name ?? project.title, repo: id.canonicalKey, members: [] };
+      group.members.push({ env, index, project });
+      groups.set(key, group);
     }
   });
   for (const ref of unidentified) {
     const folder = basename(ref.project.workspaceRoot);
-    const match = [...hubs.values()].find(
-      (h) => h.repo && (h.name.toLowerCase() === folder || h.name.toLowerCase() === ref.project.title.toLowerCase()) && !h.members.some((m) => m.env === ref.env),
+    const match = [...groups.values()].find(
+      (g) => g.repo && (g.name.toLowerCase() === folder || g.name.toLowerCase() === ref.project.title.toLowerCase()) && !g.members.some((m) => m.env === ref.env),
     );
     if (match) match.members.push(ref);
-    else hubs.set(`local:${ref.env.summary.id}:${ref.project.id}`, { key: `local:${ref.env.summary.id}:${ref.project.id}`, name: ref.project.title, members: [ref] });
+    else groups.set(`local:${ref.env.summary.id}:${ref.project.id}`, { key: `local:${ref.env.summary.id}:${ref.project.id}`, name: ref.project.title, members: [ref] });
   }
-  for (const hub of hubs.values()) hub.members.sort((a, b) => a.index - b.index);
-  // Biggest shared projects first, then by name.
-  return [...hubs.values()].sort((a, b) => b.members.length - a.members.length || a.name.localeCompare(b.name));
+  for (const g of groups.values()) g.members.sort((a, b) => a.index - b.index);
+  return [...groups.values()].sort((a, b) => b.members.length - a.members.length || a.name.localeCompare(b.name));
 }
 
-// ---- Bays -----------------------------------------------------------------------------
+/** The project group (station) a given environment's project belongs to. */
+export function groupFor(state: GameState, envId: string, projectId: string): ProjectGroup | undefined {
+  return groupProjects(sortedEnvs(state)).find((g) => g.members.some((m) => m.env.summary.id === envId && m.project.id === projectId));
+}
 
-interface BayDraft {
+// ---- Stations -------------------------------------------------------------------------
+
+interface CrewRef {
   ref: ProjectRef;
-  awake: ThreadShell[];
-  asleep: ThreadShell[];
-  archived: number;
-  cols: number;
-  rows: number;
-  bunkRows: number;
-  w: number;
-  h: number;
+  thread: ThreadShell;
 }
 
-function draftBay(ref: ProjectRef): BayDraft {
-  const threads = Object.values(ref.env.threads).filter((t) => t.projectId === ref.project.id);
-  const awake = threads.filter((t) => !isHistory(t) && unitState(t) !== "sleeping").sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const asleep = threads.filter((t) => !isHistory(t) && unitState(t) === "sleeping").sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const archived = threads.filter(isHistory).length;
-  const cols = Math.min(5, Math.max(3, Math.ceil(Math.sqrt(awake.length * 1.5))));
+function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLayout[]): { station: StationLayout; docks: DockLayout[] } {
+  const T = TILE;
+  const all: CrewRef[] = group.members.flatMap((ref) =>
+    Object.values(ref.env.threads)
+      .filter((t) => t.projectId === ref.project.id)
+      .map((thread) => ({ ref, thread })),
+  );
+  const byAge = (a: CrewRef, b: CrewRef) => a.thread.createdAt.localeCompare(b.thread.createdAt);
+  const awake = all.filter((c) => !isHistory(c.thread) && unitState(c.thread) !== "sleeping").sort(byAge);
+  const asleep = all.filter((c) => !isHistory(c.thread) && unitState(c.thread) === "sleeping").sort(byAge);
+  const archived = all.filter((c) => isHistory(c.thread)).length;
+
+  // Size the station for its crew and its docked ships.
+  const cols = Math.min(6, Math.max(3, Math.ceil(Math.sqrt(awake.length * 1.5))));
   const rows = Math.max(1, Math.ceil(awake.length / cols));
-  const w = cols * CONSOLE_W + PAD * 2;
-  const perBunkRow = Math.floor((w - PAD * 2) / BUNK_W);
-  const bunkRows = asleep.length ? Math.ceil(asleep.length / perBunkRow) : 0;
-  const h = STRIP_H + rows * CONSOLE_H + (bunkRows ? bunkRows * (BUNK_H + 4) + 18 : 0) + PAD;
-  return { ref, awake, asleep, archived, cols, rows, bunkRows, w, h };
-}
+  const dockSpan = group.members.length * SHIP_W + (group.members.length - 1) * SHIP_GAP;
+  const archiveW = archived ? 2 : 0;
+  let w = Math.max(9, cols * 2, Math.ceil((dockSpan - 2 * HULL_PAD) / T));
+  if (asleep.length) w = Math.max(w, archiveW + 3);
+  const quartersW = asleep.length ? w - archiveW : 0;
+  const bottomH = asleep.length || archived ? Math.max(asleep.length ? Math.ceil(asleep.length / quartersW) : 1, archived ? 2 : 1) : 0;
+  const h = 2 + rows * 2 + bottomH;
+  const key = group.key;
+  const rooms: Partial<Record<RoomKind, Room>> = {};
+  const doors: Door[] = [];
+  const iy = y0 + 70; // nameplate above
+  const W = w * T;
 
-/** Place a bay with its bottom edge at `bottom` and its left edge at `left`. */
-function placeBay(d: BayDraft, hubKey: string, color: number, left: number, bottom: number, crew: CrewLayout[]): ModuleLayout {
-  const envId = d.ref.env.summary.id;
-  const room: Rect = { x: left, y: bottom - d.h, w: d.w, h: d.h };
-  const key = `${envId}:${d.ref.project.id}`;
-  const stripY = room.y + 22;
-  const consoles: Point[] = [];
-  d.awake.forEach((t, k) => {
-    const col = k % d.cols;
-    const row = Math.floor(k / d.cols);
-    const inRow = Math.min(d.cols, d.awake.length - row * d.cols);
-    const x = room.x + room.w / 2 + (col - (inRow - 1) / 2) * CONSOLE_W;
-    const y = room.y + STRIP_H + row * CONSOLE_H + 14;
-    consoles.push({ x, y });
-    crew.push({ key: unitKey(envId, t.id), envId, threadId: t.id, moduleKey: key, home: { x, y: y + 20 }, console: { x, y }, sleeping: false });
+  // Systems row.
+  const a = Math.floor(w / 3);
+  const widths = [a, a, w - 2 * a];
+  let x = x0;
+  (["terminal", "files", "comms"] as const).forEach((kind, i) => {
+    const rect = { x, y: iy, w: widths[i] * T, h: 2 * T };
+    const door = { x: x + rect.w / 2, y: iy + 2 * T };
+    rooms[kind] = { kind, rect, door };
+    doors.push({ ...door, vertical: false });
+    if (i > 0) doors.push({ x, y: iy + T, vertical: true });
+    x += rect.w;
   });
 
-  let quarters: Rect | undefined;
-  if (d.bunkRows) {
-    const qy = room.y + STRIP_H + d.rows * CONSOLE_H + 6;
-    quarters = { x: room.x + PAD - 4, y: qy, w: room.w - PAD * 2 + 8, h: d.bunkRows * (BUNK_H + 4) + 10 };
-    const perRow = Math.floor((room.w - PAD * 2) / BUNK_W);
-    d.asleep.forEach((t, k) => {
-      const x = room.x + PAD + (k % perRow) * BUNK_W + BUNK_W / 2;
-      const y = qy + 10 + Math.floor(k / perRow) * (BUNK_H + 4) + BUNK_H / 2;
-      crew.push({ key: unitKey(envId, t.id), envId, threadId: t.id, moduleKey: key, home: { x, y }, sleeping: true });
+  // Bridge: everyone's consoles together.
+  const bridge = { x: x0, y: iy + 2 * T, w: W, h: rows * 2 * T };
+  rooms.bridge = { kind: "bridge", rect: bridge };
+  const consoles: Point[] = [];
+  awake.forEach((c, k) => {
+    const col = k % cols;
+    const row = Math.floor(k / cols);
+    const inRow = Math.min(cols, awake.length - row * cols);
+    const cx = x0 + W / 2 + (col - (inRow - 1) / 2) * 2 * T;
+    const cy = bridge.y + row * 2 * T + T * 0.55;
+    consoles.push({ x: cx, y: cy });
+    const envId = c.ref.env.summary.id;
+    crew.push({
+      key: unitKey(envId, c.thread.id),
+      envId,
+      threadId: c.thread.id,
+      stationKey: key,
+      dockKey: `${envId}:${c.ref.project.id}`,
+      home: { x: cx, y: cy + T * 0.85 },
+      homeRoom: "bridge",
+      console: { x: cx, y: cy },
+      sleeping: false,
     });
+  });
+
+  // Quarters and archive.
+  if (bottomH) {
+    const by = bridge.y + bridge.h;
+    if (quartersW) {
+      const q = { x: x0, y: by, w: quartersW * T, h: bottomH * T };
+      const door = { x: q.x + q.w / 2, y: by };
+      rooms.quarters = { kind: "quarters", rect: q, door };
+      doors.push({ ...door, vertical: false });
+      asleep.forEach((c, k) => {
+        const envId = c.ref.env.summary.id;
+        crew.push({
+          key: unitKey(envId, c.thread.id),
+          envId,
+          threadId: c.thread.id,
+          stationKey: key,
+          dockKey: `${envId}:${c.ref.project.id}`,
+          home: { x: q.x + (k % quartersW) * T + T / 2, y: q.y + Math.floor(k / quartersW) * T + T / 2 },
+          homeRoom: "quarters",
+          sleeping: true,
+        });
+      });
+    }
+    if (archived) {
+      const ar = { x: x0 + quartersW * T, y: by, w: (w - quartersW) * T, h: bottomH * T };
+      const door = { x: ar.x + ar.w / 2, y: by };
+      rooms.archive = { kind: "archive", rect: ar, door };
+      doors.push({ ...door, vertical: false });
+      if (quartersW) doors.push({ x: ar.x, y: by + T / 2, vertical: true });
+    }
   }
 
-  const archive = d.archived ? { x: room.x + room.w + 10, y: room.y + room.h - ARCHIVE_H, w: ARCHIVE_W, h: ARCHIVE_H } : undefined;
+  const interior = { x: x0, y: iy, w: W, h: h * T };
+  // Station hull: a chamfered box (no engines; it doesn't go anywhere).
+  const hx = interior.x - HULL_PAD;
+  const hy = interior.y - HULL_PAD;
+  const hw = interior.w + HULL_PAD * 2;
+  const hh = interior.h + HULL_PAD * 2;
+  const c = 28;
+  const hull = [hx + c, hy, hx + hw - c, hy, hx + hw, hy + c, hx + hw, hy + hh - c, hx + hw - c, hy + hh, hx + c, hy + hh, hx, hy + hh - c, hx, hy + c];
+
+  // Docked ships hang below the station, one per environment.
+  const docks: DockLayout[] = [];
+  const shipTop = hy + hh + AIRLOCK;
+  const startX = interior.x + interior.w / 2 - dockSpan / 2;
+  group.members.forEach((ref, i) => {
+    const sx = startX + i * (SHIP_W + SHIP_GAP);
+    const hullRect = { x: sx, y: shipTop, w: SHIP_W, h: SHIP_H };
+    const port = sx + SHIP_W / 2;
+    docks.push({
+      key: `${ref.env.summary.id}:${ref.project.id}`,
+      envId: ref.env.summary.id,
+      projectId: ref.project.id,
+      stationKey: key,
+      color: teamColor(ref.index),
+      hull: hullRect,
+      airlock: [{ x: port, y: hy + hh }, { x: port, y: shipTop }],
+      plate: { x: sx, y: shipTop + SHIP_H + 8, w: SHIP_W, h: 20 },
+    });
+  });
+
+  const spot = (kind: SystemRoom): Point => {
+    const r = rooms[kind]!.rect;
+    return { x: r.x + r.w / 2, y: r.y + r.h * 0.62 };
+  };
+  let bounds: Rect = { x: hx, y: y0, w: hw, h: hh + (hy - y0) };
+  for (const d of docks) bounds = union(bounds, { x: d.hull.x, y: d.hull.y, w: d.hull.w, h: d.plate.y + d.plate.h - d.hull.y });
 
   return {
-    key,
-    envId,
-    projectId: d.ref.project.id,
-    hubKey,
-    color,
-    room,
-    corridor: [{ x: room.x + room.w / 2, y: room.y + room.h }, { x: room.x + room.w / 2, y: room.y + room.h + DOCK }],
-    port: { x: room.x + room.w / 2, y: room.y - 6 },
-    workstations: {
-      terminal: { x: room.x + room.w * 0.22, y: stripY },
-      files: { x: room.x + room.w * 0.5, y: stripY },
-      comms: { x: room.x + room.w * 0.78, y: stripY },
+    station: {
+      key,
+      name: group.name,
+      repo: group.repo,
+      interior,
+      hull,
+      rooms,
+      doors,
+      consoles,
+      workstations: { terminal: spot("terminal"), files: spot("files"), comms: spot("comms") },
+      archived,
+      docks: docks.map((d) => d.key),
+      nameplate: { x: hx, y: y0 },
+      bounds,
     },
-    consoles,
-    archive,
-    archived: d.archived,
-    quarters,
+    docks,
   };
+}
+
+/**
+ * Waypoints for walking between rooms. Every room opens onto the bridge, so a trip is at most:
+ * out through this room's door, across the bridge, in through the target's door. Crew walk
+ * axis-aligned, FTL-style.
+ */
+export function route(s: StationLayout, from: RoomKind, to: RoomKind, target: Point, start: Point): Point[] {
+  const points: Point[] = [];
+  const step = TILE * 0.45;
+  if (from !== to) {
+    const out = from === "bridge" ? undefined : s.rooms[from]?.door;
+    const into = to === "bridge" ? undefined : s.rooms[to]?.door;
+    if (out) {
+      const dir = (s.rooms[from]!.rect.y < out.y ? -1 : 1) * step;
+      points.push({ x: out.x, y: start.y }, { x: out.x, y: out.y + dir }, { x: out.x, y: out.y - dir });
+    }
+    if (into) {
+      const dir = (s.rooms[to]!.rect.y < into.y ? -1 : 1) * step;
+      const last = points.at(-1) ?? start;
+      points.push({ x: into.x, y: last.y }, { x: into.x, y: into.y - dir }, { x: into.x, y: into.y + dir });
+    }
+  }
+  const last = points.at(-1) ?? start;
+  points.push({ x: target.x, y: last.y }, target);
+  return points;
 }
 
 // ---- Fleet ----------------------------------------------------------------------------
 
 export function computeFleetLayout(state: GameState): FleetLayout {
   const envs = sortedEnvs(state);
-  const fleet: FleetLayout = { stations: new Map(), hubs: new Map(), modules: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
-  if (envs.length === 0) return fleet;
+  const fleet: FleetLayout = { stations: new Map(), docks: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
+  const groups = groupProjects(envs);
+  if (groups.length === 0) return fleet;
 
-  // Hubs sit side by side on a common baseline (the top of their spines is y = 0).
+  // Stations on a roughly square grid, biggest first, each row as tall as its tallest station.
   const crew: CrewLayout[] = [];
-  let cursor = 0;
-  let tallest = 0;
-  for (const hub of groupProjects(envs)) {
-    const bays = hub.members.map(draftBay);
-    const left = cursor;
-    let x = left + 40;
-    const modules: ModuleLayout[] = [];
-    for (const d of bays) {
-      const m = placeBay(d, hub.key, teamColor(d.ref.index), x, -DOCK, crew);
-      modules.push(m);
-      tallest = Math.max(tallest, d.h);
-      x += d.w + (m.archive ? ARCHIVE_W + 20 : 0) + BAY_GAP;
+  const columns = Math.ceil(Math.sqrt(groups.length));
+  let x = 0;
+  let y = 0;
+  let rowH = 0;
+  groups.forEach((group, i) => {
+    if (i > 0 && i % columns === 0) {
+      x = 0;
+      y += rowH + STATION_GAP_Y;
+      rowH = 0;
     }
-    const right = Math.max(x - BAY_GAP + 40, left + 260);
-    const spine: Rect = { x: left, y: 0, w: right - left, h: SPINE_H };
-    let bounds = spine;
-    for (const m of modules) {
-      bounds = union(bounds, m.room);
-      if (m.archive) bounds = union(bounds, m.archive);
-      fleet.modules.set(m.key, m);
+    const { station, docks } = layoutStation(group, x, y, crew);
+    // Shift right so the bounds (which may include wide docks) start at x.
+    const dx = x - station.bounds.x;
+    if (dx !== 0) {
+      // Re-run at the corrected origin; cheap and keeps the geometry code simple.
+      crew.splice(crew.length - crew.filter((c) => c.stationKey === station.key).length);
+      const again = layoutStation(group, x + dx, y, crew);
+      fleet.stations.set(again.station.key, again.station);
+      for (const d of again.docks) fleet.docks.set(d.key, d);
+      x = again.station.bounds.x + again.station.bounds.w + STATION_GAP_X;
+      rowH = Math.max(rowH, again.station.bounds.h);
+    } else {
+      fleet.stations.set(station.key, station);
+      for (const d of docks) fleet.docks.set(d.key, d);
+      x = station.bounds.x + station.bounds.w + STATION_GAP_X;
+      rowH = Math.max(rowH, station.bounds.h);
     }
-    fleet.hubs.set(hub.key, { key: hub.key, name: hub.name, repo: hub.repo, spine, modules: modules.map((m) => m.key), bounds });
-    cursor = right + HUB_GAP;
-  }
-
-  // Stations orbit above their bay on the biggest hub they work on (hubs are ordered biggest
-  // first), so the main links drop straight down and only links to smaller hubs slant.
-  const stationY = -DOCK - tallest - ORBIT_GAP;
-  const wanted = envs.map((env, index) => {
-    const bays = [...fleet.modules.values()].filter((m) => m.envId === env.summary.id);
-    const x = bays.length ? bays[0].port.x : Number.POSITIVE_INFINITY;
-    return { env, index, x, bays };
-  });
-  const placed = [...wanted].sort((a, b) => a.x - b.x || a.index - b.index);
-  let lastX = Number.NEGATIVE_INFINITY;
-  const fallbackStart = cursor - HUB_GAP + STATION_SPACING; // stations with no bays line up to the right
-  let fallbackX = fallbackStart;
-  placed.forEach((s, order) => {
-    let x = Number.isFinite(s.x) ? s.x : fallbackX;
-    if (!Number.isFinite(s.x)) fallbackX += STATION_SPACING;
-    x = Math.max(x, lastX + STATION_SPACING);
-    lastX = x;
-    // Alternate heights so neighboring stations' banners don't collide.
-    const y = stationY - (order % 2) * STAGGER;
-    const center = { x, y };
-    const bottom = { x, y: y + STATION_CORE + 6 };
-    fleet.stations.set(s.env.summary.id, {
-      envId: s.env.summary.id,
-      index: s.index,
-      color: teamColor(s.index),
-      center,
-      coreRadius: STATION_CORE,
-      bounds: { x: x - STATION_CORE - 6, y: y - STATION_CORE - 6, w: (STATION_CORE + 6) * 2, h: (STATION_CORE + 6) * 2 },
-      links: s.bays.map((m) => ({ moduleKey: m.key, from: bottom, to: m.port })),
-    });
   });
 
   for (const c of crew) fleet.crew.set(c.key, c);
   let bounds: Rect | undefined;
-  for (const h of fleet.hubs.values()) bounds = bounds ? union(bounds, h.bounds) : h.bounds;
   for (const s of fleet.stations.values()) bounds = bounds ? union(bounds, s.bounds) : s.bounds;
-  fleet.bounds = bounds!;
+  fleet.bounds = bounds ?? { x: 0, y: 0, w: 0, h: 0 };
   return fleet;
 }
 

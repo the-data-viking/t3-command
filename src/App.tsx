@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { MeResponse } from "../shared/api";
 import { sfx } from "./game/sfx";
 import { installActiveWatches } from "./game/watch";
-import { addLog, useGame } from "./store";
+import { addLog, openEvent, useGame } from "./store";
 import { fetchJson, onUnitTransition, refreshEnvironments } from "./t3/environment";
 import { BuildingPanel } from "./ui/BuildingPanel";
 import { EnvManager } from "./ui/EnvManager";
@@ -11,7 +11,8 @@ import { LibraryPanel } from "./ui/LibraryPanel";
 import { installHotkeys } from "./ui/hotkeys";
 import { MapView } from "./ui/MapView";
 import { Minimap } from "./ui/Minimap";
-import { NeedsYou } from "./ui/NeedsYou";
+import { CrewRoster } from "./ui/CrewRoster";
+import { EventDialog } from "./ui/EventDialog";
 import { TopBar } from "./ui/TopBar";
 import { UnitPanel } from "./ui/UnitPanel";
 
@@ -22,16 +23,18 @@ function announceTransitions(): () => void {
   return onUnitTransition(({ envId, thread, from, to }) => {
     const name = `"${thread.title || "Untitled"}"`;
     const at = { envId, threadId: thread.id };
-    if (to === "alert") {
+    if (to === "alert" || to === "question") {
       sfx.alert();
-      addLog({ tone: "alert", text: `${name} needs your approval`, ...at });
-    } else if (to === "question") {
-      sfx.alert();
-      addLog({ tone: "alert", text: `${name} has a question`, ...at });
+      addLog({ tone: "alert", text: to === "alert" ? `${name} needs your approval` : `${name} has a question`, ...at });
+      // FTL-style: pop the event, unless you're busy typing or already looking at one.
+      const active = document.activeElement?.tagName;
+      if (!useGame.getState().event && active !== "TEXTAREA" && active !== "INPUT") openEvent(at);
     } else if (to === "error") {
       sfx.error();
       addLog({ tone: "bad", text: `${name} was hurt — the turn failed`, ...at });
-    } else if (to === "done" && from === "working") {
+    } else if (to === "monitoring" && from === "working") {
+      addLog({ tone: "info", text: `${name} is monitoring background work`, ...at });
+    } else if (to === "done" && (from === "working" || from === "monitoring")) {
       sfx.done();
       addLog({ tone: "good", text: `Job's done: ${name}`, ...at });
     } else if (to === "working" && from !== "alert" && from !== "question") {
@@ -82,13 +85,14 @@ export default function App() {
     <div className="game">
       <MapView />
       <TopBar />
-      <NeedsYou />
+      <CrewRoster />
       <Minimap />
       <EventLog />
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
       {selection?.kind === "library" && <LibraryPanel key={`lib:${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
       {selection?.kind === "building" && <BuildingPanel key={`${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
-      <div className="hint">DRAG pan · SCROLL zoom · SPACE next alert · . next report · W next active · F fit fleet</div>
+      <div className="hint">DRAG pan · SCROLL zoom · SPACE next alert · . next report · W next active · M next monitoring · F fit fleet</div>
+      <EventDialog />
       {showEnvManager && <EnvManager />}
     </div>
   );

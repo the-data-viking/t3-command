@@ -6,6 +6,7 @@ export const STATE_LABELS: Record<UnitState, string> = {
   alert: "Needs approval",
   question: "Has a question",
   working: "Working",
+  monitoring: "Monitoring",
   error: "Hurt",
   done: "Report ready",
   idle: "Idle",

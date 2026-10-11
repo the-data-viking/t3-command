@@ -7,6 +7,7 @@ export const STATUS: Record<UnitState, number> = {
   alert: 0xff4655,
   question: 0xffd23f,
   working: 0x59e1ff,
+  monitoring: 0xb48cff,
   error: 0xff7a3d,
   done: 0x5dff9a,
   idle: 0x9aa7bd,

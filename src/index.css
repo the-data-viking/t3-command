@@ -15,6 +15,7 @@
   --alert: #ff4655;
   --question: #ffd23f;
   --working: #59e1ff;
+  --monitoring: #b48cff;
   --done: #5dff9a;
   --error: #ff7a3d;
   --idle: #9aa7bd;
@@ -79,6 +80,9 @@ code {
 }
 .green {
   color: var(--done);
+}
+.violet {
+  color: var(--monitoring);
 }
 .orange {
   color: var(--error);
@@ -650,6 +654,9 @@ code {
 }
 .state-working {
   background: var(--working);
+}
+.state-monitoring {
+  background: var(--monitoring);
 }
 .state-error {
   background: var(--error);

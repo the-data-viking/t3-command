@@ -5,7 +5,7 @@ import { unitKey, useGame, type GameState } from "../store";
 import { envClient } from "../t3/environment";
 import { isHistory, unitState } from "../t3/derive";
 
-const ACTIVE = new Set(["working", "alert", "question"]);
+const ACTIVE = new Set(["working", "monitoring", "alert", "question"]);
 /** Upper bound on automatic subscriptions, so a huge fleet can't open hundreds of streams. */
 const MAX_WATCHED = 40;
 

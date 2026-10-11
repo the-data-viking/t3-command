@@ -14,11 +14,12 @@ export function TopBar() {
   const stations = useMemo(() => sortedEnvs(useGame.getState()), [envs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totals = useMemo(() => {
-    const c = { working: 0, attention: 0, done: 0, hurt: 0, crew: 0, awake: 0 };
+    const c = { working: 0, monitoring: 0, attention: 0, done: 0, hurt: 0, crew: 0, awake: 0 };
     for (const u of allUnits(envs)) {
       c.crew++;
       if (u.state !== "sleeping") c.awake++;
       if (u.state === "working") c.working++;
+      else if (u.state === "monitoring") c.monitoring++;
       else if (u.state === "alert" || u.state === "question") c.attention++;
       else if (u.state === "done") c.done++;
       else if (u.state === "error") c.hurt++;
@@ -34,6 +35,9 @@ export function TopBar() {
       <div className="resources">
         <button className="resource" title="Working now (W cycles)" onClick={() => jumpTo("working")}>
           <span className="res-key">ACTIVE</span> <span className="res-val cyan">{totals.working}</span>
+        </button>
+        <button className="resource" title="Monitoring background work (M cycles)" onClick={() => jumpTo("monitoring")}>
+          <span className="res-key">MONITORING</span> <span className="res-val violet">{totals.monitoring}</span>
         </button>
         <button className={`resource ${totals.attention ? "hot" : ""}`} title="Waiting on you (Space cycles)" onClick={() => jumpTo("attention")}>
           <span className="res-key">ALERTS</span> <span className="res-val">{totals.attention}</span>
