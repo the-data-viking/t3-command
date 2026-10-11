@@ -9,9 +9,20 @@ export function EventLog() {
   const log = useGame((s) => s.log);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      clearTimeout(timer);
+      const time = Date.now();
+      setNow(time);
+      if (!document.hidden && log.some((entry) => time - entry.at < VISIBLE_MS)) timer = setTimeout(refresh, 1000);
+    };
+    document.addEventListener("visibilitychange", refresh);
+    refresh();
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [log]);
 
   const recent = log.filter((e) => now - e.at < VISIBLE_MS).slice(-6);
   return (
