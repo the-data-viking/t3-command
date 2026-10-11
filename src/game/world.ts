@@ -18,8 +18,9 @@ import { setSelection, unitKey, useGame, type GameState, type Selection } from "
 import { isHistory, unitState, type UnitState } from "../t3/derive";
 import { telemetry, type Telemetry } from "../t3/telemetry";
 import type { ThreadShell } from "../t3/types";
-import { computeFleetLayout, QUARTERS_SHOWN, route, TILE, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type ShipLayout, type StationLayout, type SystemRoom } from "./layout";
+import { computeFleetLayout, QUARTERS_SHOWN, TILE, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type ShipLayout, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
+import { CrewMotion } from "./crew-motion";
 import { crewTex, currentStyle, PX, tex } from "./textures";
 import { HUD, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
 
@@ -100,7 +101,10 @@ class CrewSprite extends Container {
   private badge = new Sprite();
   private fx = new Graphics();
   private nameText = label(7, HUD.text, { stroke: { color: 0x000000, width: 3 } });
-  pos: Point;
+  private motion: CrewMotion;
+  private hasTelemetry = false;
+  get pos(): Point { return this.motion.pos; }
+  get room(): RoomKind { return this.motion.room; }
   state: UnitState = "idle";
   thread!: ThreadShell;
   info?: Telemetry;
@@ -108,12 +112,6 @@ class CrewSprite extends Container {
   silhouette: Silhouette = "round";
   team = 0xffffff;
   hovered = false;
-  /** Room the crew member is in (updated when a walk finishes). */
-  room: RoomKind;
-  private path: Point[] = [];
-  private goal = "";
-  private goalRoom: RoomKind;
-  private facing = 1;
   /** At their own console (vs. walking, at a system room, or in quarters). */
   atConsole = true;
   /** At the system room their current work needs. */
@@ -125,9 +123,7 @@ class CrewSprite extends Container {
     this.envId = layout.envId;
     this.threadId = layout.threadId;
     this.seed = hash(layout.key);
-    this.pos = { ...layout.home };
-    this.room = layout.homeRoom;
-    this.goalRoom = layout.homeRoom;
+    this.motion = new CrewMotion(layout);
     this.figure.anchor.set(0.5, 1);
     this.badge.anchor.set(0, 1);
     this.badge.scale.set(PX);
@@ -149,6 +145,10 @@ class CrewSprite extends Container {
   update(thread: ThreadShell, info: Telemetry | undefined, team: number): void {
     this.thread = thread;
     this.state = unitState(thread);
+    if (info && !this.hasTelemetry) {
+      this.hasTelemetry = true;
+      this.motion.hydrate();
+    }
     this.info = info;
     this.team = team;
     this.tier = modelTier(thread.modelSelection.model);
@@ -172,32 +172,8 @@ class CrewSprite extends Container {
 
   tick(layout: CrewLayout, s: StationLayout, t: number, dt: number, frame: number, selected: boolean, zoom: number): void {
     const want = this.desired(layout, s);
-    const goal = `${want.room}:${Math.round(want.point.x)}:${Math.round(want.point.y)}`;
-    if (goal !== this.goal) {
-      this.goal = goal;
-      this.goalRoom = want.room;
-      this.path = s.rooms[this.room] ? route(s, this.room, want.room, want.point, this.pos) : [want.point];
-    }
-    let budget = WALK_SPEED * dt;
-    let moving = false;
-    while (budget > 0 && this.path.length) {
-      const next = this.path[0];
-      const dx = next.x - this.pos.x;
-      const dy = next.y - this.pos.y;
-      const d = Math.hypot(dx, dy);
-      if (d <= budget) {
-        this.pos = { ...next };
-        this.path.shift();
-        budget -= d;
-      } else {
-        this.pos.x += (dx / d) * budget;
-        this.pos.y += (dy / d) * budget;
-        if (Math.abs(dx) > 0.5) this.facing = dx > 0 ? 1 : -1;
-        budget = 0;
-      }
-      moving = true;
-    }
-    if (!this.path.length) this.room = this.goalRoom;
+    this.motion.step(layout, s, want, dt, WALK_SPEED);
+    const moving = this.motion.moving;
     this.atConsole = !moving && !layout.sleeping && this.room === "bridge";
     this.atStation = !moving && this.room !== "bridge" && this.room !== "quarters";
     // Snap to whole sprite pixels so the art stays crisp.
@@ -219,7 +195,7 @@ class CrewSprite extends Container {
       const arms: Arms = working ? (frame % 2 ? "typeA" : "typeB") : "idle";
       this.figure.texture = crewTex(this.silhouette, this.tier, legs, arms, this.team, visor);
       this.figure.anchor.set(0.5, 1);
-      this.figure.scale.set(PX * this.facing, PX);
+      this.figure.scale.set(PX * this.motion.facing, PX);
       const badge = BADGES[this.state];
       this.badge.visible = !!badge;
       if (badge) {
