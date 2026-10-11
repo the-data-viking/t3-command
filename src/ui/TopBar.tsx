@@ -3,7 +3,7 @@ import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { css, teamColor } from "../game/theme";
 import { worldRef } from "../game/world";
-import { setMuted, useGame } from "../store";
+import { setArtStyle, setMuted, useGame } from "../store";
 import { isHistory, unitState } from "../t3/derive";
 import { jumpTo } from "./hotkeys";
 import { allUnits } from "./util";
@@ -11,6 +11,7 @@ import { allUnits } from "./util";
 export function TopBar() {
   const envs = useGame((s) => s.envs);
   const muted = useGame((s) => s.muted);
+  const artStyle = useGame((s) => s.artStyle);
   const stations = useMemo(() => sortedEnvs(useGame.getState()), [envs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totals = useMemo(() => {
@@ -91,6 +92,14 @@ export function TopBar() {
       </button>
       <button className="icon-btn" title="Fit fleet (F)" onClick={() => worldRef.current?.fitAll()}>
         ⤢
+      </button>
+      <button
+        className="icon-btn style-toggle"
+        title={artStyle === "kestrel" ? "Kestrel (light). Switch to Night Shift (dark)" : "Night Shift (dark). Switch to Kestrel (light)"}
+        aria-label="Switch map style"
+        onClick={() => setArtStyle(artStyle === "kestrel" ? "nightshift" : "kestrel")}
+      >
+        {artStyle === "kestrel" ? "☀" : "☾"}
       </button>
       <button className="icon-btn" title={muted ? "Unmute" : "Mute"} onClick={() => setMuted(!muted)}>
         {muted ? "🔇" : "🔊"}

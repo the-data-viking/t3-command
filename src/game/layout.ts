@@ -107,8 +107,8 @@ export const TILE = 32;
 /** How many settled crew each station keeps aboard, most recently settled first. */
 export const QUARTERS_SHOWN = 3;
 const HULL_PAD = 22;
-export const SHIP_W = 150;
-const SHIP_H = 54;
+export const SHIP_W = 162; // ship sprite (54 px) at 3x
+const SHIP_H = 42; // ship sprite (14 px) at 3x
 const SHIP_GAP = 60;
 const FLEET_GAP = 190; // between the fleet row and the stations
 const STATION_GAP_X = 200;
@@ -293,7 +293,8 @@ function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLa
 
   const spot = (kind: SystemRoom): Point => {
     const r = rooms[kind]!.rect;
-    return { x: r.x + r.w / 2, y: r.y + r.h * 0.62 };
+    // Crew stand to the right of the system sprite, feet near the bottom of the room.
+    return { x: r.x + r.w * 0.66, y: r.y + r.h - 8 };
   };
 
   return {

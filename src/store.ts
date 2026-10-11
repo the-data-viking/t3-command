@@ -45,12 +45,40 @@ export interface GameState {
   selection: Selection;
   log: LogEntry[];
   muted: boolean;
+  /** Map art style: Kestrel (light) or Night Shift (dark). */
+  artStyle: ArtStyle;
   showEnvManager: boolean;
   /** The crew member whose pending approval/question is shown as an event dialog. */
   event: { envId: string; threadId: string } | null;
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
+
+export type ArtStyle = "kestrel" | "nightshift";
+
+function loadArtStyle(): ArtStyle {
+  try {
+    const saved = localStorage.getItem("t3c:art-style");
+    if (saved === "kestrel" || saved === "nightshift") return saved;
+  } catch {
+    // Fall through to the OS preference.
+  }
+  try {
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? "kestrel" : "nightshift";
+  } catch {
+    return "nightshift";
+  }
+}
+
+export function setArtStyle(artStyle: ArtStyle): void {
+  try {
+    localStorage.setItem("t3c:art-style", artStyle);
+  } catch {
+    // Per-browser convenience only.
+  }
+  document.documentElement.dataset.art = artStyle;
+  useGame.setState({ artStyle });
+}
 
 function loadMuted(): boolean {
   try {
@@ -66,6 +94,7 @@ export const useGame = create<GameState>()(() => ({
   selection: null,
   log: [],
   muted: loadMuted(),
+  artStyle: loadArtStyle(),
   showEnvManager: false,
   event: null,
 }));
