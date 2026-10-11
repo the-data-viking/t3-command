@@ -13,6 +13,7 @@ import { MessageMarkdown } from "./MessageMarkdown";
 import { QuestionForm } from "./QuestionForm";
 import { PanelResize } from "./PanelResize";
 import { usePanelWidth } from "./usePanelWidth";
+import { ThreadTiming } from "./ThreadTiming";
 
 type Entry = { kind: "message"; at: string; message: Message } | { kind: "activity"; at: string; activity: Activity };
 
@@ -103,6 +104,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
       <div className="status-row">
         <span className={`pill state-${state}`}>{STATE_LABELS[state]}</span>
         <span className="muted small">{thread.runtimeMode}</span>
+        <ThreadTiming thread={thread} detail={detail?.thread} />
         <span className="spacer" />
         {state === "working" && (
           <button className="btn danger" onClick={() => run("Interrupt", () => client?.interrupt(threadId))}>

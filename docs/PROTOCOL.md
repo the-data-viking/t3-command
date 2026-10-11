@@ -299,6 +299,29 @@ Other activity kinds seen: `tool.started|updated|completed|progress`, `task.star
 
 ## 4. State model
 
+### Fleet resource and usage reads
+
+`server.getHostResources {}` returns `{sampledAt, cpuUtilization, cpuCount,
+availableMemoryBytes, totalMemoryBytes}`. CPU is a normalized whole-host fraction (or null),
+not T3 process CPU. Command polls every 10 seconds while visible, keeps at most 120 samples
+from the last 20 minutes in browser memory, and marks disconnected, failed or >35-second-old
+samples stale. Host data is separate from environment shells so samples do not rebuild map
+geometry. `getResourceTelemetryHistory` is T3 process telemetry and is not used as host history.
+
+`server.getUsageSummary {sinceDay, untilDay, timeZone}` scans native provider history. Command
+supports contract versions 4–6, requests seven viewer-local calendar days once per minute
+while visible, and filters the same scan for today's estimate. Daily buckets carry provider,
+model, sourcePath, costUsd, unpricedRecords, cacheSavingsUsd and token totals. Sources are
+deduplicated by `{hostId, provider, resolvedHomePath, volumeId}`, preferring healthy then newer
+scans. Cached-input share divides cached tokens by uncached + cached + cache-creation input;
+cache savings use the server estimate. Unpriced responses, missing coverage and stale scans
+are disclosed. All these reads use the existing `orchestration:read` grant.
+
+Waiting age uses the original `createdAt` of the oldest unresolved approval/question that
+matches the shell's pending flags; missing timestamps remain unavailable. Turn duration uses
+`latestTurn.startedAt` through now for running turns or `completedAt` for completed turns,
+including waits. Background work does not extend a completed turn's timer.
+
 ### 4.1 Event log & sequences
 
 The server is event-sourced: every accepted command appends `OrchestrationEvent`s with a **global, monotonically

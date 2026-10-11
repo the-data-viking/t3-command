@@ -110,9 +110,19 @@ export class RpcConnection {
     return id;
   }
 
-  request<T>(tag: string, payload: unknown = {}): Promise<T> {
+  request<T>(tag: string, payload: unknown = {}, timeoutMs?: number): Promise<T> {
     return new Promise((resolve, reject) => {
-      this.start(tag, payload, { onExit: (value, err) => (err ? reject(err) : resolve(value as T)) });
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const id = this.start(tag, payload, { onExit: (value, err) => {
+        clearTimeout(timer);
+        if (err) reject(err);
+        else resolve(value as T);
+      } });
+      if (timeoutMs && this.calls.has(id)) timer = setTimeout(() => {
+        this.calls.delete(id);
+        this.send({ _tag: "Interrupt", requestId: id });
+        reject(new RpcError("Timeout", `${tag} timed out`));
+      }, timeoutMs);
     });
   }
 

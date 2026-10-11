@@ -8,6 +8,8 @@ import { applyThreadEvent } from "./reducer";
 import { RpcConnection, RpcError } from "./rpc";
 import { assetProxyUrl } from "./assets";
 import type { QuestionAnswers } from "./questions";
+import { supportedUsage, historyWindow, type UsageSummary } from "./usage";
+import type { HostResources } from "./host";
 import type {
   AssetUrl,
   ImageResource,
@@ -72,6 +74,10 @@ export class EnvironmentClient {
   private retries = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
   private disposed = false;
+  private usageTimer?: ReturnType<typeof setTimeout>;
+  private hostTimer?: ReturnType<typeof setTimeout>;
+  private hostPending?: RpcConnection;
+  private usagePending?: RpcConnection;
 
   constructor(summary: EnvSummary) {
     this.id = summary.id;
@@ -79,6 +85,7 @@ export class EnvironmentClient {
   }
 
   start(): void {
+    document.addEventListener("visibilitychange", this.onVisibility);
     const blocked: Partial<Record<EnvSummary["status"], Connection>> = {
       "needs-pairing": "needs-pairing",
       "needs-update": "needs-update",
@@ -97,13 +104,18 @@ export class EnvironmentClient {
   dispose(): void {
     this.disposed = true;
     clearTimeout(this.retryTimer);
+    clearTimeout(this.usageTimer);
+    clearTimeout(this.hostTimer);
+    document.removeEventListener("visibilitychange", this.onVisibility);
     this.rpc?.close();
     useGame.setState((s) => {
       const envs = { ...s.envs };
       delete envs[this.id];
       const details = Object.fromEntries(Object.entries(s.details).filter(([k]) => !k.startsWith(`${this.id}:`)));
       const selection = s.selection?.envId === this.id ? null : s.selection;
-      return { envs, details, selection };
+      const hosts = { ...s.hosts };
+      delete hosts[this.id];
+      return { envs, details, selection, hosts, hostPanel: s.hostPanel === this.id ? null : s.hostPanel };
     });
   }
 
@@ -126,11 +138,17 @@ export class EnvironmentClient {
     this.retries = 0;
     this.setConnection("live");
     this.loadConfig();
+    void this.loadUsage();
+    void this.loadHost();
     this.subscribeShell();
     for (const [threadId, sub] of this.threadSubs) this.subscribeThread(threadId, sub);
   }
 
   private onClose(code: number, reason: string): void {
+    clearTimeout(this.usageTimer);
+    clearTimeout(this.hostTimer);
+    useGame.setState((s) => s.hosts[this.id] ? { hosts: { ...s.hosts,
+      [this.id]: { ...s.hosts[this.id], error: "Host connection lost." } } } : {});
     for (const sub of this.threadSubs.values()) sub.cancel = undefined;
     if (this.disposed) return;
     if (code === CLOSE_NEEDS_PAIRING) {
@@ -152,6 +170,69 @@ export class EnvironmentClient {
       updateEnv(this.id, (e) => ({ ...e, providers: config.providers }));
     } catch (err) {
       console.warn(`[${this.summary.label}] server.getConfig failed`, err);
+    }
+  }
+
+  private async loadUsage(): Promise<void> {
+    const rpc = this.rpc;
+    if (!rpc?.isOpen || this.disposed || this.usagePending === rpc) return;
+    clearTimeout(this.usageTimer);
+    this.usagePending = rpc;
+    let retry = true;
+    try {
+      // Native transcript scans are memoised by T3; never run overlapping scans here.
+      if (document.visibilityState !== "hidden") {
+        const summary = await rpc.request<UsageSummary>("server.getUsageSummary", historyWindow(), 90_000);
+        if (this.disposed || this.rpc !== rpc || !rpc.isOpen) return;
+        if (!supportedUsage(summary)) throw new Error(`Unsupported usage contract v${summary.contractVersion}`);
+        updateEnv(this.id, (e) => ({ ...e, usage: { summary } }));
+      }
+    } catch (err) {
+      if (this.disposed || this.rpc !== rpc || !rpc.isOpen) return;
+      const message = err instanceof Error ? err.message : String(err);
+      retry = !/Unknown request tag|Unsupported usage contract/.test(message);
+      updateEnv(this.id, (e) => ({ ...e, usage: { ...e.usage, error: message } }));
+    } finally {
+      if (this.usagePending === rpc) this.usagePending = undefined;
+      if (retry && !document.hidden && !this.disposed && this.rpc === rpc && rpc.isOpen) {
+        this.usageTimer = setTimeout(() => void this.loadUsage(), 60_000);
+      }
+    }
+  }
+
+  private onVisibility = (): void => {
+    if (document.hidden) {
+      clearTimeout(this.hostTimer);
+      clearTimeout(this.usageTimer);
+      return;
+    }
+    void this.loadHost();
+    void this.loadUsage();
+  };
+
+  private async loadHost(): Promise<void> {
+    const rpc = this.rpc;
+    if (!rpc?.isOpen || this.disposed || this.hostPending === rpc) return;
+    clearTimeout(this.hostTimer);
+    this.hostPending = rpc;
+    let retry = true;
+    try {
+      if (!document.hidden) {
+        const snapshot = await rpc.request<HostResources>("server.getHostResources", {}, 15_000);
+        if (this.disposed || this.rpc !== rpc || !rpc.isOpen) return;
+        useGame.setState((s) => {
+          const history = (s.hosts[this.id]?.history ?? []).filter((h) => h.sampledAt > snapshot.sampledAt - 20 * 60_000 && h.sampledAt !== snapshot.sampledAt);
+          return { hosts: { ...s.hosts, [this.id]: { snapshot, history: [...history, snapshot].slice(-120) } } };
+        });
+      }
+    } catch (err) {
+      if (this.disposed || this.rpc !== rpc || !rpc.isOpen) return;
+      const error = err instanceof Error ? err.message : String(err);
+      retry = !error.includes("Unknown request tag");
+      useGame.setState((s) => ({ hosts: { ...s.hosts, [this.id]: { ...s.hosts[this.id], history: s.hosts[this.id]?.history ?? [], error } } }));
+    } finally {
+      if (this.hostPending === rpc) this.hostPending = undefined;
+      if (retry && !document.hidden && !this.disposed && this.rpc === rpc && rpc.isOpen) this.hostTimer = setTimeout(() => void this.loadHost(), 10_000);
     }
   }
 
