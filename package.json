@@ -12,7 +12,7 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "pair:local": "node tools/pair-local.mjs",
-    "test": "tsx --test src/game/*.test.ts"
+    "test": "tsx --tsconfig tsconfig.app.json --test src/game/*.test.ts src/t3/*.test.ts src/ui/*.test.tsx server/*.test.ts"
   },
   "dependencies": {
     "pixi.js": "^8.6.6",
