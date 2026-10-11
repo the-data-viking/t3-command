@@ -7,6 +7,7 @@ import { unitState, type UnitState } from "./derive";
 import { applyThreadEvent } from "./reducer";
 import { RpcConnection, RpcError } from "./rpc";
 import { assetProxyUrl } from "./assets";
+import type { QuestionAnswers } from "./questions";
 import type {
   AssetUrl,
   ImageResource,
@@ -373,6 +374,10 @@ export class EnvironmentClient {
 
   respondToApproval(threadId: string, requestId: string, decision: ApprovalDecision): Promise<unknown> {
     return this.dispatch({ type: "thread.approval.respond", threadId, requestId, decision, createdAt: new Date().toISOString() });
+  }
+
+  respondToQuestion(threadId: string, requestId: string, answers: QuestionAnswers): Promise<unknown> {
+    return this.dispatch({ type: "thread.user-input.respond", threadId, requestId, answers, createdAt: new Date().toISOString() });
   }
 
   dismissQuestion(threadId: string, requestId: string): Promise<unknown> {
