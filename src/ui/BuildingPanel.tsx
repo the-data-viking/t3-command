@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
+import { groupFor, stationColor } from "../game/layout";
+import { css } from "../game/theme";
 import { addLog, setSelection, useGame } from "../store";
 import { isHistory, unitState } from "../t3/derive";
 import { envClient, logError } from "../t3/environment";
@@ -91,7 +93,8 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
         </button>
       </header>
 
-      <RecruitForm envId={envId} projectId={projectId} />
+      <MachineTabs envId={envId} projectId={projectId} />
+      <RecruitForm key={envId} envId={envId} projectId={projectId} />
 
       <div className="roster">
         <h3>
@@ -238,6 +241,36 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
       <button className="btn primary wide" disabled={sending || !text.trim() || !current || env?.connection !== "live"} onClick={() => void recruit()}>
         {sending ? "Recruiting…" : "⚒ Recruit"}
       </button>
+    </div>
+  );
+}
+
+/** One tab per machine working on this project; recruiting and the roster follow the tab. */
+function MachineTabs({ envId, projectId }: { envId: string; projectId: string }) {
+  const envs = useGame((s) => s.envs);
+  const members = useMemo(() => groupFor(useGame.getState(), envId, projectId)?.members ?? [], [envs, envId, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (members.length < 2) return null;
+  return (
+    <div className="machine-tabs" role="tablist">
+      {members.map((m) => {
+        const id = m.env.summary.id;
+        const active = id === envId;
+        return (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={active}
+            className={`machine-tab ${active ? "active" : ""}`}
+            style={{ ["--team" as string]: css(stationColor(useGame.getState(), id)) }}
+            onClick={() => {
+              sfx.select();
+              setSelection({ kind: "building", envId: id, projectId: m.project.id });
+            }}
+          >
+            {m.env.summary.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
