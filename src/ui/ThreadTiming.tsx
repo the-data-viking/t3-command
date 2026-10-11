@@ -3,7 +3,7 @@ import { elapsed, threadTimes } from "../t3/timing";
 import { useClock } from "./useClock";
 
 export function ThreadTiming({ thread, detail, compact = false }: { thread: ThreadShell; detail?: OrchestrationThread; compact?: boolean }) {
-  const now = useClock(thread.latestTurn?.state === "running" || thread.hasPendingApprovals || thread.hasPendingUserInput);
+  const now = useClock(thread.latestTurn?.state === "running" || thread.hasPendingApprovals || thread.hasPendingUserInput, 1000);
   const times = threadTimes(thread, detail, now);
   if (times.waitingMs === undefined && times.turnMs === undefined) return null;
   return (

@@ -467,12 +467,12 @@ class EnvironmentNodeSprite {
     const view = hostView(state, connection);
     const h = node.hull;
     this.cpuText!.text = view.cpuFraction === undefined ? "CPU —" : `CPU ${Math.round(view.cpuFraction * 100)}%`;
-    this.memoryText!.text = view.freeFraction === undefined ? "RAM FREE —" : `RAM FREE ${Math.round(view.freeFraction * 100)}%`;
+    this.memoryText!.text = view.memoryFraction === undefined ? "RAM USED —" : `RAM USED ${Math.round(view.memoryFraction * 100)}%`;
     this.cpuText!.style.fill = view.stale ? 0x8a96a8 : view.cpuColor;
     this.memoryText!.style.fill = view.stale ? 0x8a96a8 : view.memoryColor;
-    this.caption!.text = view.stale ? "LAST SAMPLE · STALE" : view.snapshot ? "WHOLE HOST · CPU / RAM FREE" : "HOST METRICS UNAVAILABLE";
+    this.caption!.text = view.stale ? "LAST SAMPLE · STALE" : view.snapshot ? "WHOLE HOST · UTILIZATION" : "HOST METRICS UNAVAILABLE";
     const g = this.meters!.clear();
-    for (const [fraction, y, color] of [[view.cpuFraction, 60, view.cpuColor], [view.freeFraction, 95, view.memoryColor]] as const) {
+    for (const [fraction, y, color] of [[view.cpuFraction, 60, view.cpuColor], [view.memoryFraction, 95, view.memoryColor]] as const) {
       for (let i = 0; i < 10; i++) {
         const x = h.x + 94 + i * 11;
         g.rect(x, h.y+y, 9, 10).fill(0x263845);

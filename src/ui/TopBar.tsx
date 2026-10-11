@@ -79,7 +79,7 @@ export function TopBar() {
           const attention = units.filter((t) => ["alert", "question"].includes(unitState(t))).length;
           const working = units.filter((t) => unitState(t) === "working").length;
           const resources = hostView(hosts[env.summary.id], env.connection);
-          const description = `${env.summary.label} — ${env.connection}${env.error ? `: ${env.error}` : ""} · CPU ${resources.cpuFraction === undefined ? "unavailable" : `${Math.round(resources.cpuFraction * 100)}%`} · RAM ${resources.freeFraction === undefined ? "unavailable" : `${Math.round(resources.freeFraction * 100)}% free`}${resources.stale ? " · stale sample" : ""}`;
+          const description = `${env.summary.label} — ${env.connection}${env.error ? `: ${env.error}` : ""} · CPU ${resources.cpuFraction === undefined ? "unavailable" : `${Math.round(resources.cpuFraction * 100)}%`} · RAM ${resources.memoryFraction === undefined ? "unavailable" : `${Math.round(resources.memoryFraction * 100)}% used`}${resources.stale ? " · stale sample" : ""}`;
           return (
             <button
               key={env.summary.id}

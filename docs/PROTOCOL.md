@@ -303,7 +303,10 @@ Other activity kinds seen: `tool.started|updated|completed|progress`, `task.star
 
 `server.getHostResources {}` returns `{sampledAt, cpuUtilization, cpuCount,
 availableMemoryBytes, totalMemoryBytes}`. CPU is a normalized whole-host fraction (or null),
-not T3 process CPU. Command polls every 10 seconds while visible, keeps at most 120 samples
+not T3 process CPU. Command polls every 10 seconds while visible
+and displays RAM utilization as `(totalMemoryBytes - availableMemoryBytes) / totalMemoryBytes`,
+with the same increasing-fill convention and 85%/95% color thresholds as CPU. This is not
+memory pressure. The browser retains at most 120 host samples
 from the last 20 minutes in browser memory, and marks disconnected, failed or >35-second-old
 samples stale. Host data is separate from environment shells so samples do not rebuild map
 geometry. `getResourceTelemetryHistory` is T3 process telemetry and is not used as host history.
@@ -320,7 +323,8 @@ are disclosed. All these reads use the existing `orchestration:read` grant.
 Waiting age uses the original `createdAt` of the oldest unresolved approval/question that
 matches the shell's pending flags; missing timestamps remain unavailable. Turn duration uses
 `latestTurn.startedAt` through now for running turns or `completedAt` for completed turns,
-including waits. Background work does not extend a completed turn's timer.
+including waits. Background work does not extend a completed turn's timer. Crew timers share
+a one-second browser clock, pause while hidden, and resynchronize immediately on visibility.
 
 ### 4.1 Event log & sequences
 
