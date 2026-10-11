@@ -843,6 +843,43 @@ code {
   width: 1.2em;
 }
 
+.tool-activity {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.tool-activity > summary {
+  cursor: pointer;
+  padding: 3px 0;
+}
+
+.tool-activity > summary:hover {
+  color: var(--text);
+}
+
+.tool-activity > summary:focus-visible {
+  outline: 1px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.tool-activity-count {
+  color: var(--muted);
+}
+
+.tool-activity-events {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-left: 1px solid #ffffff20;
+  margin: 5px 0 0 5px;
+  padding-left: 10px;
+}
+
+.tool-activity-events .activity {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .pending {
   border: 1px solid var(--alert);
   border-left-width: 3px;

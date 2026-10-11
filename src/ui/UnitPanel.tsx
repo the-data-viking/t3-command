@@ -5,7 +5,7 @@ import { isHistory, pendingRequests, unitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { modelTier, TIER_LABEL } from "../game/theme";
 import { envClient, logError } from "../t3/environment";
-import type { Activity, ApprovalDecision, Message, PendingRequest } from "../t3/types";
+import type { ApprovalDecision, Message, PendingRequest } from "../t3/types";
 import { modelName, providerName, STATE_LABELS, timeAgo } from "./util";
 import { ThreadImage } from "./ThreadImage";
 
@@ -15,9 +15,8 @@ import { PanelResize } from "./PanelResize";
 import { usePanelWidth } from "./usePanelWidth";
 import { ThreadTiming } from "./ThreadTiming";
 
-type Entry = { kind: "message"; at: string; message: Message } | { kind: "activity"; at: string; activity: Activity };
-
-const TRANSCRIPT_LIMIT = 120;
+import { ActivityView, ToolActivityGroup } from "./TranscriptActivity";
+import { transcriptEntries } from "./transcript";
 
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
   const panelWidth = usePanelWidth();
@@ -28,17 +27,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
   // Follow this thread's messages while the panel is open.
   useEffect(() => envClient(envId)?.watchThread(threadId), [envId, threadId]);
 
-  const entries = useMemo<Entry[]>(() => {
-    if (!detail) return [];
-    const list: Entry[] = [
-      ...detail.thread.messages.map((m) => ({ kind: "message" as const, at: m.createdAt, message: m })),
-      ...detail.thread.activities
-        .filter((a) => a.tone !== "info" || a.kind.startsWith("task."))
-        .map((a) => ({ kind: "activity" as const, at: a.createdAt, activity: a })),
-    ];
-    list.sort((a, b) => a.at.localeCompare(b.at));
-    return list.slice(-TRANSCRIPT_LIMIT);
-  }, [detail]);
+  const entries = useMemo(() => detail ? transcriptEntries(detail.thread) : [], [detail]);
 
   const pending = useMemo(() => (detail ? pendingRequests(detail.thread) : []), [detail]);
 
@@ -171,6 +160,8 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
           e.kind === "message" ? (
             <MessageView key={e.message.id} message={e.message} unitName={unitName} envId={envId} threadId={threadId}
               onImageLoad={onImageLoad} />
+          ) : e.kind === "tools" ? (
+            <ToolActivityGroup key={e.activities[0].id} activities={e.activities} />
           ) : (
             <ActivityView key={e.activity.id} activity={e.activity} />
           ),
@@ -211,15 +202,6 @@ function MessageView({ message, unitName, envId, threadId, onImageLoad }: { mess
         {content}
         {message.streaming && <span className="cursor">▍</span>}
       </div>
-    </div>
-  );
-}
-
-function ActivityView({ activity }: { activity: Activity }) {
-  const icon = activity.tone === "error" ? "✖" : activity.tone === "approval" ? "⚑" : activity.kind.startsWith("task.") ? "◆" : "⚒";
-  return (
-    <div className={`activity tone-${activity.tone}`} title={activity.kind}>
-      <span className="activity-icon">{icon}</span> {activity.summary}
     </div>
   );
 }
