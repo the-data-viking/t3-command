@@ -1,0 +1,148 @@
+server.upsertKeybinding	ServerUpsertKeybindingInput	ServerUpsertKeybindingResult	
+server.removeKeybinding	ServerRemoveKeybindingInput	ServerRemoveKeybindingResult	
+server.probe	Struct({})	Struct({})	
+server.getConfig	Struct({})	ServerConfig	
+server.refreshProviders	Struct({ instanceId: optional(ProviderInstanceId), cwd: optional(TrimmedNonEmptyString), refreshModels: optional(Boolean) })	ServerProviderUpdatedPayload	
+server.updateProvider	ServerProviderUpdateInput	ServerProviderUpdatedPayload	
+provider.consumeResetCredit	ProviderConsumeResetCreditInput	ProviderConsumeResetCreditResult	
+provider.auth.start	ProviderAuthStartInput	ProviderAuthState	
+provider.auth.respond	ProviderAuthRespondInput	ProviderAuthState	
+provider.auth.complete	ProviderAuthCompleteInput	ProviderAuthState	
+provider.chatgpt.reconnect-profile	ChatGptReconnectProfileInput	NullOr(ChatGptReconnectProfile)	
+provider.chatgpt.import-profile	ChatGptImportProfileInput	ProviderAuthState	
+provider.chatgpt.handoff.subscribe	ChatGptHandoffInput	ChatGptHandoffState	stream
+provider.codex.auth-callback.subscribe	CodexAuthCallbackInput	CodexAuthCallbackState	stream
+provider.auth.cancel	ProviderAuthCancelInput	ProviderAuthState	
+provider.auth.logout	ProviderSetupInput	ProviderAuthState	
+provider.auth.subscribe	ProviderSetupInput	ProviderAuthState	stream
+provider.install.start	ProviderSetupInput	ProviderInstallState	
+provider.install.cancel	ProviderInstallCancelInput	ProviderInstallState	
+provider.install.subscribe	ProviderSetupInput	ProviderInstallState	stream
+provider.install.remove	ProviderSetupInput	ProviderInstallState	
+server.updateServer	ServerSelfUpdateInput	ServerSelfUpdateResult	
+server.updateServerWithProgress	ServerSelfUpdateInput	ServerSelfUpdateProgressEvent	stream
+server.commitDesktopUpdate	DesktopUpdateCommitInput	ServerSelfUpdateResult	
+server.getSettings	Struct({})	ServerSettings	
+server.updateSettings	Struct({ patch: ServerSettingsPatch })	ServerSettings	
+server.discoverSourceControl	Struct({})	SourceControlDiscoveryResult	
+server.getTraceDiagnostics	Struct({})	ServerTraceDiagnosticsResult	
+server.getProcessDiagnostics	Struct({})	ServerProcessDiagnosticsResult	
+server.getHostResources	Struct({})	HostResourcesSnapshot	
+server.getProcessResourceHistory	ServerProcessResourceHistoryInput	ServerProcessResourceHistoryResult	
+server.getResourceTelemetryHistory	ResourceTelemetryHistoryInput	ResourceTelemetryHistory	
+server.retryResourceTelemetry	Struct({})	ResourceTelemetryRetryResult	
+server.getUsageSummary	UsageSummaryInput	UsageSummary	
+server.refreshUsageRates	Struct({})	UsagePricing	
+server.signalProcess	ServerSignalProcessInput	ServerSignalProcessResult	
+cloud.getRelayClientStatus	Struct({})	RelayClientStatusSchema	
+cloud.installRelayClient	Struct({})	RelayClientInstallProgressEventSchema	stream
+server.reportClientActivity			
+server.reportHostPowerState			
+server.getBackgroundPolicy	Struct({})	BackgroundPolicySnapshot	
+pullRequests.list	PullRequestListInput	PullRequestListResult	
+pullRequests.listStats	PullRequestListStatsInput	PullRequestListStatsResult	
+pullRequests.routing	PullRequestRef	PullRequestRoutingResult	
+pullRequests.routingIdentity	PullRequestRoutingIdentityInput	PullRequestRoutingIdentityResult	
+pullRequests.summary	PullRequestRef	PullRequestSummary	
+pullRequests.stack	PullRequestRef	NullOr(PullRequestStack)	
+pullRequests.linkedThreads	PullRequestRef	PullRequestLinkedThreadsResult	
+pullRequests.detail	PullRequestRef	PullRequestDetail	
+pullRequests.preview	PullRequestRef	PullRequestPreview	
+pullRequests.activity	PullRequestRef	PullRequestActivity	
+pullRequests.threadComments	PullRequestThreadCommentsInput	PullRequestThreadCommentsResult	
+pullRequests.diffFileContents	PullRequestDiffFileContentsInput	PullRequestDiffFileContentsResult	
+pullRequests.filesViewed	PullRequestRef	PullRequestFilesViewedResult	
+pullRequests.setFilesViewed	PullRequestSetFilesViewedInput	Void	
+pullRequests.runAction	PullRequestActionInput	Void	
+pullRequests.update	PullRequestUpdateInput	Void	
+pullRequests.comment	PullRequestCommentInput	Void	
+pullRequests.updateComment	PullRequestCommentUpdateInput	Void	
+pullRequests.submitReview	PullRequestSubmitReviewInput	Void	
+pullRequests.replyToThread	PullRequestThreadReplyInput	Void	
+pullRequests.setThreadResolution	PullRequestThreadResolutionInput	Void	
+pullRequests.setReaction	PullRequestReactionInput	Void	
+pullRequests.invalidate	PullRequestInvalidateInput	Void	
+pullRequests.subscribeRefreshes	Struct({})	NonNegativeInt	stream
+pullRequests.reviewerCandidates	PullRequestRef	PullRequestReviewerCandidateList	
+pullRequests.requestReviewers	PullRequestReviewerRequestInput	Void	
+pullRequests.labelCandidates	PullRequestRef	PullRequestLabelCandidateList	
+pullRequests.setLabels	PullRequestLabelChangeInput	Void	
+sourceControl.lookupRepository	SourceControlRepositoryLookupInput	SourceControlRepositoryInfo	
+sourceControl.cloneRepository	SourceControlCloneRepositoryInput	SourceControlCloneRepositoryResult	
+projectClone.start	ProjectCloneStartInput	ProjectCloneStartResult	
+projectClone.cancel	ProjectCloneActionInput	ProjectCloneActionResult	
+projectClone.retry	ProjectCloneActionInput	ProjectCloneActionResult	
+subscribeProjectClones	ProjectCloneSubscribeInput	ProjectCloneListEvent	stream
+sourceControl.publishRepository	SourceControlPublishRepositoryInput	SourceControlPublishRepositoryResult	
+projects.searchEntries	ProjectSearchEntriesInput	ProjectSearchEntriesResult	
+projects.searchContents	ProjectSearchContentsInput	ProjectSearchContentsResult	
+projects.listEntries	ProjectListEntriesInput	ProjectListEntriesResult	
+projects.readFile	ProjectReadFileInput	ProjectReadFileResult	
+projects.writeFile	ProjectWriteFileInput	ProjectWriteFileResult	
+shell.openInEditor			
+filesystem.browse	FilesystemBrowseInput	FilesystemBrowseResult	
+agentSessions.scan	AgentSessionScanInput	AgentSessionScanResult	
+agentSessions.import	AgentSessionImportInput	AgentSessionImportResult	
+assets.createUrl	AssetCreateUrlInput	AssetCreateUrlResult	
+attachments.createUploadUrl	AttachmentCreateUploadUrlInput	AttachmentCreateUploadUrlResult	
+attachments.delete			
+provider.uploadFeedback	ProviderUploadFeedbackInput	ProviderUploadFeedbackResult	
+subscribeVcsStatus	VcsStatusInput	VcsStatusStreamEvent	stream
+vcs.pull	VcsPullInput	VcsPullResult	
+vcs.refreshStatus	VcsStatusInput	VcsStatusResult	
+subscribeWorktreeSetup	WorktreeSetupSubscribeInput	WorktreeSetupStreamEvent	stream
+worktreeSetup.cancel	WorktreeSetupCancelInput	WorktreeSetupCancelResult	
+git.runStackedAction	GitRunStackedActionInput	GitActionProgressEvent	stream
+git.resolvePullRequest	GitPullRequestRefInput	GitResolvePullRequestResult	
+git.preparePullRequestThread	GitPreparePullRequestThreadInput	GitPreparePullRequestThreadResult	
+vcs.listRefs	VcsListRefsInput	VcsListRefsResult	
+vcs.createWorktree	VcsCreateWorktreeInput	VcsCreateWorktreeResult	
+vcs.removeWorktree			
+vcs.createRef	VcsCreateRefInput	VcsCreateRefResult	
+vcs.switchRef	VcsSwitchRefInput	VcsSwitchRefResult	
+vcs.init			
+review.getDiffPreview	ReviewDiffPreviewInput	ReviewDiffPreviewResult	
+review.getDiffFileContents	ReviewDiffFileContentsInput	ReviewDiffFileContentsResult	
+terminal.open	TerminalOpenInput	TerminalSessionSnapshot	
+terminal.attach	TerminalAttachInput	TerminalAttachStreamEvent	stream
+terminal.write			
+terminal.resize			
+terminal.clear			
+terminal.restart	TerminalRestartInput	TerminalSessionSnapshot	
+terminal.close			
+preview.open	PreviewOpenInput	PreviewSessionSnapshot	
+preview.navigate	PreviewNavigateInput	PreviewSessionSnapshot	
+preview.resize	PreviewResizeInput	PreviewSessionSnapshot	
+preview.refresh			
+preview.close			
+preview.list	PreviewListInput	PreviewListResult	
+preview.reportStatus			
+previewAutomation.connect	PreviewAutomationHost	PreviewAutomationStreamEvent	stream
+previewAutomation.respond			
+previewAutomation.focusHost			
+subscribePreviewEvents	Struct({})	PreviewEvent	stream
+subscribeDiscoveredLocalServers	Struct({ configuredUrls: optional(ConfiguredLocalServerUrls) })	DiscoveredLocalServerList	stream
+device.testHost	SshDeviceHostConfig	DeviceHostSummary	
+device.list	DeviceListInput	DeviceServiceState	
+device.configure	DeviceConfigureInput	DeviceServiceState	
+device.open	DeviceOpenInput	DeviceSession	
+device.close			
+device.shutdown			
+device.detail	DeviceDetailInput	DeviceDetail	
+device.action	DeviceActionInput	DeviceDetail	
+subscribeDeviceState	Struct({})	DeviceServiceState	stream
+orchestration.dispatchCommand	ClientOrchestrationCommand	OrchestrationRpcSchemas.dispatchCommand.output	
+orchestration.getWorkflowScript	OrchestrationRpcSchemas.getWorkflowScript.input	OrchestrationRpcSchemas.getWorkflowScript.output	
+orchestration.getTurnDiff	OrchestrationGetTurnDiffInput	OrchestrationRpcSchemas.getTurnDiff.output	
+orchestration.getFullThreadDiff	OrchestrationGetFullThreadDiffInput	OrchestrationRpcSchemas.getFullThreadDiff.output	
+orchestration.searchThreads	OrchestrationSearchThreadsInput	OrchestrationRpcSchemas.searchThreads.output	
+orchestration.getArchivedShellSnapshot	OrchestrationRpcSchemas.getArchivedShellSnapshot.input	OrchestrationRpcSchemas.getArchivedShellSnapshot.output	
+orchestration.subscribeShell	OrchestrationRpcSchemas.subscribeShell.input	OrchestrationRpcSchemas.subscribeShell.output	stream
+orchestration.subscribeThread	OrchestrationRpcSchemas.subscribeThread.input	OrchestrationRpcSchemas.subscribeThread.output	stream
+subscribeTerminalEvents	Struct({})	TerminalEvent	stream
+subscribeTerminalMetadata	Struct({})	TerminalMetadataStreamEvent	stream
+subscribeServerConfig	Struct({ environmentThemes: optional(Boolean), usageLimitSources: optional(Boolean), usageLimitsCommand: optional(Boolean) })	ServerConfigStreamEvent	stream
+subscribeServerLifecycle	Struct({})	ServerLifecycleStreamEvent	stream
+subscribeAuthAccess	Struct({})	AuthAccessStreamEvent	stream
+subscribeBackgroundPolicy	Struct({})	BackgroundPolicySnapshot	stream
+subscribeResourceTelemetry	Struct({})	ResourceTelemetrySnapshot	stream
