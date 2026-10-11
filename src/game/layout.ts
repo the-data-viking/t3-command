@@ -48,6 +48,8 @@ export interface Door {
   y: number;
   /** Door in a vertical wall (between side-by-side rooms) vs. a horizontal one. */
   vertical: boolean;
+  /** Rooms connected by this physical doorway. */
+  rooms: [RoomKind, RoomKind];
 }
 
 /** One project station. */
@@ -224,8 +226,8 @@ function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLa
     const rect = { x, y: iy, w: widths[i] * T, h: 2 * T };
     const door = { x: x + rect.w / 2, y: iy + 2 * T };
     rooms[kind] = { kind, rect, door };
-    doors.push({ ...door, vertical: false });
-    if (i > 0) doors.push({ x, y: iy + T, vertical: true });
+    doors.push({ ...door, vertical: false, rooms: [kind, "bridge"] });
+    if (i > 0) doors.push({ x, y: iy + T, vertical: true, rooms: [i === 1 ? "terminal" : "files", kind] });
     x += rect.w;
   });
 
@@ -260,7 +262,7 @@ function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLa
     const q = { x: x0, y: by, w: quartersW * T, h: bottomH * T };
     const qDoor = { x: q.x + q.w / 2, y: by };
     rooms.quarters = { kind: "quarters", rect: q, door: qDoor };
-    doors.push({ ...qDoor, vertical: false });
+    doors.push({ ...qDoor, vertical: false, rooms: ["quarters", "bridge"] });
     asleep.forEach((c, k) => {
       const envId = c.ref.env.summary.id;
       crew.push({
@@ -278,8 +280,8 @@ function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLa
       const ar = { x: x0 + quartersW * T, y: by, w: archiveW * T, h: bottomH * T };
       const door = { x: ar.x + ar.w / 2, y: by };
       rooms.archive = { kind: "archive", rect: ar, door };
-      doors.push({ ...door, vertical: false });
-      doors.push({ x: ar.x, y: by + T / 2, vertical: true });
+      doors.push({ ...door, vertical: false, rooms: ["archive", "bridge"] });
+      doors.push({ x: ar.x, y: by + T / 2, vertical: true, rooms: ["quarters", "archive"] });
     }
   }
 
@@ -316,29 +318,73 @@ function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLa
   };
 }
 
-/**
- * Waypoints for walking between rooms. Every room opens onto the bridge, so a trip is at most:
- * out through this room's door, across the bridge, in through the target's door. Crew walk
- * axis-aligned, FTL-style.
- */
+/** Resolve the room under a crew member's feet, including while a walk is in progress. */
+export function roomAt(s: StationLayout, point: Point, fallback: RoomKind): RoomKind {
+  const contains = (kind: RoomKind) => {
+    const r = s.rooms[kind]?.rect;
+    return r && point.x >= r.x && point.x <= r.x + r.w && point.y >= r.y && point.y <= r.y + r.h;
+  };
+  // Keep the current room when exactly on a shared boundary.
+  if (contains(fallback)) return fallback;
+  return (Object.keys(s.rooms) as RoomKind[]).find(contains) ?? fallback;
+}
+
+/** Shortest axis-aligned walk through actual doors, with a waypoint on each side. */
 export function route(s: StationLayout, from: RoomKind, to: RoomKind, target: Point, start: Point): Point[] {
-  const points: Point[] = [];
-  const step = TILE * 0.45;
-  if (from !== to) {
-    const out = from === "bridge" ? undefined : s.rooms[from]?.door;
-    const into = to === "bridge" ? undefined : s.rooms[to]?.door;
-    if (out) {
-      const dir = (s.rooms[from]!.rect.y < out.y ? -1 : 1) * step;
-      points.push({ x: out.x, y: start.y }, { x: out.x, y: out.y + dir }, { x: out.x, y: out.y - dir });
-    }
-    if (into) {
-      const dir = (s.rooms[to]!.rect.y < into.y ? -1 : 1) * step;
-      const last = points.at(-1) ?? start;
-      points.push({ x: into.x, y: last.y }, { x: into.x, y: into.y - dir }, { x: into.x, y: into.y + dir });
-    }
+  from = roomAt(s, start, from);
+  if (!s.rooms[from] || !s.rooms[to]) return [];
+  const nodes: Array<{ point: Point; room: RoomKind; across?: number }> = [
+    { point: start, room: from }, { point: target, room: to },
+  ];
+  for (const door of s.doors) {
+    const base = nodes.length;
+    if (!door.rooms.every(kind => s.rooms[kind])) continue;
+    door.rooms.forEach((room, side) => {
+      const r = s.rooms[room]!.rect;
+      const center = door.vertical ? r.x + r.w / 2 : r.y + r.h / 2;
+      const boundary = door.vertical ? door.x : door.y;
+      const offset = center < boundary ? -8 : 8;
+      nodes.push({
+        room, across: base + 1 - side,
+        point: { x: door.x + (door.vertical ? offset : 0), y: door.y + (door.vertical ? 0 : offset) },
+      });
+    });
   }
-  const last = points.at(-1) ?? start;
-  points.push({ x: target.x, y: last.y }, target);
+  const distance = nodes.map(() => Infinity);
+  const previous = nodes.map(() => -1);
+  const visited = new Set<number>();
+  distance[0] = 0;
+  while (visited.size < nodes.length) {
+    let current = -1;
+    nodes.forEach((_, i) => {
+      if (!visited.has(i) && (current === -1 || distance[i] < distance[current])) current = i;
+    });
+    if (current === -1 || !Number.isFinite(distance[current])) return [];
+    if (current === 1) break;
+    visited.add(current);
+    const node = nodes[current];
+    nodes.forEach((next, i) => {
+      if (visited.has(i) || (next.room !== node.room && node.across !== i)) return;
+      const cost = Math.abs(next.point.x - node.point.x) + Math.abs(next.point.y - node.point.y);
+      if (distance[current] + cost < distance[i]) {
+        distance[i] = distance[current] + cost;
+        previous[i] = current;
+      }
+    });
+  }
+  const chain: number[] = [];
+  for (let i = 1; i !== 0; i = previous[i]) {
+    if (i < 0) return [];
+    chain.unshift(i);
+  }
+  const points: Point[] = [];
+  let last = start;
+  for (const i of chain) {
+    const point = nodes[i].point;
+    if (point.x !== last.x && point.y !== last.y) points.push({ x: point.x, y: last.y });
+    if (point.x !== last.x || point.y !== last.y) points.push({ ...point });
+    last = point;
+  }
   return points;
 }
 
