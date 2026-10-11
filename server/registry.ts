@@ -1,11 +1,13 @@
 // Environment registry: which T3 servers t3-command talks to, and the token for each.
 // Tokens are stored on disk with owner-only permissions and never leave this process
-// except as an Authorization header to the T3 server they belong to.
+// except as an Authorization header to the T3 server they belong to. Linked bases are the
+// exception: their tokens belong to T3 desktop and are read from its encrypted catalog on demand.
 
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { SUPPORTED_PROTOCOL_VERSIONS, type EnvStatus, type EnvSummary } from "../shared/api.ts";
+import { CatalogError, forgetCachedCatalog, readDesktopConnections } from "./desktop-catalog.ts";
 import { createPairingCredential, discover, SshError, SshTunnels, validateTarget, type SshTarget } from "./ssh.ts";
 
 interface StoredEnv {
@@ -14,7 +16,9 @@ interface StoredEnv {
   /** Direct bases: the T3 server's URL. SSH bases: unset; the URL is a local tunnel. */
   url?: string;
   ssh?: SshTarget;
-  token: string;
+  /** Linked bases use T3 desktop's own connection on this machine; no token is stored here. */
+  linked?: { connectionId: string };
+  token?: string;
   tokenExpiresAt?: string;
   scopes?: string;
   addedAt: string;
@@ -112,6 +116,54 @@ export class Registry {
     return Promise.resolve(env.url!);
   }
 
+  /** The bearer token to use for an environment right now. */
+  async tokenFor(env: StoredEnv): Promise<string> {
+    if (!env.linked) return env.token!;
+    const connection = (await readDesktopConnections()).find((c) => c.connectionId === env.linked!.connectionId);
+    if (!connection) throw new CatalogError(`T3 desktop no longer has a connection to "${env.label}"`);
+    return connection.token;
+  }
+
+  /** A linked base's token was rejected: re-read T3 desktop's catalog next time (it may have re-paired). */
+  tokenRejected(id: string): void {
+    if (this.envs.get(id)?.linked) forgetCachedCatalog();
+    this.statusCache.delete(id);
+  }
+
+  /**
+   * Link every direct (bearer) connection T3 desktop has saved on this machine. Environments that
+   * are already paired with t3-command directly are left alone.
+   */
+  async importDesktopConnections(): Promise<{ linked: string[]; skipped: string[] }> {
+    let connections;
+    try {
+      connections = await readDesktopConnections({ fresh: true });
+    } catch (err) {
+      if (err instanceof CatalogError) throw new UserError(err.message);
+      throw err;
+    }
+    const linked: string[] = [];
+    const skipped: string[] = [];
+    for (const c of connections) {
+      const existing = this.envs.get(c.environmentId);
+      if (existing && !existing.linked) {
+        skipped.push(`${c.label} (already paired directly)`);
+        continue;
+      }
+      this.envs.set(c.environmentId, {
+        id: c.environmentId,
+        label: existing?.label ?? c.label,
+        url: c.httpBaseUrl,
+        linked: { connectionId: c.connectionId },
+        addedAt: existing?.addedAt ?? new Date().toISOString(),
+      });
+      this.statusCache.delete(c.environmentId);
+      linked.push(c.label);
+    }
+    await this.save();
+    return { linked, skipped };
+  }
+
   /** Exchange a one-time pairing credential for a token and remember the environment. */
   async add(rawUrl: string, rawCredential: string, label?: string): Promise<EnvSummary> {
     const input = parsePairingInput(rawUrl, rawCredential);
@@ -205,11 +257,6 @@ export class Registry {
     return existed;
   }
 
-  /** Mark an environment's token as rejected (e.g. the WebSocket upgrade got a 401). */
-  invalidateStatus(id: string): void {
-    this.statusCache.delete(id);
-  }
-
   async list(): Promise<EnvSummary[]> {
     return Promise.all([...this.envs.values()].map((e) => this.summary(e)));
   }
@@ -225,6 +272,7 @@ export class Registry {
       status: "ok",
       tokenExpiresAt: env.tokenExpiresAt,
       addedAt: env.addedAt,
+      ...(env.linked ? { linked: true } : {}),
     };
     const set = (status: EnvStatus, statusDetail?: string): EnvSummary => {
       const summary = { ...base, status, statusDetail };
@@ -248,12 +296,21 @@ export class Registry {
     if (!protocolSupported(base.protocolVersion)) {
       return set("needs-update", `T3 ${base.serverVersion} uses orchestration protocol v${base.protocolVersion}`);
     }
+    let token: string;
+    try {
+      token = await this.tokenFor(env);
+    } catch (err) {
+      return set("needs-pairing", (err as Error).message);
+    }
     try {
       const res = await fetchWithTimeout(`${url}/api/auth/session`, {
-        headers: { authorization: `Bearer ${env.token}` },
+        headers: { authorization: `Bearer ${token}` },
       });
-      const session = (await res.json()) as { authenticated?: boolean };
-      if (!session.authenticated) return set("needs-pairing", "Token expired or revoked");
+      const session = (await res.json()) as { authenticated?: boolean; expiresAt?: string };
+      if (!session.authenticated) {
+        return set("needs-pairing", env.linked ? "T3 desktop's connection was revoked or expired; reconnect it in T3 desktop" : "Token expired or revoked");
+      }
+      if (env.linked) base.tokenExpiresAt = session.expiresAt;
     } catch (err) {
       return set("unreachable", (err as Error).message);
     }

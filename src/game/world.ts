@@ -73,7 +73,9 @@ function computeLayout(state: GameState): Layout {
   };
 
   sortedEnvs(state).forEach((env, envIndex) => {
-    const hq = { x: envIndex * BASE_SPACING, y: 0 };
+    // Bases on a grid, roughly square, so many environments stay compact.
+    const columns = Math.ceil(Math.sqrt(Object.keys(state.envs).length));
+    const hq = { x: (envIndex % columns) * BASE_SPACING, y: Math.floor(envIndex / columns) * BASE_SPACING };
     layout.hq.set(env.summary.id, hq);
     grow(hq, 300);
 

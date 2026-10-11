@@ -136,6 +136,20 @@ The UI is now at `https://<host>.<your-tailnet>.ts.net/`, with a certificate iss
 
 ### 4. Add your T3 environments
 
+**Easiest: import from T3 desktop.** If the host runs the T3 Code desktop app and it's already
+connected to your other environments, open **Bases → Import from T3 desktop**. Every direct
+connection T3 desktop has saved becomes a *linked* base. Linked bases use T3 desktop's own
+logins: t3-command decrypts its connection catalog in memory (as the same OS user) whenever it
+needs a token, and never writes those tokens anywhere. Re-pairing or removing a connection in
+T3 desktop carries over automatically; run the import again to pick up new connections. Notes:
+
+- Tested on Windows (DPAPI). macOS (Keychain) and Linux (keyring, or Chromium's fallback key)
+  follow Electron's standard scheme but are untested.
+- A headless T3 used through a browser keeps its connections in that browser, so there's nothing
+  on the host to import; pair those environments below instead.
+- Commands from linked bases run under T3 desktop's login on each environment, so they don't show
+  up as a separate "t3-command" connection there.
+
 **SSH environments** (ones T3 desktop reaches over SSH) are the easiest: in t3-command open
 **Bases → SSH host** and enter the same destination you use in T3 (`user@host` or an
 `~/.ssh/config` alias). t3-command finds the T3 server that T3 desktop's SSH launcher left

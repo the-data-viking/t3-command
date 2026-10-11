@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AddEnvRequest, EnvSummary } from "../../shared/api";
+import type { AddEnvRequest, EnvSummary, ImportDesktopResponse } from "../../shared/api";
 import { sfx } from "../game/sfx";
 import { useGame } from "../store";
 import { fetchJson, refreshEnvironments } from "../t3/environment";
@@ -43,8 +43,36 @@ export function EnvManager() {
     }
   };
 
+  const [imported, setImported] = useState<string>();
+  const importDesktop = async () => {
+    setBusy(true);
+    setError(undefined);
+    setImported(undefined);
+    try {
+      const result = await fetchJson<ImportDesktopResponse>("/api/envs/import-desktop", { method: "POST" });
+      sfx.recruit();
+      setImported(
+        [
+          result.linked.length ? `Linked: ${result.linked.join(", ")}` : "No new connections to link.",
+          result.skipped.length ? `Skipped: ${result.skipped.join(", ")}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      );
+      await refreshEnvironments();
+    } catch (err) {
+      sfx.error();
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const remove = async (env: EnvSummary) => {
-    if (!confirm(`Remove "${env.label}" from t3-command?\n\nThis forgets its token here. To fully revoke access, also remove "t3-command" under Settings → Connections in that T3.`)) return;
+    const message = env.linked
+      ? `Unlink "${env.label}" from t3-command?\n\nT3 desktop keeps its connection; you can link it again with "Import from T3 desktop".`
+      : `Remove "${env.label}" from t3-command?\n\nThis forgets its token here. To fully revoke access, also remove "t3-command" under Settings → Connections in that T3.`;
+    if (!confirm(message)) return;
     try {
       await fetchJson(`/api/envs/${encodeURIComponent(env.id)}`, { method: "DELETE" });
       await refreshEnvironments();
@@ -71,7 +99,13 @@ export function EnvManager() {
             <li key={env.summary.id}>
               <span className={`base-chip conn-${env.connection}`}>●</span>
               <div className="env-info">
-                <strong>{env.summary.label}</strong> <span className="muted small">{env.summary.url}</span>
+                <strong>{env.summary.label}</strong>{" "}
+                {env.summary.linked && (
+                  <span className="linked-badge" title="Uses T3 desktop's saved connection on the t3-command host">
+                    linked
+                  </span>
+                )}{" "}
+                <span className="muted small">{env.summary.url}</span>
                 <div className="muted small">
                   {env.connection}
                   {env.error ? ` — ${env.error}` : ""}
@@ -81,11 +115,21 @@ export function EnvManager() {
                 </div>
               </div>
               <button className="btn danger" onClick={() => void remove(env.summary)}>
-                Remove
+                {env.summary.linked ? "Unlink" : "Remove"}
               </button>
             </li>
           ))}
         </ul>
+
+        <h3>Import from T3 desktop</h3>
+        <p className="muted small">
+          Link every connection T3 desktop has saved on the t3-command host. t3-command uses T3 desktop's own logins, read from its encrypted storage when
+          needed and never copied, so re-pairing or removing a connection in T3 desktop carries over automatically.
+        </p>
+        <button className="btn primary" disabled={busy} onClick={() => void importDesktop()}>
+          {busy ? "Working…" : "⇩ Import from T3 desktop"}
+        </button>
+        {imported && <p className="small">{imported}</p>}
 
         <h3>Pair a base</h3>
         <div className="tabs">

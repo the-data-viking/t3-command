@@ -21,6 +21,13 @@ export interface EnvSummary {
   protocolVersion?: number;
   tokenExpiresAt?: string;
   addedAt: string;
+  /** Uses T3 desktop's own saved connection on the t3-command host (no separate pairing). */
+  linked?: boolean;
+}
+
+export interface ImportDesktopResponse {
+  linked: string[];
+  skipped: string[];
 }
 
 export interface MeResponse {

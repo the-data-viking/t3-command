@@ -127,6 +127,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     }
     return sendJson(res, 200, await registry.add(String(body.url ?? ""), String(body.credential ?? ""), body.label));
   }
+  if (pathname === "/api/envs/import-desktop" && method === "POST") {
+    return sendJson(res, 200, await registry.importDesktopConnections());
+  }
   const envMatch = pathname.match(/^\/api\/envs\/([^/]+)$/);
   if (envMatch && method === "DELETE") {
     const removed = await registry.remove(decodeURIComponent(envMatch[1]));
@@ -179,8 +182,10 @@ async function relay(client: WebSocket, envId: string): Promise<void> {
   const hold = (data: RawData, isBinary: boolean) => early.push([data, isBinary]);
   client.on("message", hold);
   let baseUrl: string;
+  let token: string;
   try {
     baseUrl = await registry.resolveUrl(env);
+    token = await registry.tokenFor(env);
   } catch (err) {
     if (client.readyState === WebSocket.OPEN) client.close(CLOSE.upstreamFailed, (err as Error).message.slice(0, 120));
     return;
@@ -193,7 +198,7 @@ async function relay(client: WebSocket, envId: string): Promise<void> {
   upstreamUrl.searchParams.set("clientSurface", "web");
   upstreamUrl.searchParams.set("clientAppVersion", "t3-command");
   const upstream = new WebSocket(upstreamUrl, {
-    headers: { authorization: `Bearer ${env.token}` },
+    headers: { authorization: `Bearer ${token}` },
     maxPayload: 64 * 1024 * 1024,
   });
 
@@ -213,7 +218,7 @@ async function relay(client: WebSocket, envId: string): Promise<void> {
 
   upstream.on("unexpected-response", (_req, res) => {
     const pairing = res.statusCode === 401 || res.statusCode === 403;
-    if (pairing) registry.invalidateStatus(envId);
+    if (pairing) registry.tokenRejected(envId);
     client.close(pairing ? CLOSE.needsPairing : CLOSE.upstreamFailed, `T3 rejected the connection (HTTP ${res.statusCode})`);
     upstream.terminate();
   });

@@ -732,6 +732,16 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
+.linked-badge {
+  font-family: var(--pixel);
+  font-size: 7px;
+  color: #111;
+  background: var(--working);
+  border-radius: 3px;
+  padding: 2px 4px;
+  vertical-align: middle;
+}
+
 .steps {
   margin: 0;
   padding-left: 18px;
