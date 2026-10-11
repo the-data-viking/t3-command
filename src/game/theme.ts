@@ -42,6 +42,39 @@ export const PROVIDER_VISOR: Record<string, number> = {
   opencode: 0xd8c25a,
 };
 
+// ---- Crew classes ----------------------------------------------------------------------
+
+/** How big and well-equipped a crew member looks, from its model. */
+export type Tier = "light" | "standard" | "heavy" | "reviewer";
+
+/**
+ * Model slug → tier. First match wins; anything unmatched is "standard". The Codex names are a
+ * best guess from their naming (Sol > Astra/Terra > Luna); adjust here if that's wrong.
+ */
+const TIER_RULES: Array<[RegExp, Tier]> = [
+  [/review/i, "reviewer"],
+  [/haiku|luna|mini|nano|flash|lite/i, "light"],
+  [/opus|fable|(^|[-.])sol($|[-.])|ultra|max|pro/i, "heavy"],
+];
+
+export function modelTier(model: string): Tier {
+  return TIER_RULES.find(([re]) => re.test(model))?.[1] ?? "standard";
+}
+
+export const TIER_LABEL: Record<Tier, string> = {
+  light: "Scout",
+  standard: "Specialist",
+  heavy: "Heavy",
+  reviewer: "Inspector",
+};
+
+/** Suit silhouette by provider: Claude crew are rounded, Codex crew are angular. */
+export type Silhouette = "round" | "angular";
+
+export function providerSilhouette(instanceId: string): Silhouette {
+  return instanceId === "codex" || instanceId === "cursor" || instanceId === "opencode" ? "angular" : "round";
+}
+
 export function css(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;
 }

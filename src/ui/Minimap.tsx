@@ -32,6 +32,12 @@ export function Minimap() {
       const oy = pad + (H - pad * 2 - b.h * scale) / 2 - b.y * scale;
       mapping.current = { scale, ox, oy };
 
+      ctx.fillStyle = "#f0a33a22";
+      ctx.strokeStyle = "#f0a33a66";
+      for (const r of data.hubs) {
+        ctx.fillRect(ox + r.x * scale, oy + r.y * scale, Math.max(2, r.w * scale), Math.max(2, r.h * scale));
+        ctx.strokeRect(ox + r.x * scale + 0.5, oy + r.y * scale + 0.5, Math.max(2, r.w * scale), Math.max(2, r.h * scale));
+      }
       for (const s of data.stations) {
         ctx.fillStyle = s.live ? `${css(s.color)}33` : "#3a425022";
         ctx.strokeStyle = s.live ? css(s.color) : "#3a4250";

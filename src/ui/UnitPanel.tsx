@@ -3,6 +3,7 @@ import { sfx } from "../game/sfx";
 import { setSelection, unitKey, useGame } from "../store";
 import { isHistory, pendingRequests, unitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
+import { modelTier, TIER_LABEL } from "../game/theme";
 import { envClient, logError } from "../t3/environment";
 import type { Activity, ApprovalDecision, Message, PendingRequest } from "../t3/types";
 import { modelName, providerName, STATE_LABELS, timeAgo } from "./util";
@@ -66,7 +67,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         <div className="panel-title">
           <h2 title={unitName}>{unitName}</h2>
           <div className="muted small">
-            {providerName(env, thread.modelSelection.instanceId)} · {modelName(env, thread)}
+            {TIER_LABEL[modelTier(thread.modelSelection.model)]} · {providerName(env, thread.modelSelection.instanceId)} · {modelName(env, thread)}
           </div>
           <div className="muted small">
             {project?.title ?? "?"} @ {env.summary.label}

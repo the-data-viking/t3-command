@@ -11,10 +11,19 @@ export interface ModelSelection {
   options?: Array<{ id: string; value: string | boolean }>;
 }
 
+export interface RepositoryIdentity {
+  /** Stable across machines, e.g. "github.com/owner/repo". */
+  canonicalKey: string;
+  displayName?: string;
+  name?: string;
+}
+
 export interface ProjectShell {
   id: string;
   title: string;
   workspaceRoot: string;
+  /** Null when T3 couldn't identify a git remote for the workspace. */
+  repositoryIdentity?: RepositoryIdentity | null;
   defaultModelSelection: ModelSelection | null;
   createdAt: string;
   updatedAt: string;
