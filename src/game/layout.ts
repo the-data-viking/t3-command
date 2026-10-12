@@ -71,7 +71,7 @@ export interface EnvironmentNodeLayout {
   hull: Rect;
   plate: Rect;
   /** Direct physical connections to every project served by this environment. */
-  links: Array<{ stationKey: string; from: Point; to: Point }>;
+  links: Array<{ stationKey: string; from: Point; to: Point; via?: Point[] }>;
 }
 
 export interface CrewLayout {
@@ -100,7 +100,9 @@ export interface ControlCenterLayout {
   envId: string;
   envIds: string[];
   hull: Rect;
-  operators: Array<{ bot: BotOperator; card: Rect }>;
+  /** The bridge and its docked engineering modules, for camera framing. */
+  bounds: Rect;
+  operators: Array<{ bot: BotOperator; workstation: Rect }>;
   links: Array<{ envId: string; from: Point; to: Point; laneX: number }>;
 }
 
@@ -362,6 +364,9 @@ export function route(s: StationLayout, from: RoomKind, to: RoomKind, target: Po
 
 export function computeFleetLayout(state: GameState): FleetLayout {
   const envs = sortedEnvs(state);
+  const hermes = envs.filter(env => env.summary.kind === 'hermes');
+  const engineering = envs.filter(env => env.summary.kind !== 'hermes');
+  const operators = hermes.length ? botOperators(state) : [];
   const fleet: FleetLayout = { stations: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
   const groups = groupProjects(envs);
   if (envs.length === 0) return fleet;
@@ -381,36 +386,61 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   });
   // A shared engineering spine: membership adds a conduit, never another chassis.
   const nodeX = columnW + (CAMPUS_GAP - ENV_NODE_W) / 2;
-  envs.filter(env => env.summary.kind !== 'hermes').forEach((env, index) => {
+  const bridgeW = 3 * ENV_NODE_W + 2 * NODE_GAP;
+  const bridgeH = 196 + Math.max(1, Math.ceil(operators.length / 4)) * 144;
+  const dockRows = Math.ceil(engineering.length / 3);
+  const bridge = { x: nodeX + ENV_NODE_W / 2 - bridgeW / 2,
+    y: -120 - dockRows * (ENV_NODE_H + NODE_GAP) - bridgeH,
+    w: bridgeW, h: bridgeH };
+  engineering.forEach((env, index) => {
     const key = env.summary.id;
-    const nodeY = index * (ENV_NODE_H + NODE_GAP);
+    const row = Math.floor(index / 3);
+    const rowCount = Math.min(3, engineering.length);
+    const dockX = bridge.x + (bridge.w - rowCount * ENV_NODE_W - (rowCount - 1) * NODE_GAP) / 2
+      + (index % 3) * (ENV_NODE_W + NODE_GAP);
+    const x = hermes.length ? dockX : nodeX;
+    const nodeY = hermes.length ? bridge.y + bridge.h + NODE_GAP + row * (ENV_NODE_H + NODE_GAP)
+      : index * (ENV_NODE_H + NODE_GAP);
     const projects = [...fleet.stations.values()].filter(station => station.members.some(m => m.envId === key));
     const links = projects.map(station => {
-      const left = station.port.x < nodeX;
+      const left = station.port.x < nodeX + ENV_NODE_W / 2;
       const members = [...new Set(station.members.map(m => m.envId))];
       const offset = (members.indexOf(key) - (members.length - 1) / 2) * 12;
+      const laneX = nodeX + ENV_NODE_W / 2 + (left ? -1 : 1) * (ENV_NODE_W + NODE_GAP) / 2;
       return { stationKey: station.key,
-        from: { x: left ? nodeX : nodeX + ENV_NODE_W, y: nodeY + ENV_NODE_H / 2 },
-        to: { x: station.port.x, y: station.port.y + offset } };
+        from: hermes.length ? { x: x + ENV_NODE_W / 2, y: nodeY + ENV_NODE_H }
+          : { x: left ? x : x + ENV_NODE_W, y: nodeY + ENV_NODE_H / 2 },
+        to: { x: station.port.x, y: station.port.y + offset },
+        // Use the gaps between dock columns, then the existing project-side ports.
+        // Conduits must not cut through a docked node or a project interior.
+        ...(hermes.length ? { via: [
+          { x: x + ENV_NODE_W / 2, y: nodeY + ENV_NODE_H + NODE_GAP / 2 },
+          { x: laneX, y: nodeY + ENV_NODE_H + NODE_GAP / 2 },
+          { x: laneX, y: station.port.y + offset },
+        ] } : {}),
+      };
     });
     fleet.environmentNodes.set(key, { key, envId: key, color: stationColor(state, key),
-      hull: { x: nodeX, y: nodeY, w: ENV_NODE_W, h: ENV_NODE_H },
-      plate: { x: nodeX + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links });
+      hull: { x, y: nodeY, w: ENV_NODE_W, h: ENV_NODE_H },
+      plate: { x: x + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links });
   });
-  const hermes = envs.filter(env => env.summary.kind === 'hermes');
   if (hermes.length) {
-    const operators = botOperators(state);
-    const rows = Math.max(1, Math.ceil(operators.length / 4));
-    const hull = { x: nodeX + ENV_NODE_W / 2 - 360, y: -340 - rows * 96, w: 720, h: 200 + rows * 96 };
+    const hull = bridge;
     const envId = state.hermesCatalog?.envId && hermes.some(e => e.summary.id === state.hermesCatalog?.envId)
       ? state.hermesCatalog.envId : hermes[0].summary.id;
     fleet.controlCenter = { envId, envIds: hermes.map(e => e.summary.id), hull,
-      operators: operators.map((bot, i) => ({ bot, card: { x: hull.x + 30 + (i % 4) * 166,
-        y: hull.y + 126 + Math.floor(i / 4) * 96, w: 158, h: 84 } })),
+      bounds: [...fleet.environmentNodes.values()].reduce((bounds, node) => union(bounds, node.hull), hull),
+      operators: operators.map((bot, i) => {
+        const row = Math.floor(i / 4);
+        const columns = Math.min(4, operators.length - row * 4);
+        return { bot, workstation: { x: hull.x + (hull.w - (columns * 166 - 8)) / 2 + (i % 4) * 166,
+          y: hull.y + 126 + row * 144, w: 158, h: 132 } };
+      }),
       links: [...fleet.environmentNodes.values()].map((node, index) => ({ envId: node.envId,
-        from: { x: hull.x + (index % 2 === 0 ? 24 : hull.w - 24), y: hull.y + hull.h - 18 },
-        laneX: node.hull.x + (index % 2 === 0 ? -28 : node.hull.w + 28),
-        to: { x: node.hull.x + (index % 2 === 0 ? 0 : node.hull.w), y: node.hull.y + 26 } })),
+        from: index < 3 ? { x: node.hull.x + node.hull.w / 2, y: hull.y + hull.h }
+          : { x: node.hull.x + node.hull.w / 2, y: node.hull.y - NODE_GAP },
+        laneX: node.hull.x + node.hull.w / 2,
+        to: { x: node.hull.x + node.hull.w / 2, y: node.hull.y } })),
     };
   } else if (groups.length > 1) fleet.hub = { x: columnW + CAMPUS_GAP / 2 - 70,
     y: -116, w: 140, h: 80 };
