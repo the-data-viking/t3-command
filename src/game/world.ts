@@ -21,7 +21,7 @@ import { telemetry, type Telemetry } from "../t3/telemetry";
 import type { ThreadShell } from "../t3/types";
 import { computeFleetLayout, fingerprint, nodeDrawKey, QUARTERS_SHOWN, stationDrawKey, TILE, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type EnvironmentNodeLayout, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
-import { CrewMotion } from "./crew-motion";
+import { CrewMotion, doorState } from "./crew-motion";
 import { RenderLoop } from "./render-loop";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
@@ -74,6 +74,21 @@ function sprite(texture: ReturnType<typeof tex>, x: number, y: number, ax = 0, a
 /** Zoom below which crew are drawn larger and labels hold a minimum on-screen size. */
 const STRATEGIC_ZOOM = 0.55;
 const WALK_SPEED = 75; // px per second, constant like FTL crew
+/** Recruitment beam-in and camera moves; both are skipped under prefers-reduced-motion. */
+const BEAM_SECONDS = 0.9;
+const CAMERA_SECONDS = 0.35;
+/** Rooms nobody is using sit in this much shadow; crew and lit rooms stay bright. */
+const ROOM_SHADOW = 0.32;
+/** A crew member this new appearing on an already-loaded station was just recruited. */
+const RECRUIT_WINDOW_MS = 120_000;
+
+const clampZoom = (z: number) => Math.min(3, Math.max(0.12, z));
+
+const DOOR_ART = { closed: A.DOOR_H, half: A.DOOR_H_HALF, open: A.DOOR_H_OPEN };
+
+function reducedMotion(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 const SCREEN_OFF = 0x1c2228;
 
 /** Console screen color for a crew member's state; blinks and flicker alternate per frame. */
@@ -131,11 +146,20 @@ class CrewSprite extends Container {
   atConsole = true;
   /** At the system room their current work needs. */
   atStation = false;
+  /** Seconds left of a recruitment beam-in. */
+  private arriving = 0;
 
   /** Sleepers' decorative drift doesn't keep an otherwise idle fleet rendering. */
   get animated(): boolean {
-    return this.motion.moving || this.state === "working" || this.state === "monitoring"
+    return this.motion.moving || this.arriving > 0 || this.state === "working" || this.state === "monitoring"
       || this.state === "alert" || this.state === "question" || !!this.info?.tasks;
+  }
+
+  get moving(): boolean { return this.motion.moving; }
+
+  /** A newly recruited crew member materializes at their seat. */
+  beamIn(): void {
+    if (!reducedMotion()) this.arriving = BEAM_SECONDS;
   }
 
   constructor(layout: CrewLayout) {
@@ -195,6 +219,8 @@ class CrewSprite extends Container {
     const want = this.desired(layout, s);
     this.motion.step(layout, s, want, dt, WALK_SPEED);
     const moving = this.motion.moving;
+    // Lie down only once the walk to quarters is over.
+    const resting = layout.sleeping && this.motion.arrived;
     this.atConsole = !moving && !layout.sleeping && this.room === "bridge";
     this.atStation = !moving && this.room !== "bridge" && this.room !== "quarters";
     // Snap to whole sprite pixels so the art stays crisp.
@@ -205,7 +231,7 @@ class CrewSprite extends Container {
     this.scale.set(boost);
 
     const visor = PROVIDER_VISOR[this.thread.modelSelection.instanceId] ?? 0x9fb3d1;
-    if (layout.sleeping) {
+    if (resting) {
       this.figure.texture = tex(A.BUNK_SLEEPER, { team: this.team, visor });
       this.figure.anchor.set(0.5, 0.5);
       this.figure.scale.set(PX);
@@ -226,13 +252,25 @@ class CrewSprite extends Container {
       }
     }
 
-    this.drawFx(t, selected, zoom, layout.sleeping);
-    this.drawRing(selected, t, layout.sleeping);
-    this.nameText.visible = !layout.sleeping && (selected || this.hovered || zoom > 1.7);
+    this.arriving = Math.max(0, this.arriving - dt);
+    this.figure.alpha = this.arriving ? 1 - this.arriving / BEAM_SECONDS : 1;
+    this.drawFx(t, selected, zoom, resting);
+    this.drawRing(selected, t, resting);
+    this.nameText.visible = !resting && (selected || this.hovered || zoom > 1.7);
   }
 
   private drawFx(t: number, selected: boolean, zoom: number, sleeping: boolean): void {
     const f = this.fx.clear();
+    if (this.arriving) {
+      // Teleporter column in the crew member's team color, fading as they solidify.
+      const fade = this.arriving / BEAM_SECONDS;
+      f.rect(-12, -56, 24, 58).fill({ color: this.team, alpha: 0.18 * fade });
+      for (const x of [-10, -4, 2, 8]) {
+        const y = -56 + ((t * 90 + x * 7 + this.seed * 50) % 52);
+        f.rect(x, Math.round(y), 2, 4).fill({ color: 0xffffff, alpha: 0.8 * fade });
+      }
+      f.rect(-14, -2, 28, 4).fill({ color: this.team, alpha: 0.6 * fade });
+    }
     if (sleeping) {
       const drift = (t * 0.5 + this.seed) % 1;
       f.rect(Math.round(10 + drift * 8), Math.round(-12 - drift * 14), 4, 2).fill({ color: 0xffffff, alpha: 1 - drift });
@@ -284,6 +322,8 @@ class StationSprite {
   private drawn?: string;
   /** Console sprites by "x,y" of their layout point, so screens can be updated live. */
   readonly consoles = new Map<string, Sprite>();
+  /** Door sprites at their layout points, opened by approaching crew. */
+  doors: Array<{ sprite: Sprite; x: number; y: number; open: A.Grid }> = [];
 
   constructor(key: string) {
     this.key = key;
@@ -301,6 +341,7 @@ class StationSprite {
     for (const child of this.root.removeChildren()) child.destroy({ children: true });
     this.labels = [];
     this.consoles.clear();
+    this.doors = [];
     const style = currentStyle();
     const c = style.colors;
     const g = new Graphics();
@@ -381,6 +422,7 @@ class StationSprite {
       const door = sprite(tex(A.DOOR_H), d.x, d.y, 0.5, 0.5);
       if (d.vertical) door.rotation = Math.PI / 2;
       this.root.addChild(door);
+      this.doors.push({ sprite: door, x: d.x, y: d.y, open: A.DOOR_H });
     }
 
     // Own the hit area on the rendered facility, rather than an empty child container.
@@ -549,6 +591,9 @@ export interface MinimapData {
   view: Rect;
 }
 
+/** The world point at the center of the screen, and the zoom around it. */
+interface CameraView { cx: number; cy: number; zoom: number }
+
 export class World {
   private app = new Application();
   private sky?: TilingSprite;
@@ -590,6 +635,14 @@ export class World {
   private drawnGrid?: string;
   private drawnLinks?: string;
   private fittedBounds?: string;
+  /** Eased camera move in progress, as the world point at screen center plus zoom. */
+  private tween?: { from: CameraView; to: CameraView; elapsed: number };
+  /** The first fit after loading snaps; later moves ease. */
+  private framed = false;
+  /** Environments whose crew were already aboard; crew new to them after that beam in. */
+  private seeded = new Set<string>();
+  /** A door is still open, so keep rendering until it closes. */
+  private doorsOpen = false;
 
   constructor(host: HTMLElement) {
     this.ready = this.init(host);
@@ -686,6 +739,7 @@ export class World {
     stage.on("pointerout", this.invalidate);
     let drag: { x: number; y: number; camX: number; camY: number; moved: boolean } | null = null;
     stage.on("pointerdown", (e: FederatedPointerEvent) => {
+      this.tween = undefined;
       drag = { x: e.global.x, y: e.global.y, camX: this.camera.x, camY: this.camera.y, moved: false };
     });
     stage.on("globalpointermove", (e: FederatedPointerEvent) => {
@@ -709,6 +763,7 @@ export class World {
       (e) => {
         e.preventDefault();
         this.userMoved = true;
+        this.tween = undefined;
         const rect = this.app.canvas.getBoundingClientRect();
         this.zoomAt(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-e.deltaY * 0.0015));
       },
@@ -717,8 +772,43 @@ export class World {
   }
 
   private setZoom(z: number): void {
-    this.zoom = Math.min(3, Math.max(0.12, z));
+    this.zoom = clampZoom(z);
     this.camera.scale.set(this.zoom);
+  }
+
+  private view(): CameraView {
+    const { width, height } = this.app.screen;
+    return { cx: (width / 2 - this.camera.x) / this.zoom, cy: (height / 2 - this.camera.y) / this.zoom, zoom: this.zoom };
+  }
+
+  private applyView(v: CameraView): void {
+    const { width, height } = this.app.screen;
+    this.setZoom(v.zoom);
+    this.camera.position.set(width / 2 - v.cx * this.zoom, height / 2 - v.cy * this.zoom);
+  }
+
+  /** Put the camera at (x, y) and `zoom`, easing there unless motion is reduced. */
+  private moveCamera(x: number, y: number, zoom: number, animate = true): void {
+    const { width, height } = this.app.screen;
+    const z = clampZoom(zoom);
+    const to = { cx: (width / 2 - x) / z, cy: (height / 2 - y) / z, zoom: z };
+    if (!animate || reducedMotion()) { this.tween = undefined; this.applyView(to); }
+    else this.tween = { from: this.view(), to, elapsed: 0 };
+    this.invalidate();
+  }
+
+  /** Advance an eased camera move; returns whether one is still running. */
+  private stepCamera(dt: number): boolean {
+    if (!this.tween) return false;
+    const tw = this.tween;
+    tw.elapsed += dt;
+    const k = Math.min(1, tw.elapsed / CAMERA_SECONDS);
+    const e = 1 - (1 - k) ** 3;
+    // Zoom eases geometrically so zooming in and out feel the same speed.
+    this.applyView({ cx: tw.from.cx + (tw.to.cx - tw.from.cx) * e, cy: tw.from.cy + (tw.to.cy - tw.from.cy) * e,
+      zoom: tw.from.zoom * (tw.to.zoom / tw.from.zoom) ** e });
+    if (k >= 1) this.tween = undefined;
+    return !!this.tween;
   }
 
   private zoomAt(sx: number, sy: number, factor: number): void {
@@ -733,10 +823,9 @@ export class World {
     const { width, height } = this.app.screen;
     const usableW = width - rightInset - leftInset;
     const topInset = 64;
-    const z = Math.min(maxZoom, Math.min(usableW / (rect.w + 120), (height - topInset) / (rect.h + 120)));
-    this.setZoom(z);
-    this.camera.position.set(leftInset + usableW / 2 - (rect.x + rect.w / 2) * this.zoom, topInset + (height - topInset) / 2 - (rect.y + rect.h / 2) * this.zoom);
-    this.invalidate();
+    const z = clampZoom(Math.min(maxZoom, Math.min(usableW / (rect.w + 120), (height - topInset) / (rect.h + 120))));
+    this.moveCamera(leftInset + usableW / 2 - (rect.x + rect.w / 2) * z, topInset + (height - topInset) / 2 - (rect.y + rect.h / 2) * z, z, this.framed);
+    this.framed = true;
   }
 
   fitAll(): void {
@@ -786,12 +875,12 @@ export class World {
     return undefined;
   }
 
-  centerOn(x: number, y: number): void {
+  /** Center on a world point; minimap drags follow the pointer directly, clicks ease. */
+  centerOn(x: number, y: number, animate = true): void {
     if (!this.initialized) return;
     this.userMoved = true;
     const { width, height } = this.app.screen;
-    this.camera.position.set(width / 2 - x * this.zoom, height / 2 - y * this.zoom);
-    this.invalidate();
+    this.moveCamera(width / 2 - x * this.zoom, height / 2 - y * this.zoom, this.zoom, animate);
   }
 
   /** Center the camera on a unit, station or archive, leaving room for the side panel. */
@@ -815,9 +904,8 @@ export class World {
     if (!p) return;
     this.userMoved = true;
     const { width, height } = this.app.screen;
-    this.setZoom(Math.max(this.zoom, 2));
-    this.camera.position.set(width * 0.4 - p.x * this.zoom, height / 2 + 20 - p.y * this.zoom);
-    this.invalidate();
+    const z = clampZoom(Math.max(this.zoom, 2));
+    this.moveCamera(width * 0.4 - p.x * z, height / 2 + 20 - p.y * z, z);
   }
 
   minimap(): MinimapData | undefined {
@@ -938,10 +1026,13 @@ export class World {
           sprite = new CrewSprite(lay);
           this.crew.set(key, sprite);
           this.crewLayer.addChild(sprite);
+          // Crew already aboard when the map loads are just placed; a fresh recruit beams in.
+          if (this.seeded.has(env.summary.id) && Date.now() - Date.parse(thread.createdAt) < RECRUIT_WINDOW_MS) sprite.beamIn();
         }
         const detail = state.details[key];
         sprite.update(thread, detail ? telemetry(detail.thread) : undefined, lay.color);
       }
+      if (env.synced) this.seeded.add(env.summary.id);
     }
     for (const [key, sprite] of this.crew) {
       if (seenCrew.has(key)) continue;
@@ -1018,6 +1109,7 @@ export class World {
     const t = this.time;
     const frame = Math.floor(t * 5); // sprite animation rate
     const sel = state.selection;
+    const panning = this.stepCamera(dt);
 
     if (this.sky) {
       this.sky.width = this.app.screen.width;
@@ -1037,7 +1129,7 @@ export class World {
     for (const station of this.stations.values()) station.setZoom(this.zoom);
     for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
     this.drawEdgeIndicators(t);
-    return !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
+    return panning || this.doorsOpen || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
   }
 
@@ -1050,9 +1142,14 @@ export class World {
     const stationUse = new Map<string, Record<SystemRoom, boolean> & { attention: boolean; monitoringOnly: boolean }>();
     const environmentStates = new Map<string, UnitState[]>();
     const workingAt = new Set<string>(); // envId|stationKey with crew working
+    let doorsOpen = false;
+    const onDuty = new Set<string>(); // stations with awake crew on a live connection
+    const walkers = new Map<string, CrewSprite[]>(); // stationKey → crew walking right now
     for (const sprite of this.crew.values()) {
       const lay = this.layout.crew.get(sprite.key);
       if (!lay) continue;
+      if (!lay.sleeping && state.envs[sprite.envId]?.connection === "live") onDuty.add(lay.stationKey);
+      if (sprite.moving) walkers.set(lay.stationKey, [...(walkers.get(lay.stationKey) ?? []), sprite]);
       const u = stationUse.get(lay.stationKey) ?? { terminal: false, files: false, comms: false, attention: false, monitoringOnly: true };
       if (sprite.atStation) {
         if (sprite.state === "monitoring") u.comms = true;
@@ -1086,7 +1183,30 @@ export class World {
     for (const s of this.layout.stations.values()) {
       const u = stationUse.get(s.key);
       const bridge = s.rooms.bridge?.rect;
+      // Lighting follows observed use: the bridge while crew are on duty, a system room while
+      // someone works there. Everything else (idle rooms, quarters, archive) sits in shadow.
+      for (const [kind, room] of Object.entries(s.rooms) as Array<[RoomKind, StationLayout["rooms"][RoomKind]]>) {
+        if (!room) continue;
+        const lit = kind === "bridge" ? onDuty.has(s.key) : kind === "terminal" || kind === "files" || kind === "comms" ? !!u?.[kind] : false;
+        const r = room.rect;
+        if (!lit) { g.rect(r.x, r.y, r.w, r.h).fill({ color: 0x000000, alpha: ROOM_SHADOW }); continue; }
+        if (kind === "bridge") continue;
+        // Screen glow spilling from the system's fixture into its room.
+        const glow = kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.working;
+        const fx = r.x + r.w * 0.3, fy = r.y + r.h - 26;
+        g.rect(fx - 30, fy - 20, 60, 36).fill({ color: glow, alpha: 0.04 });
+        g.rect(fx - 18, fy - 12, 36, 22).fill({ color: glow, alpha: 0.05 });
+      }
       if (bridge && u?.attention) g.rect(bridge.x, bridge.y, bridge.w, bridge.h).fill({ color: STATUS.alert, alpha: 0.1 + (frame % 2) * 0.08 });
+      // Doors slide open for crew walking through them, and close once they've passed.
+      const sprite = this.stations.get(s.key);
+      for (const door of sprite?.doors ?? []) {
+        let nearest = Infinity;
+        for (const crew of walkers.get(s.key) ?? []) nearest = Math.min(nearest, Math.hypot(crew.pos.x - door.x, crew.pos.y - door.y));
+        const open = DOOR_ART[doorState(nearest)];
+        if (open !== door.open) { door.open = open; door.sprite.texture = tex(open); }
+        if (open !== A.DOOR_H) doorsOpen = true;
+      }
       // FTL-style system indicators in each room's corner: lit while in use.
       for (const kind of ["terminal", "files", "comms"] as const) {
         const room = s.rooms[kind];
@@ -1100,6 +1220,8 @@ export class World {
       }
     }
 
+
+    this.doorsOpen = doorsOpen;
 
     // Supply lines: one per (node, station it crews); packets flow while that crew is working.
     const l = this.packets.clear();

@@ -20,7 +20,11 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
 - **Truthful telemetry** (borrowed from [StarNet](https://starnetos.com/)): the map never shows
   activity T3 can't prove. Consoles light up only during a real turn; crew walk to the terminal,
   file archive or comms dish only for a real open tool call; drones orbit crew for each running
-  background task; a health bar shows how much context window is left.
+  background task; a health bar shows how much context window is left. Rooms are lit only
+  while in use: a bridge while its station has crew on duty, a system room while someone works
+  there. Crew walk to quarters when their thread settles and back when it wakes, doors slide
+  open as they pass, and a freshly recruited crew member beams in at their seat. Camera jumps
+  ease into place. Camera easing and the beam-in respect your system's reduced-motion setting.
 - **Host resources**: each environment's engineering deck shows whole-host CPU load as lit
   rack LEDs and RAM used as its coolant level, with green/amber/rose gauge thresholds; its
   core cells light for that environment's working (pulsing) and monitoring crew. Click a deck to zoom in and open its readings and recent CPU history;
