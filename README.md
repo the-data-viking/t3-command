@@ -31,7 +31,11 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   ◆ question, ● working, ○ monitoring, ✓ report, ✕ failed. With your system's **reduced motion**
   setting the map holds still (no blinking, pulsing or walking; crew are placed), camera moves snap
   and HUD animations stop. Crew portraits are their actual map sprites, and HUD icons are pixel
-  art rather than emoji. On phones the top bar scrolls in single rows and the roster sits below it.
+  art rather than emoji. On phones the top bar is one row (active, alerts, reports) with a menu holding stations, spend,
+  limits and the rest. The crew roster is a dock along the bottom that opens upward. Panels and
+  dialogs fill the screen. The map pinch-zooms, and a tap just beside a small crew member still
+  selects them. Return adds a line in the order box (Send sends), and opening a unit doesn't raise
+  the keyboard.
 - **Host resources**: each environment's engineering deck shows whole-host CPU load as lit
   rack LEDs and RAM used as its coolant level, with green/amber/rose gauge thresholds; its
   core cells light for that environment's working (pulsing) and monitoring crew. Click a deck to zoom in and open its readings and recent CPU history;

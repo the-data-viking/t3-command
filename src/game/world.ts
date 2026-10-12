@@ -23,6 +23,8 @@ import { telemetry, type Telemetry } from "../t3/telemetry";
 import type { ThreadShell } from "../t3/types";
 import { computeFleetLayout, fingerprint, nodeDrawKey, QUARTERS_SHOWN, stationDrawKey, TILE, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type EnvironmentNodeLayout, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
+import { endGesture, gesturing, holdTaps } from "./gesture";
+import { isPhone } from "../ui/phone";
 import { CrewMotion, doorState } from "./crew-motion";
 import { RenderLoop } from "./render-loop";
 import { ControlCenterSprite } from "./control-center";
@@ -196,6 +198,7 @@ class CrewSprite extends Container {
     this.on("pointerout", () => (this.hovered = false));
     this.on("pointertap", (e: FederatedPointerEvent) => {
       e.stopPropagation();
+      if (gesturing()) return;
       sfx.select();
       setSelection({ kind: "unit", envId: this.envId, threadId: this.threadId });
     });
@@ -477,6 +480,8 @@ class StationSprite {
     this.root.removeAllListeners('pointertap');
     this.root.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
+      if (gesturing()) return;
+      if (e.pointerType === 'touch' && worldRef.current?.tapNearbyCrew(e.global.x, e.global.y)) return;
       sfx.building();
       const point = e.getLocalPosition(this.root);
       if (point.y < i.y) worldRef.current?.focusRect(s.bounds);
@@ -583,6 +588,7 @@ class EnvironmentNodeSprite {
     this.root.removeAllListeners('pointertap');
     this.root.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
+      if (gesturing()) return;
       sfx.building();
       openHost(node.envId);
       worldRef.current?.focusEngineering(node.envId);
@@ -814,11 +820,40 @@ export class World {
     stage.on("pointerover", this.invalidate);
     stage.on("pointerout", this.invalidate);
     let drag: { x: number; y: number; camX: number; camY: number; moved: boolean } | null = null;
+    // Two fingers down: pinch to zoom about their midpoint, and pan as the midpoint moves.
+    const touches = new Map<number, { x: number; y: number }>();
+    let pinch: { distance: number; x: number; y: number } | null = null;
+    const pinchState = () => {
+      const [a, b] = [...touches.values()];
+      return { distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    };
+    const lift = (e: FederatedPointerEvent) => {
+      touches.delete(e.pointerId);
+      if (touches.size < 2) pinch = null;
+      // Lifting the fingers after a pinch isn't a tap on whatever is under them.
+      if (touches.size === 0) endGesture();
+    };
     stage.on("pointerdown", (e: FederatedPointerEvent) => {
       this.tween = undefined;
+      if (e.pointerType === "touch") touches.set(e.pointerId, { x: e.global.x, y: e.global.y });
+      if (touches.size === 2) {
+        pinch = pinchState();
+        holdTaps(Infinity);
+        drag = null;
+        return;
+      }
       drag = { x: e.global.x, y: e.global.y, camX: this.camera.x, camY: this.camera.y, moved: false };
     });
     stage.on("globalpointermove", (e: FederatedPointerEvent) => {
+      if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.global.x, y: e.global.y });
+      if (pinch && touches.size === 2) {
+        const next = pinchState();
+        this.userMoved = true;
+        this.camera.position.set(this.camera.x + next.x - pinch.x, this.camera.y + next.y - pinch.y);
+        this.zoomAt(next.x, next.y, next.distance / pinch.distance);
+        pinch = next;
+        return;
+      }
       if (!drag || e.buttons === 0) return;
       const dx = e.global.x - drag.x;
       const dy = e.global.y - drag.y;
@@ -830,10 +865,16 @@ export class World {
       }
     });
     stage.on("pointerup", (e: FederatedPointerEvent) => {
-      if (drag && !drag.moved && e.target === stage) setSelection(null);
+      if (drag && !drag.moved && e.target === stage && !gesturing() && !(e.pointerType === "touch" && this.tapNearbyCrew(e.global.x, e.global.y))) setSelection(null);
+      // A pan that ends over a crew member or module isn't a tap on it (taps fire after this).
+      if (drag?.moved) holdTaps(50);
       drag = null;
+      lift(e);
     });
-    stage.on("pointerupoutside", () => (drag = null));
+    stage.on("pointerupoutside", (e: FederatedPointerEvent) => {
+      drag = null;
+      lift(e);
+    });
     this.app.canvas.addEventListener(
       "wheel",
       (e) => {
@@ -897,10 +938,15 @@ export class World {
 
   private frame(rect: Rect, maxZoom: number, rightInset = 0, leftInset = 0): void {
     const { width, height } = this.app.screen;
+    // Phones open panels full screen, so only the top bar and the crew dock cover the map.
+    const phone = isPhone();
+    if (phone) rightInset = leftInset = 0;
     const usableW = width - rightInset - leftInset;
-    const topInset = 64;
-    const z = clampZoom(Math.min(maxZoom, Math.min(usableW / (rect.w + 120), (height - topInset) / (rect.h + 120))));
-    this.moveCamera(leftInset + usableW / 2 - (rect.x + rect.w / 2) * z, topInset + (height - topInset) / 2 - (rect.y + rect.h / 2) * z, z, this.framed);
+    const topInset = phone ? 60 : 64;
+    const usableH = height - topInset - (phone ? 56 : 0);
+    const margin = phone ? 40 : 120;
+    const z = clampZoom(Math.min(maxZoom, Math.min(usableW / (rect.w + margin), usableH / (rect.h + margin))));
+    this.moveCamera(leftInset + usableW / 2 - (rect.x + rect.w / 2) * z, topInset + usableH / 2 - (rect.y + rect.h / 2) * z, z, this.framed);
     this.framed = true;
   }
 
@@ -943,6 +989,25 @@ export class World {
   focusEngineering(envId: string): void {
     const node = [...this.layout.environmentNodes.values()].find((n) => n.envId === envId);
     if (node) this.focusRect(node.hull);
+  }
+
+  /**
+   * Crew are small at fleet zoom; a finger that lands just beside one (on the module or empty
+   * space) selects the closest within 24 screen pixels. Returns whether one was selected.
+   */
+  tapNearbyCrew(x: number, y: number): boolean {
+    let best: CrewSprite | undefined;
+    let bestDistance = 24;
+    for (const sprite of this.crew.values()) {
+      if (!sprite.visible) continue;
+      const center = sprite.toGlobal({ x: 0, y: -20 });
+      const distance = Math.hypot(center.x - x, center.y - y);
+      if (distance < bestDistance) { best = sprite; bestDistance = distance; }
+    }
+    if (!best) return false;
+    sfx.select();
+    setSelection({ kind: "unit", envId: best.envId, threadId: best.threadId });
+    return true;
   }
 
   /** The station holding a given environment's project. */
@@ -1412,6 +1477,7 @@ export class World {
         const { envId, threadId } = sprite;
         hit.on("pointertap", (e: FederatedPointerEvent) => {
           e.stopPropagation();
+          if (gesturing()) return;
           sfx.select();
           const s = { kind: "unit" as const, envId, threadId };
           setSelection(s);

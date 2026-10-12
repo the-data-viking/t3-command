@@ -24,6 +24,7 @@ import { transcriptEntries } from "./transcript";
 import { CrewPortrait, PixelIcon } from "./PixelArt";
 import { stationColor } from "../game/layout";
 import { HermesPermissions } from './HermesPermissions';
+import { isPhone, usePhone } from './phone';
 
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
   const panelWidth = usePanelWidth();
@@ -276,10 +277,13 @@ function OrderBox({ envId, threadId, disabled, working }: { envId: string; threa
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
+  // Phone keyboards have no Shift+Enter: Return adds a line and the Send button sends.
+  const phone = usePhone();
 
   useEffect(() => {
     setText("");
-    input.current?.focus();
+    // Focusing on a phone would raise the keyboard over the reports.
+    if (!isPhone()) input.current?.focus();
   }, [envId, threadId]);
 
   const send = async () => {
@@ -303,12 +307,12 @@ function OrderBox({ envId, threadId, disabled, working }: { envId: string; threa
       <textarea
         ref={input}
         value={text}
-        placeholder={working ? "Unit is busy — new orders will start a new turn when sent…" : "Give orders… (Enter to send, Shift+Enter for newline)"}
+        placeholder={working ? "Unit is busy — new orders will start a new turn when sent…" : phone ? "Give orders…" : "Give orders… (Enter to send, Shift+Enter for newline)"}
         disabled={disabled || sending}
         rows={3}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
+          if (e.key === "Enter" && !e.shiftKey && !phone) {
             e.preventDefault();
             void send();
           }
