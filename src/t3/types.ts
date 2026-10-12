@@ -211,6 +211,32 @@ export interface Provider {
   /** Health notes such as an outdated CLI. */
   message?: string;
   usageLimits?: ProviderUsageLimits;
+  /** Installed CLI version; null when T3 couldn't read it. */
+  version?: string | null;
+  versionAdvisory?: ProviderVersionAdvisory;
+  compatibilityAdvisory?: { status: ProviderCompatibility; latestVersionStatus?: ProviderCompatibility; message: string | null };
+  /** Progress of the last `server.updateProvider` run for this instance. */
+  updateState?: ProviderUpdateState;
+}
+
+export type ProviderCompatibility = "unknown" | "supported" | "graceful" | "unsupported" | "broken";
+
+/** Whether the installed CLI is behind the latest release, and whether T3 can update it itself. */
+export interface ProviderVersionAdvisory {
+  status: "unknown" | "current" | "behind_latest";
+  currentVersion: string | null;
+  latestVersion: string | null;
+  updateCommand: string | null;
+  canUpdate: boolean;
+  message: string | null;
+}
+
+export interface ProviderUpdateState {
+  status: "idle" | "queued" | "running" | "succeeded" | "failed" | "unchanged";
+  startedAt: string | null;
+  finishedAt: string | null;
+  message: string | null;
+  output: string | null;
 }
 
 /** Quota windows a provider reports for its signed-in account. */

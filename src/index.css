@@ -206,6 +206,11 @@ code {
 .host-body h3 { margin-top: 22px; }
 .host-body meter, .spend-cache meter { display: block; width: 100%; height: 15px; accent-color: var(--done); }
 .host-body meter { accent-color: var(--cyan); }
+.host-cli { margin-bottom: 10px; }
+.host-cli .host-stat { margin: 10px 0 6px; }
+.host-cli .host-stat strong.outdated { color: var(--gauge-high); }
+.host-cli code { overflow-wrap: anywhere; }
+.host-cli-output pre { max-height: 180px; overflow: auto; font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .resource {
   display: inline-flex;
