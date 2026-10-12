@@ -28,6 +28,8 @@ import { RenderLoop } from "./render-loop";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { hostView, type HostState } from "../t3/host";
+import { freeLabel, storageSummary } from "../t3/storage";
+import type { StorageView } from "../../shared/storage";
 import { crewTex, currentStyle, PX, tex } from "./textures";
 import { contextLevel, GAUGE, HUD, hudMaterials, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
 
@@ -534,6 +536,11 @@ class EnvironmentNodeSprite {
   private cpuText?: PixelText;
   private memoryText?: PixelText;
   private caption?: PixelText;
+  /** Fullest disk holding this machine's checkouts, on the status plate after any caption. */
+  private diskText?: PixelText;
+  private storage?: StorageView;
+  /** Crew glyphs fill the plate from the right; past five, the disk readout drops free space. */
+  private crowded = false;
   private hull?: Rect;
   private drawn?: string;
 
@@ -566,8 +573,10 @@ class EnvironmentNodeSprite {
     this.memoryText = label(9, GAUGE.unknown); this.memoryText.position.copyFrom(at(ENGINEERING_SPOTS.memoryLabel));
     const plate = at(ENGINEERING_SPOTS.plate);
     this.caption = label(7,0xa7bdcb); this.caption.position.set(plate.x + 8, plate.y + 6);
-    this.root.addChild(this.meters, this.cells, this.name, this.cpuText, this.memoryText, this.caption);
+    this.diskText = label(7, GAUGE.unknown); this.diskText.position.set(plate.x + 8, plate.y + 6);
+    this.root.addChild(this.meters, this.cells, this.name, this.cpuText, this.memoryText, this.caption, this.diskText);
     this.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
+    this.updateStorage(state.storage[node.envId]);
     this.root.eventMode = 'static';
     this.root.cursor = 'pointer';
     this.root.hitArea = new Rectangle(h.x, h.y, h.w, h.h);
@@ -589,7 +598,7 @@ class EnvironmentNodeSprite {
     this.cpuText!.fill = view.stale ? HUD.muted : view.cpuColor;
     this.memoryText!.fill = view.stale ? HUD.muted : view.memoryColor;
     // Only speak up when the readings can't be trusted.
-    this.caption!.text = view.stale ? "LAST SAMPLE · STALE" : view.snapshot ? "" : "HOST METRICS UNAVAILABLE";
+    this.caption!.text = view.stale ? "STALE SAMPLE" : view.snapshot ? "" : "NO HOST METRICS";
     const alpha = view.stale ? 0.35 : 1;
     const g = this.meters!.clear();
     const rect = (s: { x: number; y: number; w: number; h: number }) => g.rect(h.x + s.x * PX, h.y + s.y * PX, s.w * PX, s.h * PX);
@@ -607,8 +616,22 @@ class EnvironmentNodeSprite {
     }
   }
 
+  /** Disk use of the fullest checkout volume; free space too when the plate has room. */
+  updateStorage(view: StorageView | undefined): void {
+    this.storage = view;
+    const disk = storageSummary(view);
+    const caption = this.caption!.text;
+    const short = !!caption || this.crowded;
+    this.diskText!.text = disk.usedFraction === undefined ? (view?.latest?.error ? "DISK —" : "")
+      : `DISK ${Math.round(disk.usedFraction * 100)}%${short ? "" : ` · ${freeLabel(disk.volume!.availableBytes)} FREE`}`;
+    this.diskText!.fill = disk.color;
+    this.diskText!.x = this.caption!.x + (caption ? this.caption!.width + 8 : 0);
+  }
+
   /** Core cells: one per working crew member (pulsing), then monitoring crew (steady). */
   setActivity(states: UnitState[], live: boolean, frame: number): void {
+    const crowded = states.length > 5;
+    if (crowded !== this.crowded) { this.crowded = crowded; this.updateStorage(this.storage); }
     const g = this.cells?.clear();
     if (!g || !this.hull || !live) return;
     const working = states.filter((s) => s === "working").length;
@@ -624,7 +647,7 @@ class EnvironmentNodeSprite {
   /** Deck text can't grow past its sprite, so it hides once it would turn sub-pixel. */
   setZoom(zoom: number): void {
     const legible = zoom >= 0.8;
-    for (const text of [this.name, this.cpuText, this.memoryText, this.caption]) if (text) text.visible = legible;
+    for (const text of [this.name, this.cpuText, this.memoryText, this.caption, this.diskText]) if (text) text.visible = legible;
   }
 
   destroy(): void {
@@ -682,6 +705,7 @@ export class World {
   private lastEnvs?: GameState["envs"];
   private lastDetails?: GameState["details"];
   private lastHosts?: GameState["hosts"];
+  private lastStorage?: GameState["storage"];
   private lastStyle?: GameState["artStyle"];
   private drawnCenter?: string;
   private drawnGrid?: string;
@@ -980,11 +1004,14 @@ export class World {
   // ---- Sync with the store ----
 
   private sync(state: GameState): void {
-    if (state.hosts !== this.lastHosts || state.envs !== this.lastEnvs) {
+    if (state.hosts !== this.lastHosts || state.envs !== this.lastEnvs || state.storage !== this.lastStorage) {
       this.lastHosts = state.hosts;
+      this.lastStorage = state.storage;
       for (const [key, sprite] of this.environmentNodes) {
         const node = this.layout.environmentNodes.get(key);
-        if (node) sprite.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
+        if (!node) continue;
+        sprite.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
+        sprite.updateStorage(state.storage[node.envId]);
       }
     }
     const styleChanged = state.artStyle !== this.lastStyle;

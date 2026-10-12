@@ -5,6 +5,7 @@ import { gib, hostView } from "../t3/host";
 import { providerVersions, type ProviderVersion } from "../t3/providers";
 import { sfx } from "../game/sfx";
 import { BarChart } from "./BarChart";
+import { StorageSection } from "./StorageSection";
 import { useClock } from "./useClock";
 
 export function HostPanel({ envId }: { envId: string }) {
@@ -38,6 +39,7 @@ export function HostPanel({ envId }: { envId: string }) {
         </>}
         {host?.error && s && <p className="orange small">{host.error}</p>}
         <p className="muted small">Includes all applications on this machine. RAM used is total minus reported availability; it does not measure memory pressure.</p>
+        <StorageSection envId={envId} now={now} />
         {env?.summary.kind !== "hermes" && <AgentClis envId={envId} />}
       </div>
     </aside>

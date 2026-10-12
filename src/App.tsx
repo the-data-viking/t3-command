@@ -19,6 +19,7 @@ import { UnitPanel } from "./ui/UnitPanel";
 import { HostPanel } from "./ui/HostPanel";
 import { HermesControlCenter } from "./ui/HermesControlCenter";
 import { refreshHermesBots } from "./t3/hermes";
+import { refreshStorage, STORAGE_REFRESH_MS } from "./t3/storage";
 import { installTitleBadge, notifyAttention } from "./ui/attention";
 
 const ENV_REFRESH_MS = 30_000;
@@ -59,12 +60,15 @@ export default function App() {
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | undefined;
+    // Keeps polling in the background so a filling disk can still raise a desktop notification.
+    const storageTimer = setInterval(() => void refreshStorage().catch(() => {}), STORAGE_REFRESH_MS);
     (async () => {
       try {
         const me = await fetchJson<MeResponse>("/api/me");
         useGame.setState({ me });
         await refreshEnvironments();
         void refreshHermesBots();
+        void refreshStorage().catch(() => {});
         if (Object.keys(useGame.getState().envs).length === 0) useGame.setState({ showEnvManager: true });
         // Profile listing spawns a Hermes helper on the host; skip it while nobody is looking.
         timer = setInterval(() => void refreshEnvironments().then(() => document.hidden ? undefined : refreshHermesBots()).catch(() => {}), ENV_REFRESH_MS);
@@ -78,6 +82,7 @@ export default function App() {
     const offWatches = installActiveWatches();
     return () => {
       clearInterval(timer);
+      clearInterval(storageTimer);
       offHotkeys();
       offTransitions();
       offTitle();

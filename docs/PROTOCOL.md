@@ -639,6 +639,22 @@ median/p90/longest, top errors, project and model rankings, coverage gaps over 5
 most recent turns. Spend history is not recorded: the UI asks each T3 for `server.getUsageSummary`
 over the range when the panel opens.
 
+### Disk usage (Command server)
+
+T3 has no disk-usage RPC, so `server/storage.ts` collects it. Every 5 minutes it checks each machine.
+It finds the paths to measure from that machine's projects and thread worktrees, as last seen by the
+history recorder. Machines whose URL is loopback (and local Hermes) run `df -Pk <paths>` directly.
+Others get a short-lived terminal: `terminal.open {threadId: "t3-command-storage", terminalId:
+"storage-<time>", cwd: <a checkout>}`, `terminal.attach`, one `terminal.write` with the command, then
+`terminal.close {deleteHistory: true}` in all cases. The connection uses `clientAppVersion=t3-command-storage`
+and needs the `terminal:operate` scope, which linked desktop connections have. Output is bracketed by
+`__T3C_BEGIN__`/`__T3C_WT__`/`__T3C_END__` marker lines, so prompts, the echoed command and ANSI codes
+are ignored. Every third sample also runs `nice -n 19 du -sk ~/.t3/worktrees/*/*`. Windows paths
+(`C:\…`) get the PowerShell equivalent, using `PSDrive` used/free and recursive `Get-ChildItem` sums.
+The latest reading and a 7-day trend of the fullest disk are kept in `storage-state.json` (`0600`).
+
+`GET /api/storage` returns a `StorageView[]` (`shared/storage.ts`), one per environment.
+
 ## 9. Local Hermes adapter
 
 Hermes is a separate local backend, not a T3 provider or an upstream T3 protocol extension.

@@ -207,6 +207,13 @@ code {
 .host-body meter, .spend-cache meter { display: block; width: 100%; height: 15px; accent-color: var(--done); }
 .host-body meter { accent-color: var(--cyan); }
 .host-cli { margin-bottom: 10px; }
+.storage-volume .host-stat { margin: 10px 0 6px; }
+.host-stat strong.gauge-high { color: var(--gauge-high); }
+.host-stat strong.gauge-critical { color: var(--gauge-critical); }
+.storage-worktrees { list-style: none; margin: 6px 0; padding: 0; }
+.storage-worktrees li { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.storage-worktrees li strong { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--cyan); }
+.storage-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .host-cli .host-stat { margin: 10px 0 6px; }
 .host-cli .host-stat strong.outdated { color: var(--gauge-high); }
 .host-cli code { overflow-wrap: anywhere; }
