@@ -23,6 +23,7 @@ import { ActivityView, ToolActivityGroup } from "./TranscriptActivity";
 import { transcriptEntries } from "./transcript";
 import { CrewPortrait, PixelIcon } from "./PixelArt";
 import { stationColor } from "../game/layout";
+import { HermesPermissions } from './HermesPermissions';
 
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
   const panelWidth = usePanelWidth();
@@ -103,7 +104,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
       ) : (
       <div className="status-row">
         <span className={`pill state-${state}`}>{bot ? BOT_STATE_LABELS[state] : STATE_LABELS[state]}</span>
-        <span className="muted small">{thread.runtimeMode}</span>
+        {env.summary.kind !== 'hermes' && <span className="muted small">{thread.runtimeMode}</span>}
         <ThreadTiming thread={thread} detail={detail?.thread} />
         <span className="spacer" />
         {canHalt && (
@@ -124,6 +125,8 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         )}
       </div>
       )}
+
+      {!archived && env.summary.kind === 'hermes' && <HermesPermissions key={`${envId}:${threadId}`} envId={envId} threadId={threadId} />}
 
       {info && !archived && (info.context !== undefined || info.tasks > 0 || (state === "working" && info.doing)) && (
         <div className="telemetry">

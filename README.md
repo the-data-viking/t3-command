@@ -146,6 +146,12 @@ agent's prompt to finish before showing it as interrupted. The available permiss
 path approval rules. Change the configured model with `hermes model` before recruiting, or use
 Hermes's `/model` command in an existing worker's orders.
 
+Change **Bot Chat edit permissions** in the control center, or **Edit permissions** above
+the conversation log. Command saves the choice for that conversation across reconnects and
+restarts and applies it to each new turn. During a running turn, a change applies to subsequent
+edit checks; pending approval requests still need a response. These settings govern Command
+conversations, independently of Hermes Desktop chats and scheduled routines.
+
 Closing or reconnecting the browser leaves workers running. Command stores its transcripts and
 Hermes session IDs in owner-only files under `T3C_DATA_DIR`. After a Command host restart, prior
 running turns become interrupted; the next order reloads the saved Hermes session. Removing a
