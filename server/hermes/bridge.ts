@@ -408,6 +408,10 @@ export class HermesBridge {
     this.changed();
   }
 
+  hasRunningTurns(): boolean {
+    return [...this.threads.values()].some(({ thread }) => thread.latestTurn?.state === "running");
+  }
+
   async close(remove = false): Promise<void> {
     this.closed = true;
     for (const client of this.clients) client.ws.close(remove ? 4404 : 1001, remove ? "Hermes base removed" : "Command host stopping");

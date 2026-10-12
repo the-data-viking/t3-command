@@ -757,6 +757,23 @@ code {
 
 /* ---- Transcript ---- */
 
+.update-menu { position: relative; }
+.update-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100dvh - 100px);
+  overflow: auto;
+  padding: 14px;
+  z-index: 5;
+}
+.update-panel h2 { font-size: 14px; margin: 0; }
+.update-panel p { line-height: 1.5; }
+.update-log { margin-top: 12px; font-size: 11px; }
+.update-log summary { cursor: pointer; }
+.update-log pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
+
 .transcript {
   flex: 1;
   overflow-y: auto;

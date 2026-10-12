@@ -10,6 +10,7 @@ import { loadConfig, type Config } from "./config.ts";
 import { Registry, UserError } from "./registry.ts";
 import { serveEnvironmentAsset } from "./assets.ts";
 import { HermesBridge } from "./hermes/bridge.ts";
+import { Updater, UpdateConflict } from "./updater.ts";
 
 const config = loadConfig();
 const hermesLaunch = { command: config.hermesCommand, args: config.hermesArgs };
@@ -25,6 +26,18 @@ function hermesBridge(envId: string, workspaceRoot: string): Promise<HermesBridg
     hermesBridges.set(envId, bridge);
   }
   return bridge;
+}
+const updater = new Updater({ root: config.updateRoot, remote: config.updateRemote, enabled: config.managedUpdates,
+  currentCommit: config.runningCommit, localChanges: config.localChanges,
+  beforeActivate: ensureHermesIdle,
+  activate: () => { setTimeout(() => void shutdown(), 1500); },
+});
+await updater.load();
+
+async function ensureHermesIdle(): Promise<void> {
+  for (const bridge of hermesBridges.values()) {
+    if ((await bridge).hasRunningTurns()) throw new UpdateConflict("Local Hermes workers are running. Halt them before redeploying Command.");
+  }
 }
 
 // ---- Access control --------------------------------------------------------------
@@ -136,6 +149,16 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (pathname === "/api/me" && method === "GET") {
     return sendJson(res, 200, { user, devMode: config.devNoAuth } satisfies MeResponse);
   }
+  if (pathname === "/api/update" && method === "GET") return sendJson(res, 200, await updater.status());
+  if ((pathname === "/api/update" || pathname === "/api/update/check") && method === "POST") {
+    const body = await readJson<unknown>(req);
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) {
+      return sendJson(res, 400, { error: "Update requests do not accept repository, ref, or command overrides." });
+    }
+    const action = pathname.endsWith("/check") ? "check" : "deploy";
+    if (action === "deploy") await ensureHermesIdle();
+    return sendJson(res, 202, await updater.start(action));
+  }
   if (pathname === "/api/envs" && method === "GET") {
     return sendJson(res, 200, await registry.list());
   }
@@ -170,6 +193,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
 
 const server = http.createServer((req, res) => {
   handle(req, res).catch((err: unknown) => {
+    if (err instanceof UpdateConflict) return sendJson(res, 409, { error: err.message });
     if (err instanceof UserError) return sendJson(res, 400, { error: err.message });
     console.error(err);
     if (!res.headersSent) sendJson(res, 500, { error: "Internal error" });
@@ -280,6 +304,7 @@ async function relay(client: WebSocket, envId: string): Promise<void> {
 }
 
 server.listen(config.port, config.host, () => {
+  if (config.managedUpdates) process.send?.({ type: "t3-command-ready" });
   console.log(`t3-command listening on http://${config.host}:${config.port}`);
   console.log(`  data dir: ${config.dataDir}`);
   if (config.devNoAuth) {
