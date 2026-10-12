@@ -144,6 +144,7 @@ export class HermesBridge {
   private threads = new Map<string, SavedThread>();
   private runtimes = new Map<string, Runtime>();
   private clients = new Set<Client>();
+  private observers = new Set<(project: ProjectShell, threads: Thread[]) => void>();
   private sequence = 0;
   private file: string;
   private writes: Promise<void> = Promise.resolve();
@@ -215,6 +216,18 @@ export class HermesBridge {
       stream.dirty = true;
       this.flush(client, id, stream);
     }
+    for (const observer of this.observers) observer(this.project, this.threadList());
+  }
+
+  /** Follow thread state in-process (the turn history recorder). Returns a function to stop. */
+  observe(observer: (project: ProjectShell, threads: Thread[]) => void): () => void {
+    this.observers.add(observer);
+    observer(this.project, this.threadList());
+    return () => { this.observers.delete(observer); };
+  }
+
+  private threadList(): Thread[] {
+    return [...this.threads.values()].map(({ thread }) => thread);
   }
 
   /** Send what changed since this stream's last chunk; one chunk in flight until the client acks. */

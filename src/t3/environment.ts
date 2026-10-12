@@ -544,6 +544,14 @@ export class EnvironmentClient {
     return threadId;
   }
 
+  /** One usage summary for any calendar window; the History panel asks for longer ranges on open. */
+  async usageFor(window: { sinceDay: string; untilDay: string; timeZone: string }): Promise<UsageSummary> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    const summary = await this.rpc.request<UsageSummary>("server.getUsageSummary", window, 90_000);
+    if (!supportedUsage(summary)) throw new Error(`Unsupported usage contract v${summary.contractVersion}`);
+    return summary;
+  }
+
   /** Unified diff of what turns (from, to] changed in the agent's workspace. */
   async turnDiff(threadId: string, fromTurnCount: number, toTurnCount: number): Promise<string> {
     if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);

@@ -130,6 +130,9 @@ export function TopBar() {
       <button className="btn" title="Comms log (L)" aria-expanded={showLog} onClick={() => useGame.setState({ showLog: !showLog })}>
         Log
       </button>
+      <button className="btn" title="Turn and spend history (H)" onClick={() => useGame.setState({ showHistory: true })}>
+        History
+      </button>
       <UpdatePanel />
       <button className="icon-btn" title="Fit fleet (F)" aria-label="Fit fleet" onClick={() => worldRef.current?.fitAll()}>
         <PixelIcon name="fit" />

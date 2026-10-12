@@ -60,6 +60,8 @@ export interface GameState {
   showEnvManager: boolean;
   /** The scrollable comms log. */
   showLog: boolean;
+  /** Recorded turn and spend history. */
+  showHistory: boolean;
   /** The crew member whose pending approval/question is shown as an event dialog. */
   event: { envId: string; threadId: string } | null;
 }
@@ -108,6 +110,7 @@ export const useGame = create<GameState>()(() => ({
   artStyle: loadArtStyle(),
   showEnvManager: false,
   showLog: false,
+  showHistory: false,
   event: null,
 }));
 

@@ -7,6 +7,7 @@ import { fetchJson, onUnitTransition, refreshEnvironments } from "./t3/environme
 import { BuildingPanel } from "./ui/BuildingPanel";
 import { EnvManager } from "./ui/EnvManager";
 import { CommsLog, EventLog } from "./ui/EventLog";
+import { HistoryPanel } from "./ui/HistoryPanel";
 import { LibraryPanel } from "./ui/LibraryPanel";
 import { installHotkeys } from "./ui/hotkeys";
 import { MapView } from "./ui/MapView";
@@ -51,6 +52,7 @@ export default function App() {
   const hostPanel = useGame((s) => s.hostPanel);
   const showEnvManager = useGame((s) => s.showEnvManager);
   const showLog = useGame((s) => s.showLog);
+  const showHistory = useGame((s) => s.showHistory);
   const [fatal, setFatal] = useState<string>();
 
   useEffect(() => {
@@ -96,6 +98,7 @@ export default function App() {
       <Minimap />
       <EventLog />
       {showLog && <CommsLog />}
+      {showHistory && <HistoryPanel />}
       {hostPanel && <HostPanel envId={hostPanel} />}
       {selection?.kind === "hermes" && <HermesControlCenter key={selection.envId} envId={selection.envId} profile={selection.profile} />}
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
