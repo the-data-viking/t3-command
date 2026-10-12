@@ -21,8 +21,9 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   activity T3 can't prove. Consoles light up only during a real turn; crew walk to the terminal,
   file archive or comms dish only for a real open tool call; drones orbit crew for each running
   background task; a health bar shows how much context window is left.
-- **Host resources**: engineering nodes show whole-host CPU load and RAM used as utilization
-  gauges: fuller means busier, with matching cyan/amber/red thresholds. Click a node to zoom in and open its readings and recent CPU history;
+- **Host resources**: each environment's engineering deck shows whole-host CPU load as lit
+  rack LEDs and RAM used as its coolant level, with green/amber/rose gauge thresholds; its
+  core cells light for that environment's working (pulsing) and monitoring crew. Click a deck to zoom in and open its readings and recent CPU history;
   environment chips also open the host panel. Samples refresh every 10 seconds while visible,
   with stale readings clearly marked. RAM used is total minus reported availability, not a measurement of memory pressure.
 - **Usage estimates**: the top bar shows today's fleet API-equivalent value, with per-environment

@@ -208,6 +208,7 @@ for (const style of Object.values(STYLES)) {
     ["Approval", S.BADGE_ALERT], ["Question", S.BADGE_QUESTION], ["Report ready", S.BADGE_DONE],
     ["Failed", S.BADGE_ERROR], ["Monitoring", S.BADGE_MONITOR],
   ];
+  if (style.id.startsWith("flightdeck")) assets.push(["Engineering deck", FLIGHT_KIT.ENGINEERING_DECK]);
   if (style.id === "signal" || style.id.startsWith("flightdeck")) {
     for (const silhouette of ["round", "angular"] as const) for (const tier of ["light", "standard", "heavy", "reviewer"] as const) {
       assets.push([`${silhouette === "round" ? "Claude" : "Codex"} ${tier}`, (style.id.startsWith("flightdeck") ? flightCrew : signalCrew)(silhouette, tier)]);
