@@ -1,7 +1,7 @@
 // Applies live thread events to a thread snapshot. Mirrors T3's server-side projector
 // (docs/PROTOCOL.md §4.3). Returns the same object when an event doesn't change anything we show.
 
-import type { Activity, Checkpoint, LatestTurn, Message, OrchestrationEvent, OrchestrationThread, ThreadSession } from "./types";
+import type { Activity, Checkpoint, LatestTurn, Message, OrchestrationEvent, OrchestrationThread, ThreadSession } from "./types.ts";
 
 const MESSAGE_CAP = 2000;
 

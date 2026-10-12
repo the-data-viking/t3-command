@@ -61,7 +61,8 @@ export default function App() {
         await refreshEnvironments();
         void refreshHermesBots();
         if (Object.keys(useGame.getState().envs).length === 0) useGame.setState({ showEnvManager: true });
-        timer = setInterval(() => void refreshEnvironments().then(() => refreshHermesBots()).catch(() => {}), ENV_REFRESH_MS);
+        // Profile listing spawns a Hermes helper on the host; skip it while nobody is looking.
+        timer = setInterval(() => void refreshEnvironments().then(() => document.hidden ? undefined : refreshHermesBots()).catch(() => {}), ENV_REFRESH_MS);
       } catch (err) {
         setFatal((err as Error).message);
       }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { GameState } from '../store';
-import { computeFleetLayout, type Rect } from './layout';
+import { computeFleetLayout, fingerprint, nodeDrawKey, stationDrawKey, type Rect } from './layout';
 
 function fixture(crewCount=1): GameState {
   const env=(id:string, projectNames:string[])=>({
@@ -127,4 +127,26 @@ test('docked engineering scales without changing projects or routing through fac
       }
     }
   }
+});
+
+test('streamed thread churn keeps every facility drawing, while real layout changes redraw', () => {
+  const state = fixture(2);
+  const keys = (s: GameState) => {
+    const layout = computeFleetLayout(s);
+    return { stations: [...layout.stations.values()].map(st => stationDrawKey(s, st)),
+      nodes: [...layout.environmentNodes.values()].map(n => nodeDrawKey(s, n)), bounds: fingerprint(layout.bounds) };
+  };
+  const before = keys(state);
+  // A reply streaming into a thread changes its shell timestamps on every chunk.
+  const churned = structuredClone(state);
+  Object.assign(churned.envs.a.threads['shared-0'], { updatedAt: '2026-01-09T10:00:00Z', latestUserMessageAt: '2026-01-09T10:00:00Z' });
+  churned.envs.b = { ...churned.envs.b, usage: { error: 'refreshed' } } as typeof churned.envs.b;
+  assert.deepEqual(keys(churned), before);
+  // Renaming a machine changes its chassis and its project's nameplate.
+  const renamed = structuredClone(state);
+  renamed.envs.b.summary = { ...renamed.envs.b.summary, label: 'Renamed' };
+  assert.notDeepEqual(keys(renamed).nodes, before.nodes);
+  // Switching art style redraws everything.
+  const restyled = { ...state, artStyle: 'flightdeck' } as GameState;
+  assert.ok(keys(restyled).stations.every((key, i) => key !== keys({ ...state, artStyle: 'flightdeck-nightshift' } as GameState).stations[i]));
 });
