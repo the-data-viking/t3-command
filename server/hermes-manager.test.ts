@@ -120,11 +120,34 @@ with _config_profile_scope('validation-bot'):
     other = module.BotSessionManager(agent_factory=lambda: agent, db=db)
     try:
         other.get_session('legacy-chat')
-    except ValueError as exc:
+    except module.acp.RequestError as exc:
+        assert exc.code == -32000
         assert 'open in another' in str(exc), str(exc)
+        assert 'Close that chat' in str(exc), str(exc)
+        assert 'Details:' not in str(exc), str(exc)
     else:
         raise AssertionError('A second client stole the live Bot Chat')
     manager.end_all_sessions()
+    # Releasing the native lease makes the same canonical chat resumable again.
+    assert other.get_session('legacy-chat') is not None
+    assert db.get_session('legacy-chat')['source'] == 'cli'
+    other.end_all_sessions()
+    # Command-created chats use stock ACP restore; fencing and recovery must
+    # behave identically to native CLI chats (Money Guy uses this branch).
+    db.set_session_title('legacy-chat', '')
+    db.set_session_title(existing['id'], 'Bot Chat')
+    assert manager.get_session(existing['id']) is not None
+    try:
+        other.get_session(existing['id'])
+    except module.acp.RequestError as exc:
+        assert 'Close that chat' in exc.to_error_obj()['message']
+        assert exc.to_error_obj()['data'] is None
+    else:
+        raise AssertionError('A second client stole the ACP Bot Chat')
+    manager.end_all_sessions()
+    assert other.get_session(existing['id']) is not None
+    assert db.get_session(existing['id'])['source'] == 'acp'
+    other.end_all_sessions()
     db.close()
 `);
   const exec = promisify(execFile);
