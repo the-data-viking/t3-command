@@ -21,6 +21,8 @@ import { worldRef } from '../game/world';
 
 import { ActivityView, ToolActivityGroup } from "./TranscriptActivity";
 import { transcriptEntries } from "./transcript";
+import { CrewPortrait, PixelIcon } from "./PixelArt";
+import { stationColor } from "../game/layout";
 
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
   const panelWidth = usePanelWidth();
@@ -72,7 +74,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
     <aside className={`panel unit-panel ${bot ? 'hermes-chat' : ''}`} style={{ width: panelWidth.width }}>
       <PanelResize {...panelWidth} />
       <header className="panel-head">
-        {bot ? <BotPortrait profile={bot.name} /> : <div className={`portrait provider-${thread.modelSelection.instanceId}`} />}
+        {bot ? <BotPortrait profile={bot.name} /> : <div className="portrait sprite-portrait"><CrewPortrait instanceId={thread.modelSelection.instanceId} model={thread.modelSelection.model} team={stationColor(useGame.getState(), envId)} /></div>}
         <div className="panel-title">
           <h2 title={unitName}>{unitName}</h2>
           {bot && <div className="muted small">Hermes operator · {bot.name}{thread.hermesBotChat ? ' · ongoing conversation' : ' · task session'}</div>}
@@ -116,7 +118,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         ) : (
           !canHalt && (
             <button className="btn" onClick={() => run("Send to camp", () => client?.settle(threadId))} title="Mark the thread settled">
-              {bot ? 'Acknowledge' : '⛺ To camp'}
+              {bot ? 'Acknowledge' : <><PixelIcon name="camp" /> To camp</>}
             </button>
           )
         )}

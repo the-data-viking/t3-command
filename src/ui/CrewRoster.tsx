@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { stationColor } from "../game/layout";
 import { sfx } from "../game/sfx";
-import { contextLevel, css, modelTier, PROVIDER_VISOR, providerSilhouette, TIER_LABEL } from "../game/theme";
+import { contextLevel, css, modelTier, TIER_LABEL } from "../game/theme";
 import { worldRef } from "../game/world";
 import { openEvent, setSelection, unitKey, useGame } from "../store";
 import type { UnitState } from "../t3/derive";
@@ -10,6 +10,7 @@ import { allUnits, STATE_LABELS, type UnitRef } from "./util";
 import { ThreadTiming } from "./ThreadTiming";
 import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
 import { BotPortrait } from './HermesControlCenter';
+import { CrewPortrait } from "./PixelArt";
 
 const NEEDS_YOU: UnitState[] = ["alert", "question", "error", "done"];
 const ON_DUTY: UnitState[] = ["working", "monitoring", "idle"];
@@ -49,15 +50,15 @@ export function CrewRoster() {
     const detail = details[key];
     const ctx = detail ? telemetry(detail.thread).context : undefined;
     const team = css(stationColor(useGame.getState(), u.envId));
-    const visor = css(PROVIDER_VISOR[u.thread.modelSelection.instanceId] ?? 0x9fb3d1);
-    const shape = providerSilhouette(u.thread.modelSelection.instanceId);
     const tier = modelTier(u.thread.modelSelection.model);
     const active = selection?.kind === "unit" && selection.envId === u.envId && selection.threadId === u.thread.id;
     return (
       <li key={key}>
         <button className={`crew-row ${active ? "active" : ""} row-${u.state}`} onClick={() => open(u)}
           title={u.state === "error" && u.thread.session?.lastError ? `Turn failed: ${u.thread.session.lastError}` : undefined}>
-          <span className={`mini-portrait ${shape} tier-${tier}`} style={{ ["--team" as string]: team, ["--visor" as string]: visor }} title={TIER_LABEL[tier]} />
+          <span className="mini-portrait sprite" style={{ ["--team" as string]: team }} title={TIER_LABEL[tier]}>
+            <CrewPortrait instanceId={u.thread.modelSelection.instanceId} model={u.thread.modelSelection.model} team={stationColor(useGame.getState(), u.envId)} scale={1} />
+          </span>
           <span className="crew-text">
             <span className="crew-name">{u.thread.title || "Untitled"}</span>
             <span className="crew-sub">

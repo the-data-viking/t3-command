@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { css, HUD } from "../game/theme";
 import { worldRef } from "../game/world";
 import { HERMES_COLOR } from '../t3/bots';
+import { cells, STATUS_GLYPHS } from "../art/pixelfont";
 
 const W = 220;
 const H = 140;
@@ -23,7 +24,9 @@ export function Minimap() {
     const draw = () => {
       frame++;
       const data = worldRef.current?.minimap();
-      const blink = frame % 4 < 2;
+      // Status reads by shape; the attention blink is skipped under reduced motion.
+      const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const blink = !still && frame % 4 < 2;
       const signature = JSON.stringify([data, data?.dots.some((d) => d.big) ? blink : false]);
       if (signature === previous) return;
       previous = signature;
@@ -49,10 +52,12 @@ export function Minimap() {
         ctx.fillRect(ox + s.rect.x * scale, oy + s.rect.y * scale, s.rect.w * scale, s.rect.h * scale);
         ctx.strokeRect(ox + s.rect.x * scale + 0.5, oy + s.rect.y * scale + 0.5, s.rect.w * scale, s.rect.h * scale);
       }
+      // Each crew dot is its status glyph (▲ approval, ◆ question, ● working…), not just a color.
       for (const d of data.dots) {
-        const size = d.big ? (blink ? 5 : 3) : 2;
+        const px = d.big && (blink || still) ? 2 : 1;
+        const x = Math.round(ox + d.x * scale - 2.5 * px), y = Math.round(oy + d.y * scale - 2.5 * px);
         ctx.fillStyle = css(d.color);
-        ctx.fillRect(ox + d.x * scale - size / 2, oy + d.y * scale - size / 2, size, size);
+        for (const [cx, cy] of cells(STATUS_GLYPHS[d.state])) ctx.fillRect(x + cx * px, y + cy * px, px, px);
       }
       if (data.controlCenter) {
         const r = data.controlCenter;

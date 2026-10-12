@@ -147,3 +147,22 @@ the map sleep.
   loading snaps.
 - **Reduced motion:** with `prefers-reduced-motion`, camera moves snap and the beam-in is
   skipped.
+
+## Readability and accessibility
+
+- **Pixel labels:** map text uses the 5×7 font in `src/art/pixelfont.ts`, drawn by `PixelText`
+  from one glyph atlas with a baked one-pixel outline and tinted per label. When world scale
+  would make a font pixel smaller than a screen pixel, labels hold exactly one screen pixel per
+  font pixel. Titles then shorten with "…" to their facility's width (`fitText`). Small deck and
+  bridge text hides at that point instead of turning into mush.
+- **Status by shape:** `STATUS_GLYPHS` gives every state a 5×5 shape (▲ approval, ◆ question,
+  ● working, ○ monitoring, ✓ report, ✕ failed, ▪ idle, — asleep). Minimap crew and
+  engineering-deck plate pips draw these, so color-blind users never depend on red vs. orange vs.
+  green.
+- **Reduced motion:** the map freezes its animation clock. There's no blinking, pulsing, sleeper
+  drift or packet flow, crew are placed instead of walking, and the render loop wakes only for
+  real changes. Camera moves snap, the beam-in is skipped, and CSS animations and transitions
+  are off.
+- **Pixel HUD art:** crew portraits in the roster and crew panel are the crew member's map sprite
+  (`CrewPortrait`). Emoji icons are replaced by pixel SVG icons in the current text color
+  (`PixelIcon`).

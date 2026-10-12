@@ -1,4 +1,5 @@
-import { Container, Graphics, Rectangle, Sprite, Text, type FederatedPointerEvent } from 'pixi.js';
+import { Container, Graphics, Rectangle, Sprite, type FederatedPointerEvent } from 'pixi.js';
+import { PixelText } from './pixel-text';
 import * as A from '../art/sprites';
 import { setSelection, type Selection } from '../store';
 import { botColor, BOT_STATE_LABELS, HERMES_COLOR, type BotOperator } from '../t3/bots';
@@ -7,7 +8,6 @@ import type { ControlCenterLayout, Rect } from './layout';
 import { HUD, modelTier, providerSilhouette, STATUS } from './theme';
 import { crewTex, currentStyle, PX, tex } from './textures';
 
-const font = "'Chakra Petch', ui-monospace, monospace";
 const badges: Partial<Record<UnitState, A.Grid>> = {
   alert: A.BADGE_ALERT, question: A.BADGE_QUESTION, done: A.BADGE_DONE,
   error: A.BADGE_ERROR, monitoring: A.BADGE_MONITOR,
@@ -23,8 +23,8 @@ interface OperatorSprite {
 /** Persistent Hermes crew at their own desks, above the existing engineering chassis. */
 export class ControlCenterSprite {
   readonly root = new Container();
-  private labels: Text[] = [];
-  private title?: Text;
+  private labels: PixelText[] = [];
+  private title?: PixelText;
   private selection = new Graphics();
   private operators: OperatorSprite[] = [];
 
@@ -122,14 +122,15 @@ export class ControlCenterSprite {
     this.root.addChild(s); return s;
   }
 
-  private text(value: string, x: number, y: number, size: number, color: number): Text {
-    const t = new Text({ text: value, style: { fontFamily: font, fontSize: size, fill: color, fontWeight: '600', letterSpacing: 0.6 } });
-    t.resolution = 3; t.position.set(x, y); this.root.addChild(t); this.labels.push(t); return t;
+  private text(value: string, x: number, y: number, size: number, color: number): PixelText {
+    const t = new PixelText(size, color);
+    t.text = value; t.position.set(x, y); this.root.addChild(t); this.labels.push(t); return t;
   }
 
   update(center: ControlCenterLayout, selection: Selection, zoom: number, frame: number): void {
-    for (const label of this.labels) label.visible = label === this.title || zoom > 0.42;
-    if (this.title) this.title.scale.set(Math.min(1.6, Math.max(1, 0.45 / zoom)));
+    // Small bridge text hides once it would turn sub-pixel; the title holds a crisp minimum size.
+    for (const label of this.labels) label.visible = label === this.title || label.unit * zoom >= 0.8;
+    if (this.title) this.title.scale.set(Math.max(1, 1 / (this.title.unit * zoom)));
     for (const { bot, figure, console, badge, workstation } of this.operators) {
       const active = bot.observed && bot.state === 'working';
       const color = botColor(bot.name);
