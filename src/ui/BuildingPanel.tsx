@@ -13,6 +13,7 @@ import { HermesPanel } from "./HermesPanel";
 import type { RecruitWorkspace } from "../t3/workspace";
 import { WorkspacePicker } from "./WorkspacePicker";
 import { GitStatus } from "./GitStatus";
+import { PixelIcon } from "./PixelArt";
 
 const RUNTIME_MODES: Array<{ id: RuntimeMode; label: string }> = [
   { id: "full-access", label: "Full access" },
@@ -129,7 +130,7 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
         {roster.length === 0 && <p className="muted">No workers yet. Recruit one above.</p>}
         {archived > 0 && (
           <button className="btn wide archive-link" onClick={() => (sfx.building(), setSelection({ kind: "library", envId, projectId }))}>
-            📚 Archive: {archived} imported conversation{archived === 1 ? "" : "s"}
+            <PixelIcon name="archive" /> Archive: {archived} imported conversation{archived === 1 ? "" : "s"}
           </button>
         )}
       </div>
@@ -261,7 +262,7 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
       <WorkspacePicker envId={envId} projectId={projectId} value={workspace} onChange={setWorkspace} disabled={sending} />
       {recruitError && <p className="small" role="alert">{recruitError}</p>}
       <button className="btn primary wide" disabled={sending || !text.trim() || !current || env?.connection !== "live"} onClick={() => void recruit()}>
-        {sending ? "Recruiting…" : "⚒ Recruit"}
+        {sending ? "Recruiting…" : <><PixelIcon name="recruit" /> Recruit</>}
       </button>
     </div>
   );

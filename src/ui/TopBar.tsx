@@ -13,6 +13,7 @@ import { LimitsTelemetry } from "./LimitsTelemetry";
 import { UpdatePanel } from "./UpdatePanel";
 import { HermesMark } from './HermesControlCenter';
 import { botOperators } from '../t3/bots';
+import { PixelIcon } from "./PixelArt";
 
 export function TopBar() {
   const bar = useRef<HTMLElement>(null);
@@ -130,8 +131,8 @@ export function TopBar() {
         Log
       </button>
       <UpdatePanel />
-      <button className="icon-btn" title="Fit fleet (F)" onClick={() => worldRef.current?.fitAll()}>
-        ⤢
+      <button className="icon-btn" title="Fit fleet (F)" aria-label="Fit fleet" onClick={() => worldRef.current?.fitAll()}>
+        <PixelIcon name="fit" />
       </button>
       <button
         className="icon-btn style-toggle"
@@ -139,10 +140,10 @@ export function TopBar() {
         aria-label="Switch map style"
         onClick={() => setArtStyle(artStyle === "flightdeck" ? "flightdeck-nightshift" : "flightdeck")}
       >
-        {artStyle === "flightdeck" ? "☀" : "☾"}
+        <PixelIcon name={artStyle === "flightdeck" ? "sun" : "moon"} />
       </button>
-      <button className="icon-btn" title={muted ? "Unmute" : "Mute"} onClick={() => setMuted(!muted)}>
-        {muted ? "🔇" : "🔊"}
+      <button className="icon-btn" title={muted ? "Unmute" : "Mute"} aria-label={muted ? "Unmute" : "Mute"} onClick={() => setMuted(!muted)}>
+        <PixelIcon name={muted ? "muted" : "sound"} />
       </button>
     </header>
   );

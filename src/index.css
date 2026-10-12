@@ -476,20 +476,13 @@ code {
   height: 46px;
   flex: none;
   border: 1px solid var(--line-strong);
-  --visor: #9fb3d1;
-  background:
-    radial-gradient(ellipse 9px 6px at 62% 40%, var(--visor) 0 100%, transparent 101%),
-    radial-gradient(circle at 50% 42%, #eef2f6 0 13px, transparent 14px),
-    linear-gradient(180deg, transparent 0 66%, #dde4ec 66%),
-    radial-gradient(circle at 50% 30%, #13202d, #070a0f);
+  background: var(--slot);
 }
 
-.portrait.provider-claudeAgent {
-  --visor: #e2884f;
-}
-.portrait.provider-codex {
-  --visor: #46d6c2;
-}
+/* Crew portraits are their map sprite, kept pixel-crisp. */
+.portrait.sprite-portrait { display: grid; place-items: end center; overflow: hidden; }
+.crew-portrait { display: block; image-rendering: pixelated; }
+.pixel-icon { display: inline-block; vertical-align: -2px; flex: none; }
 
 .portrait.building {
   background:
@@ -1136,6 +1129,11 @@ select:focus {
   .logo {
     font-size: 13px;
   }
+  /* One scrolling row each instead of a top bar that wraps over the map. */
+  .topbar { gap: 6px; padding: 4px 8px; }
+  .resources, .stations { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .resources::-webkit-scrollbar, .stations::-webkit-scrollbar { display: none; }
+  .resource, .station-chip { flex: none; }
 }
 
 /* Thread chat: adjustable width and readable message markup. */
@@ -1314,10 +1312,10 @@ button.ftl-tab {
 /* ---- Crew roster ---- */
 
 .crew-roster {
-  top: 74px;
+  top: var(--topbar-bottom, 74px);
   left: 10px;
   width: 290px;
-  max-height: calc(100vh - 74px - 200px);
+  max-height: calc(100vh - var(--topbar-bottom, 74px) - 200px);
   display: flex;
   flex-direction: column;
   z-index: 1;
@@ -1463,61 +1461,18 @@ button.ftl-tab {
   background: var(--gauge-critical);
 }
 
-/* Tiny crew portrait: helmet shape by provider, size by model tier, frame in team color. */
+/* Tiny crew portrait: the crew member's sprite, framed in their station's team color. */
 .mini-portrait {
   --team: var(--muted);
-  --visor: #9fb3d1;
-  --size: 15px;
-  position: relative;
   width: 30px;
   height: 30px;
   flex: none;
+  display: grid;
+  place-items: end center;
+  overflow: hidden;
   background: var(--control);
   border: 2px solid var(--team);
   border-radius: 4px;
-}
-
-.mini-portrait.tier-light {
-  --size: 11px;
-}
-.mini-portrait.tier-heavy {
-  --size: 19px;
-}
-.mini-portrait.tier-reviewer {
-  --size: 14px;
-}
-
-.mini-portrait::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: var(--size);
-  height: var(--size);
-  transform: translate(-50%, -50%);
-  background: var(--bright);
-  border: 1px solid var(--ink);
-  border-radius: 50%;
-}
-
-.mini-portrait.angular::before {
-  border-radius: 3px;
-}
-
-.mini-portrait::after {
-  content: "";
-  position: absolute;
-  left: calc(50% - var(--size) * 0.1);
-  top: calc(50% - var(--size) * 0.18);
-  width: calc(var(--size) * 0.55);
-  height: calc(var(--size) * 0.32);
-  background: var(--visor);
-  border-radius: 2px;
-}
-
-.mini-portrait.angular::after {
-  left: calc(50% - var(--size) * 0.35);
-  width: calc(var(--size) * 0.7);
 }
 
 /* ---- Event dialog ---- */
@@ -1849,3 +1804,14 @@ button.ftl-tab {
 .comms-log-row.tone-bad { border-left-color: var(--error); }
 .comms-log-row time { color: var(--muted); font-family: var(--mono); }
 .spend-station .hp { display: block; width: 100%; margin: 4px 0 2px; }
+
+/* Reduced motion: no HUD animations or transitions (the map freezes its own clock). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* Phone overrides for panels defined above; kept last so they win the cascade. */
+@media (max-width: 700px) {
+  .crew-roster { left: 8px; width: calc(100vw - 16px); max-height: 32vh; }
+  .comms-log { left: 8px; width: calc(100vw - 16px); bottom: 8px; }
+}

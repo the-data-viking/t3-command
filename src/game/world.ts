@@ -11,7 +11,9 @@
 // icons light up only for real work, crew walk only for real tool calls, and supply lines carry
 // packets only while crew are working. Engineering gauges show measured whole-host load.
 
-import { Application, Container, Graphics, Rectangle, Sprite, Text, TilingSprite, type FederatedPointerEvent, type TextStyleOptions } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Sprite, TilingSprite, type FederatedPointerEvent } from "pixi.js";
+import { PixelText } from "./pixel-text";
+import { cells, fitText, STATUS_GLYPHS } from "../art/pixelfont";
 import * as A from "../art/sprites";
 import { ENGINEERING_SPOTS, FLIGHT_KIT } from "../art/flightdeck";
 import type { Arms, Legs } from "../art/render";
@@ -29,13 +31,20 @@ import { hostView, type HostState } from "../t3/host";
 import { crewTex, currentStyle, PX, tex } from "./textures";
 import { contextLevel, GAUGE, HUD, hudMaterials, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
 
-const FONT = "'Chakra Petch', 'IBM Plex Mono', ui-monospace, monospace";
-const MONO = "'IBM Plex Mono', ui-monospace, monospace";
 
-function label(size: number, fill: number, extra: Partial<TextStyleOptions> = {}): Text {
-  const t = new Text({ text: "", style: { fontFamily: FONT, fontSize: size, fill, fontWeight: "600", letterSpacing: 1, ...extra } });
-  t.resolution = 3;
-  return t;
+/** Map labels share the sprites' pixel world. */
+function label(size: number, fill: number): PixelText {
+  return new PixelText(size, fill);
+}
+
+/**
+ * Size a label for the zoom: world-scaled when that's at least one screen pixel per font pixel,
+ * otherwise held at exactly one (crisp, not sub-pixel mush), shortened to fit `width` world px.
+ */
+function fitLabel(label: PixelText, full: string, width: number, zoom: number): void {
+  const screen = label.unit * zoom;
+  label.scale.set(screen < 1 ? 1 / screen : 1);
+  label.text = fitText(full, width * zoom, Math.max(1, screen));
 }
 
 function hash(s: string): number {
@@ -130,7 +139,7 @@ class CrewSprite extends Container {
   private figure = new Sprite();
   private badge = new Sprite();
   private fx = new Graphics();
-  private nameText = label(7, HUD.text, { stroke: { color: 0x000000, width: 3 } });
+  private nameText = label(7, HUD.text);
   private motion: CrewMotion;
   private hasTelemetry = false;
   get pos(): Point { return this.motion.pos; }
@@ -151,6 +160,7 @@ class CrewSprite extends Container {
 
   /** Sleepers' decorative drift doesn't keep an otherwise idle fleet rendering. */
   get animated(): boolean {
+    if (reducedMotion()) return this.motion.moving;
     return this.motion.moving || this.arriving > 0 || this.state === "working" || this.state === "monitoring"
       || this.state === "alert" || this.state === "question" || !!this.info?.tasks;
   }
@@ -217,7 +227,8 @@ class CrewSprite extends Container {
 
   tick(layout: CrewLayout, s: StationLayout, t: number, dt: number, frame: number, selected: boolean, zoom: number): void {
     const want = this.desired(layout, s);
-    this.motion.step(layout, s, want, dt, WALK_SPEED);
+    // Under reduced motion crew are placed at their destination instead of walking there.
+    this.motion.step(layout, s, want, dt, reducedMotion() ? Infinity : WALK_SPEED);
     const moving = this.motion.moving;
     // Lie down only once the walk to quarters is over.
     const resting = layout.sleeping && this.motion.arrived;
@@ -318,7 +329,11 @@ class CrewSprite extends Container {
 class StationSprite {
   readonly key: string;
   readonly root = new Container();
-  private labels: Text[] = [];
+  private title?: PixelText;
+  private sub?: PixelText;
+  private titleText = "";
+  private subText = "";
+  private fitWidth = 0;
   private drawn?: string;
   /** Console sprites by "x,y" of their layout point, so screens can be updated live. */
   readonly consoles = new Map<string, Sprite>();
@@ -339,7 +354,6 @@ class StationSprite {
 
   build(s: StationLayout, state: GameState): void {
     for (const child of this.root.removeChildren()) child.destroy({ children: true });
-    this.labels = [];
     this.consoles.clear();
     this.doors = [];
     const style = currentStyle();
@@ -441,28 +455,36 @@ class StationSprite {
       else if (first) setSelection({ kind: 'building', envId: first.envId, projectId: first.projectId });
     });
 
-    // Nameplate.
+    // Nameplate: the title grows upward from its baseline, away from the hull.
     const machines = new Set(s.members.map((m) => m.envId)).size;
-    const title = label(18, 0xf2f4f6, { fontWeight: "700", letterSpacing: 3, stroke: { color: 0x000000, width: 4 } });
+    const title = new PixelText(18, 0xf2f4f6);
     title.text = s.name.toUpperCase();
-    title.position.set(s.nameplate.x, s.nameplate.y);
-    this.root.addChild(title);
-    this.labels.push(title);
-    const sub = new Text({
-      text: [machines > 1 ? `SHARED · ${machines} MACHINES` : state.envs[first?.envId ?? ""]?.summary.label.toUpperCase(), s.settledHidden ? `+${s.settledHidden} SETTLED` : ""]
-        .filter(Boolean)
-        .join("  ·  "),
-      style: { fontFamily: MONO, fontSize: 10, fill: 0x9aa7bd, letterSpacing: 1 },
-    });
-    sub.resolution = 3;
-    sub.position.set(s.nameplate.x + 2, s.nameplate.y + 26);
-    this.root.addChild(sub);
-    this.labels.push(sub);
-
+    title.anchor.set(0, 1);
+    title.position.set(s.nameplate.x, s.nameplate.y + 16);
+    const sub = new PixelText(10, 0x9aa7bd);
+    sub.text = [machines > 1 ? `SHARED · ${machines} MACHINES` : state.envs[first?.envId ?? ""]?.summary.label.toUpperCase(), s.settledHidden ? `+${s.settledHidden} SETTLED` : ""]
+      .filter(Boolean)
+      .join(" · ");
+    sub.position.set(s.nameplate.x + 2, s.nameplate.y + 22);
+    this.root.addChild(title, sub);
+    this.title = title;
+    this.sub = sub;
+    this.titleText = title.text;
+    this.subText = sub.text;
+    this.fitWidth = s.bounds.w;
   }
 
+  /**
+   * Zoomed out, labels hold exactly one screen pixel per font pixel so they stay crisp, and are
+   * shortened with "…" to fit their facility rather than running into neighbors. Subtitles drop
+   * out far away.
+   */
   setZoom(zoom: number): void {
-    for (const l of this.labels) l.scale.set(Math.max(1, 0.7 / zoom));
+    if (this.title) fitLabel(this.title, this.titleText, this.fitWidth, zoom);
+    if (this.sub) {
+      this.sub.visible = zoom >= 0.45;
+      if (this.sub.visible) fitLabel(this.sub, this.subText, this.fitWidth, zoom);
+    }
   }
 
   destroy(): void {
@@ -476,14 +498,14 @@ class StationSprite {
 class EnvironmentNodeSprite {
   readonly envId: string;
   readonly root = new Container();
-  private name?: Text;
+  private name?: PixelText;
   /** Measured host load: rack LEDs (CPU) and the coolant level (RAM). Redrawn per sample. */
   private meters?: Graphics;
   /** Observed crew activity in the core cells. Redrawn every frame. */
   private cells?: Graphics;
-  private cpuText?: Text;
-  private memoryText?: Text;
-  private caption?: Text;
+  private cpuText?: PixelText;
+  private memoryText?: PixelText;
+  private caption?: PixelText;
   private hull?: Rect;
   private drawn?: string;
 
@@ -508,14 +530,14 @@ class EnvironmentNodeSprite {
     this.root.addChild(hatch, sprite(tex(FLIGHT_KIT.ENGINEERING_DECK, { team: node.color }), h.x, h.y));
     this.meters = new Graphics();
     this.cells = new Graphics();
-    this.name=label(10,node.color,{letterSpacing:1});
+    this.name=label(10,node.color);
     this.name.text=truncate((state.envs[node.envId]?.summary.label??'?').toUpperCase(),24);
     this.name.position.set(h.x+14,h.y+12);
     const at = (spot: { x: number; y: number }) => ({ x: h.x + spot.x * PX, y: h.y + spot.y * PX });
     this.cpuText = label(9, GAUGE.unknown); this.cpuText.position.copyFrom(at(ENGINEERING_SPOTS.cpuLabel));
     this.memoryText = label(9, GAUGE.unknown); this.memoryText.position.copyFrom(at(ENGINEERING_SPOTS.memoryLabel));
     const plate = at(ENGINEERING_SPOTS.plate);
-    this.caption = label(7,0xa7bdcb,{letterSpacing:.6}); this.caption.position.set(plate.x + 8, plate.y + 6);
+    this.caption = label(7,0xa7bdcb); this.caption.position.set(plate.x + 8, plate.y + 6);
     this.root.addChild(this.meters, this.cells, this.name, this.cpuText, this.memoryText, this.caption);
     this.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
     this.root.eventMode = 'static';
@@ -536,8 +558,8 @@ class EnvironmentNodeSprite {
     const h = node.hull;
     this.cpuText!.text = view.cpuFraction === undefined ? "CPU —" : `CPU ${Math.round(view.cpuFraction * 100)}%`;
     this.memoryText!.text = view.memoryFraction === undefined ? "RAM —" : `RAM ${Math.round(view.memoryFraction * 100)}%`;
-    this.cpuText!.style.fill = view.stale ? HUD.muted : view.cpuColor;
-    this.memoryText!.style.fill = view.stale ? HUD.muted : view.memoryColor;
+    this.cpuText!.fill = view.stale ? HUD.muted : view.cpuColor;
+    this.memoryText!.fill = view.stale ? HUD.muted : view.memoryColor;
     // Only speak up when the readings can't be trusted.
     this.caption!.text = view.stale ? "LAST SAMPLE · STALE" : view.snapshot ? "" : "HOST METRICS UNAVAILABLE";
     const alpha = view.stale ? 0.35 : 1;
@@ -571,8 +593,10 @@ class EnvironmentNodeSprite {
     });
   }
 
+  /** Deck text can't grow past its sprite, so it hides once it would turn sub-pixel. */
   setZoom(zoom: number): void {
-    if (this.name) this.name.visible = zoom > 0.3;
+    const legible = zoom >= 0.8;
+    for (const text of [this.name, this.cpuText, this.memoryText, this.caption]) if (text) text.visible = legible;
   }
 
   destroy(): void {
@@ -587,7 +611,7 @@ export interface MinimapData {
   hubs: Rect[];
   controlCenter?: Rect;
   stations: Array<{ rect: Rect; color: number; live: boolean }>;
-  dots: Array<{ x: number; y: number; color: number; big: boolean }>;
+  dots: Array<{ x: number; y: number; state: UnitState; color: number; big: boolean }>;
   view: Rect;
 }
 
@@ -920,7 +944,7 @@ export class World {
       stations: [...this.layout.environmentNodes.values()].map((sh) => ({ rect: sh.hull, color: sh.color, live: state.envs[sh.envId]?.connection === "live" })),
       dots: [...this.crew.values()]
         .filter((c) => c.state !== "sleeping")
-        .map((c) => ({ x: c.pos.x, y: c.pos.y, color: STATUS[c.state], big: c.state === "alert" || c.state === "question" })),
+        .map((c) => ({ x: c.pos.x, y: c.pos.y, state: c.state, color: STATUS[c.state], big: c.state === "alert" || c.state === "question" })),
       view,
     };
   }
@@ -1106,8 +1130,11 @@ export class World {
   private tick(dt: number): boolean {
     this.time += dt;
     const state = useGame.getState();
-    const t = this.time;
-    const frame = Math.floor(t * 5); // sprite animation rate
+    // Reduced motion freezes the animation clock: no blinking, pulsing, drifting or flowing
+    // packets. State still shows through color, shape and position.
+    const still = reducedMotion();
+    const t = still ? 0 : this.time;
+    const frame = still ? 0 : Math.floor(t * 5); // sprite animation rate
     const sel = state.selection;
     const panning = this.stepCamera(dt);
 
@@ -1129,6 +1156,7 @@ export class World {
     for (const station of this.stations.values()) station.setZoom(this.zoom);
     for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
     this.drawEdgeIndicators(t);
+    if (still) return panning || this.doorsOpen || [...this.crew.values()].some((crew) => crew.animated);
     return panning || this.doorsOpen || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
   }
@@ -1251,7 +1279,11 @@ export class World {
       const p = node.plate;
       const lightColor = live ? STATUS.done : env?.connection === "reconnecting" || env?.connection === "connecting" ? STATUS.question : 0x59626c;
       g.rect(p.x + p.w - 13, p.y + p.h / 2 - 4, 8, 8).fill({ color: lightColor, alpha: live || frame % 2 ? 1 : 0.4 });
-      states.slice(0, 8).forEach((st, k) => g.rect(p.x + p.w - 22 - (Math.min(8, states.length) - k) * 8, p.y + 5, 6, p.h - 10).fill(STATUS[st]));
+      // One glyph per crew member: shape and color both carry the state.
+      states.slice(0, 8).forEach((st, k) => {
+        const x = p.x + p.w - 24 - (Math.min(8, states.length) - k) * 12, y = p.y + 5;
+        for (const [cx, cy] of cells(STATUS_GLYPHS[st])) g.rect(x + cx * 2, y + cy * 2, 2, 2).fill(STATUS[st]);
+      });
     }
 
     // Selected project: outline its station.
