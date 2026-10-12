@@ -883,6 +883,10 @@ code {
   color: var(--muted);
 }
 
+.tool-activity-failures {
+  color: var(--error);
+}
+
 .tool-activity-events {
   display: flex;
   flex-direction: column;

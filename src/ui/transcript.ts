@@ -19,8 +19,9 @@ export function transcriptEntries(thread: Pick<OrchestrationThread, "messages" |
   const grouped: TranscriptEntry[] = [];
   for (const entry of entries) {
     if (entry.kind === "activity" &&
-      (entry.activity.tone === "tool" || (entry.activity.tone === "info" && entry.activity.kind.startsWith("task."))) &&
-      entry.activity.payload?.status !== "failed") {
+      (entry.activity.tone === "tool" ||
+        (entry.activity.kind.startsWith("tool.") && entry.activity.tone === "error") ||
+        (entry.activity.tone === "info" && entry.activity.kind.startsWith("task.")))) {
       const previous = grouped[grouped.length - 1];
       if (previous?.kind === "tools" && previous.activities[0].turnId === entry.activity.turnId) {
         previous.activities.push(entry.activity);

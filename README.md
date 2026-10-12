@@ -43,8 +43,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   Select a module to recruit new crew (a new thread) with any model.
   Imported CLI history lives in each module's archive pod. Drag the chat panel's left edge to resize it,
   use its arrow-key controls, or double-click the edge to reset; width is saved per browser.
-  Consecutive tool events are collapsed into expandable **Tool activity** rows; errors and approval
-  requests stay visible.
+  Consecutive tool events, including tool failures, are collapsed into expandable **Tool activity**
+  rows with a failure count. Turn errors and approval requests stay visible.
 - Synthesized sound effects (mutable) and a comms feed of events.
 
 The map uses compact suited crew and wraparound system consoles. Switch between Night Shift
