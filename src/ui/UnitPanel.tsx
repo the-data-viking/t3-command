@@ -69,6 +69,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         <div className={`portrait provider-${thread.modelSelection.instanceId}`} />
         <div className="panel-title">
           <h2 title={unitName}>{unitName}</h2>
+          {thread.hermesProfile && <div className="muted small">Hermes bot: {thread.hermesProfile}{thread.hermesBotChat ? " · Bot Chat" : " · Task session"}</div>}
           <div className="muted small">
             {TIER_LABEL[modelTier(thread.modelSelection.model)]} · {providerName(env, thread.modelSelection.instanceId)} · {modelName(env, thread)}
           </div>

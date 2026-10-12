@@ -6,10 +6,14 @@ import path from "node:path";
 import { WebSocket } from "ws";
 import type { Activity, OrchestrationThread, ProjectShell, Provider, ThreadShell } from "../../src/t3/types.ts";
 import { AcpProcess, probeHermes, type AcpMessage, type JsonObject } from "./acp.ts";
+import { acquireBot, botBusy, HermesManager } from "./manager.ts";
+import type { HermesSession } from "../../shared/hermes.ts";
 
 interface SavedThread {
   thread: OrchestrationThread & Pick<ThreadShell, "hasPendingApprovals" | "hasPendingUserInput">;
   sessionId?: string;
+  profile?: string;
+  botChat?: boolean;
 }
 interface Runtime {
   acp: AcpProcess;
@@ -37,15 +41,20 @@ export class HermesBridge {
   private commands = new Map<string, Promise<{ sequence: number }>>();
   private launch: { command: string; args: string[] };
   private closed = false;
+  private manager?: HermesManager;
+  private syncTimer?: ReturnType<typeof setInterval>;
+  private syncing = false;
+  private releases = new Map<string, () => void>();
   private provider: Provider = {
     instanceId: "hermes", driver: "hermes", displayName: "Hermes", enabled: true, installed: true, status: "ready",
     models: [{ slug: "default", name: "Hermes configured model", isDefault: true }],
     runtimeModes: [{ id: "approval-required", label: "Ask before edits (Hermes)" }, { id: "auto-accept-edits", label: "Accept workspace edits (Hermes)" }],
   };
 
-  constructor(dataDir: string, envId: string, workspaceRoot: string, launch: { command: string; args: string[] }) {
+  constructor(dataDir: string, envId: string, workspaceRoot: string, launch: { command: string; args: string[] }, manager?: HermesManager) {
     this.file = path.join(dataDir, `${envId}.json`);
     this.launch = launch;
+    this.manager = manager;
     this.project = { id: envId, title: path.basename(workspaceRoot), workspaceRoot, defaultModelSelection: { instanceId: "hermes", model: "default" }, createdAt: now(), updatedAt: now() };
   }
 
@@ -55,6 +64,8 @@ export class HermesBridge {
       this.sequence = saved.sequence;
       for (const entry of saved.threads) {
         const t = entry.thread;
+        entry.profile ??= 'default';
+        t.hermesProfile ??= entry.profile;
         // A host restart cannot prove the old turn is still running.
         if (t.latestTurn?.state === "running") {
           t.latestTurn = { ...t.latestTurn, state: "interrupted", completedAt: now() };
@@ -107,7 +118,15 @@ export class HermesBridge {
     if (this.closed) { ws.close(4404, "Hermes base removed"); return; }
     const client: Client = { ws, streams: new Map() };
     this.clients.add(client);
-    ws.on("close", () => this.clients.delete(client));
+    if (!this.syncTimer && this.manager) {
+      this.syncTimer = setInterval(() => void this.syncBotChats(), 30_000);
+      this.syncTimer.unref();
+      void this.syncBotChats();
+    }
+    ws.on("close", () => {
+      this.clients.delete(client);
+      if (!this.clients.size) { clearInterval(this.syncTimer); this.syncTimer = undefined; }
+    });
     ws.on("error", () => this.clients.delete(client));
     ws.on("message", (data) => {
       void this.receive(client, data.toString()).catch(() => ws.close(1008, "Invalid Hermes RPC message"));
@@ -172,12 +191,18 @@ export class HermesBridge {
       if (model.instanceId !== "hermes" || model.model !== "default") throw new Error("Hermes uses its locally configured model; run hermes model to change it");
       if (!MODE_IDS[String(command.runtimeMode)] || command.interactionMode !== "default") throw new Error("Unsupported Hermes permission or interaction mode");
       if (entry?.thread.latestTurn?.state === "running") throw new Error("Hermes is still working; halt before sending another order");
+      const create = object(object(command.bootstrap).createThread);
+      const profile = entry?.profile ?? String(create.hermesProfile ?? 'default');
+      if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(profile)) throw new Error('Invalid Hermes profile');
+      if (!entry && create.projectId !== this.project.id) throw new Error('Unknown Hermes workspace');
+      const release = acquireBot(profile, id);
+      this.releases.set(id, release);
       if (!entry) {
         const create = object(object(command.bootstrap).createThread);
         if (create.projectId !== this.project.id) throw new Error("Unknown Hermes workspace");
         const at = now();
-        entry = { thread: {
-          id, projectId: this.project.id, title: String(create.title ?? "Hermes"), modelSelection: { instanceId: "hermes", model: "default" },
+        entry = { profile, thread: {
+          id, hermesProfile: profile, projectId: this.project.id, title: String(create.title ?? "Hermes"), modelSelection: { instanceId: "hermes", model: "default" },
           runtimeMode: command.runtimeMode as ThreadShell["runtimeMode"], interactionMode: "default", branch: null, worktreePath: null,
           latestTurn: null, session: null, latestUserMessageAt: null, hasPendingApprovals: false, hasPendingUserInput: false,
           createdAt: at, updatedAt: at, archivedAt: null, settledAt: null, unsettledAt: at, snoozedUntil: null, pinnedAt: null,
@@ -238,14 +263,17 @@ export class HermesBridge {
     const t = entry.thread;
     const existing = this.runtimes.get(t.id);
     if (existing) { await existing.ready; return existing; }
+    const launch = entry.botChat && this.manager ? await this.manager.botLaunch(entry.profile ?? 'default')
+      : { command: this.launch.command, args: entry.profile && entry.profile !== 'default' ? ['-p', entry.profile, ...this.launch.args] : this.launch.args, env: undefined };
     const runtime: Runtime = {
-      acp: new AcpProcess(this.launch.command, this.launch.args, this.project.workspaceRoot,
+      acp: new AcpProcess(launch.command, launch.args, this.project.workspaceRoot,
         (message) => this.acpMessage(t, runtime, message),
         (error) => {
+          if (this.runtimes.get(t.id) !== runtime) return;
           this.runtimes.delete(t.id);
           this.clearApprovals(t);
           if (!this.closed && t.latestTurn?.state === "running") this.finish(t, "error", error.message);
-        }),
+        }, launch.env),
       ready: Promise.resolve(""), loading: true, cancelled: false, messages: new Map(), permissions: new Map(), tools: new Map(),
     };
     this.runtimes.set(t.id, runtime);
@@ -276,6 +304,8 @@ export class HermesBridge {
     const t = entry.thread;
     if (this.closed || t.latestTurn?.turnId !== turnId || t.latestTurn.state !== "running") return;
     try {
+      if (this.manager && entry.profile && entry.profile !== 'default') await this.manager.request('profiles.get', entry.profile);
+      if (this.closed || t.latestTurn?.turnId !== turnId || t.latestTurn.state !== 'running') return;
       const runtime = await this.runtime(entry);
       if (runtime.cancelled) { runtime.cancelled = false; this.finish(t, "interrupted"); return; }
       if (this.closed || t.latestTurn?.turnId !== turnId) return;
@@ -299,6 +329,12 @@ export class HermesBridge {
   }
 
   private finish(t: SavedThread["thread"], state: "completed" | "interrupted" | "error", error?: string): void {
+    // Fresh process per turn reloads profile memory/model/capabilities after other tasks.
+    const runtime = this.runtimes.get(t.id);
+    this.runtimes.delete(t.id);
+    runtime?.acp.close();
+    this.releases.get(t.id)?.();
+    this.releases.delete(t.id);
     const at = now();
     if (t.latestTurn) t.latestTurn = { ...t.latestTurn, state, completedAt: at };
     if (t.session) t.session = { ...t.session, status: state === "completed" ? "ready" : state, activeTurnId: null, lastError: error ?? null, updatedAt: at };
@@ -408,17 +444,71 @@ export class HermesBridge {
     this.changed();
   }
 
+  private async syncBotChats(): Promise<void> {
+    if (this.syncing || this.closed || !this.manager) return;
+    this.syncing = true;
+    try {
+      let changed = false;
+      for (const entry of this.threads.values()) {
+        if (!entry.botChat || !entry.profile || botBusy(entry.profile)) continue;
+        try {
+          const session = await this.manager.request<HermesSession | null>('session.read', entry.profile, {}, this.project.workspaceRoot);
+          if (!session || botBusy(entry.profile)) continue;
+          const current = entry.thread.messages.filter(m => m.role === 'user' || m.role === 'assistant');
+          if (entry.sessionId === session.sessionId && JSON.stringify(current.map(m => [m.role, m.text])) === JSON.stringify(session.messages.map(m => [m.role, m.text]))) continue;
+          entry.sessionId = session.sessionId;
+          entry.thread.messages = session.messages.map(m => ({ ...m, streaming: false, turnId: null, updatedAt: m.createdAt }));
+          entry.thread.updatedAt = now();
+          changed = true;
+        } catch { /* Deleted/unavailable profiles keep their last readable transcript. */ }
+      }
+      if (changed) { await this.save(); this.changed(); }
+    } finally { this.syncing = false; }
+  }
+
   hasRunningTurns(): boolean {
     return [...this.threads.values()].some(({ thread }) => thread.latestTurn?.state === "running");
   }
 
+  async openBotChat(profile: string): Promise<string> {
+    if (!this.manager) throw new Error('Hermes management is unavailable');
+    const release = acquireBot(profile, 'open-chat');
+    try {
+      const session = await this.manager.request<HermesSession>('session.open', profile, {}, this.project.workspaceRoot);
+      const existing = [...this.threads.values()].find(e => e.botChat && e.profile === profile);
+      const at = now();
+      const id = existing?.thread.id ?? randomUUID();
+      const entry: SavedThread = existing ?? { profile, botChat: true, thread: {
+        id, hermesProfile: profile, hermesBotChat: true, projectId: this.project.id, title: `${profile} · Bot Chat`,
+        modelSelection: { instanceId: 'hermes', model: 'default' }, runtimeMode: 'approval-required', interactionMode: 'default',
+        branch: null, worktreePath: null, latestTurn: null, session: null, latestUserMessageAt: null,
+        hasPendingApprovals: false, hasPendingUserInput: false, createdAt: at, updatedAt: at,
+        archivedAt: null, settledAt: null, unsettledAt: at, snoozedUntil: null, pinnedAt: at,
+        messages: [], activities: [], checkpoints: [],
+      } };
+      entry.sessionId = session.sessionId;
+      // Native transcript includes desktop/routine messages; replace instead of duplicating.
+      entry.thread.messages = session.messages.map(m => ({ ...m, streaming: false, turnId: null, updatedAt: m.createdAt }));
+      entry.thread.updatedAt = at;
+      entry.thread.settledAt = null;
+      entry.thread.unsettledAt = at;
+      this.threads.set(id, entry);
+      await this.save();
+      this.changed();
+      return id;
+    } finally { release(); }
+  }
+
   async close(remove = false): Promise<void> {
     this.closed = true;
+    clearInterval(this.syncTimer);
     for (const client of this.clients) client.ws.close(remove ? 4404 : 1001, remove ? "Hermes base removed" : "Command host stopping");
     for (const [id, runtime] of this.runtimes) {
       this.cancelPermissions(this.threads.get(id)!.thread, runtime);
       runtime.acp.close();
     }
+    for (const release of this.releases.values()) release();
+    this.releases.clear();
     if (!remove) await this.save();
     await this.writes;
     if (remove) await fs.rm(this.file, { force: true });

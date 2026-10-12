@@ -614,7 +614,9 @@ interrupt, approval response, settle, and unsettle. Streams send fresh snapshots
 updates while awaiting each Effect RPC `Ack`; browser disconnects cancel subscriptions only.
 Command IDs are deduplicated in memory for the most recent 500 commands.
 
-The host starts one shell-free ACP stdio process per recruited thread. ACP protocol v1
+The host starts one shell-free ACP stdio process per turn and reloads the thread's session.
+`bootstrap.createThread.hermesProfile` chooses the native profile; omitted means `default`.
+`ThreadShell.hermesProfile` and `hermesBotChat` identify bot ownership and canonical chats. ACP protocol v1
 `initialize`, `session/new` or `session/load`, `session/set_mode`, and `session/prompt` drive it.
 `session/update` projects text, thought chunks, tool progress, and context usage into the fleet.
 `session/request_permission` preserves the offered choices; responses return their original
@@ -623,9 +625,32 @@ Halt sends the `session/cancel` notification and keeps the turn active until its
 
 Only Hermes's `default` (ask before edits) and `accept_edits` (workspace edit approval) modes
 are exposed. The configured model is represented by the adapter's `default` selection;
-model changes remain Hermes configuration or `/model` commands. Images, structured questions,
+model changes are available through bot management or Hermes configuration. Images, structured questions,
 background-task telemetry, and usage-cost scans are unsupported, with no synthetic estimates.
 
 Transcripts and ACP session IDs persist separately from the environment registry in owner-only
 files. A host restart marks in-flight turns interrupted and clears pending approvals; the next
 order reloads the recorded session without duplicating ACP's history replay in the Command log.
+
+### Hermes management
+
+`POST /api/envs/:id/hermes` accepts `{ action, profile?, body? }`; profile defaults to `default`.
+It uses the same identity and cross-origin protections as station mutations and refuses non-Hermes
+stations. Actions are allowlisted: `profiles.list/get/create/update/delete`,
+`jobs.list/create/update/pause/resume/trigger/delete/runs/output`, and `chat.open`.
+Only named configuration fields are exposed, with no raw config/credentials endpoint or client-selected
+command, executable, or filesystem path for memory. Scripts and workdirs use Hermes's native validation.
+`chat.open` returns `{threadId}` for the profile's canonical `Bot Chat`; reopening refreshes native history.
+
+The management helper discovers the configured launcher's `--print-runtime-command`, preserves its
+Python/bootstrap, and replaces its CLI entrypoint with `server/hermes/manage.py`. Arguments use stdin
+JSON, never a shell. Writes are serialized; active profile mutations acquire the same global bot guard
+as task turns. Native profile deletion may return `{deleted:true, warning}` when Hermes reports pending
+routing identity cleanup. Native jobs persist independently of Command. `jobs.trigger` refuses a profile
+without a proven running scheduler. History/output reads are bounded and profile scoped.
+
+Canonical Bot Chats use `server/hermes/bot.py`, a SessionManager subclass of the installed
+ACP adapter. It admits only exactly titled `Bot Chat` rows, preserves their native source,
+and acquires Hermes's native session lease before restoring. Tools, approvals, model execution,
+and notifications still use Hermes ACP. Background native transcript refresh runs every
+30 seconds while browser clients are connected, skipping active Command turns.

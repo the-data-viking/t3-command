@@ -423,6 +423,7 @@ export class EnvironmentClient {
     modelSelection: ModelSelection;
     runtimeMode: RuntimeMode;
     interactionMode?: InteractionMode;
+    hermesProfile?: string;
   }): Promise<string> {
     const threadId = uuid();
     const createdAt = new Date().toISOString();
@@ -440,6 +441,7 @@ export class EnvironmentClient {
       bootstrap: {
         createThread: {
           projectId: opts.projectId,
+          ...(this.summary.kind === "hermes" ? { hermesProfile: opts.hermesProfile ?? "default" } : {}),
           title,
           modelSelection: opts.modelSelection,
           runtimeMode: opts.runtimeMode,

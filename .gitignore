@@ -30,3 +30,6 @@ dist-ssr
 pairing*.json
 *.token
 tokens/
+
+# Local Hermes management helpers
+__pycache__/

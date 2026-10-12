@@ -53,6 +53,8 @@ export interface LatestTurn {
 }
 
 export interface ThreadShell {
+  hermesProfile?: string;
+  hermesBotChat?: boolean;
   id: string;
   projectId: string;
   title: string;

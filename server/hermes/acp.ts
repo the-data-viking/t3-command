@@ -18,8 +18,8 @@ export class AcpProcess {
   private ended = false;
 
   constructor(command: string, args: string[], cwd: string, onMessage: (message: AcpMessage) => void,
-    onExit: (error: Error) => void = () => {}) {
-    this.child = spawn(command, args, { cwd, stdio: "pipe", shell: false });
+    onExit: (error: Error) => void = () => {}, env?: NodeJS.ProcessEnv) {
+    this.child = spawn(command, args, { cwd, stdio: "pipe", shell: false, ...(env ? { env } : {}) });
     // Drain diagnostics without exposing provider credentials or filling the pipe.
     this.child.stderr.resume();
     this.child.stdin.on("error", (err) => this.fail(err, onExit));

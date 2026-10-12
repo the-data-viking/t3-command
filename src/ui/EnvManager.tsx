@@ -3,9 +3,11 @@ import type { AddEnvRequest, EnvSummary, ImportDesktopResponse } from "../../sha
 import { sfx } from "../game/sfx";
 import { useGame } from "../store";
 import { fetchJson, refreshEnvironments } from "../t3/environment";
+import { HermesPanel } from "./HermesPanel";
 import { timeAgo } from "./util";
 
 export function EnvManager() {
+  const [hermesEnv, setHermesEnv] = useState<string>();
   const envs = useGame((s) => s.envs);
   const [mode, setMode] = useState<"ssh" | "link" | "hermes">("ssh");
   const [workspaceRoot, setWorkspaceRoot] = useState("");
@@ -87,11 +89,12 @@ export function EnvManager() {
   };
 
   const list = Object.values(envs);
+  if (hermesEnv) return <HermesPanel envId={hermesEnv} onClose={() => setHermesEnv(undefined)} />;
   return (
     <div className="modal-backdrop" onClick={close}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <header className="panel-head">
-          <h2>Bases</h2>
+          <h2>Stations</h2>
           <span className="spacer" />
           <button className="icon-btn" onClick={close}>
             ✕
@@ -120,6 +123,7 @@ export function EnvManager() {
                   {` · added ${timeAgo(env.summary.addedAt)}`}
                 </div>
               </div>
+              {env.summary.kind === "hermes" && <button className="btn" onClick={() => setHermesEnv(env.summary.id)}>Bots & routines</button>}
               <button className="btn danger" onClick={() => void remove(env.summary)}>
                 {env.summary.linked ? "Unlink" : "Remove"}
               </button>
