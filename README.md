@@ -30,6 +30,9 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   core cells light for that environment's working (pulsing) and monitoring crew. Click a deck to zoom in and open its readings and recent CPU history;
   environment chips also open the host panel. Samples refresh every 10 seconds while visible,
   with stale readings clearly marked. RAM used is total minus reported availability, not a measurement of memory pressure.
+  The host panel also lists the machine's agent CLI versions (Claude Code, Codex) as T3 reports
+  them; when one is behind, **Update to x.y.z** has T3 install the latest compatible release there.
+  CLIs T3 can't update itself show the command to run instead.
 - **Usage estimates**: the top bar shows today's fleet API-equivalent value, with per-environment
   breakdowns, seven-day daily totals, cached-input share and estimated cache savings. T3's
   provider-history scan includes work outside T3; shared physical sources count once. This is

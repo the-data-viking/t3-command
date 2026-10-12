@@ -17,6 +17,7 @@ import type {
   ApprovalDecision,
   InteractionMode,
   ModelSelection,
+  Provider,
   RuntimeMode,
   ServerConfig,
   ServerConfigEvent,
@@ -552,6 +553,16 @@ export class EnvironmentClient {
    */
   rollBackToTurn(threadId: string, turnCount: number): Promise<unknown> {
     return this.dispatch({ type: "thread.checkpoint.revert", threadId, turnCount, createdAt: new Date().toISOString() });
+  }
+
+  /**
+   * Have T3 install the latest release of a provider's CLI on this machine. Resolves once the
+   * install finishes; progress also arrives live through the provider status stream.
+   */
+  async updateProvider(driver: string, instanceId: string): Promise<void> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    const result = await this.rpc.request<{ providers: Provider[] }>("server.updateProvider", { provider: driver, instanceId }, 15 * 60_000);
+    if (result?.providers) updateEnv(this.id, (e) => ({ ...e, providers: result.providers }));
   }
 
   /**
