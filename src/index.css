@@ -992,6 +992,42 @@ select:focus {
   min-width: 0;
 }
 
+.recruit-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.workspace-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recruit-workspace select {
+  min-width: 0;
+  width: 100%;
+}
+
+.workspace-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.workspace-origin {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.workspace-path {
+  overflow-wrap: anywhere;
+}
+
 .roster {
   flex: 1;
   overflow-y: auto;

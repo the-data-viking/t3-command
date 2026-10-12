@@ -25,6 +25,7 @@ export interface ProjectShell {
   /** Null when T3 couldn't identify a git remote for the workspace. */
   repositoryIdentity?: RepositoryIdentity | null;
   defaultModelSelection: ModelSelection | null;
+  defaultThreadEnvMode?: "local" | "worktree" | null;
   createdAt: string;
   updatedAt: string;
 }

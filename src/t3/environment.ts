@@ -10,6 +10,7 @@ import { assetProxyUrl } from "./assets";
 import type { QuestionAnswers } from "./questions";
 import { supportedUsage, historyWindow, type UsageSummary } from "./usage";
 import type { HostResources } from "./host";
+import { defaultBranch, latestWorktree, type ProjectRefs, type RecruitWorkspace } from "./workspace";
 import type {
   AssetUrl,
   ImageResource,
@@ -416,15 +417,71 @@ export class EnvironmentClient {
     });
   }
 
-  /** Create a new thread in a project and start its first turn, atomically. */
+  /** Read all refs, including worktrees, from this project's host (never the Command host). */
+  async projectRefs(projectId: string): Promise<ProjectRefs> {
+    const project = useGame.getState().envs[this.id]?.projects[projectId];
+    if (!project) throw new Error("Unknown project");
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    const refs: ProjectRefs["refs"] = [];
+    let cursor: number | null = 0;
+    let isRepo = false;
+    do {
+      const page: ProjectRefs & { nextCursor: number | null } = await this.rpc.request("vcs.listRefs", {
+        cwd: project.workspaceRoot, cursor, limit: 100, includeMatchingRemoteRefs: true, refresh: cursor === 0,
+      });
+      refs.push(...page.refs);
+      isRepo = page.isRepo;
+      cursor = page.nextCursor;
+    } while (cursor !== null);
+    return { refs, isRepo };
+  }
+
+  /** Create a new thread and use T3's native bootstrap for worktree setup. */
   async recruit(opts: {
     projectId: string;
     text: string;
     modelSelection: ModelSelection;
     runtimeMode: RuntimeMode;
     interactionMode?: InteractionMode;
+    workspace?: RecruitWorkspace;
     hermesProfile?: string;
   }): Promise<string> {
+    const env = useGame.getState().envs[this.id];
+    const project = env?.projects[opts.projectId];
+    let branch: string | null = null;
+    let worktreePath: string | null = null;
+    let prepareWorktree: Record<string, unknown> | undefined;
+    const workspace = opts.workspace;
+    if (workspace) {
+      if (!project) throw new Error("Unknown project");
+      if (this.summary.kind === "hermes") {
+        if (workspace.mode !== "local" || workspace.branch) throw new Error("Hermes supports only its configured workspace checkout");
+      } else {
+        const { refs, isRepo } = await this.projectRefs(opts.projectId);
+        if (workspace.mode === "worktree") {
+          branch = workspace.branch ?? defaultBranch(refs) ?? null;
+          if (!isRepo || !branch || !refs.some((r) => r.name === branch)) throw new Error("Select an available Git base branch for the new worktree");
+          prepareWorktree = { projectCwd: project.workspaceRoot, baseBranch: branch,
+            branch: `t3code-${uuid().slice(0, 8)}`, requireWorktree: true, startFromOrigin: workspace.startFromOrigin ?? true };
+        } else if (workspace.mode === "latest" || workspace.mode === "existing") {
+          const latest = workspace.mode === "latest" ? latestWorktree(Object.values(env.threads), opts.projectId, project.workspaceRoot) : undefined;
+          const path = workspace.mode === "existing" ? workspace.path : latest?.worktreePath;
+          const ref = refs.find((r) => !r.isRemote && r.worktreePath === path && path !== project.workspaceRoot);
+          if (!ref) throw new Error("The selected worktree is no longer available. Refresh the workspace choices.");
+          branch = ref.name;
+          worktreePath = ref.worktreePath;
+        } else {
+          const current = refs.find((r) => r.current);
+          const selected = workspace.branch ? refs.find((r) => r.name === workspace.branch && !r.isRemote) : current;
+          if (workspace.branch && !selected) throw new Error("The selected checkout branch is no longer available");
+          if (selected?.worktreePath && selected.worktreePath !== project.workspaceRoot) throw new Error("That branch is checked out in another worktree. Choose that worktree instead.");
+          if (selected && !selected.current) {
+            const switched = await this.rpc!.request<{ refName: string | null }>("vcs.switchRef", { cwd: project.workspaceRoot, refName: selected.name });
+            branch = switched.refName;
+          } else branch = selected?.name ?? null;
+        }
+      }
+    }
     const threadId = uuid();
     const createdAt = new Date().toISOString();
     const interactionMode = opts.interactionMode ?? "default";
@@ -446,10 +503,11 @@ export class EnvironmentClient {
           modelSelection: opts.modelSelection,
           runtimeMode: opts.runtimeMode,
           interactionMode,
-          branch: null,
-          worktreePath: null,
+          branch,
+          worktreePath,
           createdAt,
         },
+        ...(prepareWorktree ? { prepareWorktree, runSetupScript: true } : {}),
       },
       createdAt,
     });

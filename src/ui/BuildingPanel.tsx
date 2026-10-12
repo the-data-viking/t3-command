@@ -10,6 +10,8 @@ import type { ModelSelection, Provider, RuntimeMode } from "../t3/types";
 import { STATE_LABELS, timeAgo } from "./util";
 import { HermesBotPicker } from "./HermesBotPicker";
 import { HermesPanel } from "./HermesPanel";
+import type { RecruitWorkspace } from "../t3/workspace";
+import { WorkspacePicker } from "./WorkspacePicker";
 
 const RUNTIME_MODES: Array<{ id: RuntimeMode; label: string }> = [
   { id: "full-access", label: "Full access" },
@@ -100,7 +102,7 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
       {env.summary.kind === "hermes" && <button className="btn wide" onClick={() => setShowHermes(true)}>Hermes bots & routines</button>}
       {showHermes && <HermesPanel envId={envId} onClose={() => setShowHermes(false)} />}
       <MachineTabs envId={envId} projectId={projectId} />
-      <RecruitForm key={envId} envId={envId} projectId={projectId} />
+      <RecruitForm key={`${envId}:${projectId}`} envId={envId} projectId={projectId} />
 
       <div className="roster">
         <h3>
@@ -146,6 +148,10 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
   );
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>(prefs.runtimeMode ?? "full-access");
   const [sending, setSending] = useState(false);
+  const [workspace, setWorkspace] = useState<RecruitWorkspace>(() => ({
+    mode: env?.summary.kind !== "hermes" && project?.defaultThreadEnvMode === "worktree" ? "worktree" : "local",
+  }));
+  const [recruitError, setRecruitError] = useState<string>();
 
   // Providers arrive after connecting; pick a default once they do.
   const current = selection ?? defaultSelection(providers, [prefs.modelSelection, project?.defaultModelSelection]);
@@ -166,14 +172,16 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
     const task = text.trim();
     if (!task || !current || sending) return;
     setSending(true);
+    setRecruitError(undefined);
     try {
-      const threadId = await envClient(envId)!.recruit({ projectId, text: task, modelSelection: current, runtimeMode: currentRuntimeMode, hermesProfile });
+      const threadId = await envClient(envId)!.recruit({ projectId, text: task, modelSelection: current, runtimeMode: currentRuntimeMode, workspace, hermesProfile });
       savePrefs(envId, { modelSelection: current, runtimeMode: currentRuntimeMode, hermesProfile });
       sfx.recruit();
       addLog({ tone: "good", text: `New worker recruited at ${project?.title ?? "base"}`, envId, threadId });
       setText("");
       setSelection({ kind: "unit", envId, threadId });
     } catch (err) {
+      setRecruitError(err instanceof Error ? err.message : String(err));
       sfx.error();
       logError("Recruit failed", err);
     } finally {
@@ -248,6 +256,8 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
           ))}
         </select>
       </div>
+      <WorkspacePicker envId={envId} projectId={projectId} value={workspace} onChange={setWorkspace} disabled={sending} />
+      {recruitError && <p className="small" role="alert">{recruitError}</p>}
       <button className="btn primary wide" disabled={sending || !text.trim() || !current || env?.connection !== "live"} onClick={() => void recruit()}>
         {sending ? "Recruiting…" : "⚒ Recruit"}
       </button>

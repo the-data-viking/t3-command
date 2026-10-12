@@ -41,6 +41,11 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
 - **Command**: select crew to read the live Markdown transcript with clickable links, give orders, halt, approve or deny tool
   use, answer agent questions with selectable options or custom text, or send them to quarters.
   Select a module to recruit new crew (a new thread) with any model.
+  Recruitment offers the current checkout, the latest active worktree, a new worktree, or a
+  specific existing worktree on the selected machine. Choose `main` or another checkout/base
+  branch; switching the current checkout also affects workers sharing it. New worktrees use
+  T3 Code’s setup flow and project setup scripts, with an option to start from the latest
+  origin branch. Local Hermes workers use their configured workspace checkout.
   Imported CLI history lives in each module's archive pod. Drag the chat panel's left edge to resize it,
   use its arrow-key controls, or double-click the edge to reset; width is saved per browser.
   Consecutive tool events, including tool failures, are collapsed into expandable **Tool activity**
