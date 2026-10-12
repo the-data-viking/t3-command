@@ -3,7 +3,7 @@ import { sfx } from "../game/sfx";
 import { setSelection, unitKey, useGame } from "../store";
 import { isHistory, pendingRequests, unitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
-import { modelTier, TIER_LABEL } from "../game/theme";
+import { contextLevel, modelTier, TIER_LABEL } from "../game/theme";
 import { envClient, logError } from "../t3/environment";
 import type { ApprovalDecision, Message, PendingRequest } from "../t3/types";
 import { modelName, providerName, STATE_LABELS, timeAgo } from "./util";
@@ -139,7 +139,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
               <span className="hp">
                 <span
                   className="hp-fill"
-                  style={{ width: `${Math.round((1 - info.context) * 100)}%`, background: info.context < 0.6 ? "var(--done)" : info.context < 0.85 ? "var(--question)" : "var(--alert)" }}
+                  style={{ width: `${Math.round((1 - info.context) * 100)}%`, background: `var(--gauge-${contextLevel(info.context)})` }}
                 />
               </span>
               <span className="tele-val">{Math.round((1 - info.context) * 100)}% left</span>

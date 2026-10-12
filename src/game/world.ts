@@ -26,7 +26,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { hostView, type HostState } from "../t3/host";
 import { crewTex, currentStyle, PX, tex } from "./textures";
-import { HUD, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
+import { contextLevel, GAUGE, HUD, hudMaterials, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
 
 const FONT = "'Chakra Petch', 'IBM Plex Mono', ui-monospace, monospace";
 const MONO = "'IBM Plex Mono', ui-monospace, monospace";
@@ -79,17 +79,17 @@ const SCREEN_OFF = 0x1c2228;
 function screenColor(state: UnitState, frame: number, atConsole: boolean): number {
   switch (state) {
     case "working":
-      return atConsole ? (frame % 2 ? 0x59e1ff : 0x9ff0ff) : 0x2a6f80;
+      return atConsole ? (frame % 2 ? STATUS.working : 0x9ff0ff) : 0x2a6f80;
     case "monitoring":
       return 0x7a5fb8;
     case "alert":
-      return frame % 2 ? 0xff4655 : 0x7a1820;
+      return frame % 2 ? STATUS.alert : 0x7a1820;
     case "question":
-      return frame % 2 ? 0xffd23f : 0x7a6418;
+      return frame % 2 ? STATUS.question : 0x7a6418;
     case "done":
-      return 0x5dff9a;
+      return STATUS.done;
     case "error":
-      return 0xff7a3d;
+      return STATUS.error;
     default:
       return SCREEN_OFF;
   }
@@ -241,29 +241,29 @@ class CrewSprite extends Container {
       // Spinning pip: busy, no attention needed.
       const a = Math.floor(t * 8) % 4;
       const pts = [[0, -6], [6, 0], [0, 6], [-6, 0]];
-      pts.forEach(([x, y], i) => f.rect(12 + x / 2, -40 + y / 2, 3, 3).fill({ color: i === a ? 0x59e1ff : 0x1d4a57 }));
+      pts.forEach(([x, y], i) => f.rect(12 + x / 2, -40 + y / 2, 3, 3).fill({ color: i === a ? STATUS.working : 0x1d4a57 }));
     }
     const tasks = Math.min(4, this.info?.tasks ?? 0);
     for (let i = 0; i < tasks; i++) {
       const a = t * 2.2 + (i / tasks) * Math.PI * 2;
-      f.rect(Math.round(Math.cos(a) * 18) - 2, Math.round(-22 + Math.sin(a) * 7) - 2, 4, 4).fill(0x59e1ff).stroke({ color: 0x101418, width: 1 });
+      f.rect(Math.round(Math.cos(a) * 18) - 2, Math.round(-22 + Math.sin(a) * 7) - 2, 4, 4).fill(STATUS.working).stroke({ color: 0x101418, width: 1 });
     }
     const ctx = this.info?.context;
     if (ctx !== undefined && (selected || this.hovered || zoom > 1.3)) {
       const left = 1 - ctx;
-      const color = left > 0.4 ? 0x6fe37a : left > 0.15 ? STATUS.question : STATUS.alert;
-      for (let i = 0; i < 8; i++) f.rect(-16 + i * 4, 4, 3, 4).fill(i / 8 < left ? color : 0x2a3036);
+      const color = GAUGE[contextLevel(ctx)];
+      for (let i = 0; i < 8; i++) f.rect(-16 + i * 4, 4, 3, 4).fill(i / 8 < left ? color : hudMaterials(useGame.getState().artStyle).meter);
     }
   }
 
   private drawRing(selected: boolean, t: number, sleeping: boolean): void {
     const r = this.ring.clear();
     if (sleeping) {
-      if (selected) r.rect(-26, -10, 52, 20).stroke({ color: 0x6fe37a, width: 2 });
+      if (selected) r.rect(-26, -10, 52, 20).stroke({ color: STATUS.done, width: 2 });
       return;
     }
     if (selected) {
-      r.ellipse(0, 0, 16, 6).stroke({ color: 0x6fe37a, width: 2 });
+      r.ellipse(0, 0, 16, 6).stroke({ color: STATUS.done, width: 2 });
     } else if (this.state === "alert" || this.state === "question") {
       const g = (t * 1.1 + this.seed) % 1;
       r.ellipse(0, 0, 10 + g * 22, 4 + g * 8).stroke({ color: STATUS[this.state], width: 2, alpha: 1 - g });
@@ -468,8 +468,8 @@ class EnvironmentNodeSprite {
     this.name.text=truncate((state.envs[node.envId]?.summary.label??'?').toUpperCase(),24);
     this.name.position.set(h.x+12,h.y+13); this.root.addChild(this.name);
     this.meters = new Graphics();
-    this.cpuText = label(10, 0x59e1ff); this.cpuText.position.set(h.x+94,h.y+42);
-    this.memoryText = label(9, 0x6fe37a); this.memoryText.position.set(h.x+94,h.y+78);
+    this.cpuText = label(10, GAUGE.unknown); this.cpuText.position.set(h.x+94,h.y+42);
+    this.memoryText = label(9, GAUGE.unknown); this.memoryText.position.set(h.x+94,h.y+78);
     this.caption = label(7,0xa7bdcb,{letterSpacing:.6}); this.caption.position.set(h.x+12,h.y+111);
     this.root.addChild(this.meters, this.cpuText, this.memoryText, this.caption);
     this.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
@@ -1066,7 +1066,7 @@ export class World {
         const room = s.rooms[kind];
         if (!room) continue;
         const on = !!u?.[kind];
-        const color = on ? (kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : 0x6fe37a) : 0x59626c;
+        const color = on ? (kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.done) : 0x59626c;
         const x = room.rect.x + room.rect.w - 16;
         const y = room.rect.y + 8;
         g.rect(x - 6, y - 2, 12, 12).fill(0x15191d).stroke({ color, width: 2 });
@@ -1098,7 +1098,7 @@ export class World {
       const sprite = this.environmentNodes.get(node.key)?.root;
       if (sprite) sprite.alpha = live ? 1 : 0.45;
       const p = node.plate;
-      const lightColor = live ? 0x6fe37a : env?.connection === "reconnecting" || env?.connection === "connecting" ? STATUS.question : 0x59626c;
+      const lightColor = live ? STATUS.done : env?.connection === "reconnecting" || env?.connection === "connecting" ? STATUS.question : 0x59626c;
       g.rect(p.x + p.w - 13, p.y + p.h / 2 - 4, 8, 8).fill({ color: lightColor, alpha: live || frame % 2 ? 1 : 0.4 });
       states.slice(0, 8).forEach((st, k) => g.rect(p.x + p.w - 22 - (Math.min(8, states.length) - k) * 8, p.y + 5, 6, p.h - 10).fill(STATUS[st]));
     }
@@ -1106,7 +1106,7 @@ export class World {
     // Selected project: outline its station.
     if (sel && sel.kind === "building") {
       const s = this.stationFor(sel.envId, sel.projectId);
-      if (s) o.poly(s.hull).stroke({ color: 0x6fe37a, width: 4 });
+      if (s) o.poly(s.hull).stroke({ color: STATUS.done, width: 4 });
     }
   }
 

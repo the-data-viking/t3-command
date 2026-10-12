@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { stationColor } from "../game/layout";
 import { sfx } from "../game/sfx";
-import { css, modelTier, PROVIDER_VISOR, providerSilhouette, TIER_LABEL } from "../game/theme";
+import { contextLevel, css, modelTier, PROVIDER_VISOR, providerSilhouette, TIER_LABEL } from "../game/theme";
 import { worldRef } from "../game/world";
 import { openEvent, setSelection, unitKey, useGame } from "../store";
 import type { UnitState } from "../t3/derive";
@@ -67,7 +67,7 @@ export function CrewRoster() {
             {ctx !== undefined && (
               <span className="crew-hp" title={`${Math.round((1 - ctx) * 100)}% context left`}>
                 {Array.from({ length: 10 }, (_, i) => (
-                  <i key={i} className={i / 10 < 1 - ctx ? (ctx < 0.6 ? "ok" : ctx < 0.85 ? "warn" : "bad") : ""} />
+                  <i key={i} className={i / 10 < 1 - ctx ? contextLevel(ctx) : ""} />
                 ))}
               </span>
             )}
