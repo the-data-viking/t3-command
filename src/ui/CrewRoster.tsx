@@ -8,6 +8,8 @@ import type { UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { allUnits, STATE_LABELS, type UnitRef } from "./util";
 import { ThreadTiming } from "./ThreadTiming";
+import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
+import { BotPortrait } from './HermesControlCenter';
 
 const NEEDS_YOU: UnitState[] = ["alert", "question", "error", "done"];
 const ON_DUTY: UnitState[] = ["working", "monitoring", "idle"];
@@ -18,18 +20,21 @@ export function CrewRoster() {
   const envs = useGame((s) => s.envs);
   const details = useGame((s) => s.details);
   const selection = useGame((s) => s.selection);
+  const hermesCatalog = useGame(s => s.hermesCatalog);
+  const operators = botOperators({ envs, hermesCatalog });
   const [collapsed, setCollapsed] = useState(false);
 
   const crew = useMemo(
     () =>
       allUnits(envs)
-        .filter((u) => u.state !== "sleeping")
+        .filter((u) => u.state !== "sleeping" && envs[u.envId]?.summary.kind !== 'hermes')
         .sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || b.thread.updatedAt.localeCompare(a.thread.updatedAt)),
     [envs],
   );
   const needsYou = crew.filter((u) => NEEDS_YOU.includes(u.state));
   const onDuty = crew.filter((u) => ON_DUTY.includes(u.state));
-  const urgent = crew.filter((u) => u.state === "alert" || u.state === "question").length;
+  const urgent = crew.filter((u) => u.state === "alert" || u.state === "question").length
+    + operators.filter(b => b.state === 'alert' || b.state === 'question').length;
 
   const open = (u: UnitRef) => {
     sfx.select();
@@ -75,10 +80,19 @@ export function CrewRoster() {
   return (
     <aside className={`crew-roster ftl-frame ${collapsed ? "collapsed" : ""}`}>
       <button className="ftl-tab roster-tab" onClick={() => setCollapsed(!collapsed)}>
-        CREW <span className={urgent ? "count hot" : "count"}>{crew.length}</span> {collapsed ? "▸" : "▾"}
+        CREW <span className={urgent ? "count hot" : "count"}>{crew.length}</span>{operators.length > 0 && <span className="operator-count"> · {operators.length} operators</span>} {collapsed ? "▸" : "▾"}
       </button>
       {!collapsed && (
         <div className="roster-body">
+          {operators.length > 0 && <><div className="roster-heading hermes-roster-heading">Hermes operators</div>
+            <ol className="crew-list">{operators.map(bot => <li key={bot.name}><button className={`crew-row operator-row row-${bot.state} ${selection?.kind === 'hermes' && selection.profile === bot.name ? 'active' : ''}`} onClick={() => {
+              const pending = bot.sessions.find(s => envs[s.envId]?.connection === 'live' && (s.state === 'alert' || s.state === 'question'));
+              if (pending) { open(pending); return; }
+              const sel = { kind: 'hermes' as const, envId: bot.envId, profile: bot.name };
+              setSelection(sel); worldRef.current?.focus(sel);
+            }}><BotPortrait profile={bot.name} /><span className="crew-text"><span className="crew-name">{bot.title}</span>
+              <span className="crew-sub"><span className={`crew-state st-${bot.observed ? bot.state : 'idle'}`}>{bot.observed ? BOT_STATE_LABELS[bot.state] : 'Unobserved'}</span><span className="muted"> · operator</span></span>
+            </span></button></li>)}</ol></>}
           {needsYou.length > 0 && (
             <>
               <div className="roster-heading">Needs you</div>

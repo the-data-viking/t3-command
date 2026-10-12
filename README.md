@@ -90,23 +90,24 @@ Why it needs a server of its own:
 Each environment sees t3-command as its own connection under **Settings → Connections**, separate
 from the stock app's, and you can revoke it there at any time.
 
-### Local Hermes workers
+### Hermes control center
 
 T3 Command can also launch [Hermes Agent](https://github.com/NousResearch/hermes-agent) workers
-on the same machine as the Command server. Hermes appears as its own base; T3 Code does not
-need a Hermes provider or any changes. The browser uses the same authenticated Command server,
+on the same machine as the Command server. Hermes has its own control center for persistent
+operators, separate from T3 environments and repository-defined projects. T3 Code needs no provider changes. The browser uses the same authenticated Command server,
 which launches `hermes acp` and translates its local Agent Client Protocol stream into crew state.
 
 1. Install and configure Hermes on the Command host as the same OS user that runs Command:
    run `hermes setup`, then `hermes acp --check`. Use a Hermes release with ACP session modes
    (`default` and `accept_edits`) and session loading.
-2. Open **Stations → Local Hermes**, enter an existing absolute workspace directory on that host,
+2. Open **Stations → Local Hermes**, enter an existing absolute default working directory on that host,
    and choose **Connect Hermes**. No T3 pairing link or additional network listener is needed.
-3. Select that base's workspace module and recruit a worker. Each worker gets its own Hermes
-   session in the selected bot profile, using that profile's model, credentials, tools, and memory.
+3. Open **Hermes** in the header or select its large control-center node on the map. Choose a bot
+   and **Talk to bot** for its ongoing Bot Chat, or **New task session** for a separate conversation.
+   Each uses the selected profile's model, credentials, tools, and memory.
 
-Replies and reasoning stream into the crew log. Tool calls drive workstation activity; permission
-requests use the existing approval controls. **Halt** sends ACP cancellation and waits for the
+Replies and reasoning stream into the crew log. Permission requests use the existing approval controls. Each bot appears once as an operator;
+its conversations and task sessions live underneath that identity. **Halt** sends ACP cancellation and waits for the
 agent's prompt to finish before showing it as interrupted. The available permission choices are
 **Ask before edits** and **Accept workspace edits**; Hermes retains its own command and sensitive
 path approval rules. Change the configured model with `hermes model` before recruiting, or use
@@ -119,9 +120,11 @@ Hermes base stops its processes and deletes Command's transcripts; Hermes's own 
 remain. Command can reopen a bot's canonical Bot Chat and refresh its native transcript.
 Images, structured questions, background-task telemetry, and spend estimates remain unsupported.
 
-Open **Stations → your Hermes station → Bots & routines** (also available from its workspace
-panel) to create or clone native Hermes profiles, edit their role, SOUL.md and curated memory
+Open **Hermes → Manage bots**, **Identity & memory**, or **Routines** to create or clone native Hermes profiles, edit their role, SOUL.md and curated memory
 files, configure the model, toggle installed skills/toolsets/MCP servers, and open Bot Chat.
+The map links the control center to engineering nodes, not projects. Uplinks show connection
+topology only; automated delegation and live handoff tracking are not implemented yet.
+
 Existing profiles are discovered automatically. Clones copy identity and memory; their sessions
 and routines start empty, and OAuth providers may require login separately for each bot.
 

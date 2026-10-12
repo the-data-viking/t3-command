@@ -3,13 +3,15 @@ import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { css, teamColor } from "../game/theme";
 import { worldRef } from "../game/world";
-import { openHost, setArtStyle, setMuted, useGame } from "../store";
+import { openHost, setSelection, setArtStyle, setMuted, useGame } from "../store";
 import { hostView } from "../t3/host";
 import { isHistory, unitState } from "../t3/derive";
 import { jumpTo } from "./hotkeys";
 import { allUnits } from "./util";
 import { SpendTelemetry } from "./SpendTelemetry";
 import { UpdatePanel } from "./UpdatePanel";
+import { HermesMark } from './HermesControlCenter';
+import { botOperators } from '../t3/bots';
 
 export function TopBar() {
   const bar = useRef<HTMLElement>(null);
@@ -17,6 +19,9 @@ export function TopBar() {
   const hosts = useGame((s) => s.hosts);
   const muted = useGame((s) => s.muted);
   const artStyle = useGame((s) => s.artStyle);
+  const hermesCatalog = useGame(s => s.hermesCatalog);
+  const hermes = Object.values(envs).filter(e => e.summary.kind === 'hermes');
+  const operators = botOperators({ envs, hermesCatalog });
   const stations = useMemo(() => sortedEnvs(useGame.getState()), [envs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -32,8 +37,10 @@ export function TopBar() {
   const totals = useMemo(() => {
     const c = { working: 0, monitoring: 0, attention: 0, done: 0, hurt: 0, crew: 0, awake: 0 };
     for (const u of allUnits(envs)) {
-      c.crew++;
-      if (u.state !== "sleeping") c.awake++;
+      if (envs[u.envId]?.summary.kind !== 'hermes') {
+        c.crew++;
+        if (u.state !== "sleeping") c.awake++;
+      }
       if (u.state === "working") c.working++;
       else if (u.state === "monitoring") c.monitoring++;
       else if (u.state === "alert" || u.state === "question") c.attention++;
@@ -79,6 +86,7 @@ export function TopBar() {
           const units = Object.values(env.threads).filter((t) => !isHistory(t));
           const attention = units.filter((t) => ["alert", "question"].includes(unitState(t))).length;
           const working = units.filter((t) => unitState(t) === "working").length;
+          if (env.summary.kind === 'hermes') return null;
           const resources = hostView(hosts[env.summary.id], env.connection);
           const description = `${env.summary.label} — ${env.connection}${env.error ? `: ${env.error}` : ""} · CPU ${resources.cpuFraction === undefined ? "unavailable" : `${Math.round(resources.cpuFraction * 100)}%`} · RAM ${resources.memoryFraction === undefined ? "unavailable" : `${Math.round(resources.memoryFraction * 100)}% used`}${resources.stale ? " · stale sample" : ""}`;
           return (
@@ -107,6 +115,11 @@ export function TopBar() {
           );
         })}
       </nav>
+      {hermes.length > 0 && <button className={`btn operations-chip ${operators.some(b => b.state === 'alert' || b.state === 'question') ? 'hot' : ''}`}
+        title="Hermes control center — persistent operators, memory and routines" onClick={() => {
+          const envId = hermesCatalog?.envId ?? hermes[0].summary.id;
+          setSelection({ kind: 'hermes', envId }); worldRef.current?.focusStation(envId);
+        }}><HermesMark /><span>Hermes <span className="muted">{operators.length}</span></span></button>}
       <button className="btn" onClick={() => useGame.setState({ showEnvManager: true })}>
         Stations
       </button>

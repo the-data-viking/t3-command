@@ -16,6 +16,8 @@ import { EventDialog } from "./ui/EventDialog";
 import { TopBar } from "./ui/TopBar";
 import { UnitPanel } from "./ui/UnitPanel";
 import { HostPanel } from "./ui/HostPanel";
+import { HermesControlCenter } from "./ui/HermesControlCenter";
+import { refreshHermesBots } from "./t3/hermes";
 
 const ENV_REFRESH_MS = 30_000;
 
@@ -57,8 +59,9 @@ export default function App() {
         const me = await fetchJson<MeResponse>("/api/me");
         useGame.setState({ me });
         await refreshEnvironments();
+        void refreshHermesBots();
         if (Object.keys(useGame.getState().envs).length === 0) useGame.setState({ showEnvManager: true });
-        timer = setInterval(() => void refreshEnvironments().catch(() => {}), ENV_REFRESH_MS);
+        timer = setInterval(() => void refreshEnvironments().then(() => refreshHermesBots()).catch(() => {}), ENV_REFRESH_MS);
       } catch (err) {
         setFatal((err as Error).message);
       }
@@ -91,6 +94,7 @@ export default function App() {
       <Minimap />
       <EventLog />
       {hostPanel && <HostPanel envId={hostPanel} />}
+      {selection?.kind === "hermes" && <HermesControlCenter key={selection.envId} envId={selection.envId} profile={selection.profile} />}
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
       {selection?.kind === "library" && <LibraryPanel key={`lib:${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
       {selection?.kind === "building" && <BuildingPanel key={`${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}

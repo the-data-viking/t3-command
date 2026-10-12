@@ -1318,3 +1318,40 @@ select:focus {
   .hermes-roster { max-height: 180px; overflow: auto; }
   .hermes-checklist { grid-template-columns: 1fr; }
 }
+
+/* Hermes has a persistent operator identity, separate from project crew and host gauges. */
+:root { --hermes: #d6c09c; }
+.hermes-mark { display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; border: 1px solid var(--hermes); border-radius: 10px; background: #d6c09c12; color: var(--hermes); font-size: 25px; line-height: 1; }
+.operations-chip { display: inline-flex; align-items: center; gap: 8px; border-color: var(--hermes); color: var(--hermes); background: #d6c09c0d; }
+.operations-chip .hermes-mark { width: 20px; height: 20px; font-size: 17px; border: 0; background: none; }
+.operations-chip.hot { border-color: var(--alert); }
+.panel.hermes-control { width: min(510px, calc(100vw - 16px)); top: var(--topbar-bottom, 62px); border-color: #d6c09c70; background: linear-gradient(150deg, #17252ff5, #080f16f5); }
+.hermes-control::before, .hermes-chat::before { border-color: var(--hermes); }
+.hermes-control::after, .hermes-chat::after { border-color: var(--hermes); }
+.ops-eyebrow { text-transform: uppercase; font-size: 10px; letter-spacing: 2px; color: var(--hermes); margin-bottom: 5px; }
+.ops-summary { display: flex; gap: 12px; flex-wrap: wrap; border-block: 1px solid #d6c09c30; padding: 10px 0; color: var(--muted); font-size: 10px; }
+.ops-summary strong { color: var(--text); }
+.ops-scroll { overflow: auto; min-height: 0; padding-right: 3px; }
+.ops-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hermes-control h3, .hermes-roster-heading { color: var(--hermes); }
+.operator-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 16px; }
+.operator-card { display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 12px; background: #23354180; border: 1px solid #d6c09c25; border-radius: 8px; cursor: pointer; min-width: 0; }
+.operator-card:hover, .operator-card.selected { border-color: var(--hermes); background: #2e424980; }
+.operator-card > span:last-child { display: flex; flex-direction: column; gap: 7px; min-width: 0; overflow-wrap: anywhere; }
+.operator-card .small { font-size: 10px; line-height: 1.5; }
+.bot-portrait { --bot: #9bc9c2; width: 38px; height: 42px; flex: none; display: grid; place-items: center; color: var(--bot); border: 1px solid var(--bot); border-radius: 12px 3px; background: color-mix(in srgb, var(--bot) 12%, #10212b); box-shadow: inset 0 0 0 4px #10212b; }
+.bot-portrait span { font-family: var(--display); font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+.operator-detail { border-block: 1px solid #d6c09c30; padding: 6px 0 14px; margin-bottom: 16px; }
+.ops-sessions, .ops-endpoints { display: grid; gap: 6px; }
+.ops-sessions .btn, .ops-endpoints .btn { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.ops-endpoints { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 16px; }
+.operator-row .bot-portrait { width: 28px; height: 32px; border-radius: 8px 2px; }
+.operator-row .bot-portrait span { font-size: 10px; }
+.operator-count { font-size: 9px; color: var(--hermes); letter-spacing: 0; }
+.ops-back { align-self: flex-start; color: var(--hermes); border-color: #d6c09c40; }
+.hermes-connection { border: 1px solid #d6c09c40; padding: 12px; margin: 16px 0; }
+@media (max-width: 700px) { .panel.hermes-control { top: var(--topbar-bottom, 100px); bottom: 8px; max-height: none; } .operator-list { grid-template-columns: 1fr; } }
+.hermes-mark svg { width: 85%; height: 85%; }
+.panel.hermes-control { height: auto; }
+.ops-new-task { margin: 10px 0 12px; border: 1px solid #d6c09c30; border-radius: 6px; padding: 10px; }
+.ops-new-task summary { color: var(--hermes); cursor: pointer; font-size: 11px; }

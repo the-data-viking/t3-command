@@ -22,6 +22,8 @@ import { computeFleetLayout, QUARTERS_SHOWN, TILE, type CrewLayout, type FleetLa
 import { sfx } from "./sfx";
 import { CrewMotion } from "./crew-motion";
 import { RenderLoop } from "./render-loop";
+import { ControlCenterSprite } from "./control-center";
+import { HERMES_COLOR } from "../t3/bots";
 import { hostView, type HostState } from "../t3/host";
 import { crewTex, currentStyle, PX, tex } from "./textures";
 import { HUD, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
@@ -495,6 +497,7 @@ class EnvironmentNodeSprite {
 export interface MinimapData {
   bounds: Rect;
   hubs: Rect[];
+  controlCenter?: Rect;
   stations: Array<{ rect: Rect; color: number; live: boolean }>;
   dots: Array<{ x: number; y: number; color: number; big: boolean }>;
   view: Rect;
@@ -517,6 +520,8 @@ export class World {
   private edgeHits = new Container();
   private stations = new Map<string, StationSprite>();
   private environmentNodes = new Map<string, EnvironmentNodeSprite>();
+  private controlCenter?: ControlCenterSprite;
+  private lastCatalog?: GameState["hermesCatalog"];
   private crew = new Map<string, CrewSprite>();
   private layout: FleetLayout = { stations: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
   private zoom = 1;
@@ -568,7 +573,7 @@ export class World {
       return animated;
     });
     this.unsubscribe = useGame.subscribe((s, prev) => {
-      if (s.envs !== prev.envs || s.details !== prev.details || s.hosts !== prev.hosts || s.selection !== prev.selection || s.artStyle !== prev.artStyle) this.invalidate();
+      if (s.envs !== prev.envs || s.details !== prev.details || s.hosts !== prev.hosts || s.selection !== prev.selection || s.hermesCatalog !== prev.hermesCatalog || s.artStyle !== prev.artStyle) this.invalidate();
     });
     this.resizeObserver = new ResizeObserver(() => {
       if (this.destroyed) return;
@@ -695,8 +700,17 @@ export class World {
     this.frame(rect, 2, Math.min(460, this.app.screen.width * 0.3), Math.min(300, this.app.screen.width * 0.2));
   }
 
+  private focusControlCenter(): void {
+    const center = this.layout.controlCenter;
+    if (!center || !this.initialized) return;
+    this.userMoved = true;
+    const width = this.app.screen.width;
+    this.frame(center.hull, 1.4, width >= 1000 ? 526 : 0, width >= 1000 ? Math.min(260, width * 0.2) : 0);
+  }
+
   /** Frame all service nodes and project modules belonging to an environment. */
   focusStation(envId: string): void {
+    if (this.layout.controlCenter?.envIds.includes(envId)) { this.focusControlCenter(); return; }
     const nodes = [...this.layout.environmentNodes.values()].filter(node => node.envId === envId);
     if (!nodes.length) return;
     let rect: Rect = { ...nodes[0].hull };
@@ -734,8 +748,16 @@ export class World {
   focus(selection: Selection): void {
     if (!selection || !this.initialized) return;
     let p: Point | undefined;
-    if (selection.kind === "unit") p = this.crew.get(unitKey(selection.envId, selection.threadId))?.pos;
-    else {
+    const center = this.layout.controlCenter;
+    if (selection.kind === "hermes") {
+      if (center) this.focusControlCenter();
+      return;
+    }
+    if (selection.kind === "unit") {
+      p = this.crew.get(unitKey(selection.envId, selection.threadId))?.pos;
+      const card = center?.operators.find(o => o.bot.sessions.some(s => s.envId === selection.envId && s.thread.id === selection.threadId))?.card;
+      if (card) { this.focusControlCenter(); return; }
+    } else {
       const s = this.stationFor(selection.envId, selection.projectId);
       const r = selection.kind === "library" ? s?.rooms.archive?.rect : s?.interior;
       if (r) p = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
@@ -755,6 +777,7 @@ export class World {
     const state = useGame.getState();
     return {
       bounds: this.layout.bounds,
+      controlCenter: this.layout.controlCenter?.hull,
       hubs: [...this.layout.stations.values()].map((s) => s.interior),
       stations: [...this.layout.environmentNodes.values()].map((sh) => ({ rect: sh.hull, color: sh.color, live: state.envs[sh.envId]?.connection === "live" })),
       dots: [...this.crew.values()]
@@ -775,8 +798,9 @@ export class World {
       }
     }
     const styleChanged = state.artStyle !== this.lastStyle;
-    if (state.envs === this.lastEnvs && state.details === this.lastDetails && !styleChanged) return;
-    const layoutChanged = state.envs !== this.lastEnvs;
+    if (state.envs === this.lastEnvs && state.hermesCatalog === this.lastCatalog && state.details === this.lastDetails && !styleChanged) return;
+    const layoutChanged = state.envs !== this.lastEnvs || state.hermesCatalog !== this.lastCatalog;
+    this.lastCatalog = state.hermesCatalog;
     this.lastEnvs = state.envs;
     this.lastDetails = state.details;
     this.lastStyle = state.artStyle;
@@ -820,6 +844,15 @@ export class World {
         sprite.destroy();
         this.environmentNodes.delete(envId);
       }
+      if (this.layout.controlCenter) {
+        if (!this.controlCenter) {
+          this.controlCenter = new ControlCenterSprite();
+          this.environmentLayer.addChild(this.controlCenter.root);
+        }
+        const center = this.layout.controlCenter;
+        this.controlCenter.build(center, center.envIds.some(id => state.envs[id]?.connection === 'live'),
+          [...this.layout.environmentNodes.values()].filter(n => state.envs[n.envId]?.connection === 'live').length);
+      } else { this.controlCenter?.destroy(); this.controlCenter = undefined; }
       this.drawGrid();
       this.drawLinks(state);
     }
@@ -880,6 +913,16 @@ export class World {
 
   private drawLinks(state: GameState): void {
     const g = this.links.clear();
+    for (const link of this.layout.controlCenter?.links ?? []) {
+      const online = state.envs[link.envId]?.connection === 'live';
+      const lane = link.laneX;
+      g.moveTo(link.from.x, link.from.y).lineTo(lane, link.from.y).lineTo(lane, link.to.y).lineTo(link.to.x, link.to.y)
+        .stroke({ color: HERMES_COLOR, width: 2, alpha: online ? 0.32 : 0.1 });
+      // Directional port markings communicate the relationship, not invented traffic.
+      const direction = link.to.x > lane ? 1 : -1;
+      g.poly([link.to.x, link.to.y, link.to.x - 7 * direction, link.to.y - 4,
+        link.to.x - 7 * direction, link.to.y + 4]).fill({ color: HERMES_COLOR, alpha: online ? 0.7 : 0.2 });
+    }
     for (const node of this.layout.environmentNodes.values()) {
       const live = state.envs[node.envId]?.connection === "live";
       for (const link of node.links) {
@@ -917,6 +960,7 @@ export class World {
       sprite.tick(lay, s, t, dt, frame, selected, this.zoom);
     }
     this.drawLights(state, sel, t, frame);
+    if (this.layout.controlCenter) this.controlCenter?.update(this.layout.controlCenter, sel, this.zoom);
     for (const station of this.stations.values()) station.setZoom(this.zoom);
     for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
     this.drawEdgeIndicators(t);

@@ -14,6 +14,9 @@ import { QuestionForm } from "./QuestionForm";
 import { PanelResize } from "./PanelResize";
 import { usePanelWidth } from "./usePanelWidth";
 import { ThreadTiming } from "./ThreadTiming";
+import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
+import { BotPortrait } from './HermesControlCenter';
+import { worldRef } from '../game/world';
 
 import { ActivityView, ToolActivityGroup } from "./TranscriptActivity";
 import { transcriptEntries } from "./transcript";
@@ -23,6 +26,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
   const env = useGame((s) => s.envs[envId]);
   const thread = env?.threads[threadId];
   const detail = useGame((s) => s.details[unitKey(envId, threadId)]);
+  const hermesCatalog = useGame(s => s.hermesCatalog);
 
   // Follow this thread's messages while the panel is open.
   useEffect(() => envClient(envId)?.watchThread(threadId), [envId, threadId]);
@@ -56,25 +60,26 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
   const info = detail ? telemetry(detail.thread) : undefined;
   const project = env.projects[thread.projectId];
   const client = envClient(envId);
-  const unitName = thread.title || "Untitled";
+  const bot = env.summary.kind === 'hermes' ? botOperators({ envs: useGame.getState().envs, hermesCatalog }).find(b => b.name === (thread.hermesProfile ?? 'default')) : undefined;
+  const unitName = thread.hermesBotChat && bot ? bot.title : thread.title || "Untitled";
 
   const run = (what: string, fn: () => Promise<unknown> | undefined) => {
     fn()?.catch((err: unknown) => logError(what, err));
   };
 
   return (
-    <aside className="panel unit-panel" style={{ width: panelWidth.width }}>
+    <aside className={`panel unit-panel ${bot ? 'hermes-chat' : ''}`} style={{ width: panelWidth.width }}>
       <PanelResize {...panelWidth} />
       <header className="panel-head">
-        <div className={`portrait provider-${thread.modelSelection.instanceId}`} />
+        {bot ? <BotPortrait profile={bot.name} /> : <div className={`portrait provider-${thread.modelSelection.instanceId}`} />}
         <div className="panel-title">
           <h2 title={unitName}>{unitName}</h2>
-          {thread.hermesProfile && <div className="muted small">Hermes bot: {thread.hermesProfile}{thread.hermesBotChat ? " · Bot Chat" : " · Task session"}</div>}
+          {bot && <div className="muted small">Hermes operator · {bot.name}{thread.hermesBotChat ? ' · ongoing conversation' : ' · task session'}</div>}
           <div className="muted small">
-            {TIER_LABEL[modelTier(thread.modelSelection.model)]} · {providerName(env, thread.modelSelection.instanceId)} · {modelName(env, thread)}
+            {bot ? bot.model || 'Hermes configured model' : `${TIER_LABEL[modelTier(thread.modelSelection.model)]} · ${providerName(env, thread.modelSelection.instanceId)} · ${modelName(env, thread)}`}
           </div>
           <div className="muted small">
-            {project?.title ?? "?"} @ {env.summary.label}
+            {bot ? bot.description || 'Hermes control center' : `${project?.title ?? '?'} @ ${env.summary.label}`}
             {thread.branch ? ` · ⎇ ${thread.branch}` : ""}
           </div>
         </div>
@@ -82,6 +87,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
           ✕
         </button>
       </header>
+      {bot && <button className="btn ops-back" onClick={() => { const selection = { kind: 'hermes' as const, envId, profile: bot.name }; setSelection(selection); worldRef.current?.focus(selection); }}>← Control center</button>}
 
       {archived ? (
         <div className="status-row">
@@ -93,7 +99,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         </div>
       ) : (
       <div className="status-row">
-        <span className={`pill state-${state}`}>{STATE_LABELS[state]}</span>
+        <span className={`pill state-${state}`}>{bot ? BOT_STATE_LABELS[state] : STATE_LABELS[state]}</span>
         <span className="muted small">{thread.runtimeMode}</span>
         <ThreadTiming thread={thread} detail={detail?.thread} />
         <span className="spacer" />
@@ -104,12 +110,12 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         )}
         {state === "sleeping" ? (
           <button className="btn" onClick={() => run("Wake", () => client?.unsettle(threadId))}>
-            Wake
+            {bot ? 'Reopen' : 'Wake'}
           </button>
         ) : (
           !canHalt && (
             <button className="btn" onClick={() => run("Send to camp", () => client?.settle(threadId))} title="Mark the thread settled">
-              ⛺ To camp
+              {bot ? 'Acknowledge' : '⛺ To camp'}
             </button>
           )
         )}
