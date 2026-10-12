@@ -147,6 +147,13 @@ with _config_profile_scope('validation-bot'):
     manager.end_all_sessions()
     assert other.get_session(existing['id']) is not None
     assert db.get_session(existing['id'])['source'] == 'acp'
+    # Native ACP reads the live edit policy for each check, without a model call.
+    import asyncio
+    native = module.HermesACPAgent(session_manager=other)
+    asyncio.run(native.set_session_mode('accept_edits', existing['id']))
+    assert native._edit_approval_policy_for_state(other.get_session(existing['id']))[0] == 'workspace_session'
+    asyncio.run(native.set_session_mode('default', existing['id']))
+    assert native._edit_approval_policy_for_state(other.get_session(existing['id']))[0] == 'ask'
     other.end_all_sessions()
     db.close()
 `);

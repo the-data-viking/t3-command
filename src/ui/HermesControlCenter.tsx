@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { HermesJobs } from '../../shared/hermes';
+import { HERMES_EDIT_PERMISSIONS, type HermesJobs } from '../../shared/hermes';
 import { worldRef } from '../game/world';
 import { css } from '../game/theme';
 import { setSelection, useGame } from '../store';
@@ -9,6 +9,7 @@ import { HermesPanel } from './HermesPanel';
 import { openHost } from '../store';
 import { envClient } from '../t3/environment';
 import type { RuntimeMode } from '../t3/types';
+import { HermesPermissions } from './HermesPermissions';
 
 export function HermesMark({ className = '' }: { className?: string }) {
   return <span className={`hermes-mark ${className}`} aria-hidden="true"><svg viewBox="0 0 40 40" fill="none">
@@ -34,6 +35,7 @@ export function HermesControlCenter({ envId, profile }: { envId: string; profile
   const [error, setError] = useState<string>();
   const [opening, setOpening] = useState(false);
   const selectedProfile = selected?.name;
+  const botChat = selected?.sessions.find(s => s.thread.hermesBotChat && envs[s.envId]?.connection === 'live');
   useEffect(() => { void refreshHermesBots(); }, []);
   useEffect(() => {
     if (!selectedProfile) return;
@@ -81,6 +83,7 @@ export function HermesControlCenter({ envId, profile }: { envId: string; profile
         <div className="hermes-actions"><button className="btn primary" disabled={opening || env?.connection !== 'live'} onClick={() => void openChat()}>{opening ? 'Opening…' : 'Talk to bot'}</button>
           <button className="btn" onClick={() => setManage({ profile: selected.name, tab: 'identity' })}>Identity & memory</button>
           <button className="btn" onClick={() => setManage({ profile: selected.name, tab: 'routines' })}>Routines{jobs ? ` (${jobs.jobs.length})` : ''}</button></div>
+        <HermesPermissions key={selected.name} envId={botChat?.envId ?? envId} threadId={botChat?.thread.id} profile={selected.name} />
         {jobs && <p className="muted small" role="status">Scheduler: {jobs.scheduler.running === true ? 'running' : jobs.scheduler.running === false ? 'offline' : 'unknown'}
           {jobs.scheduler.heartbeatAge != null && ` · heartbeat ${Math.round(jobs.scheduler.heartbeatAge)}s ago`}{jobs.scheduler.error && ` · ${jobs.scheduler.error}`}</p>}
         {error && <p role="alert">{error}</p>}
@@ -121,7 +124,7 @@ function NewBotTask({ envId, profile, disabled }: { envId: string; profile: stri
   }}>
     <label className="hermes-field">Task<textarea required rows={3} value={text} disabled={sending} onChange={e => setText(e.target.value)} placeholder="Give this operator a separate task using its existing memory." /></label>
     <label className="hermes-field">Edit permissions<select value={mode} disabled={sending} onChange={e => setMode(e.target.value as RuntimeMode)}>
-      <option value="approval-required">Ask before edits</option><option value="auto-accept-edits">Accept workspace edits</option>
+      {HERMES_EDIT_PERMISSIONS.map(mode => <option key={mode.id} value={mode.id}>{mode.label}</option>)}
     </select></label>
     <p className="muted small">A separate conversation with the same bot. Its ongoing Bot Chat keeps its own history.</p>
     {disabled && <p className="muted small">This operator has a running turn. Wait or halt it before starting another.</p>}

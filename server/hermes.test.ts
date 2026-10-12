@@ -29,7 +29,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     update(msg.params.sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'HISTORY MUST NOT DUPLICATE' } });
     reply(msg.id, { modes });
   }
-  else if (msg.method === 'session/set_mode') reply(msg.id, {});
+  else if (msg.method === 'session/set_mode') {
+    if (pending?.hang && msg.params.modeId === 'default') send({id:msg.id,error:{code:-32000,message:'Mode change refused by fixture'}});
+    else reply(msg.id, {});
+  }
   else if (msg.method === 'session/prompt') {
     const sessionId = msg.params.sessionId;
     if (msg.params.prompt[0].text === 'crash') { process.exit(7); return; }
@@ -227,6 +230,21 @@ test("local Hermes fleet supports approvals, reconnect, reload, cancellation, an
   rpc = await connect();
   detail = rpc.stream("orchestration.subscribeThread", { threadId: "worker" });
   thread = await rpc.thread(detail, (thread) => thread.hasPendingApprovals === true);
+  // Switching edit policy on the same live process never answers its pending approval.
+  const setMode = (runtimeMode: string, commandId: string, threadId = 'worker') => ({ commandId, type: 'thread.runtime-mode.set', threadId, runtimeMode });
+  await assert.rejects(rpc.request('orchestration.dispatchCommand', setMode('full-access', 'unsupported-mode')), /Unsupported Hermes permission/);
+  await assert.rejects(rpc.request('orchestration.dispatchCommand', setMode('auto-accept-edits', 'missing-mode', 'missing')), /Unknown Hermes thread/);
+  const liveMode = setMode('auto-accept-edits', 'live-mode');
+  await rpc.request('orchestration.dispatchCommand', liveMode);
+  await rpc.request('orchestration.dispatchCommand', liveMode);
+  thread = await rpc.thread(detail, thread => thread.runtimeMode === 'auto-accept-edits');
+  assert.equal((thread.session as { runtimeMode: string }).runtimeMode, 'auto-accept-edits');
+  assert.equal(thread.hasPendingApprovals, true);
+  let modeRows = (await fs.readFile(log, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  assert.equal(modeRows.filter(row => row.method === 'session/prompt').length, 1);
+  assert.equal(modeRows.filter(row => row.method === 'session/set_mode' && row.params.modeId === 'accept_edits').length, 1);
+  assert.ok(!modeRows.some(row => row.id === 'permission' && row.result));
+  await rpc.request('orchestration.dispatchCommand', setMode('approval-required', 'live-mode-back'));
   await rpc.request("orchestration.dispatchCommand", { commandId: "approve", type: "thread.approval.respond", threadId: "worker", requestId: approval.payload.requestId, decision: "acceptForSession" });
   thread = await rpc.thread(detail, (thread) => (thread.latestTurn as { state: string }).state === "completed");
   const messages = thread.messages as Array<{ role: string; text: string; streaming: boolean }>;
@@ -246,14 +264,31 @@ test("local Hermes fleet supports approvals, reconnect, reload, cancellation, an
   rows = (await fs.readFile(log, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
   assert.equal(rows.filter((row) => row.method === "session/new").length, 1);
   assert.equal(rows.filter((row) => row.id === "permission" && row.result).at(-1)?.result.outcome.optionId, "deny");
+  // Idle changes are durable preferences; they don't start a process or model turn.
+  await rpc.request('orchestration.dispatchCommand', setMode('auto-accept-edits', 'idle-mode'));
+  const saved = JSON.parse(await fs.readFile(path.join(dir, `${env.id}.json`), 'utf8')) as { threads: Array<{ thread: Thread }> };
+  assert.equal(saved.threads.find(entry => entry.thread.id === 'worker')?.thread.runtimeMode, 'auto-accept-edits');
+  modeRows = (await fs.readFile(log, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  assert.equal(modeRows.length, rows.length, 'an idle policy change sends no ACP calls');
   // Restart the host: use ACP session/load, and suppress history replay duplicates.
   rpc.ws.close();
   const exited = once(child!, "exit"); child!.kill(); await exited;
   await start();
   rpc = await connect();
-  await rpc.request("orchestration.dispatchCommand", command("hang", "hang"));
+  const restored = rpc.stream('orchestration.subscribeShell');
+  assert.equal((await rpc.shellThread(restored, 'worker')).runtimeMode, 'auto-accept-edits');
+  await rpc.request("orchestration.dispatchCommand", { ...command("hang", "hang"), runtimeMode: 'auto-accept-edits' });
   detail = rpc.stream("orchestration.subscribeThread", { threadId: "worker" });
   thread = await rpc.thread(detail, (thread) => thread.hasPendingApprovals === true);
+  // Native rejection leaves the displayed/saved policy and pending request intact.
+  await assert.rejects(rpc.request('orchestration.dispatchCommand', setMode('approval-required', 'failed-live-mode')), /Mode change refused/);
+  const stillSaved = JSON.parse(await fs.readFile(path.join(dir, `${env.id}.json`), 'utf8')) as typeof saved;
+  assert.equal(stillSaved.threads.find(entry => entry.thread.id === 'worker')?.thread.runtimeMode, 'auto-accept-edits');
+  const afterFailure = rpc.stream('orchestration.subscribeThread', { threadId: 'worker' });
+  assert.equal((await rpc.thread(afterFailure, thread => thread.hasPendingApprovals === true)).runtimeMode, 'auto-accept-edits');
+  rows = (await fs.readFile(log, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  const resumedPid = rows.filter(row => row.method === 'session/load').at(-1).pid;
+  assert.ok(rows.filter(row => row.pid === resumedPid && row.method === 'session/set_mode').some(row => row.params.modeId === 'accept_edits'));
   await rpc.request("orchestration.dispatchCommand", { commandId: "halt", type: "thread.turn.interrupt", threadId: "worker" });
   thread = await rpc.thread(detail, (thread) => (thread.latestTurn as { state: string }).state === "interrupted");
   assert.equal(thread.hasPendingApprovals, false);

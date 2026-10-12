@@ -1,3 +1,8 @@
+export const HERMES_EDIT_PERMISSIONS = [
+  { id: 'approval-required', modeId: 'default', label: 'Ask before edits' },
+  { id: 'auto-accept-edits', modeId: 'accept_edits', label: 'Accept workspace edits' },
+] as const;
+
 export interface HermesBot {
   name: string;
   title: string;

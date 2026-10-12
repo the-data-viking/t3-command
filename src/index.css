@@ -1177,6 +1177,9 @@ select:focus {
 .hermes-checklist label { display: flex; gap: 8px; align-items: center; font-size: 12px; overflow-wrap: anywhere; }
 .hermes-checklist input { flex: none; width: auto; }
 .hermes-field input[type=checkbox] { width: auto; }
+.hermes-permissions { padding: 0 12px 10px; border-bottom: 1px solid var(--edge-strong); }
+.operator-detail .hermes-permissions { padding: 0 0 10px; }
+.hermes-permissions p { margin: 6px 0; }
 .hermes-job, .hermes-history { border: 1px solid var(--edge-strong); padding: 12px; margin: 12px 0; }
 .hermes-history pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 400px; overflow: auto; }
 @media (max-width: 700px) {

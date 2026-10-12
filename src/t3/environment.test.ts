@@ -24,3 +24,19 @@ test("disconnected question submissions reject so the form can retain answers an
   const client = new EnvironmentClient({ id: "env", label: "Station" } as EnvSummary);
   await assert.rejects(client.respondToQuestion("thread", "request", { route: "Core" }), /not connected/);
 });
+
+test('permission changes dispatch without starting a new turn', async () => {
+  const client = new EnvironmentClient({ id: 'env', label: 'Hermes', kind: 'hermes' } as EnvSummary);
+  const calls: Array<{ tag: string; payload: Record<string, unknown> }> = [];
+  Object.defineProperty(client, 'rpc', { value: { isOpen: true,
+    request: async (tag: string, payload: Record<string, unknown>) => { calls.push({ tag, payload }); return { sequence: 42 }; },
+  } });
+  await client.setRuntimeMode('chat', 'auto-accept-edits');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].tag, 'orchestration.dispatchCommand');
+  assert.equal(calls[0].payload.type, 'thread.runtime-mode.set');
+  assert.equal(calls[0].payload.threadId, 'chat');
+  assert.equal(calls[0].payload.runtimeMode, 'auto-accept-edits');
+  assert.equal(calls[0].payload.message, undefined);
+  assert.equal(typeof calls[0].payload.commandId, 'string');
+});

@@ -443,6 +443,10 @@ export class EnvironmentClient {
     });
   }
 
+  setRuntimeMode(threadId: string, runtimeMode: RuntimeMode): Promise<unknown> {
+    return this.dispatch({ type: "thread.runtime-mode.set", threadId, runtimeMode, createdAt: new Date().toISOString() });
+  }
+
   /** Read all refs, including worktrees, from this project's host (never the Command host). */
   async projectRefs(projectId: string): Promise<ProjectRefs> {
     const project = useGame.getState().envs[this.id]?.projects[projectId];

@@ -7,7 +7,7 @@ import { WebSocket } from "ws";
 import type { Activity, OrchestrationThread, ProjectShell, Provider, ThreadShell } from "../../src/t3/types.ts";
 import { AcpProcess, probeHermes, type AcpMessage, type JsonObject } from "./acp.ts";
 import { acquireBot, botBusy, HermesManager } from "./manager.ts";
-import type { HermesSession } from "../../shared/hermes.ts";
+import { HERMES_EDIT_PERMISSIONS, type HermesSession } from "../../shared/hermes.ts";
 
 interface SavedThread {
   thread: OrchestrationThread & Pick<ThreadShell, "hasPendingApprovals" | "hasPendingUserInput">;
@@ -19,6 +19,7 @@ interface Runtime {
   acp: AcpProcess;
   ready: Promise<string>;
   loading: boolean;
+  modeIds: Set<string>;
   cancelled: boolean;
   messages: Map<string, string>;
   permissions: Map<string, { id: string | number; toolCallId?: unknown; options: Map<string, string> }>;
@@ -136,7 +137,7 @@ function trim<T>(items: T[], cap: number): void {
   if (items.length > cap + TRIM_SLACK) items.splice(0, items.length - cap);
 }
 const object = (value: unknown): JsonObject => value && typeof value === "object" ? value as JsonObject : {};
-const MODE_IDS: Record<string, string> = { "approval-required": "default", "auto-accept-edits": "accept_edits" };
+const MODE_IDS: Record<string, string> = Object.fromEntries(HERMES_EDIT_PERMISSIONS.map(mode => [mode.id, mode.modeId]));
 
 export class HermesBridge {
   private project: ProjectShell;
@@ -157,7 +158,7 @@ export class HermesBridge {
   private provider: Provider = {
     instanceId: "hermes", driver: "hermes", displayName: "Hermes", enabled: true, installed: true, status: "ready",
     models: [{ slug: "default", name: "Hermes configured model", isDefault: true }],
-    runtimeModes: [{ id: "approval-required", label: "Ask before edits (Hermes)" }, { id: "auto-accept-edits", label: "Accept workspace edits (Hermes)" }],
+    runtimeModes: HERMES_EDIT_PERMISSIONS.map(mode => ({ id: mode.id, label: `${mode.label} (Hermes)` })),
   };
 
   constructor(dataDir: string, envId: string, workspaceRoot: string, launch: { command: string; args: string[] }, manager?: HermesManager) {
@@ -401,6 +402,22 @@ export class HermesBridge {
         runtime.permissions.delete(requestId);
         this.activity(t, "approval.resolved", "Permission answered", { requestId, decision });
         t.hasPendingApprovals = runtime.permissions.size > 0;
+      } else if (command.type === "thread.runtime-mode.set") {
+        const mode = HERMES_EDIT_PERMISSIONS.find(mode => mode.id === command.runtimeMode);
+        if (!mode) throw new Error("Unsupported Hermes permission mode");
+        if (t.latestTurn?.state === "running") {
+          if (!runtime || runtime.loading || !t.latestTurn.startedAt) throw new Error("Hermes is starting. Wait for the turn to start before changing edit permissions.");
+          if (!runtime.modeIds.has(mode.modeId)) throw new Error(`Hermes does not support mode ${mode.modeId}; update Hermes`);
+          const turnId = t.latestTurn.turnId;
+          const sessionId = await runtime.ready;
+          await runtime.acp.request("session/set_mode", { sessionId, modeId: mode.modeId });
+          if (t.latestTurn?.turnId !== turnId) throw new Error("Hermes has started another turn. Retry the permission change.");
+          // A mode change never answers or cancels a pending approval.
+        }
+        t.runtimeMode = mode.id;
+        t.updatedAt = now();
+        if (t.session) t.session = { ...t.session, runtimeMode: mode.id, updatedAt: t.updatedAt };
+        this.activity(t, "hermes.permissions", `Edit permissions: ${mode.label}`, { runtimeMode: mode.id }, "info");
       } else if (command.type === "thread.settle") t.settledAt = now();
       else if (command.type === "thread.unsettle") t.unsettledAt = now();
       else throw new Error(`Unsupported Hermes command: ${command.type}`);
@@ -425,7 +442,7 @@ export class HermesBridge {
           this.clearApprovals(t);
           if (!this.closed && t.latestTurn?.state === "running") this.finish(t, "error", error.message);
         }, launch.env),
-      ready: Promise.resolve(""), loading: true, cancelled: false, messages: new Map(), permissions: new Map(), tools: new Map(),
+      ready: Promise.resolve(""), loading: true, modeIds: new Set(), cancelled: false, messages: new Map(), permissions: new Map(), tools: new Map(),
     };
     this.runtimes.set(t.id, runtime);
     runtime.ready = (async () => {
@@ -440,8 +457,12 @@ export class HermesBridge {
       if (typeof sessionId !== "string" || !sessionId) throw new Error("Hermes did not return a session ID");
       entry.sessionId = sessionId;
       const modes = object(result.modes).availableModes;
+      if (Array.isArray(modes)) for (const mode of modes) {
+        const id = object(mode).id;
+        if (typeof id === 'string') runtime.modeIds.add(id);
+      }
       const modeId = MODE_IDS[t.runtimeMode];
-      if (!Array.isArray(modes) || !modes.some((mode) => object(mode).id === modeId)) throw new Error(`Hermes does not support mode ${modeId}; update Hermes`);
+      if (!runtime.modeIds.has(modeId)) throw new Error(`Hermes does not support mode ${modeId}; update Hermes`);
       await runtime.acp.request("session/set_mode", { sessionId, modeId });
       runtime.loading = false;
       await this.save();
