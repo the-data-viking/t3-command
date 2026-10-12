@@ -3,6 +3,7 @@ import type { EnvSummary, MeResponse } from "../shared/api";
 import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
 import type { UsageState } from "./t3/usage";
 import type { HostState } from "./t3/host";
+import type { StorageView } from "../shared/storage";
 import type { HermesBot } from "../shared/hermes";
 import { applyHudTheme } from "./game/theme";
 
@@ -52,6 +53,8 @@ export interface GameState {
   /** Kept separate from shells so resource samples don't rebuild map geometry. */
   hosts: Record<string, HostState>;
   hostPanel: string | null;
+  /** Disk usage per machine, as last measured by the Command server. */
+  storage: Record<string, StorageView>;
   selection: Selection;
   log: LogEntry[];
   muted: boolean;
@@ -123,6 +126,7 @@ export const useGame = create<GameState>()(() => ({
   details: {},
   hosts: {},
   hostPanel: null,
+  storage: {},
   selection: null,
   log: loadLog(),
   muted: loadMuted(),

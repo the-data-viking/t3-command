@@ -37,6 +37,14 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   core cells light for that environment's working (pulsing) and monitoring crew. Click a deck to zoom in and open its readings and recent CPU history;
   environment chips also open the host panel. Samples refresh every 10 seconds while visible,
   with stale readings clearly marked. RAM used is total minus reported availability, not a measurement of memory pressure.
+- **Storage**: each deck's status plate shows disk use for the fullest disk holding that machine's
+  checkouts and worktrees (green, then amber under 15 GB or 10% free, rose under 5 GB or 3%). The host
+  panel lists each disk, peak use per 6 hours over the last week, and the largest T3 worktrees
+  (`~/.t3/worktrees/<project>/<worktree>`), named by the thread that uses them. The Command server measures
+  disks every 5 minutes and worktree sizes every 15, with no browser open. It reads the Command host
+  directly and other machines through a short-lived T3 terminal that it always closes (`df`/`du`, or
+  PowerShell on Windows). A machine getting worse adds a comms entry and, with desktop alerts on, a
+  notification.
   The host panel also lists the machine's agent CLI versions (Claude Code, Codex) as T3 reports
   them; when one is behind, **Update to x.y.z** has T3 install the latest compatible release there.
   CLIs T3 can't update itself show the command to run instead.

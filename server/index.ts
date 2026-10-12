@@ -15,6 +15,7 @@ import type { HermesAction } from "../shared/hermes.ts";
 import { Updater, UpdateConflict } from "./updater.ts";
 import { TurnHistory } from "./history.ts";
 import { HistoryRecorder } from "./history-recorder.ts";
+import { StorageMonitor } from "./storage.ts";
 import { HISTORY_RETENTION_DAYS } from "../shared/history.ts";
 
 const config = loadConfig();
@@ -38,6 +39,10 @@ const history = new TurnHistory(config.dataDir);
 await history.load();
 const recorder = new HistoryRecorder(registry, history, hermesBridge);
 recorder.start();
+// Disk usage per machine, for the engineering decks.
+const storage = new StorageMonitor(config.dataDir, registry, recorder);
+await storage.load();
+storage.start();
 
 const updater = new Updater({ root: config.updateRoot, remote: config.updateRemote, enabled: config.managedUpdates,
   currentCommit: config.runningCommit, localChanges: config.localChanges,
@@ -169,6 +174,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     try { new Intl.DateTimeFormat("en-US", { timeZone }); } catch { return sendJson(res, 400, { error: "Unknown time zone" }); }
     return sendJson(res, 200, history.summary(days, timeZone));
   }
+  if (pathname === "/api/storage" && method === "GET") return sendJson(res, 200, storage.views());
   if (pathname === "/api/update" && method === "GET") return sendJson(res, 200, await updater.status());
   if ((pathname === "/api/update" || pathname === "/api/update/check") && method === "POST") {
     const body = await readJson<unknown>(req);
@@ -360,6 +366,7 @@ server.listen(config.port, config.host, () => {
 });
 
 async function shutdown(): Promise<void> {
+  storage.stop();
   await recorder.stop();
   await Promise.all([...hermesBridges.values()].map(async (bridge) => (await bridge).close()));
   process.exit(0);

@@ -11,7 +11,7 @@ import { CatalogError, forgetCachedCatalog, readDesktopConnections } from "./des
 import { createPairingCredential, discover, SshError, SshTunnels, validateTarget, type SshTarget } from "./ssh.ts";
 import { probeHermes } from "./hermes/acp.ts";
 
-interface StoredEnv {
+export interface StoredEnv {
   id: string;
   label: string;
   /** Direct bases: the T3 server's URL. SSH bases: unset; the URL is a local tunnel. */
