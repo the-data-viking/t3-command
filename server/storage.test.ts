@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { diskLevel, parseStorageOutput, storageCommand, tightestVolume } from "../shared/storage.ts";
+import { diskLevel, parseStorageOutput, storageCommand, storageDone, tightestVolume } from "../shared/storage.ts";
 
 const GB = 1024 ** 3;
 
@@ -56,4 +56,28 @@ test("low space is judged by what's left, not percentage alone", () => {
   assert.equal(diskLevel(v(2000, 160)), "high", "8% free is low even with room");
   assert.equal(diskLevel(v(2000, 400)), "ok");
   assert.equal(diskLevel(v(120, 86)), "ok");
+});
+
+test("Windows repaints that move the cursor instead of printing newlines still parse", () => {
+  const raw = "\x1b[?25l\x1b[2J\x1b[HPS C:\\w> Write-Output '__T3C_BEGIN__'; …\x1b[3;1H__T3C_BEGIN__\x1b[4;1HPSDRIVE C 300 700\x1b[5;1H__T3C_WT__\x1b[6;1H__T3C_END__\x1b[7;1HPS C:\\w> ";
+  assert.equal(storageDone(raw), true);
+  assert.deepEqual(parseStorageOutput(raw, 1, false)!.volumes, [{ mount: "C:", totalBytes: 1000, usedBytes: 300, availableBytes: 700 }]);
+  assert.equal(storageDone("PS> Write-Output '__T3C_END__'"), false, "the echoed command isn't the marker");
+});
+
+
+test("a failed read keeps the last good disk numbers, with the error attached", async () => {
+  const { StorageMonitor } = await import("./storage.ts");
+  const registry = { ids: () => ["e1"], get: () => ({ id: "e1" }) } as unknown as ConstructorParameters<typeof StorageMonitor>[1];
+  const monitor = new StorageMonitor("/nonexistent", registry, {} as ConstructorParameters<typeof StorageMonitor>[2]);
+  const record = (monitor as unknown as { record(envId: string, r: object): void }).record.bind(monitor);
+  const now = Date.now();
+  const good = { sampledAt: now - 60_000, volumes: [{ mount: "/", totalBytes: 100 * GB, usedBytes: 98 * GB, availableBytes: 2 * GB }] };
+  record("e1", good);
+  record("e1", { sampledAt: now, volumes: [], error: "Could not read disk usage" });
+  const [view] = monitor.views();
+  assert.equal(view.latest!.sampledAt, now - 60_000, "keeps the good sample's time so it ages into stale");
+  assert.deepEqual(view.latest!.volumes, good.volumes);
+  assert.equal(view.latest!.error, "Could not read disk usage");
+  assert.equal(view.trend.length, 1);
 });

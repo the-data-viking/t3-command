@@ -69,10 +69,27 @@ export function storageCommand(paths: string[], withWorktrees: boolean, windows:
   return `printf '%s\\n' ${BEGIN}; df -Pk ${paths.map(sq).join(" ")} 2>/dev/null; printf '%s\\n' ${WORKTREES}; ${worktrees}printf '%s\\n' ${END}`;
 }
 
+/**
+ * Terminal output as plain lines. Windows' ConPTY may repaint with cursor moves instead of
+ * newlines, so a cursor jump to a row (`ESC[r;cH`, `ESC[nE`) starts a new line.
+ */
+export function terminalLines(raw: string): string[] {
+  /* eslint-disable no-control-regex -- terminal escape codes are what's being stripped */
+  return raw
+    .replace(/\x1b\][^\x07]*\x07/g, "")
+    .replace(/\x1b\[[0-9;]*[HfE]/g, "\n")
+    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\r/g, "").trim());
+  /* eslint-enable no-control-regex */
+}
+
+/** Whether a storage command has finished printing. */
+export const storageDone = (raw: string) => terminalLines(raw).includes(END);
+
 /** Parse what a storage command printed (terminal echo, prompts and ANSI codes included). */
 export function parseStorageOutput(raw: string, now: number, withWorktrees: boolean): StorageReading | undefined {
-  // eslint-disable-next-line no-control-regex -- terminal escape codes are what's being stripped
-  const lines = raw.replace(/\x1b\][^\x07]*\x07/g, "").replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").split(/\r?\n/).map((l) => l.replace(/\r/g, "").trim());
+  const lines = terminalLines(raw);
   const begin = lines.lastIndexOf(BEGIN);
   const end = lines.lastIndexOf(END);
   if (begin < 0 || end < begin) return undefined;

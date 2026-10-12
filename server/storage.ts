@@ -5,7 +5,7 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { END, parseStorageOutput, storageCommand, tightestVolume, type StorageReading, type StorageView } from "../shared/storage.ts";
+import { parseStorageOutput, storageCommand, storageDone, tightestVolume, type StorageReading, type StorageView } from "../shared/storage.ts";
 import type { HistoryRecorder } from "./history-recorder.ts";
 import type { Registry, StoredEnv } from "./registry.ts";
 import { runInT3Terminal } from "./t3-terminal.ts";
@@ -21,7 +21,6 @@ interface State { envs: Record<string, { latest?: StorageReading; trend: Array<{
 
 const isLocal = (env: StoredEnv) => !!env.hermes || (!!env.url && ["127.0.0.1", "localhost", "[::1]"].includes(new URL(env.url).hostname));
 const isWindowsPath = (p: string) => /^[A-Za-z]:[\\/]/.test(p);
-const finished = (output: string) => output.split(/\r?\n/).some((line) => line.replace(/\r/g, "").trim() === END);
 
 export class StorageMonitor {
   private readonly registry: Registry;
@@ -99,12 +98,25 @@ export class StorageMonitor {
       return parseStorageOutput(output, Date.now(), withWorktrees) ?? { sampledAt: Date.now(), volumes: [], error: "Could not read disk usage" };
     }
     const windows = isWindowsPath(paths[0]);
-    const output = await runInT3Terminal(this.registry, env, paths[0], storageCommand(paths, withWorktrees, windows), finished, timeout);
-    return parseStorageOutput(output, Date.now(), withWorktrees) ?? { sampledAt: Date.now(), volumes: [], error: "Could not read disk usage" };
+    const command = storageCommand(paths, withWorktrees, windows);
+    let output = "";
+    // One retry: a remote shell occasionally garbles its first output.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      output = await runInT3Terminal(this.registry, env, paths[0], command, storageDone, timeout);
+      const reading = parseStorageOutput(output, Date.now(), withWorktrees);
+      if (reading) return reading;
+    }
+    console.warn(`storage: unreadable output from ${env.label}: ${JSON.stringify(output.slice(-400))}`);
+    return { sampledAt: Date.now(), volumes: [], error: "Could not read disk usage" };
   }
 
   private record(envId: string, reading: StorageReading): void {
     const entry = this.state.envs[envId] ??= { trend: [] };
+    // A failed read keeps the last good numbers (aging into stale) with the error attached.
+    if (reading.error && entry.latest?.volumes.length) {
+      entry.latest = { ...entry.latest, error: reading.error };
+      return;
+    }
     // Worktree sizes are slower to measure; carry the last ones forward between measurements.
     entry.latest = reading.worktrees || !entry.latest?.worktrees ? reading : { ...reading, worktrees: entry.latest.worktrees };
     const tightest = tightestVolume(reading.volumes);
