@@ -17,7 +17,8 @@ export type UnitState =
  * project's archive building instead of the workforce.
  */
 export function isHistory(t: ThreadShell): boolean {
-  return t.latestTurn === null && t.session === null && t.latestUserMessageAt === null;
+  // Canonical Hermes chats are writable even before their first Command turn.
+  return !t.hermesBotChat && t.latestTurn === null && t.session === null && t.latestUserMessageAt === null;
 }
 
 export function isSettled(t: ThreadShell): boolean {
