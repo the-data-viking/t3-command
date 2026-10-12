@@ -130,3 +130,42 @@ test("the summary buckets by the viewer's calendar day and ranks work", () => {
   assert.equal(s.recordingSince, "2026-10-10T00:00:00Z");
   assert.equal(s.gaps.length, 0);
 });
+
+test("turns record the model they started on and exclude time spent waiting on the operator", async () => {
+  const { history, clock } = await setup();
+  history.connected("env", "Mac mini");
+  history.observe("env", projects, [thread("a", { id: "t1", state: "running", started: T0 })]);
+  clock.set(T0 + 60_000); // waiting on an approval for two minutes
+  history.observe("env", projects, [thread("a", { id: "t1", state: "running", started: T0 }, { hasPendingApprovals: true })]);
+  clock.set(T0 + 180_000);
+  history.observe("env", projects, [thread("a", { id: "t1", state: "running", started: T0 }, { hasPendingApprovals: false })]);
+  clock.set(T0 + 300_000);
+  // The thread's model changed after the turn started; the record keeps the one that ran.
+  history.observe("env", projects, [thread("a", { id: "t1", state: "completed", started: T0, done: T0 + 300_000 }, { modelSelection: { instanceId: "codex", model: "gpt-7" } })]);
+  const [r] = recorded(history);
+  assert.deepEqual([r.model, r.durationMs, r.waitMs], ["gpt-6.1-sol", 300_000, 120_000]);
+  assert.equal(history.summary(1, "UTC").totals.medianMs, 180_000, "typical turn time is the agent's own work");
+});
+
+test("Hermes turns are attributed to their bot profile, not a generic model", async () => {
+  const { history, clock } = await setup();
+  history.connected("hermes", "Hermes");
+  const bot = (state: string, done?: number) => thread("h", { id: "t1", state, done }, { hermesProfile: "money-guy", modelSelection: { instanceId: "hermes", model: "default" }, session: { providerInstanceId: "hermes" } as ThreadShell["session"] });
+  history.observe("hermes", projects, [bot("running")]);
+  clock.set(T0 + 1_000);
+  history.observe("hermes", projects, [bot("completed", T0 + 1_000)]);
+  assert.equal(recorded(history)[0].model, "money-guy (Hermes)");
+});
+
+test("failures group by kind, not exact text", () => {
+  const rec = (error: string) => ({ envId: "e", envLabel: "E", projectId: "p", projectTitle: "p", threadId: error, threadTitle: "t", turnId: "x",
+    provider: "c", model: "m", startedAt: "2026-10-12T10:00:00Z", completedAt: "2026-10-12T10:00:00Z", durationMs: 1, outcome: "error" as const, error });
+  const s = summarizeHistory([
+    rec("Codex could not read usage (JSON-RPC -32600)."),
+    rec("Codex could not read usage (JSON-RPC -32601)."),
+    rec("Could not write /Users/a/tmp/x.json: ENOSPC"),
+    rec("Could not write /home/b/out/y.json: ENOSPC"),
+    rec("Claude usage limit reached."),
+  ], [], {}, { days: 1, timeZone: "UTC", now: Date.parse("2026-10-12T12:00:00Z") });
+  assert.deepEqual(s.topErrors.map((e) => e.count), [2, 2, 1]);
+});

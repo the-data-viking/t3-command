@@ -69,6 +69,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
 - **Attention**: an always-on **Inbox** of everything waiting on you (approvals, questions, failed
   turns, reports), edge-of-screen arrows for off-screen alerts, and RTS hotkeys: **Space** next
   alert, **.** next report, **W** next active crew, **F** fit the fleet, **L** comms log, **Esc** deselect.
+  The tab title shows how many crew are waiting on you, and the bell turns on desktop alerts for
+  approvals and questions while the tab isn't in view.
   Waiting badges use the oldest unanswered request timestamp when available; crew show running
   turn duration, and the thread panel also shows the last completed turn's duration. Live timers
   tick every second while visible.
