@@ -1,5 +1,6 @@
 import { Container, Graphics, Rectangle, Sprite, type FederatedPointerEvent } from 'pixi.js';
 import { PixelText } from './pixel-text';
+import { gesturing } from './gesture';
 import * as A from '../art/sprites';
 import { setSelection, type Selection } from '../store';
 import { botColor, BOT_STATE_LABELS, HERMES_COLOR, type BotOperator } from '../t3/bots';
@@ -93,7 +94,7 @@ export class ControlCenterSprite {
       hit.eventMode = 'static'; hit.cursor = 'pointer';
       hit.hitArea = new Rectangle(r.x, r.y, r.w, r.h);
       hit.on('pointertap', (e: FederatedPointerEvent) => {
-        e.stopPropagation(); setSelection({ kind: 'hermes', envId: bot.envId, profile: bot.name });
+        e.stopPropagation(); if (gesturing()) return; setSelection({ kind: 'hermes', envId: bot.envId, profile: bot.name });
       });
       this.root.addChild(hit);
     }
@@ -111,7 +112,7 @@ export class ControlCenterSprite {
     this.root.hitArea = new Rectangle(h.x, h.y - 18, h.w, h.h + 18);
     this.root.removeAllListeners('pointertap');
     this.root.on('pointertap', (e: FederatedPointerEvent) => {
-      e.stopPropagation(); setSelection({ kind: 'hermes', envId: center.envId });
+      e.stopPropagation(); if (gesturing()) return; setSelection({ kind: 'hermes', envId: center.envId });
     });
     this.root.alpha = live ? 1 : 0.55;
   }

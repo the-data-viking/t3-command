@@ -11,6 +11,7 @@ import { ThreadTiming } from "./ThreadTiming";
 import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
 import { BotPortrait } from './HermesControlCenter';
 import { CrewPortrait } from "./PixelArt";
+import { isPhone, usePhone } from "./phone";
 
 const NEEDS_YOU: UnitState[] = ["alert", "question", "error", "done"];
 const ON_DUTY: UnitState[] = ["working", "monitoring", "idle"];
@@ -23,7 +24,10 @@ export function CrewRoster() {
   const selection = useGame((s) => s.selection);
   const hermesCatalog = useGame(s => s.hermesCatalog);
   const operators = botOperators({ envs, hermesCatalog });
-  const [collapsed, setCollapsed] = useState(false);
+  const phone = usePhone();
+  // On phones the roster is a dock along the bottom, closed until asked for so the map shows.
+  const [collapsed, setCollapsed] = useState(isPhone);
+  const pick = () => { if (phone) setCollapsed(true); };
 
   const crew = useMemo(
     () =>
@@ -38,6 +42,7 @@ export function CrewRoster() {
     + operators.filter(b => b.state === 'alert' || b.state === 'question').length;
 
   const open = (u: UnitRef) => {
+    pick();
     sfx.select();
     const sel = { kind: "unit" as const, envId: u.envId, threadId: u.thread.id };
     setSelection(sel);
@@ -81,8 +86,9 @@ export function CrewRoster() {
 
   return (
     <aside className={`crew-roster ftl-frame ${collapsed ? "collapsed" : ""}`}>
-      <button className="ftl-tab roster-tab" onClick={() => setCollapsed(!collapsed)}>
-        CREW <span className={urgent ? "count hot" : "count"}>{crew.length}</span>{operators.length > 0 && <span className="operator-count"> · {operators.length} operators</span>} {collapsed ? "▸" : "▾"}
+      <button className="ftl-tab roster-tab" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
+        CREW <span className={urgent ? "count hot" : "count"}>{crew.length}</span>{operators.length > 0 && <span className="operator-count"> · {operators.length} operators</span>}
+        {phone && needsYou.length > 0 && <span className={urgent ? "needs-count hot" : "needs-count"}> · {needsYou.length} need you</span>} {phone ? (collapsed ? "▴" : "▾") : collapsed ? "▸" : "▾"}
       </button>
       {!collapsed && (
         <div className="roster-body">
@@ -90,6 +96,7 @@ export function CrewRoster() {
             <ol className="crew-list">{operators.map(bot => <li key={bot.name}><button className={`crew-row operator-row row-${bot.state} ${selection?.kind === 'hermes' && selection.profile === bot.name ? 'active' : ''}`} onClick={() => {
               const pending = bot.sessions.find(s => envs[s.envId]?.connection === 'live' && (s.state === 'alert' || s.state === 'question'));
               if (pending) { open(pending); return; }
+              pick();
               const sel = { kind: 'hermes' as const, envId: bot.envId, profile: bot.name };
               setSelection(sel); worldRef.current?.focus(sel);
             }}><BotPortrait profile={bot.name} /><span className="crew-text"><span className="crew-name">{bot.title}</span>

@@ -1822,11 +1822,6 @@ button.ftl-tab {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
 
-/* Phone overrides for panels defined above; kept last so they win the cascade. */
-@media (max-width: 700px) {
-  .crew-roster { left: 8px; width: calc(100vw - 16px); max-height: 32vh; }
-  .comms-log { left: 8px; width: calc(100vw - 16px); bottom: 8px; }
-}
 
 /* ---- Turn history ---- */
 
@@ -1857,3 +1852,92 @@ button.ftl-tab {
 .history-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 700px) { .history-columns { grid-template-columns: 1fr; } }
 .history-modal .tele-chart { max-height: 150px; }
+
+/* ---- Phone layout (src/ui/phone.ts); kept last so it wins the cascade ---- */
+
+/* Off phones the menu wrapper is invisible to layout and the phone-only bits are hidden. */
+.topbar-more { display: contents; }
+.menu-btn, .phone-label { display: none; }
+
+@media (max-width: 700px) {
+  /* One row: logo, the counters that matter, and a menu holding everything else. */
+  .topbar { top: 0; left: 0; right: 0; flex-wrap: nowrap; gap: 6px; padding: max(6px, env(safe-area-inset-top)) 8px 6px; border-radius: 0; }
+  .topbar .logo { flex: none; margin-right: 0; }
+  .topbar .resources { flex: 1; min-width: 0; gap: 4px; }
+  .topbar .resource { padding: 4px 6px; min-height: 36px; }
+  .topbar .resource .res-key { font-size: 9px; letter-spacing: 1px; }
+  .topbar .resource.optional { display: none; }
+  .menu-btn { display: inline-grid; place-items: center; flex: none; min-width: 44px; min-height: 44px; border: 2px solid var(--edge-strong); border-radius: 4px; color: var(--bright); }
+  .menu-btn[aria-expanded="true"] { border-color: var(--frame); }
+  .topbar-more { display: none; }
+  .topbar.menu-open { flex-wrap: wrap; }
+  .topbar.menu-open .topbar-more {
+    display: flex; flex-wrap: wrap; gap: 8px; width: 100%;
+    max-height: calc(100dvh - 64px); overflow-y: auto; padding: 8px 0 4px;
+    border-top: 1px solid var(--line);
+  }
+  .topbar-more .spacer { display: none; }
+  .topbar-more > .spend-menu, .topbar-more > .limits-menu { flex: 1 1 40%; }
+  .topbar-more summary.resource { min-height: 44px; display: flex; align-items: center; justify-content: space-between; }
+  .topbar-more .stations { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; overflow: visible; }
+  .topbar-more .station-chip { min-height: 44px; justify-content: space-between; }
+  .topbar-more > .btn, .topbar-more > .update-menu { flex: 1 1 28%; min-height: 44px; }
+  .topbar-more > .update-menu > .btn { width: 100%; min-height: 44px; }
+  .topbar-more > .icon-btn { flex: 1 1 40%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 2px solid var(--edge-strong); border-radius: 4px; color: var(--text); }
+  .phone-label { display: inline; font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  .update-panel { position: fixed; left: 8px; right: 8px; top: var(--topbar-bottom, 64px); width: auto; }
+
+  /* Crew dock along the bottom edge; opens upward over the map. */
+  .crew-roster {
+    top: auto; bottom: 0; left: 0; right: 0; width: auto;
+    max-height: min(70dvh, calc(100dvh - var(--topbar-bottom, 64px)));
+    padding: 0 0 env(safe-area-inset-bottom); border-radius: 0;
+  }
+  .crew-roster.collapsed { height: auto; padding: 0 0 env(safe-area-inset-bottom); }
+  .crew-roster .roster-tab { position: static; order: -1; width: 100%; min-height: 44px; border: none; border-radius: 0; padding: 0 14px; justify-content: flex-start; }
+  .crew-roster .roster-tab .needs-count { color: var(--ink); }
+  .crew-roster .roster-tab .needs-count.hot { color: color-mix(in srgb, var(--alert) 70%, black); }
+  .crew-row { min-height: 52px; }
+
+  /* Panels and dialogs take the screen below the top bar. */
+  .panel, .panel.host-panel, .panel.hermes-control {
+    top: var(--topbar-bottom, 64px); left: 0; right: 0; bottom: 0;
+    width: auto !important; max-width: none; height: auto; max-height: none;
+    border-radius: 0; z-index: 3; padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .unit-panel { padding-left: 12px; }
+  .panel-resize { display: none; }
+  .modal-backdrop, .event-backdrop { padding: 0; place-items: stretch; }
+  .modal, .history-modal { width: 100%; max-height: 100dvh; border-radius: 0; padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .event { width: 100%; align-self: end; border-radius: 0; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+
+  /* The dock would show through an open panel. */
+  .game:has(.panel) .crew-roster { display: none; }
+  /* Keep a unit's header short so its reports get the room. */
+  .unit-panel .status-row { flex-wrap: nowrap; gap: 8px; }
+  .unit-panel .status-row .pill { white-space: nowrap; }
+  .unit-panel .status-row .muted.small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .unit-panel .pr-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; flex: none; }
+  .unit-panel .pr-chips::-webkit-scrollbar { display: none; }
+  .unit-panel .pr-chips > * { flex: none; }
+  .unit-panel .pr-chip { max-width: 80vw; }
+
+  /* Toasts and the comms log sit above the dock. */
+  .event-log { left: 8px; right: 8px; bottom: calc(52px + env(safe-area-inset-bottom)); max-width: none; }
+  .comms-log { left: 0; right: 0; width: auto; bottom: calc(44px + env(safe-area-inset-bottom)); max-height: 60dvh; border-radius: 0; }
+
+  /* 16px text fields so iOS doesn't zoom the page when one is focused. */
+  textarea, input, select { font-size: 16px; }
+}
+
+/* The narrowest phones get short counter labels so all three fit beside the menu. */
+@media (max-width: 380px) {
+  .topbar .res-key[data-short] { font-size: 0; letter-spacing: 0; }
+  .topbar .res-key[data-short]::before { content: attr(data-short); font-size: 9px; letter-spacing: 1px; }
+}
+
+/* Finger-sized controls on touch screens. */
+@media (pointer: coarse) {
+  .btn { min-height: 44px; }
+  .icon-btn { min-width: 44px; min-height: 44px; }
+}
