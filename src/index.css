@@ -1213,6 +1213,8 @@ select:focus {
 .operator-row .bot-portrait { width: 28px; height: 32px; border-radius: 8px 2px; }
 .operator-row .bot-portrait span { font-size: 10px; }
 .operator-count { font-size: 9px; color: var(--hermes); letter-spacing: 0; }
+/* On a frame-colored title tab the sand accent washes out; use the tab's ink. */
+.ftl-tab .operator-count { color: var(--ink); opacity: 0.75; }
 .ops-back { align-self: flex-start; color: var(--hermes); border-color: color-mix(in srgb, var(--hermes) 25%, transparent); }
 .hermes-connection { border: 1px solid color-mix(in srgb, var(--hermes) 25%, transparent); padding: 12px; margin: 16px 0; }
 @media (max-width: 700px) { .panel.hermes-control { top: var(--topbar-bottom, 100px); bottom: 8px; max-height: none; } .operator-list { grid-template-columns: 1fr; } }
