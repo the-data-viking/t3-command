@@ -9,6 +9,7 @@ import { isHistory, unitState } from "../t3/derive";
 import { jumpTo } from "./hotkeys";
 import { allUnits } from "./util";
 import { SpendTelemetry } from "./SpendTelemetry";
+import { UpdatePanel } from "./UpdatePanel";
 
 export function TopBar() {
   const bar = useRef<HTMLElement>(null);
@@ -109,6 +110,7 @@ export function TopBar() {
       <button className="btn" onClick={() => useGame.setState({ showEnvManager: true })}>
         Stations
       </button>
+      <UpdatePanel />
       <button className="icon-btn" title="Fit fleet (F)" onClick={() => worldRef.current?.fitAll()}>
         ⤢
       </button>

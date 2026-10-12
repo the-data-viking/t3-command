@@ -2,6 +2,7 @@
   "name": "t3-command",
   "private": true,
   "version": "0.0.0",
+  "managedUpdateProtocol": 1,
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n server,ui -c blue,magenta \"npm:dev:server\" \"npm:dev:ui\"",
@@ -9,6 +10,7 @@
     "dev:ui": "vite",
     "build": "tsc -b && vite build",
     "start": "node server/index.ts",
+    "start:managed": "node tools/managed-launcher.mjs",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "pair:local": "node tools/pair-local.mjs",

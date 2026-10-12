@@ -29,6 +29,11 @@ export interface Config {
   staticDir: string;
   hermesCommand: string;
   hermesArgs: string[];
+  updateRoot: string;
+  updateRemote: string | undefined;
+  managedUpdates: boolean;
+  runningCommit: string | null;
+  localChanges: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -42,6 +47,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     staticDir: path.resolve(here, "../dist"),
     hermesCommand: env.T3C_HERMES_COMMAND || "hermes",
     hermesArgs: JSON.parse(env.T3C_HERMES_ARGS ?? '["acp"]') as string[],
+    updateRoot: path.resolve(expandHome(env.T3C_UPDATE_ROOT ?? path.join(expandHome(env.T3C_DATA_DIR ?? "~/.t3-command"), "updates"))),
+    updateRemote: env.T3C_UPDATE_REMOTE,
+    managedUpdates: env.T3C_MANAGED_UPDATES === "1" && typeof process.send === "function",
+    runningCommit: env.T3C_RUNNING_COMMIT || null,
+    localChanges: env.T3C_LOCAL_CHANGES === "1",
   };
   if (!Array.isArray(config.hermesArgs) || !config.hermesArgs.every((arg) => typeof arg === "string")) {
     throw new Error("T3C_HERMES_ARGS must be a JSON array of strings");

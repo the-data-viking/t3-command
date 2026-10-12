@@ -49,7 +49,8 @@ export function installHotkeys(): () => void {
       (document.activeElement as HTMLElement | null)?.blur?.();
       return;
     }
-    if (typing(e.target) || (e.target instanceof Element && e.target.closest("summary")) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target instanceof Element && e.target.closest("button, summary, a")) return;
+    if (typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
     const actions: Record<string, () => void> = {
       " ": () => jumpTo("attention"),
       ".": () => jumpTo("done"),

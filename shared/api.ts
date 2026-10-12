@@ -51,3 +51,18 @@ export interface AddEnvRequest {
 export interface ApiError {
   error: string;
 }
+
+export type UpdatePhase = "idle" | "checking" | "available" | "fetching" | "installing" | "building" | "restarting" | "succeeded" | "failed";
+
+export interface UpdateStatus {
+  enabled: boolean;
+  reason?: string;
+  phase: UpdatePhase;
+  currentCommit: string | null;
+  localChanges: boolean;
+  latestCommit: string | null;
+  targetCommit: string | null;
+  message: string;
+  log: string;
+  updatedAt: string;
+}

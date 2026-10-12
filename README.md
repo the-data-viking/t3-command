@@ -283,6 +283,43 @@ headless T3 install, set `T3_CLI` to your `t3` executable.
 
 Other scripts: `npm run typecheck`, `npm run lint`, `npm run build`.
 
+### Updating from the web interface
+
+The **Update** button in the top bar shows the running commit, the latest commit on `main`,
+and build progress. **Check main** checks the configured repository; **Redeploy main** installs
+dependencies and builds a fresh release, then restarts Command and reloads connected browsers.
+T3 agent turns continue on their own environments during the brief relay reconnection.
+Running local Hermes turns must be halted before a redeploy; idle Hermes sessions are saved and
+reload on their next order.
+
+To enable it, use the stable launcher as your service entry point:
+
+```sh
+node /absolute/path/to/t3-command/tools/managed-launcher.mjs
+```
+
+For the systemd example above, replace `ExecStart` with your Node executable and that launcher
+path. On macOS, use the same command in your launch agent's `ProgramArguments`. Keep the existing
+data directory and access-control environment variables. The service user needs `git`, `npm`,
+Node.js 22+, and access to the installation's `origin` remote on its `PATH`.
+
+The launcher preserves the installation checkout, including local edits. Each update clones
+only committed `main` into a private release directory under `T3C_DATA_DIR/updates`; unpublished
+local changes are not part of that release. The data directory and environment credentials stay
+in place. A failed fetch, install, or build leaves the running version alone. If a new server
+fails to signal readiness within 60 seconds, the launcher restores the previous release and
+shows the failure in the update panel. Closing the panel or browser does not cancel a build.
+The active and previous managed releases are retained; older managed build directories are
+removed after successful startup.
+Only one update can run at a time, and the authenticated APIs accept no browser-supplied refs,
+repositories, paths, or commands. `main` must include managed-update protocol 1 before it can
+replace this version.
+
+Server-only overrides: `T3C_UPDATE_REMOTE` selects a trusted repository URL, and `T3C_UPDATE_ROOT`
+changes the release directory. Ordinary `npm start` still works; its Update panel explains how
+to enable managed updates. The launcher's own file is the stable bootstrap and must remain in
+place when the service switches releases.
+
 Layout:
 
 - `server/`: the t3-command server (Node 22.18+ runs the TypeScript directly; no build step)
