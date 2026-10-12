@@ -69,17 +69,62 @@ test('Hermes occupies one control center across workspaces and never becomes a p
   for (const link of center.links) {
     assert.ok(layout.environmentNodes.has(link.envId));
     for (const station of layout.stations.values()) {
-      assert.ok(link.laneX < station.bounds.x || link.laneX > station.bounds.x + station.bounds.w,
-        'operator uplinks stay out of repository-defined project modules');
+      assert.ok(link.to.y < station.bounds.y,
+        'docking collars stay above repository-defined project modules');
     }
   }
   for (const station of layout.stations.values()) assert.ok(station.members.every(m => !m.envId.startsWith('hermes')));
   for (const facility of [...layout.stations.values()].map(s => s.bounds).concat([...layout.environmentNodes.values()].map(n => n.hull))) {
     assert.equal(intersects(center.hull, facility), false);
   }
-  for (const { card } of center.operators) {
-    assert.ok(card.x >= center.hull.x && card.y >= center.hull.y);
-    assert.ok(card.x + card.w <= center.hull.x + center.hull.w && card.y + card.h <= center.hull.y + center.hull.h);
+  for (const { workstation } of center.operators) {
+    assert.ok(workstation.x >= center.hull.x && workstation.y >= center.hull.y);
+    assert.ok(workstation.x + workstation.w <= center.hull.x + center.hull.w
+      && workstation.y + workstation.h <= center.hull.y + center.hull.h);
   }
   assert.ok(layout.bounds.y <= center.hull.y);
+});
+
+test('docked engineering scales without changing projects or routing through facilities', () => {
+  for (let count = 0; count <= 10; count++) {
+    const state = fixture();
+    for (const id of Object.keys(state.envs).slice(count)) delete state.envs[id];
+    for (let i = 3; i < count; i++) state.envs[`extra-${i}`] = {
+      ...state.envs.a, summary: { ...state.envs.a.summary, id: `extra-${i}` }, projects: {}, threads: {},
+    };
+    const before = computeFleetLayout(state);
+    state.envs.hermes = { summary: { id: 'hermes', kind: 'hermes', addedAt: '2026-02-01' },
+      projects: {}, threads: {} } as unknown as GameState['envs'][string];
+    state.hermesCatalog = { envId: 'hermes', loaded: true, bots: Array.from({ length: 13 }, (_, i) => ({
+      name: `bot-${i}`, title: `Bot ${i}`, description: '', model: null, provider: null, skillCount: 0, isDefault: false,
+    })) };
+    const layout = computeFleetLayout(state);
+    const center = layout.controlCenter!;
+    assert.deepEqual(layout.stations, before.stations, 'project hulls and rooms retain their existing layout');
+    assert.deepEqual(layout.crew, before.crew, 'T3 project crew retain their existing seats');
+    assert.equal(layout.environmentNodes.size, count);
+    const facilities = [center.hull, ...layout.environmentNodes.values()].map(r => 'hull' in r ? r.hull : r)
+      .concat([...layout.stations.values()].map(s => s.bounds));
+    for (let i = 0; i < facilities.length; i++) for (let j = i + 1; j < facilities.length; j++) {
+      assert.equal(intersects(facilities[i], facilities[j]), false, `${count} bays: facilities never overlap`);
+    }
+    for (const node of layout.environmentNodes.values()) {
+      assert.ok(node.hull.x >= center.bounds.x && node.hull.x + node.hull.w <= center.bounds.x + center.bounds.w);
+      assert.ok(node.hull.y >= center.bounds.y && node.hull.y + node.hull.h <= center.bounds.y + center.bounds.h);
+      for (const link of node.links) {
+        assert.ok(link.via);
+        const points = [link.from, ...link.via, link.to];
+        for (let i = 1; i < points.length; i++) {
+          const a = points[i - 1], b = points[i];
+          assert.ok(a.x === b.x || a.y === b.y, 'conduits use axis-aligned segments');
+          for (const r of facilities) {
+            const crosses = a.x === b.x
+              ? a.x > r.x && a.x < r.x + r.w && Math.max(a.y, b.y) > r.y && Math.min(a.y, b.y) < r.y + r.h
+              : a.y > r.y && a.y < r.y + r.h && Math.max(a.x, b.x) > r.x && Math.min(a.x, b.x) < r.x + r.w;
+            assert.equal(crosses, false, `${count} bays: project conduits never cross facility interiors`);
+          }
+        }
+      }
+    }
+  }
 });

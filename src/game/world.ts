@@ -53,11 +53,13 @@ function truncate(s: string, n: number): string {
 }
 
 /** Fixed supply-line geometry is independent of the animated packets travelling along it. */
-function linkPoint(from: Point, to: Point, k: number): Point {
+function linkPoint(from: Point, to: Point, k: number, via?: Point[]): Point {
   const midX = (from.x + to.x) / 2;
-  if (k < 1 / 3) return { x: from.x + (midX - from.x) * k * 3, y: from.y };
-  if (k < 2 / 3) return { x: midX, y: from.y + (to.y - from.y) * (k * 3 - 1) };
-  return { x: midX + (to.x - midX) * (k * 3 - 2), y: to.y };
+  const points = [from, ...(via ?? [{ x: midX, y: from.y }, { x: midX, y: to.y }]), to];
+  const progress = k * (points.length - 1);
+  const i = Math.min(points.length - 2, Math.floor(progress));
+  const a = points[i], b = points[i + 1], t = progress - i;
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
 function sprite(texture: ReturnType<typeof tex>, x: number, y: number, ax = 0, ay = 0, scale = PX): Sprite {
@@ -705,7 +707,7 @@ export class World {
     if (!center || !this.initialized) return;
     this.userMoved = true;
     const width = this.app.screen.width;
-    this.frame(center.hull, 1.4, width >= 1000 ? 526 : 0, width >= 1000 ? Math.min(260, width * 0.2) : 0);
+    this.frame(center.bounds, 1.4, width >= 1000 ? 526 : 0, width >= 1000 ? Math.min(260, width * 0.2) : 0);
   }
 
   /** Frame all service nodes and project modules belonging to an environment. */
@@ -755,8 +757,8 @@ export class World {
     }
     if (selection.kind === "unit") {
       p = this.crew.get(unitKey(selection.envId, selection.threadId))?.pos;
-      const card = center?.operators.find(o => o.bot.sessions.some(s => s.envId === selection.envId && s.thread.id === selection.threadId))?.card;
-      if (card) { this.focusControlCenter(); return; }
+      const workstation = center?.operators.find(o => o.bot.sessions.some(s => s.envId === selection.envId && s.thread.id === selection.threadId))?.workstation;
+      if (workstation) { this.focusControlCenter(); return; }
     } else {
       const s = this.stationFor(selection.envId, selection.projectId);
       const r = selection.kind === "library" ? s?.rooms.archive?.rect : s?.interior;
@@ -913,22 +915,22 @@ export class World {
 
   private drawLinks(state: GameState): void {
     const g = this.links.clear();
+    const c = currentStyle().colors;
     for (const link of this.layout.controlCenter?.links ?? []) {
       const online = state.envs[link.envId]?.connection === 'live';
       const lane = link.laneX;
-      g.moveTo(link.from.x, link.from.y).lineTo(lane, link.from.y).lineTo(lane, link.to.y).lineTo(link.to.x, link.to.y)
-        .stroke({ color: HERMES_COLOR, width: 2, alpha: online ? 0.32 : 0.1 });
-      // Directional port markings communicate the relationship, not invented traffic.
-      const direction = link.to.x > lane ? 1 : -1;
-      g.poly([link.to.x, link.to.y, link.to.x - 7 * direction, link.to.y - 4,
-        link.to.x - 7 * direction, link.to.y + 4]).fill({ color: HERMES_COLOR, alpha: online ? 0.7 : 0.2 });
+      // Physical docking collars fit the engineering nodes' existing top hatches.
+      g.rect(lane - 20, link.from.y, 40, link.to.y - link.from.y).fill(c.D).stroke({ color: c.k, width: 2 });
+      g.moveTo(lane - 12, link.from.y).lineTo(lane - 12, link.to.y)
+        .moveTo(lane + 12, link.from.y).lineTo(lane + 12, link.to.y)
+        .stroke({ color: HERMES_COLOR, width: 2, alpha: online ? 0.55 : 0.15 });
     }
     for (const node of this.layout.environmentNodes.values()) {
       const live = state.envs[node.envId]?.connection === "live";
       for (const link of node.links) {
         const points: number[] = [];
         for (let k = 0; k <= 24; k++) {
-          const p = linkPoint(link.from, link.to, k / 24);
+          const p = linkPoint(link.from, link.to, k / 24, link.via);
           points.push(p.x, p.y);
         }
         g.poly(points, false).stroke({ color: node.color, width: 5, alpha: live ? 0.1 : 0.04 });
@@ -960,11 +962,11 @@ export class World {
       sprite.tick(lay, s, t, dt, frame, selected, this.zoom);
     }
     this.drawLights(state, sel, t, frame);
-    if (this.layout.controlCenter) this.controlCenter?.update(this.layout.controlCenter, sel, this.zoom);
+    if (this.layout.controlCenter) this.controlCenter?.update(this.layout.controlCenter, sel, this.zoom, frame);
     for (const station of this.stations.values()) station.setZoom(this.zoom);
     for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
     this.drawEdgeIndicators(t);
-    return [...this.crew.values()].some((crew) => crew.animated)
+    return !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
   }
 
@@ -1035,7 +1037,7 @@ export class World {
       for (const link of node.links) {
         if (live && workingAt.has(`${node.envId}|${link.stationKey}`)) {
           for (let k = 0; k < 4; k++) {
-            const p = linkPoint(link.from, link.to, (t * 0.3 + k / 4) % 1);
+            const p = linkPoint(link.from, link.to, (t * 0.3 + k / 4) % 1, link.via);
             l.rect(Math.round(p.x) - 3, Math.round(p.y) - 3, 6, 6).fill(node.color);
 
           }
