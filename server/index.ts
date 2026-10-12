@@ -10,18 +10,21 @@ import { loadConfig, type Config } from "./config.ts";
 import { Registry, UserError } from "./registry.ts";
 import { serveEnvironmentAsset } from "./assets.ts";
 import { HermesBridge } from "./hermes/bridge.ts";
+import { HermesManager, acquireBot } from "./hermes/manager.ts";
+import type { HermesAction } from "../shared/hermes.ts";
 import { Updater, UpdateConflict } from "./updater.ts";
 
 const config = loadConfig();
 const hermesLaunch = { command: config.hermesCommand, args: config.hermesArgs };
 const registry = new Registry(config.dataDir, hermesLaunch);
 await registry.load();
+const hermesManager = new HermesManager(config.hermesCommand);
 const hermesBridges = new Map<string, Promise<HermesBridge>>();
 
 function hermesBridge(envId: string, workspaceRoot: string): Promise<HermesBridge> {
   let bridge = hermesBridges.get(envId);
   if (!bridge) {
-    const instance = new HermesBridge(config.dataDir, envId, workspaceRoot, hermesLaunch);
+    const instance = new HermesBridge(config.dataDir, envId, workspaceRoot, hermesLaunch, hermesManager);
     bridge = instance.load().then(() => instance).catch((err) => { hermesBridges.delete(envId); throw err; });
     hermesBridges.set(envId, bridge);
   }
@@ -175,6 +178,29 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (pathname === "/api/envs/import-desktop" && method === "POST") {
     return sendJson(res, 200, await registry.importDesktopConnections());
+  }
+  const hermesMatch = pathname.match(/^\/api\/envs\/([^/]+)\/hermes$/);
+  if (hermesMatch && method === "POST") {
+    const envId = decodeURIComponent(hermesMatch[1]);
+    const env = registry.get(envId);
+    if (!env?.hermes) return sendJson(res, 404, { error: "Unknown Hermes station" });
+    const body = await readJson<{ action: HermesAction | 'chat.open'; profile?: string; body?: Record<string, unknown> }>(req);
+    const profile = body.profile ?? 'default';
+    try {
+      if (body.action === 'chat.open') {
+        const bridge = await hermesBridge(envId, env.hermes.workspaceRoot);
+        return sendJson(res, 200, { threadId: await bridge.openBotChat(profile) });
+      }
+      // Profile mutations cannot race with starting a turn in another station/browser.
+      const mutatingProfile = ['profiles.update', 'profiles.delete'].includes(body.action);
+      const release = mutatingProfile ? acquireBot(profile, 'management') : undefined;
+      try {
+        const result = await hermesManager.request(body.action, profile, body.body, env.hermes.workspaceRoot);
+        return sendJson(res, 200, result);
+      } finally { release?.(); }
+    } catch (err) {
+      return sendJson(res, 400, { error: (err as Error).message });
+    }
   }
   const envMatch = pathname.match(/^\/api\/envs\/([^/]+)$/);
   if (envMatch && method === "DELETE") {

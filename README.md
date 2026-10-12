@@ -100,10 +100,10 @@ which launches `hermes acp` and translates its local Agent Client Protocol strea
 1. Install and configure Hermes on the Command host as the same OS user that runs Command:
    run `hermes setup`, then `hermes acp --check`. Use a Hermes release with ACP session modes
    (`default` and `accept_edits`) and session loading.
-2. Open **Bases → Local Hermes**, enter an existing absolute workspace directory on that host,
+2. Open **Stations → Local Hermes**, enter an existing absolute workspace directory on that host,
    and choose **Connect Hermes**. No T3 pairing link or additional network listener is needed.
 3. Select that base's workspace module and recruit a worker. Each worker gets its own Hermes
-   process and session, using Hermes's configured model, credentials, tools, and memory.
+   session in the selected bot profile, using that profile's model, credentials, tools, and memory.
 
 Replies and reasoning stream into the crew log. Tool calls drive workstation activity; permission
 requests use the existing approval controls. **Halt** sends ACP cancellation and waits for the
@@ -116,9 +116,36 @@ Closing or reconnecting the browser leaves workers running. Command stores its t
 Hermes session IDs in owner-only files under `T3C_DATA_DIR`. After a Command host restart, prior
 running turns become interrupted; the next order reloads the saved Hermes session. Removing a
 Hermes base stops its processes and deletes Command's transcripts; Hermes's own saved sessions
-remain. Command does not attach to an existing Hermes CLI/gateway session, import its history,
-or currently provide Hermes images, structured questions, background-task telemetry, or spend
-estimates.
+remain. Command can reopen a bot's canonical Bot Chat and refresh its native transcript.
+Images, structured questions, background-task telemetry, and spend estimates remain unsupported.
+
+Open **Stations → your Hermes station → Bots & routines** (also available from its workspace
+panel) to create or clone native Hermes profiles, edit their role, SOUL.md and curated memory
+files, configure the model, toggle installed skills/toolsets/MCP servers, and open Bot Chat.
+Existing profiles are discovered automatically. Clones copy identity and memory; their sessions
+and routines start empty, and OAuth providers may require login separately for each bot.
+
+The **Routines** tab manages Hermes jobs: schedules, prompts, model/provider/reasoning pins,
+working directories, skills, local or Bot Chat delivery, previous-run continuity, script-only
+jobs, and change monitors. Pause, resume, run now, delete, and view execution history/output.
+Hermes's gateway or Serve/Desktop backend executes jobs independently of Command. Scheduler
+health is checked for the selected profile; offline profiles cannot be triggered from Command.
+
+Command permits only one active turn per bot across all Hermes stations. Configuration/memory
+edits and profile deletion are blocked while that bot is working in Command. Each turn opens a
+fresh ACP process and reloads its saved session, so profile memory and capabilities are refreshed.
+Canonical Bot Chats receive Hermes's native bot-to-bot messaging protocol;
+a small SessionManager extension restores native Bot Chats from other interfaces without
+changing their provenance. Hermes’s session leases prevent concurrent writers across clients.
+Native chat history refreshes every 30 seconds while Command is connected. Model edits
+update the canonical Bot Chat; existing task sessions may retain their model choice.
+Group-room and shared Kanban management are not yet exposed. Avoid concurrently driving the same bot from another
+Hermes client; Command's ownership guard covers Command stations only.
+
+Management requires a Hermes launcher supporting `--print-runtime-command` and the native
+profiles, cron, and SessionDB APIs (verified against Hermes 0.21.6). The server runs a JSON helper
+inside Hermes's own runtime/bootstrap. Credentials and raw configuration never reach the browser.
+The alternative Python/module ACP launcher below supports tasks but not management.
 
 The Command service must be able to find Hermes on its `PATH`. For launchers outside that path,
 set the executable and arguments on the host, then restart Command:

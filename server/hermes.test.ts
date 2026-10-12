@@ -172,6 +172,15 @@ test("local Hermes fleet supports approvals, reconnect, reload, cancellation, an
   assert.equal(shellThread.messages, undefined, "shell updates do not carry full transcripts");
   await assert.rejects(rpc.request("orchestration.dispatchCommand", { commandId: "bad-choice", type: "thread.approval.respond", threadId: "worker", requestId: approval.payload.requestId, decision: "unknown" }), /did not offer/);
   await assert.rejects(rpc.request("orchestration.dispatchCommand", command("overlap")), /still working/);
+  const mutation = (action: string, origin?: string) => fetch(`${base}/api/envs/${env.id}/hermes`, {
+    method: 'POST', headers: { ...headers, ...(origin ? { origin } : {}) }, body: JSON.stringify({ action, profile: 'default' }),
+  });
+  assert.equal((await mutation('profiles.update', 'https://evil.example')).status, 403);
+  const locked = await mutation('profiles.update');
+  assert.equal(locked.status, 400);
+  assert.match((await locked.json() as { error: string }).error, /already working/);
+  const duplicateTurn = { ...command('parallel order', 'parallel'), threadId: 'parallel' };
+  await assert.rejects(rpc.request('orchestration.dispatchCommand', duplicateTurn), /already working/);
   // A browser disconnect leaves the same ACP process and permission request alive.
   rpc.ws.close();
   rpc = await connect();
@@ -186,7 +195,7 @@ test("local Hermes fleet supports approvals, reconnect, reload, cancellation, an
   let rows = (await fs.readFile(log, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
   assert.equal(rows.filter((row) => row.method === "session/prompt").length, 1);
   assert.equal(rows.find((row) => row.id === "permission" && row.result)?.result.outcome.optionId, "allow_session");
-  // Follow-ups reuse the same live session, and denial preserves Hermes's option ID.
+  // Follow-ups reload the same saved session in a fresh process, and denial preserves Hermes's option ID.
   rpc.messages = [];
   await rpc.request("orchestration.dispatchCommand", command("deny request", "deny-turn"));
   thread = await rpc.thread(detail, (thread) => thread.hasPendingApprovals === true);
@@ -209,7 +218,7 @@ test("local Hermes fleet supports approvals, reconnect, reload, cancellation, an
   assert.equal(thread.hasPendingApprovals, false);
   assert.ok(!(thread.messages as Array<{ text: string }>).some((message) => message.text.includes("HISTORY MUST NOT DUPLICATE")));
   rows = (await fs.readFile(log, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
-  assert.equal(rows.filter((row) => row.method === "session/load").length, 1);
+  assert.equal(rows.filter((row) => row.method === "session/load").length, 2);
   assert.ok(rows.filter((row) => row.method === "session/new" || row.method === "session/load").every((row) => row.params.cwd === workspaceRoot && row.cwd === workspaceRoot));
   await rpc.request("orchestration.dispatchCommand", command("crash", "crash", "broken"));
   const broken = rpc.stream("orchestration.subscribeThread", { threadId: "broken" });

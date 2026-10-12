@@ -1294,3 +1294,27 @@ select:focus {
 .thread-image-status .btn { margin-left: 8px; }
 .markdown table { display: block; overflow-x: auto; border-collapse: collapse; }
 .markdown td, .markdown th { border: 1px solid var(--line); padding: 4px 8px; }
+
+/* Hermes profile management */
+.hermes-modal { width: min(1040px, 95vw); max-height: 90vh; overflow-y: auto; }
+.hermes-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; }
+.hermes-roster { display: flex; flex-direction: column; gap: 8px; }
+.hermes-roster button { text-align: left; white-space: normal; }
+.hermes-roster button span { display: block; overflow-wrap: anywhere; }
+.hermes-content { min-width: 0; }
+.hermes-field { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; font-size: 12px; }
+.hermes-field textarea, .hermes-field input, .hermes-field select { width: 100%; box-sizing: border-box; }
+.hermes-actions, .hermes-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
+.hermes-tabs { border-bottom: 1px solid var(--border, #384655); padding-bottom: 12px; }
+.hermes-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hermes-checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 240px; overflow: auto; gap: 8px; padding: 8px 0; }
+.hermes-checklist label { display: flex; gap: 8px; align-items: center; font-size: 12px; overflow-wrap: anywhere; }
+.hermes-checklist input { flex: none; width: auto; }
+.hermes-field input[type=checkbox] { width: auto; }
+.hermes-job, .hermes-history { border: 1px solid var(--border, #384655); padding: 12px; margin: 12px 0; }
+.hermes-history pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 400px; overflow: auto; }
+@media (max-width: 700px) {
+  .hermes-layout, .hermes-columns { grid-template-columns: 1fr; }
+  .hermes-roster { max-height: 180px; overflow: auto; }
+  .hermes-checklist { grid-template-columns: 1fr; }
+}

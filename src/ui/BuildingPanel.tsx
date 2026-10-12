@@ -8,6 +8,8 @@ import { isHistory, unitState } from "../t3/derive";
 import { envClient, logError } from "../t3/environment";
 import type { ModelSelection, Provider, RuntimeMode } from "../t3/types";
 import { STATE_LABELS, timeAgo } from "./util";
+import { HermesBotPicker } from "./HermesBotPicker";
+import { HermesPanel } from "./HermesPanel";
 
 const RUNTIME_MODES: Array<{ id: RuntimeMode; label: string }> = [
   { id: "full-access", label: "Full access" },
@@ -19,6 +21,7 @@ const RUNTIME_MODES: Array<{ id: RuntimeMode; label: string }> = [
 interface RecruitPrefs {
   modelSelection?: ModelSelection;
   runtimeMode?: RuntimeMode;
+  hermesProfile?: string;
 }
 
 function loadPrefs(envId: string): RecruitPrefs {
@@ -56,6 +59,7 @@ function defaultSelection(providers: Provider[], preferred: Array<ModelSelection
 export function BuildingPanel({ envId, projectId }: { envId: string; projectId: string }) {
   const env = useGame((s) => s.envs[envId]);
   const project = env?.projects[projectId];
+  const [showHermes, setShowHermes] = useState(false);
 
   const roster = useMemo(() => {
     if (!env) return [];
@@ -93,6 +97,8 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
         </button>
       </header>
 
+      {env.summary.kind === "hermes" && <button className="btn wide" onClick={() => setShowHermes(true)}>Hermes bots & routines</button>}
+      {showHermes && <HermesPanel envId={envId} onClose={() => setShowHermes(false)} />}
       <MachineTabs envId={envId} projectId={projectId} />
       <RecruitForm key={envId} envId={envId} projectId={projectId} />
 
@@ -133,6 +139,7 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
   const providers = usable(env?.providers ?? []);
   const prefs = useMemo(() => loadPrefs(envId), [envId]);
 
+  const [hermesProfile, setHermesProfile] = useState(prefs.hermesProfile ?? "default");
   const [text, setText] = useState("");
   const [selection, setSelectionState] = useState<ModelSelection | undefined>(() =>
     defaultSelection(providers, [prefs.modelSelection, project?.defaultModelSelection]),
@@ -160,8 +167,8 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
     if (!task || !current || sending) return;
     setSending(true);
     try {
-      const threadId = await envClient(envId)!.recruit({ projectId, text: task, modelSelection: current, runtimeMode: currentRuntimeMode });
-      savePrefs(envId, { modelSelection: current, runtimeMode: currentRuntimeMode });
+      const threadId = await envClient(envId)!.recruit({ projectId, text: task, modelSelection: current, runtimeMode: currentRuntimeMode, hermesProfile });
+      savePrefs(envId, { modelSelection: current, runtimeMode: currentRuntimeMode, hermesProfile });
       sfx.recruit();
       addLog({ tone: "good", text: `New worker recruited at ${project?.title ?? "base"}`, envId, threadId });
       setText("");
@@ -181,6 +188,7 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
   return (
     <div className="recruit">
       <h3>Recruit worker</h3>
+      {env?.summary.kind === "hermes" && <HermesBotPicker envId={envId} value={hermesProfile} onChange={setHermesProfile} disabled={sending} />}
       <textarea
         value={text}
         rows={3}
