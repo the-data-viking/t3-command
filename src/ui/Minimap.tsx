@@ -81,10 +81,10 @@ export function Minimap() {
     };
   }, []);
 
-  const moveTo = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const moveTo = (e: React.PointerEvent<HTMLCanvasElement>, animate: boolean) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const { scale, ox, oy } = mapping.current;
-    worldRef.current?.centerOn((e.clientX - rect.left - ox) / scale, (e.clientY - rect.top - oy) / scale);
+    worldRef.current?.centerOn((e.clientX - rect.left - ox) / scale, (e.clientY - rect.top - oy) / scale, animate);
   };
 
   return (
@@ -95,10 +95,10 @@ export function Minimap() {
         style={{ width: W, height: H }}
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
-          moveTo(e);
+          moveTo(e, true);
         }}
         onPointerMove={(e) => {
-          if (e.buttons) moveTo(e);
+          if (e.buttons) moveTo(e, false);
         }}
       />
     </div>

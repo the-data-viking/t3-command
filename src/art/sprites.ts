@@ -299,6 +299,9 @@ export const FLOOR_QUARTERS: Grid = Array.from({ length: 16 }, (_, y) =>
 );
 
 export const DOOR_H: Grid = ["kkkkkkkkkkkkkkkk", "kaaaaaaakaaaaaak", "kDDDDDDDkDDDDDDk", "kkkkkkkkkkkkkkkk"];
+/** The same door with its panels sliding into the jambs as crew approach. */
+export const DOOR_H_HALF: Grid = ["kkkkkffffffkkkkk", "kaaakffffffkaaak", "kDDDkffffffkDDDk", "kkkkkffffffkkkkk"];
+export const DOOR_H_OPEN: Grid = ["kkffffffffffffkk", "kaffffffffffffak", "kDffffffffffffDk", "kkffffffffffffkk"];
 
 /** One environment's ship: engine left, bow right, team stripe along the hull. */
 export const SHIP: Grid = [
@@ -409,6 +412,8 @@ export const ALL: Record<string, Grid> = {
   FLOOR_BRIDGE,
   FLOOR_QUARTERS,
   DOOR_H,
+  DOOR_H_HALF,
+  DOOR_H_OPEN,
   SHIP,
   BADGE_ALERT,
   BADGE_QUESTION,

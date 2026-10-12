@@ -124,3 +124,26 @@ footprint, docking hatch and status plate, so layout and routing are unchanged.
   light is an overlay drawn from telemetry, so a quiet or disconnected deck stays dark.
   `engineering-deck.test.ts` enforces the footprint, light sockets and the absence of baked-in
   status colors. Review the deck on the styleboard contact sheet.
+
+## Living station
+
+Motion and light follow observed state, and every effect settles, so an idle fleet still lets
+the map sleep.
+
+- **Lighting:** rooms nobody is using sit in shadow. A bridge is lit while its station has awake
+  crew on a live connection. A system room is lit, with a soft screen glow from its fixture
+  (violet for monitoring-only comms), while crew work there. Quarters and the archive stay dim.
+  Crew render above the shadow.
+- **Quarters:** a crew member's own settle or wake walks them between seat and bunk through the
+  doors. They lie down only on arrival. Seat reshuffles caused by other crew, and any change to
+  room geometry, still snap, so busy stations never drift (`crew-motion.ts`).
+- **Doors:** doors slide half then fully open as walking crew come within 34 / 18 px, and close
+  once they pass. A crew member standing still never holds a door open.
+- **Beam-in:** a thread created in the last two minutes on an already-loaded station beams in at
+  its seat in a teleporter column in its team color. Crew present when the map loads, or
+  when a station first syncs, are simply placed.
+- **Camera:** focus, fit and minimap clicks ease over 0.35 s, with zoom interpolated
+  geometrically. Dragging, scrolling or minimap drags take over immediately. The first fit after
+  loading snaps.
+- **Reduced motion:** with `prefers-reduced-motion`, camera moves snap and the beam-in is
+  skipped.
