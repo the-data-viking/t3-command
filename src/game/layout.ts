@@ -7,6 +7,7 @@ import { unitKey } from "../store";
 import { isHistory, unitState } from "../t3/derive";
 import type { ProjectShell, ThreadShell } from "../t3/types";
 import { teamColor } from "./theme";
+import { botOperators, type BotOperator } from '../t3/bots';
 
 export interface Point {
   x: number;
@@ -87,11 +88,20 @@ export interface CrewLayout {
 }
 
 export interface FleetLayout {
+  controlCenter?: ControlCenterLayout;
   stations: Map<string, StationLayout>;
   environmentNodes: Map<string, EnvironmentNodeLayout>;
   crew: Map<string, CrewLayout>;
   bounds: Rect;
   hub?: Rect;
+}
+
+export interface ControlCenterLayout {
+  envId: string;
+  envIds: string[];
+  hull: Rect;
+  operators: Array<{ bot: BotOperator; card: Rect }>;
+  links: Array<{ envId: string; from: Point; to: Point; laneX: number }>;
 }
 
 export const TILE = 32;
@@ -141,6 +151,8 @@ export function groupProjects(envs: EnvWorld[]): ProjectGroup[] {
   const groups = new Map<string, ProjectGroup>();
   const unidentified: ProjectRef[] = [];
   envs.forEach((env, index) => {
+    // Hermes owns persistent operators, never a repository-defined project module.
+    if (env.summary.kind === 'hermes') return;
     for (const project of Object.values(env.projects)) {
       const id = project.repositoryIdentity;
       if (!id?.canonicalKey) {
@@ -369,7 +381,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   });
   // A shared engineering spine: membership adds a conduit, never another chassis.
   const nodeX = columnW + (CAMPUS_GAP - ENV_NODE_W) / 2;
-  envs.forEach((env, index) => {
+  envs.filter(env => env.summary.kind !== 'hermes').forEach((env, index) => {
     const key = env.summary.id;
     const nodeY = index * (ENV_NODE_H + NODE_GAP);
     const projects = [...fleet.stations.values()].filter(station => station.members.some(m => m.envId === key));
@@ -381,11 +393,26 @@ export function computeFleetLayout(state: GameState): FleetLayout {
         from: { x: left ? nodeX : nodeX + ENV_NODE_W, y: nodeY + ENV_NODE_H / 2 },
         to: { x: station.port.x, y: station.port.y + offset } };
     });
-    fleet.environmentNodes.set(key, { key, envId: key, color: teamColor(index),
+    fleet.environmentNodes.set(key, { key, envId: key, color: stationColor(state, key),
       hull: { x: nodeX, y: nodeY, w: ENV_NODE_W, h: ENV_NODE_H },
       plate: { x: nodeX + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links });
   });
-  if (groups.length > 1) fleet.hub = { x: columnW + CAMPUS_GAP / 2 - 70,
+  const hermes = envs.filter(env => env.summary.kind === 'hermes');
+  if (hermes.length) {
+    const operators = botOperators(state);
+    const rows = Math.max(1, Math.ceil(operators.length / 4));
+    const hull = { x: nodeX + ENV_NODE_W / 2 - 360, y: -340 - rows * 96, w: 720, h: 200 + rows * 96 };
+    const envId = state.hermesCatalog?.envId && hermes.some(e => e.summary.id === state.hermesCatalog?.envId)
+      ? state.hermesCatalog.envId : hermes[0].summary.id;
+    fleet.controlCenter = { envId, envIds: hermes.map(e => e.summary.id), hull,
+      operators: operators.map((bot, i) => ({ bot, card: { x: hull.x + 30 + (i % 4) * 166,
+        y: hull.y + 126 + Math.floor(i / 4) * 96, w: 158, h: 84 } })),
+      links: [...fleet.environmentNodes.values()].map((node, index) => ({ envId: node.envId,
+        from: { x: hull.x + (index % 2 === 0 ? 24 : hull.w - 24), y: hull.y + hull.h - 18 },
+        laneX: node.hull.x + (index % 2 === 0 ? -28 : node.hull.w + 28),
+        to: { x: node.hull.x + (index % 2 === 0 ? 0 : node.hull.w), y: node.hull.y + 26 } })),
+    };
+  } else if (groups.length > 1) fleet.hub = { x: columnW + CAMPUS_GAP / 2 - 70,
     y: -116, w: 140, h: 80 };
 
   for (const c of crew) fleet.crew.set(c.key, c);
@@ -393,6 +420,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   for (const s of fleet.stations.values()) bounds = bounds ? union(bounds, s.bounds) : s.bounds;
   for (const s of fleet.environmentNodes.values()) bounds = bounds ? union(bounds, { ...s.hull, x: s.hull.x - 40, w: s.hull.w + 40, h: s.hull.h }) : s.hull;
   if (fleet.hub) bounds = bounds ? union(bounds, fleet.hub) : fleet.hub;
+  if (fleet.controlCenter) bounds = bounds ? union(bounds, fleet.controlCenter.hull) : fleet.controlCenter.hull;
   fleet.bounds = bounds ?? { x: 0, y: 0, w: 0, h: 0 };
   return fleet;
 }

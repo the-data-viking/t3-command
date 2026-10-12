@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { css, HUD } from "../game/theme";
 import { worldRef } from "../game/world";
+import { HERMES_COLOR } from '../t3/bots';
 
 const W = 220;
 const H = 140;
@@ -52,6 +53,13 @@ export function Minimap() {
         const size = d.big ? (blink ? 5 : 3) : 2;
         ctx.fillStyle = css(d.color);
         ctx.fillRect(ox + d.x * scale - size / 2, oy + d.y * scale - size / 2, size, size);
+      }
+      if (data.controlCenter) {
+        const r = data.controlCenter;
+        const x = ox + (r.x + r.w / 2) * scale, y = oy + (r.y + r.h / 2) * scale;
+        const rx = Math.max(7, r.w * scale / 2), ry = Math.max(5, r.h * scale / 2);
+        ctx.fillStyle = `${css(HERMES_COLOR)}33`; ctx.strokeStyle = css(HERMES_COLOR);
+        ctx.beginPath(); ctx.moveTo(x, y - ry); ctx.lineTo(x + rx, y); ctx.lineTo(x, y + ry); ctx.lineTo(x - rx, y); ctx.closePath(); ctx.fill(); ctx.stroke();
       }
       const v = data.view;
       ctx.strokeStyle = css(HUD.amber);

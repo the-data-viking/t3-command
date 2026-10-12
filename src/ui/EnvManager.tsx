@@ -1,13 +1,13 @@
 import { useState } from "react";
 import type { AddEnvRequest, EnvSummary, ImportDesktopResponse } from "../../shared/api";
 import { sfx } from "../game/sfx";
-import { useGame } from "../store";
+import { setSelection, useGame } from "../store";
 import { fetchJson, refreshEnvironments } from "../t3/environment";
-import { HermesPanel } from "./HermesPanel";
+import { worldRef } from '../game/world';
+import { HermesMark } from './HermesControlCenter';
 import { timeAgo } from "./util";
 
 export function EnvManager() {
-  const [hermesEnv, setHermesEnv] = useState<string>();
   const envs = useGame((s) => s.envs);
   const [mode, setMode] = useState<"ssh" | "link" | "hermes">("ssh");
   const [workspaceRoot, setWorkspaceRoot] = useState("");
@@ -89,7 +89,6 @@ export function EnvManager() {
   };
 
   const list = Object.values(envs);
-  if (hermesEnv) return <HermesPanel envId={hermesEnv} onClose={() => setHermesEnv(undefined)} />;
   return (
     <div className="modal-backdrop" onClick={close}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -101,14 +100,13 @@ export function EnvManager() {
           </button>
         </header>
 
-        {list.length === 0 && <p className="muted">No bases yet. Connect a T3 environment or local Hermes workspace below.</p>}
+        {list.length === 0 && <p className="muted">No connections yet. Connect a T3 environment or a local Hermes control center below.</p>}
         <ul className="env-list">
-          {list.map((env) => (
+          {list.filter(env => env.summary.kind !== 'hermes').map((env) => (
             <li key={env.summary.id}>
               <span className={`base-chip conn-${env.connection}`}>●</span>
               <div className="env-info">
                 <strong>{env.summary.label}</strong>{" "}
-                {env.summary.kind === "hermes" && <span className="linked-badge">Hermes · local</span>}{" "}
                 {env.summary.linked && (
                   <span className="linked-badge" title="Uses T3 desktop's saved connection on the t3-command host">
                     linked
@@ -118,18 +116,23 @@ export function EnvManager() {
                 <div className="muted small">
                   {env.connection}
                   {env.error ? ` — ${env.error}` : ""}
-                  {env.summary.serverVersion ? env.summary.kind === "hermes" ? ` · Hermes ${env.summary.serverVersion}` : ` · T3 ${env.summary.serverVersion} (protocol v${env.summary.protocolVersion})` : ""}
+                  {env.summary.serverVersion ? ` · T3 ${env.summary.serverVersion} (protocol v${env.summary.protocolVersion})` : ""}
                   {env.summary.tokenExpiresAt ? ` · token expires ${new Date(env.summary.tokenExpiresAt).toLocaleDateString()}` : ""}
                   {` · added ${timeAgo(env.summary.addedAt)}`}
                 </div>
               </div>
-              {env.summary.kind === "hermes" && <button className="btn" onClick={() => setHermesEnv(env.summary.id)}>Bots & routines</button>}
               <button className="btn danger" onClick={() => void remove(env.summary)}>
                 {env.summary.linked ? "Unlink" : "Remove"}
               </button>
             </li>
           ))}
         </ul>
+        {list.some(e => e.summary.kind === 'hermes') && <section className="hermes-connection"><h3>Operations</h3>
+          {list.filter(e => e.summary.kind === 'hermes').map(env => <div className="hermes-actions" key={env.summary.id}><HermesMark />
+            <div className="spacer"><strong>Hermes control center</strong><div className="muted small">{env.connection} · local operators</div></div>
+            <button className="btn" onClick={() => { close(); setSelection({ kind: 'hermes', envId: env.summary.id }); worldRef.current?.focusStation(env.summary.id); }}>Open control center</button>
+            <button className="btn danger" onClick={() => void remove(env.summary)}>Disconnect</button></div>)}
+        </section>}
 
         <h3>Import from T3 desktop</h3>
         <p className="muted small">
@@ -181,16 +184,16 @@ export function EnvManager() {
           <>
             <p className="muted small">
               Use Hermes installed on the T3 Command host. Run <code>hermes setup</code> and <code>hermes acp --check</code> there first.
-              Each recruited worker gets a local session using Hermes’s configured model, tools, and memory. Sessions keep running when you close the browser.
+              Its control center brings together persistent bots, conversations, memory, and routines. Sessions keep running when you close the browser.
             </p>
             <div className="form-grid">
               <label>
-                Workspace directory on this host
-                <input value={workspaceRoot} onChange={(e) => setWorkspaceRoot(e.target.value)} placeholder="/absolute/path/to/project" />
+                Default working directory on this host
+                <input value={workspaceRoot} onChange={(e) => setWorkspaceRoot(e.target.value)} placeholder="/Users/you" />
               </label>
               <label>
                 Name (optional)
-                <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Hermes workstation" />
+                <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Hermes" />
               </label>
             </div>
           </>

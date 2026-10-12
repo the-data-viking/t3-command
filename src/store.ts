@@ -3,6 +3,7 @@ import type { EnvSummary, MeResponse } from "../shared/api";
 import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
 import type { UsageState } from "./t3/usage";
 import type { HostState } from "./t3/host";
+import type { HermesBot } from "../shared/hermes";
 
 export type Connection = "connecting" | "live" | "reconnecting" | "needs-pairing" | "needs-update" | "offline";
 
@@ -24,6 +25,7 @@ export interface ThreadDetail {
 }
 
 export type Selection =
+  | { kind: "hermes"; envId: string; profile?: string }
   | { kind: "unit"; envId: string; threadId: string }
   | { kind: "building"; envId: string; projectId: string }
   | { kind: "library"; envId: string; projectId: string }
@@ -41,6 +43,7 @@ export interface LogEntry {
 }
 
 export interface GameState {
+  hermesCatalog?: { envId: string; bots: HermesBot[]; loaded: boolean; error?: string };
   me?: MeResponse;
   envs: Record<string, EnvWorld>;
   /** Open thread subscriptions, keyed by unitKey(envId, threadId). */

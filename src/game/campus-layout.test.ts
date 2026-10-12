@@ -49,3 +49,37 @@ test('large commons retain every crew seat inside its actual room',()=>{
     assert.ok(crew.home.x>r.x&&crew.home.x<r.x+r.w&&crew.home.y>r.y&&crew.home.y<r.y+r.h);
   }
 });
+
+test('Hermes occupies one control center across workspaces and never becomes a project or engineering node', () => {
+  const state = fixture();
+  for (const id of ['hermes-a', 'hermes-b']) state.envs[id] = {
+    ...state.envs.a, summary: { ...state.envs.a.summary, id, kind: 'hermes' },
+    // Deliberately matching a real repository must not merge a bot into its crew.
+  };
+  state.hermesCatalog = { envId: 'hermes-a', loaded: true, bots: Array.from({ length: 9 }, (_, i) => ({
+    name: `bot-${i}`, title: `Bot ${i}`, description: '', model: null, provider: null, skillCount: 0, isDefault: false,
+  })) };
+  const layout = computeFleetLayout(state);
+  assert.equal(layout.stations.size, 2);
+  assert.equal(layout.environmentNodes.size, 3);
+  assert.equal(layout.crew.size, 3, 'only T3 project sessions become project crew');
+  assert.deepEqual(layout.controlCenter?.envIds, ['hermes-a', 'hermes-b']);
+  const center = layout.controlCenter!;
+  assert.equal(center.links.length, 3, 'uplinks end at engineering nodes, including nodes without projects');
+  for (const link of center.links) {
+    assert.ok(layout.environmentNodes.has(link.envId));
+    for (const station of layout.stations.values()) {
+      assert.ok(link.laneX < station.bounds.x || link.laneX > station.bounds.x + station.bounds.w,
+        'operator uplinks stay out of repository-defined project modules');
+    }
+  }
+  for (const station of layout.stations.values()) assert.ok(station.members.every(m => !m.envId.startsWith('hermes')));
+  for (const facility of [...layout.stations.values()].map(s => s.bounds).concat([...layout.environmentNodes.values()].map(n => n.hull))) {
+    assert.equal(intersects(center.hull, facility), false);
+  }
+  for (const { card } of center.operators) {
+    assert.ok(card.x >= center.hull.x && card.y >= center.hull.y);
+    assert.ok(card.x + card.w <= center.hull.x + center.hull.w && card.y + card.h <= center.hull.y + center.hull.h);
+  }
+  assert.ok(layout.bounds.y <= center.hull.y);
+});

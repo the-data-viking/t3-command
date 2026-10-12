@@ -2,22 +2,23 @@ import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useState } from 'react';
 import type { HermesAction, HermesBot, HermesBotDetail, HermesJob, HermesJobs, HermesRun } from '../../shared/hermes';
 import { hermesRequest } from '../t3/hermes';
+import { refreshHermesBots } from '../t3/hermes';
 import { setSelection, useGame } from '../store';
 
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const date = (value?: string | null) => value ? new Date(value).toLocaleString() : '—';
 type Tab = 'identity' | 'memory' | 'capabilities' | 'routines';
 
-export function HermesPanel({ envId, onClose }: { envId: string; onClose: () => void }) {
+export function HermesPanel({ envId, onClose, initialProfile = 'default', initialTab = 'identity' }: { envId: string; onClose: () => void; initialProfile?: string; initialTab?: Tab }) {
   const env = useGame(s => s.envs[envId]);
   const [bots, setBots] = useState<HermesBot[]>([]);
-  const [profile, setProfile] = useState('default');
+  const [profile, setProfile] = useState(initialProfile);
   const [error, setError] = useState<string>();
   const [creating, setCreating] = useState(false);
   const [warning, setWarning] = useState<string>();
   const [revision, setRevision] = useState(0);
   const reload = useCallback(() => {
-    return hermesRequest<HermesBot[]>(envId, 'profiles.list').then(setBots).catch(e => setError(message(e)));
+    return hermesRequest<HermesBot[]>(envId, 'profiles.list').then(bots => { setBots(bots); void refreshHermesBots(); }).catch(e => setError(message(e)));
   }, [envId]);
   useEffect(() => { void reload(); }, [reload, revision]);
   useEffect(() => {
@@ -42,7 +43,7 @@ export function HermesPanel({ envId, onClose }: { envId: string; onClose: () => 
         </nav>
         <div className="hermes-content">
           {creating ? <NewBot envId={envId} bots={bots} onCreated={name => { setProfile(name); setCreating(false); refresh(); }} />
-            : <BotEditor key={`${envId}:${profile}:${revision}`} envId={envId} profile={profile} onSaved={() => void reload()} onDeleted={warning => { setWarning(warning); setProfile('default'); refresh(); }} onClose={onClose} />}
+            : <BotEditor key={`${envId}:${profile}:${revision}`} envId={envId} profile={profile} initialTab={initialTab} onSaved={() => void reload()} onDeleted={warning => { setWarning(warning); setProfile('default'); refresh(); }} onClose={onClose} />}
         </div>
       </div>
     </section>
@@ -73,9 +74,9 @@ function NewBot({ envId, bots, onCreated }: { envId: string; bots: HermesBot[]; 
   </form>;
 }
 
-function BotEditor({ envId, profile, onSaved, onDeleted, onClose }: { envId: string; profile: string; onSaved: () => void; onDeleted: (warning?: string) => void; onClose: () => void }) {
+function BotEditor({ envId, profile, onSaved, onDeleted, onClose, initialTab }: { envId: string; profile: string; onSaved: () => void; onDeleted: (warning?: string) => void; onClose: () => void; initialTab: Tab }) {
   const [bot, setBot] = useState<HermesBotDetail>();
-  const [tab, setTab] = useState<Tab>('identity');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
