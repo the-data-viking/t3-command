@@ -12,6 +12,7 @@ import { HermesBotPicker } from "./HermesBotPicker";
 import { HermesPanel } from "./HermesPanel";
 import type { RecruitWorkspace } from "../t3/workspace";
 import { WorkspacePicker } from "./WorkspacePicker";
+import { GitStatus } from "./GitStatus";
 
 const RUNTIME_MODES: Array<{ id: RuntimeMode; label: string }> = [
   { id: "full-access", label: "Full access" },
@@ -102,6 +103,7 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
       {env.summary.kind === "hermes" && <button className="btn wide" onClick={() => setShowHermes(true)}>Hermes bots & routines</button>}
       {showHermes && <HermesPanel envId={envId} onClose={() => setShowHermes(false)} />}
       <MachineTabs envId={envId} projectId={projectId} />
+      <GitStatus key={`${envId}:${projectId}`} envId={envId} projectId={projectId} />
       <RecruitForm key={`${envId}:${projectId}`} envId={envId} projectId={projectId} />
 
       <div className="roster">

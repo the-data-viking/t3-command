@@ -83,6 +83,27 @@ export interface ThreadShell {
   unsettledAt: string | null;
   snoozedUntil: string | null;
   pinnedAt: string | null;
+  /** Pull requests T3 has linked to this thread, with its last synced snapshot of each. */
+  pullRequests?: ThreadPullRequest[];
+}
+
+export interface ThreadPullRequest {
+  host: string;
+  repository: string;
+  number: number;
+  url: string;
+  snapshot: {
+    state: "open" | "closed" | "merged" | string;
+    title: string;
+    headBranch: string;
+    baseBranch: string;
+    isDraft: boolean;
+    additions?: number;
+    deletions?: number;
+    changedFiles?: number;
+    reviewDecision?: string | null;
+    checksState?: string | null;
+  } | null;
 }
 
 export type ShellStreamItem =
@@ -135,6 +156,8 @@ export interface Activity {
 export interface Checkpoint {
   turnId: string;
   checkpointTurnCount: number;
+  /** "missing"/"error" checkpoints can't be diffed or restored. */
+  status?: "ready" | "missing" | "error";
   files: Array<{ path: string; kind: string; additions: number; deletions: number }>;
   completedAt: string;
 }
@@ -183,7 +206,44 @@ export interface Provider {
   models: ProviderModel[];
   /** An adapter can expose only the permission modes its agent actually supports. */
   runtimeModes?: Array<{ id: RuntimeMode; label: string }>;
+  /** Absent means supported; only an explicit false rules out checkpoint rollback. */
+  supportsConversationRollback?: boolean;
+  /** Health notes such as an outdated CLI. */
+  message?: string;
+  usageLimits?: ProviderUsageLimits;
 }
+
+/** Quota windows a provider reports for its signed-in account. */
+export interface ProviderUsageLimits {
+  checkedAt: string;
+  windows: Array<{ id: string; kind: "session" | "weekly" | "monthly" | "other"; label: string; usedPercent: number; resetsAt?: string }>;
+  credentialFingerprint?: string;
+  unavailable?: { reason: "unsupported" | "probeFailed"; message?: string };
+}
+
+/** Git state of a workspace, from T3's subscribeVcsStatus stream. */
+export interface VcsLocalStatus {
+  isRepo: boolean;
+  refName: string | null;
+  isDefaultRef: boolean;
+  hasWorkingTreeChanges: boolean;
+  workingTree: { files: Array<{ path: string; insertions: number; deletions: number }>; insertions: number; deletions: number };
+}
+export interface VcsRemoteStatus {
+  hasUpstream: boolean;
+  aheadCount: number;
+  behindCount: number;
+  pr: { number: number; title: string; url: string; state: string } | null;
+}
+export type VcsStatusEvent =
+  | { _tag: "snapshot"; local: VcsLocalStatus; remote: VcsRemoteStatus | null }
+  | { _tag: "localUpdated"; local: VcsLocalStatus }
+  | { _tag: "remoteUpdated"; remote: VcsRemoteStatus | null };
+
+export type ServerConfigEvent =
+  | { type: "snapshot"; config: ServerConfig }
+  | { type: "providerStatuses"; payload: { providers: Provider[] } }
+  | { type: string };
 
 export interface ServerConfig {
   providers: Provider[];

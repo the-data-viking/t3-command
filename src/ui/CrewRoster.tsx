@@ -55,7 +55,8 @@ export function CrewRoster() {
     const active = selection?.kind === "unit" && selection.envId === u.envId && selection.threadId === u.thread.id;
     return (
       <li key={key}>
-        <button className={`crew-row ${active ? "active" : ""} row-${u.state}`} onClick={() => open(u)}>
+        <button className={`crew-row ${active ? "active" : ""} row-${u.state}`} onClick={() => open(u)}
+          title={u.state === "error" && u.thread.session?.lastError ? `Turn failed: ${u.thread.session.lastError}` : undefined}>
           <span className={`mini-portrait ${shape} tier-${tier}`} style={{ ["--team" as string]: team, ["--visor" as string]: visor }} title={TIER_LABEL[tier]} />
           <span className="crew-text">
             <span className="crew-name">{u.thread.title || "Untitled"}</span>

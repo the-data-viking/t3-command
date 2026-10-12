@@ -58,6 +58,8 @@ export interface GameState {
   /** Flight Deck map palette: warm plating or Night Shift. */
   artStyle: ArtStyle;
   showEnvManager: boolean;
+  /** The scrollable comms log. */
+  showLog: boolean;
   /** The crew member whose pending approval/question is shown as an event dialog. */
   event: { envId: string; threadId: string } | null;
 }
@@ -101,10 +103,11 @@ export const useGame = create<GameState>()(() => ({
   hosts: {},
   hostPanel: null,
   selection: null,
-  log: [],
+  log: loadLog(),
   muted: loadMuted(),
   artStyle: loadArtStyle(),
   showEnvManager: false,
+  showLog: false,
   event: null,
 }));
 
@@ -140,8 +143,32 @@ export function setMuted(muted: boolean): void {
 }
 
 let logId = 0;
-const LOG_LIMIT = 60;
+/** Entries kept in memory for the comms log; the most recent are also kept in this browser. */
+const LOG_LIMIT = 500;
+const LOG_SAVED = 200;
+const LOG_KEY = "t3c:comms-log";
+
+function loadLog(): LogEntry[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LOG_KEY) ?? "[]") as LogEntry[];
+    if (!Array.isArray(saved)) return [];
+    logId = Math.max(0, ...saved.map((e) => e.id));
+    return saved;
+  } catch {
+    return [];
+  }
+}
 
 export function addLog(entry: Omit<LogEntry, "id" | "at">): void {
   useGame.setState((s) => ({ log: [...s.log, { ...entry, id: ++logId, at: Date.now() }].slice(-LOG_LIMIT) }));
+  try {
+    localStorage.setItem(LOG_KEY, JSON.stringify(useGame.getState().log.slice(-LOG_SAVED)));
+  } catch {
+    // Per-browser convenience only.
+  }
+}
+
+export function clearLog(): void {
+  useGame.setState({ log: [] });
+  try { localStorage.removeItem(LOG_KEY); } catch { /* Per-browser convenience only. */ }
 }

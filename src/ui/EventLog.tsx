@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
-import { setSelection, useGame } from "../store";
+import { clearLog, setSelection, useGame } from "../store";
 
 const VISIBLE_MS = 12_000;
 
@@ -45,5 +45,41 @@ export function EventLog() {
         </button>
       ))}
     </div>
+  );
+}
+
+/** Scrollback of everything the comms feed announced, newest first. */
+export function CommsLog() {
+  const log = useGame((s) => s.log);
+  const envs = useGame((s) => s.envs);
+  return (
+    <section className="comms-log hud-frame" aria-label="Comms log">
+      <div className="hud-label">COMMS LOG</div>
+      <header className="comms-log-head">
+        <span className="muted small">{log.length} event{log.length === 1 ? "" : "s"} · kept in this browser</span>
+        <span className="spacer" />
+        <button className="btn small" disabled={!log.length} onClick={clearLog}>Clear</button>
+        <button className="icon-btn" aria-label="Close comms log" onClick={() => useGame.setState({ showLog: false })}>✕</button>
+      </header>
+      <ol className="comms-log-list">
+        {log.length === 0 && <li className="muted small">Nothing yet.</li>}
+        {[...log].reverse().map((e) => (
+          <li key={e.id}>
+            <button className={`comms-log-row tone-${e.tone}`} disabled={!e.envId || !e.threadId || !envs[e.envId]?.threads[e.threadId]}
+              onClick={() => {
+                if (!e.envId || !e.threadId) return;
+                const sel = { kind: "unit" as const, envId: e.envId, threadId: e.threadId };
+                sfx.select();
+                setSelection(sel);
+                worldRef.current?.focus(sel);
+              }}>
+              <time dateTime={new Date(e.at).toISOString()}>{new Date(e.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
+              <span>{e.text}</span>
+              {e.envId && envs[e.envId] && <span className="muted small">{envs[e.envId].summary.label}</span>}
+            </button>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

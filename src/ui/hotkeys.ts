@@ -45,6 +45,7 @@ export function installHotkeys(): () => void {
     if (e.key === "Escape") {
       if (useGame.getState().event) openEvent(null);
       else if (useGame.getState().showEnvManager) useGame.setState({ showEnvManager: false });
+      else if (useGame.getState().showLog) useGame.setState({ showLog: false });
       else setSelection(null);
       (document.activeElement as HTMLElement | null)?.blur?.();
       return;
@@ -57,6 +58,7 @@ export function installHotkeys(): () => void {
       w: () => jumpTo("working"),
       m: () => jumpTo("monitoring"),
       f: () => worldRef.current?.fitAll(),
+      l: () => useGame.setState((s) => ({ showLog: !s.showLog })),
     };
     const action = actions[e.key];
     if (!action) return;

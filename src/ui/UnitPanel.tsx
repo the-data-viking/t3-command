@@ -14,6 +14,7 @@ import { QuestionForm } from "./QuestionForm";
 import { PanelResize } from "./PanelResize";
 import { usePanelWidth } from "./usePanelWidth";
 import { ThreadTiming } from "./ThreadTiming";
+import { FailureNote, PullRequestChips, TurnChanges } from "./MissionTelemetry";
 import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
 import { BotPortrait } from './HermesControlCenter';
 import { worldRef } from '../game/world';
@@ -153,6 +154,10 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
           )}
         </div>
       )}
+
+      {!archived && <FailureNote thread={thread} />}
+      {!archived && <PullRequestChips thread={thread} />}
+      {!archived && detail && !bot && <TurnChanges env={env} thread={thread} detail={detail.thread} state={state} />}
 
       <div
         className="transcript"

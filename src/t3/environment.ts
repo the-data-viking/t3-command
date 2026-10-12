@@ -19,9 +19,13 @@ import type {
   ModelSelection,
   RuntimeMode,
   ServerConfig,
+  ServerConfigEvent,
   ShellStreamItem,
   ThreadShell,
   ThreadStreamItem,
+  VcsLocalStatus,
+  VcsRemoteStatus,
+  VcsStatusEvent,
 } from "./types";
 
 /** Close codes sent by the t3-command relay (server/index.ts). */
@@ -165,7 +169,27 @@ export class EnvironmentClient {
     this.retryTimer = setTimeout(() => this.connect(), delay);
   }
 
-  private async loadConfig(): Promise<void> {
+  /**
+   * Follow provider status (health notes, rate limits) live. Servers without the config stream,
+   * such as the Hermes bridge, get a one-time server.getConfig instead.
+   */
+  private loadConfig(): void {
+    const rpc = this.rpc!;
+    rpc.stream<ServerConfigEvent>("subscribeServerConfig", {}, (events) => {
+      for (const event of events) {
+        const providers = event.type === "snapshot" && "config" in event ? event.config.providers
+          : event.type === "providerStatuses" && "payload" in event ? event.payload.providers : undefined;
+        if (providers) updateEnv(this.id, (e) => ({ ...e, providers }));
+      }
+    }, (err) => {
+      if (!err || err.tag === "Disconnected" || this.disposed || this.rpc !== rpc || !rpc.isOpen) return;
+      if (/Unknown request tag/.test(err.message)) { void this.fetchConfig(); return; }
+      console.warn(`[${this.summary.label}] config stream ended`, err);
+      setTimeout(() => this.rpc === rpc && rpc.isOpen && this.loadConfig(), 1000);
+    });
+  }
+
+  private async fetchConfig(): Promise<void> {
     try {
       const config = await this.rpc!.request<ServerConfig>("server.getConfig");
       updateEnv(this.id, (e) => ({ ...e, providers: config.providers }));
@@ -513,6 +537,40 @@ export class EnvironmentClient {
       createdAt,
     });
     return threadId;
+  }
+
+  /** Unified diff of what turns (from, to] changed in the agent's workspace. */
+  async turnDiff(threadId: string, fromTurnCount: number, toTurnCount: number): Promise<string> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    const result = await this.rpc.request<{ diff: string }>("orchestration.getTurnDiff", { threadId, fromTurnCount, toTurnCount }, 30_000);
+    return result.diff;
+  }
+
+  /**
+   * Restore the agent's files and conversation to just after turn `turnCount`, dropping later
+   * turns. Destructive: callers confirm first.
+   */
+  rollBackToTurn(threadId: string, turnCount: number): Promise<unknown> {
+    return this.dispatch({ type: "thread.checkpoint.revert", threadId, turnCount, createdAt: new Date().toISOString() });
+  }
+
+  /**
+   * Follow a workspace's git state; returns a function to stop. T3 serves its cached status to
+   * new subscribers, so ask it to recompute once and treat that result as the first snapshot.
+   */
+  watchVcs(cwd: string, onEvent: (event: VcsStatusEvent) => void, onError: (message: string) => void): () => void {
+    const rpc = this.rpc;
+    if (!rpc?.isOpen) { onError(`${this.summary.label} is not connected`); return () => {}; }
+    let stopped = false;
+    void rpc.request<VcsLocalStatus & VcsRemoteStatus>("vcs.refreshStatus", { cwd }, 30_000).then((status) => {
+      if (stopped) return;
+      const { hasUpstream, aheadCount, behindCount, pr, ...local } = status;
+      onEvent({ _tag: "snapshot", local, remote: { hasUpstream, aheadCount, behindCount, pr } });
+    }).catch(() => { /* The stream's own snapshot still arrives. */ });
+    const cancel = rpc.stream<VcsStatusEvent>("subscribeVcsStatus", { cwd }, (events) => { if (!stopped) events.forEach(onEvent); }, (err) => {
+      if (err && err.tag !== "Disconnected" && !stopped) onError(err.message);
+    });
+    return () => { stopped = true; cancel(); };
   }
 
   interrupt(threadId: string): Promise<unknown> {

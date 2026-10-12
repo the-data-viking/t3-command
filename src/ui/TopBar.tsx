@@ -9,6 +9,7 @@ import { isHistory, unitState } from "../t3/derive";
 import { jumpTo } from "./hotkeys";
 import { allUnits } from "./util";
 import { SpendTelemetry } from "./SpendTelemetry";
+import { LimitsTelemetry } from "./LimitsTelemetry";
 import { UpdatePanel } from "./UpdatePanel";
 import { HermesMark } from './HermesControlCenter';
 import { botOperators } from '../t3/bots';
@@ -18,6 +19,7 @@ export function TopBar() {
   const envs = useGame((s) => s.envs);
   const hosts = useGame((s) => s.hosts);
   const muted = useGame((s) => s.muted);
+  const showLog = useGame((s) => s.showLog);
   const artStyle = useGame((s) => s.artStyle);
   const hermesCatalog = useGame(s => s.hermesCatalog);
   const hermes = Object.values(envs).filter(e => e.summary.kind === 'hermes');
@@ -80,6 +82,7 @@ export function TopBar() {
         </span>
       </div>
       <SpendTelemetry />
+      <LimitsTelemetry />
       <div className="spacer" />
       <nav className="stations">
         {stations.map((env, i) => {
@@ -122,6 +125,9 @@ export function TopBar() {
         }}><HermesMark /><span>Hermes <span className="muted">{operators.length}</span></span></button>}
       <button className="btn" onClick={() => useGame.setState({ showEnvManager: true })}>
         Stations
+      </button>
+      <button className="btn" title="Comms log (L)" aria-expanded={showLog} onClick={() => useGame.setState({ showLog: !showLog })}>
+        Log
       </button>
       <UpdatePanel />
       <button className="icon-btn" title="Fit fleet (F)" onClick={() => worldRef.current?.fitAll()}>
