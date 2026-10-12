@@ -27,7 +27,7 @@ class BotSessionManager(SessionManager):
         db = self._get_db()
         row = db.get_session(session_id) if db else None
         if not row or row.get('title') != 'Bot Chat':
-            raise ValueError('This adapter resumes only the canonical Bot Chat')
+            raise acp.RequestError(-32002, 'Bot Chat was not found. Reopen Talk to bot in T3 Command.')
         from hermes_cli.active_sessions import try_acquire_active_session
         from hermes_cli.config import load_config
         lease, refusal = try_acquire_active_session(
@@ -35,7 +35,16 @@ class BotSessionManager(SessionManager):
             registry_home=get_hermes_home(), track_liveness=True,
             metadata={'live_session_id': 't3-command-' + uuid.uuid4().hex})
         if lease is None:
-            raise ValueError(str(refusal))
+            # Plain exceptions become "Internal error" in ACP. Translate only known
+            # refusal reasons; raw diagnostics can contain paths or credentials.
+            messages = {
+                'SESSION_NOT_OWNED': 'Bot Chat is open in another Hermes window or terminal. Close that chat there, then retry your order in T3 Command. An idle open chat can still hold the session.',
+                'MAX_CONCURRENT_SESSIONS': 'Hermes has reached its active session limit. Close another Hermes chat, then retry your order.',
+                'SESSION_COORDINATION_UNAVAILABLE': 'Hermes could not verify Bot Chat ownership. Check the active-session registry in Hermes before retrying.',
+            }
+            message = messages.get(getattr(refusal, 'reason', ''),
+                                   'Hermes could not acquire Bot Chat. Check session availability in Hermes, then retry.')
+            raise acp.RequestError(-32000, message)
         self.leases[session_id] = lease
         try:
             if row.get('source') == 'acp':

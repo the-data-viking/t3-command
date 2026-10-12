@@ -140,6 +140,9 @@ fresh ACP process and reloads its saved session, so profile memory and capabilit
 Canonical Bot Chats receive Hermes's native bot-to-bot messaging protocol;
 a small SessionManager extension restores native Bot Chats from other interfaces without
 changing their provenance. Hermes’s session leases prevent concurrent writers across clients.
+An open Bot Chat in Hermes Desktop or a terminal can hold that lease even while idle.
+To send an order from Command, close that chat in the other interface first, then retry
+the order. Command reports the conflict without taking over or duplicating the chat.
 Native chat history refreshes every 30 seconds while Command is connected. Model edits
 update the canonical Bot Chat; existing task sessions may retain their model choice.
 Group-room and shared Kanban management are not yet exposed. Avoid concurrently driving the same bot from another
