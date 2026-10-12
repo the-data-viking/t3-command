@@ -64,7 +64,8 @@ export function HistoryPanel() {
           <button className="icon-btn" aria-label="Close history" onClick={close}>✕</button>
         </header>
         <p className="muted small">
-          Recorded by the Command server for every station{summary?.recordingSince ? `, since ${new Date(summary.recordingSince).toLocaleString()}` : ""}.
+          Turn times are the agent's own work; time waiting on your approvals and answers is shown separately.
+          {" "}Recorded by the Command server for every station{summary?.recordingSince ? `, since ${new Date(summary.recordingSince).toLocaleString()}` : ""}.
           {" "}Kept 90 days. Days in {timeZone}.
         </p>
         {error && <p className="small" role="alert">Could not load history: {error}</p>}
@@ -79,6 +80,7 @@ export function HistoryPanel() {
             <Stat label="Typical turn" value={formatDuration(t.medianMs)} />
             <Stat label="Slowest 10%" value={t.p90Ms === undefined ? "—" : `≥ ${formatDuration(t.p90Ms)}`} />
             <Stat label="Longest" value={formatDuration(t.longestMs)} />
+            <Stat label="Waiting on you" value={formatDuration(t.waitingMs)} />
           </div>
 
           <h3>Turns per day</h3>

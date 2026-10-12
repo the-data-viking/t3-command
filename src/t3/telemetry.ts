@@ -65,7 +65,9 @@ export function telemetry(thread: OrchestrationThread): Telemetry {
     workstation: current ? (WORKSTATION_BY_ITEM[current.item] ?? "comms") : "console",
     doing: current?.doing,
     context,
-    tasks: openTasks.size,
+    // A task.started whose completion was missed (restart, interrupt, outside the turn window)
+    // must not orbit forever: drones need a running turn or T3's own background liveness.
+    tasks: thread.latestTurn?.state === "running" || thread.backgroundLiveness === "working" || thread.backgroundLiveness === "monitoring" ? openTasks.size : 0,
   };
   cache.set(thread, result);
   return result;

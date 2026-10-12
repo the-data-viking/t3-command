@@ -17,6 +17,8 @@ export interface TurnRecord {
   startedAt: string;
   completedAt: string;
   durationMs: number;
+  /** Part of the duration spent waiting on the operator (approvals, questions), when watched live. */
+  waitMs?: number;
   outcome: TurnOutcome;
   /** The provider's error text for failed turns, shortened. */
   error?: string;
@@ -41,7 +43,7 @@ export interface HistorySummary {
   timeZone: string;
   /** Earliest moment anything was recorded; nothing before it is known. */
   recordingSince?: string;
-  totals: { turns: number; completed: number; error: number; interrupted: number; medianMs?: number; p90Ms?: number; longestMs?: number };
+  totals: { turns: number; completed: number; error: number; interrupted: number; waitingMs: number; medianMs?: number; p90Ms?: number; longestMs?: number };
   daily: HistoryDay[];
   topErrors: Array<{ error: string; count: number }>;
   projects: HistoryRanking[];
@@ -60,6 +62,25 @@ export function dayIn(iso: string | number, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(iso));
   const part = (type: string) => parts.find((p) => p.type === type)!.value;
   return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+/** The agent's own working time for a turn. */
+export function agentMs(r: TurnRecord): number {
+  return Math.max(0, r.durationMs - (r.waitMs ?? 0));
+}
+
+/**
+ * Failure text with its variable parts (numbers, ids, paths, quoted values) blanked, so the same
+ * failure counts as one kind however its details differ.
+ */
+export function errorKind(error: string): string {
+  return error.toLowerCase()
+    .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/g, "<id>")
+    .replace(/(["'`]).*?\1/g, "<q>")
+    .replace(/(?:\/[\w.-]+){2,}/g, "<path>")
+    .replace(/\b[0-9a-f]{7,}\b/g, "<id>")
+    .replace(/\d+(?:\.\d+)?/g, "#")
+    .replace(/\s+/g, " ").trim();
 }
 
 function percentile(sorted: number[], p: number): number | undefined {
@@ -96,9 +117,16 @@ export function summarizeHistory(records: TurnRecord[], coverage: CoverageSpan[]
     row[r.outcome]++;
     row.durationMs += r.durationMs;
   }
-  const durations = inWindow.filter((r) => r.outcome === "completed").map((r) => r.durationMs).sort((a, b) => a - b);
-  const errors = new Map<string, number>();
-  for (const r of inWindow) if (r.outcome === "error" && r.error) errors.set(r.error, (errors.get(r.error) ?? 0) + 1);
+  // Turn times measure the agent's own work: time spent waiting on the operator is excluded.
+  const durations = inWindow.filter((r) => r.outcome === "completed").map(agentMs).sort((a, b) => a - b);
+  const errors = new Map<string, { error: string; count: number }>();
+  for (const r of inWindow) {
+    if (r.outcome !== "error" || !r.error) continue;
+    const key = errorKind(r.error);
+    const row = errors.get(key) ?? { error: r.error, count: 0 };
+    row.count++;
+    errors.set(key, row);
+  }
 
   // Coverage gaps: between consecutive spans of an environment, and from its last span to now
   // if it is no longer followed. Only within the window, and only if long enough to matter.
@@ -127,12 +155,13 @@ export function summarizeHistory(records: TurnRecord[], coverage: CoverageSpan[]
       completed: inWindow.filter((r) => r.outcome === "completed").length,
       error: inWindow.filter((r) => r.outcome === "error").length,
       interrupted: inWindow.filter((r) => r.outcome === "interrupted").length,
+      waitingMs: inWindow.reduce((n, r) => n + (r.waitMs ?? 0), 0),
       medianMs: percentile(durations, 0.5),
       p90Ms: percentile(durations, 0.9),
       longestMs: durations.at(-1),
     },
     daily: [...daily.values()],
-    topErrors: [...errors].map(([error, count]) => ({ error, count })).sort((a, b) => b.count - a.count).slice(0, 5),
+    topErrors: [...errors.values()].sort((a, b) => b.count - a.count).slice(0, 5),
     projects: rank(inWindow, (r) => r.projectTitle),
     models: rank(inWindow, (r) => r.model),
     gaps: gaps.sort((a, b) => b.to.localeCompare(a.to)).slice(0, 10),

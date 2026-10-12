@@ -20,6 +20,13 @@ const DAY_MS = 86_400_000;
 interface EnvState { watermark: string; spans: Array<{ from: string; to: string }> }
 interface State { envs: Record<string, EnvState> }
 
+/** The provider and model a turn ran on; Hermes reports its bot profile rather than "default". */
+function turnModel(t: ThreadShell): { provider: string; model: string } {
+  const provider = t.session?.providerInstanceId ?? t.modelSelection.instanceId;
+  if (provider === "hermes") return { provider, model: `${t.hermesProfile ?? "default"} (Hermes)` };
+  return { provider, model: t.modelSelection.model };
+}
+
 export class TurnHistory {
   private readonly file: string;
   private readonly stateFile: string;
@@ -31,6 +38,11 @@ export class TurnHistory {
   private live = new Set<string>();
   /** Per environment, each thread's last seen "turnId:state", since the latest (re)connect. */
   private known = new Map<string, Map<string, string>>();
+  /**
+   * Running turns seen live, keyed env|thread: the model chosen when the turn started (a thread's
+   * selection can change later) and time spent waiting on the operator (approvals, questions).
+   */
+  private running = new Map<string, { turnId: string; provider: string; model: string; waitMs: number; waitingSince?: number }>();
   private writes: Promise<void> = Promise.resolve();
   private stateDirty = false;
   private readonly now: () => number;
@@ -81,11 +93,23 @@ export class TurnHistory {
     let known = this.known.get(envId);
     const snapshot = !known;
     if (!known) this.known.set(envId, (known = new Map()));
+    const now = this.now();
+    const present = new Set<string>();
     for (const t of threads) {
       const turn = t.latestTurn;
+      present.add(t.id);
       const signature = turn ? `${turn.turnId}:${turn.state}` : "";
       const previous = known.get(t.id);
       known.set(t.id, signature);
+      const runKey = `${envId}|${t.id}`;
+      if (turn?.state === "running") {
+        let run = this.running.get(runKey);
+        if (run?.turnId !== turn.turnId) this.running.set(runKey, (run = { turnId: turn.turnId, ...turnModel(t), waitMs: 0 }));
+        const waiting = !!(t.hasPendingApprovals || t.hasPendingUserInput);
+        if (waiting && run.waitingSince === undefined) run.waitingSince = now;
+        if (!waiting && run.waitingSince !== undefined) { run.waitMs += now - run.waitingSince; run.waitingSince = undefined; }
+        continue;
+      }
       if (!turn || !TERMINAL.has(turn.state) || !turn.completedAt) continue;
       const key = `${envId}|${t.id}|${turn.turnId}`;
       if (this.keys.has(key)) continue;
@@ -94,19 +118,28 @@ export class TurnHistory {
         if (Date.parse(turn.completedAt) <= watermark) continue;
       } else if (previous === signature) continue;
       const started = turn.startedAt ?? turn.requestedAt ?? turn.completedAt;
+      const completed = Date.parse(turn.completedAt);
+      const durationMs = Math.max(0, completed - Date.parse(started));
+      const run = this.running.get(runKey)?.turnId === turn.turnId ? this.running.get(runKey) : undefined;
+      this.running.delete(runKey);
+      const waitMs = run ? Math.min(durationMs, run.waitMs + (run.waitingSince !== undefined ? Math.max(0, completed - run.waitingSince) : 0)) : undefined;
+      const { provider, model } = run ?? turnModel(t);
       const record: TurnRecord = {
         envId, envLabel: this.labels[envId] ?? envId,
         projectId: t.projectId, projectTitle: projects[t.projectId]?.title ?? t.projectId,
         threadId: t.id, threadTitle: (t.title || "Untitled").slice(0, 160), turnId: turn.turnId,
-        provider: t.session?.providerInstanceId ?? t.modelSelection.instanceId, model: t.modelSelection.model,
+        provider, model,
         startedAt: started, completedAt: turn.completedAt,
-        durationMs: Math.max(0, Date.parse(turn.completedAt) - Date.parse(started)),
+        durationMs,
+        ...(waitMs !== undefined ? { waitMs } : {}),
         outcome: turn.state as TurnOutcome,
         ...(turn.state === "error" && t.session?.lastError ? { error: t.session.lastError.slice(0, 300) } : {}),
       };
       this.remember(record);
       this.append(record);
     }
+    // Threads that disappeared (removed, archived out of the shell) no longer need tracking.
+    for (const id of known.keys()) if (!present.has(id)) { known.delete(id); this.running.delete(`${envId}|${id}`); }
     this.touch(envId);
   }
 

@@ -9,6 +9,7 @@ import { parseDiff, type ParsedDiff } from "../t3/diff";
 import { envClient, logError } from "../t3/environment";
 import type { Checkpoint, OrchestrationThread, ThreadShell } from "../t3/types";
 import { timeAgo } from "./util";
+import { changeTotals, isGeneratedChange, orderPullRequests, prState } from "../t3/changes";
 
 /** The provider's own explanation when a turn fails. */
 export function FailureNote({ thread }: { thread: ThreadShell }) {
@@ -26,13 +27,15 @@ export function FailureNote({ thread }: { thread: ThreadShell }) {
 const CHECKS: Record<string, string> = { passing: "✓ checks", failing: "✗ checks", pending: "… checks" };
 
 export function PullRequestChips({ thread }: { thread: ThreadShell }) {
+  const [all, setAll] = useState(false);
   const prs = thread.pullRequests ?? [];
   if (!prs.length) return null;
+  const { shown, hidden } = orderPullRequests(prs);
   return (
     <div className="pr-chips">
-      {prs.map((pr) => {
+      {(all ? [...shown, ...hidden] : shown).map((pr) => {
         const s = pr.snapshot;
-        const state = s?.isDraft && s.state === "open" ? "draft" : s?.state ?? "linked";
+        const state = prState(pr);
         return (
           <a key={`${pr.repository}#${pr.number}`} className={`pr-chip pr-${state}`} href={pr.url} target="_blank" rel="noreferrer"
             title={s ? `${s.title}\n${s.headBranch} → ${s.baseBranch}` : pr.url}>
@@ -44,11 +47,14 @@ export function PullRequestChips({ thread }: { thread: ThreadShell }) {
           </a>
         );
       })}
+      {hidden.length > 0 && (
+        <button className="btn small" onClick={() => setAll(!all)} aria-expanded={all}>
+          {all ? "Show fewer" : `+${hidden.length} more`}
+        </button>
+      )}
     </div>
   );
 }
-
-const sum = (c: Checkpoint, key: "additions" | "deletions") => c.files.reduce((n, f) => n + f[key], 0);
 
 /** Per-turn file changes from T3's checkpoints, newest first. */
 export function TurnChanges({ env, thread, detail, state }: { env: EnvWorld; thread: ThreadShell; detail: OrchestrationThread; state: UnitState }) {
@@ -62,8 +68,10 @@ export function TurnChanges({ env, thread, detail, state }: { env: EnvWorld; thr
   // Like T3 Code: only an explicit false rules rollback out. Never while the agent is busy.
   const canRollBack = !!provider && provider.supportsConversationRollback !== false && env.connection === "live"
     && state !== "working" && state !== "alert" && state !== "question" && thread.latestTurn?.state !== "running";
-  const added = turns.reduce((n, c) => n + sum(c, "additions"), 0);
-  const removed = turns.reduce((n, c) => n + sum(c, "deletions"), 0);
+  const totals = turns.map((c) => changeTotals(c.files));
+  const added = totals.reduce((n, t) => n + t.additions, 0);
+  const removed = totals.reduce((n, t) => n + t.deletions, 0);
+  const generated = totals.reduce((n, t) => n + t.generated, 0);
 
   const rollBack = async (turnCount: number) => {
     setBusy(true);
@@ -81,7 +89,7 @@ export function TurnChanges({ env, thread, detail, state }: { env: EnvWorld; thr
     <details className="turn-changes">
       <summary>
         <span className="tele-key">CHANGES</span>
-        <span className="muted small">last {turns.length} turn{turns.length === 1 ? "" : "s"} · <span className="diff-add">+{added}</span> <span className="diff-del">−{removed}</span></span>
+        <span className="muted small">last {turns.length} turn{turns.length === 1 ? "" : "s"} · <span className="diff-add">+{added}</span> <span className="diff-del">−{removed}</span>{generated ? ` · ${generated} generated/data file change${generated === 1 ? "" : "s"} not counted` : ""}</span>
       </summary>
       <ol className="turn-list">
         {turns.map((c) => {
@@ -93,7 +101,7 @@ export function TurnChanges({ env, thread, detail, state }: { env: EnvWorld; thr
             <li key={c.turnId} className="turn-row">
               <div className="turn-head">
                 <span className="turn-name">Turn {n}</span>
-                <span className="muted small">{c.files.length} file{c.files.length === 1 ? "" : "s"} · <span className="diff-add">+{sum(c, "additions")}</span> <span className="diff-del">−{sum(c, "deletions")}</span> · {timeAgo(c.completedAt)}</span>
+                <span className="muted small">{c.files.length} file{c.files.length === 1 ? "" : "s"} · <span className="diff-add">+{changeTotals(c.files).additions}</span> <span className="diff-del">−{changeTotals(c.files).deletions}</span> · {timeAgo(c.completedAt)}</span>
                 <span className="spacer" />
                 {usable && c.files.length > 0 && <button className="btn small" onClick={() => setDiff(c)}>Diff</button>}
                 {usable && canRollBack && n < latest && confirm !== n && (
@@ -113,7 +121,7 @@ export function TurnChanges({ env, thread, detail, state }: { env: EnvWorld; thr
               )}
               <ul className="turn-files">
                 {c.files.slice(0, 8).map((f) => (
-                  <li key={f.path}><span className="file-path" title={f.path}>{f.path}</span> <span className="diff-add">+{f.additions}</span> <span className="diff-del">−{f.deletions}</span></li>
+                  <li key={f.path}><span className="file-path" title={f.path}>{f.path}</span> <span className="diff-add">+{f.additions}</span> <span className="diff-del">−{f.deletions}</span>{isGeneratedChange(f) ? <span className="muted"> · generated/data, not counted</span> : null}</li>
                 ))}
                 {c.files.length > 8 && <li className="muted">+{c.files.length - 8} more</li>}
               </ul>

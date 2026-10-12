@@ -19,6 +19,7 @@ import { UnitPanel } from "./ui/UnitPanel";
 import { HostPanel } from "./ui/HostPanel";
 import { HermesControlCenter } from "./ui/HermesControlCenter";
 import { refreshHermesBots } from "./t3/hermes";
+import { installTitleBadge, notifyAttention } from "./ui/attention";
 
 const ENV_REFRESH_MS = 30_000;
 
@@ -29,6 +30,7 @@ function announceTransitions(): () => void {
     const at = { envId, threadId: thread.id };
     if (to === "alert" || to === "question") {
       sfx.alert();
+      notifyAttention(envId, thread, to);
       addLog({ tone: "alert", text: to === "alert" ? `${name} needs your approval` : `${name} has a question`, ...at });
       // FTL-style: pop the event, unless you're busy typing or already looking at one.
       const active = document.activeElement?.tagName;
@@ -72,11 +74,13 @@ export default function App() {
     })();
     const offHotkeys = installHotkeys();
     const offTransitions = announceTransitions();
+    const offTitle = installTitleBadge();
     const offWatches = installActiveWatches();
     return () => {
       clearInterval(timer);
       offHotkeys();
       offTransitions();
+      offTitle();
       offWatches();
     };
   }, []);
@@ -104,7 +108,7 @@ export default function App() {
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
       {selection?.kind === "library" && <LibraryPanel key={`lib:${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
       {selection?.kind === "building" && <BuildingPanel key={`${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
-      <div className="hint">DRAG pan · SCROLL zoom · SPACE next alert · . next report · W next active · M next monitoring · F fit fleet</div>
+      <div className="hint">DRAG pan · SCROLL zoom · SPACE next alert · . next report · W next active · M next monitoring · F fit fleet · L log · H history</div>
       <EventDialog />
       {showEnvManager && <EnvManager />}
     </div>

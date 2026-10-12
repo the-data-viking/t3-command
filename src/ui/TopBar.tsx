@@ -3,7 +3,7 @@ import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { css, teamColor } from "../game/theme";
 import { worldRef } from "../game/world";
-import { openHost, setSelection, setArtStyle, setMuted, useGame } from "../store";
+import { openHost, setSelection, setArtStyle, setMuted, useGame, setNotify } from "../store";
 import { hostView } from "../t3/host";
 import { isHistory, unitState } from "../t3/derive";
 import { jumpTo } from "./hotkeys";
@@ -20,6 +20,7 @@ export function TopBar() {
   const envs = useGame((s) => s.envs);
   const hosts = useGame((s) => s.hosts);
   const muted = useGame((s) => s.muted);
+  const notify = useGame((s) => s.notify);
   const showLog = useGame((s) => s.showLog);
   const artStyle = useGame((s) => s.artStyle);
   const hermesCatalog = useGame(s => s.hermesCatalog);
@@ -145,6 +146,13 @@ export function TopBar() {
       >
         <PixelIcon name={artStyle === "flightdeck" ? "sun" : "moon"} />
       </button>
+      {typeof Notification !== "undefined" && (
+        <button className="icon-btn" aria-pressed={notify} onClick={() => void setNotify(!notify)}
+          title={notify ? "Desktop alerts on: approvals and questions notify you while this tab isn't in view" : "Turn on desktop alerts for approvals and questions"}
+          aria-label={notify ? "Turn off desktop alerts" : "Turn on desktop alerts"}>
+          <PixelIcon name={notify ? "bell" : "bellOff"} />
+        </button>
+      )}
       <button className="icon-btn" title={muted ? "Unmute" : "Mute"} aria-label={muted ? "Unmute" : "Mute"} onClick={() => setMuted(!muted)}>
         <PixelIcon name={muted ? "muted" : "sound"} />
       </button>

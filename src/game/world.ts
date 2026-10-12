@@ -83,6 +83,8 @@ function sprite(texture: ReturnType<typeof tex>, x: number, y: number, ax = 0, a
 /** Zoom below which crew are drawn larger and labels hold a minimum on-screen size. */
 const STRATEGIC_ZOOM = 0.55;
 const WALK_SPEED = 75; // px per second, constant like FTL crew
+/** Side-by-side spacing for crew sharing one system room. */
+const CREW_SPACING = 34;
 /** Recruitment beam-in and camera moves; both are skipped under prefers-reduced-motion. */
 const BEAM_SECONDS = 0.9;
 const CAMERA_SECONDS = 0.35;
@@ -212,17 +214,43 @@ class CrewSprite extends Container {
   }
 
   /** Where this crew member needs to be, and in which room. */
-  private desired(layout: CrewLayout, s: StationLayout): { room: RoomKind; point: Point } {
-    if (layout.sleeping) return { room: "quarters", point: layout.home };
+  /** The system room this crew member's current work takes them to, if any. */
+  systemRoom(layout: CrewLayout, s: StationLayout): SystemRoom | undefined {
+    if (layout.sleeping) return undefined;
     let system: SystemRoom | undefined;
     if (this.state === "working" && this.info && this.info.workstation !== "console") system = this.info.workstation;
     if (this.state === "monitoring") system = "comms";
-    if (system && s.rooms[system]) {
+    return system && s.rooms[system] ? system : undefined;
+  }
+
+  /** Position among crew sharing the same system room, set by the world each frame. */
+  slot = { index: 0, count: 1 };
+
+  private desired(layout: CrewLayout, s: StationLayout): { room: RoomKind; point: Point } {
+    if (layout.sleeping) return { room: "quarters", point: layout.home };
+    const system = this.systemRoom(layout, s);
+    if (system) {
       const spot = s.workstations[system];
       const r = s.rooms[system]!.rect;
-      return { room: system, point: { x: spot.x + Math.round((this.seed - 0.5) * Math.min(r.w * 0.3, 40)), y: spot.y } };
+      // Crew sharing a room stand side by side at the workstation instead of on one spot.
+      const spacing = Math.min(CREW_SPACING, (r.w - 24) / Math.max(1, this.slot.count));
+      const x = spot.x + (this.slot.index - (this.slot.count - 1) / 2) * spacing;
+      return { room: system, point: { x: Math.round(Math.max(r.x + 12, Math.min(r.x + r.w - 12, x))), y: spot.y } };
     }
     return { room: "bridge", point: layout.home };
+  }
+
+  /** World-space box of the name label, when shown. */
+  labelBox(): Rect | undefined {
+    if (!this.nameText.visible) return undefined;
+    const k = this.scale.x;
+    const w = this.nameText.naturalWidth * k;
+    return { x: this.position.x - w / 2, y: this.position.y + 6 * k, w, h: 9 * k };
+  }
+
+  /** Push the name label down by `dy` world px to clear a neighbor's. */
+  setLabelOffset(dy: number): void {
+    this.nameText.y = 6 + dy / this.scale.x;
   }
 
   tick(layout: CrewLayout, s: StationLayout, t: number, dt: number, frame: number, selected: boolean, zoom: number): void {
@@ -1144,6 +1172,19 @@ export class World {
       this.sky.tilePosition.set(this.camera.x * 0.15, this.camera.y * 0.15);
     }
 
+    // Crew heading to the same system room take evenly spaced slots, in a stable order.
+    const sharing = new Map<string, CrewSprite[]>();
+    for (const [key, sprite] of this.crew) {
+      const lay = this.layout.crew.get(key);
+      const s = lay && this.layout.stations.get(lay.stationKey);
+      const system = lay && s ? sprite.systemRoom(lay, s) : undefined;
+      if (!system) { sprite.slot = { index: 0, count: 1 }; continue; }
+      const group = `${lay!.stationKey}|${system}`;
+      sharing.set(group, [...(sharing.get(group) ?? []), sprite]);
+    }
+    for (const group of sharing.values()) {
+      group.sort((a, b) => a.key.localeCompare(b.key)).forEach((sprite, index) => { sprite.slot = { index, count: group.length }; });
+    }
     for (const [key, sprite] of this.crew) {
       const lay = this.layout.crew.get(key);
       const s = lay && this.layout.stations.get(lay.stationKey);
@@ -1151,6 +1192,7 @@ export class World {
       const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
       sprite.tick(lay, s, t, dt, frame, selected, this.zoom);
     }
+    this.separateLabels();
     this.drawLights(state, sel, t, frame);
     if (this.layout.controlCenter) this.controlCenter?.update(this.layout.controlCenter, sel, this.zoom, frame);
     for (const station of this.stations.values()) station.setZoom(this.zoom);
@@ -1159,6 +1201,21 @@ export class World {
     if (still) return panning || this.doorsOpen || [...this.crew.values()].some((crew) => crew.animated);
     return panning || this.doorsOpen || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
+  }
+
+  /** Visible crew name labels never print over each other: later ones step down into free space. */
+  private separateLabels(): void {
+    const placed: Rect[] = [];
+    const labeled = [...this.crew.values()].map((sprite) => ({ sprite, box: sprite.labelBox() }))
+      .filter((l): l is { sprite: CrewSprite; box: Rect } => !!l.box)
+      .sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
+    for (const { sprite, box } of labeled) {
+      let dy = 0;
+      const hits = (r: Rect) => placed.some((p) => r.x < p.x + p.w && r.x + r.w > p.x && r.y < p.y + p.h && r.y + r.h > p.y);
+      while (dy < box.h * 4 && hits({ ...box, y: box.y + dy })) dy += box.h + 1;
+      sprite.setLabelOffset(dy);
+      placed.push({ ...box, y: box.y + dy });
+    }
   }
 
   /** Everything that changes frame to frame: screens, system icons, engines, plates, alerts. */

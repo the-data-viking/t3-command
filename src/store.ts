@@ -62,6 +62,8 @@ export interface GameState {
   showLog: boolean;
   /** Recorded turn and spend history. */
   showHistory: boolean;
+  /** Desktop notifications for approvals and questions while the tab isn't in view. */
+  notify: boolean;
   /** The crew member whose pending approval/question is shown as an event dialog. */
   event: { envId: string; threadId: string } | null;
 }
@@ -91,6 +93,23 @@ export function setArtStyle(artStyle: ArtStyle): void {
   useGame.setState({ artStyle });
 }
 
+function loadNotify(): boolean {
+  try {
+    return localStorage.getItem("t3c:notify") === "1" && typeof Notification !== "undefined" && Notification.permission === "granted";
+  } catch {
+    return false;
+  }
+}
+
+/** Turn desktop notifications on (asking the browser for permission) or off. */
+export async function setNotify(on: boolean): Promise<void> {
+  if (on && typeof Notification !== "undefined" && Notification.permission !== "granted") {
+    if ((await Notification.requestPermission()) !== "granted") on = false;
+  }
+  try { localStorage.setItem("t3c:notify", on ? "1" : "0"); } catch { /* Per-browser convenience only. */ }
+  useGame.setState({ notify: on });
+}
+
 function loadMuted(): boolean {
   try {
     return localStorage.getItem("t3c:muted") === "1";
@@ -111,6 +130,7 @@ export const useGame = create<GameState>()(() => ({
   showEnvManager: false,
   showLog: false,
   showHistory: false,
+  notify: loadNotify(),
   event: null,
 }));
 

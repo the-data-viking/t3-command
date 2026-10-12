@@ -125,8 +125,13 @@ export class HistoryRecorder {
             threads = new Map(item.snapshot.threads.map((t) => [t.id, t]));
           } else if (item.kind === "synchronized") synced = true;
           else if (item.kind === "project-upserted") projects = { ...projects, [item.project.id]: item.project };
+          else if (item.kind === "project-removed") { projects = { ...projects }; delete projects[item.projectId]; }
           else if (item.kind === "thread-upserted") threads.set(item.thread.id, item.thread);
-          else if (item.kind === "thread-removed") threads.delete(item.threadId);
+          else if (item.kind === "thread-removed") {
+            // A turn can finish in the same chunk that removes its thread: record it first.
+            if (synced) history.observe(envId, projects, [...threads.values()]);
+            threads.delete(item.threadId);
+          }
         }
         if (synced) history.observe(envId, projects, [...threads.values()]);
       });
