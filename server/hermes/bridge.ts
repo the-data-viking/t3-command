@@ -24,9 +24,117 @@ interface Runtime {
   permissions: Map<string, { id: string | number; toolCallId?: unknown; options: Map<string, string> }>;
   tools: Map<string, JsonObject>;
 }
-interface Stream { tag: string; threadId?: string; waiting: boolean; dirty: boolean }
+/** What a client stream has already been sent, so later flushes carry only what changed. */
+interface SentShell { project: string; threads: Map<string, string> }
+interface SentThread {
+  base: string;
+  messages: Map<string, { text: string; streaming: boolean; fixed: string }>;
+  activities: Map<string, string>;
+  checkpoints: string;
+}
+interface Stream {
+  tag: string;
+  threadId?: string;
+  turnLimit?: number;
+  waiting: boolean;
+  dirty: boolean;
+  /** Last sequence sent on this stream; snapshots and items only ever move it forward. */
+  seq: number;
+  shell?: SentShell;
+  thread?: SentThread;
+}
 interface Client { ws: WebSocket; streams: Map<string, Stream> }
+type Thread = SavedThread["thread"];
 const now = () => new Date().toISOString();
+// Mirror the browser's transcript cap; trim with slack so a full thread doesn't trim (and
+// resnapshot open streams) on every new message.
+const MESSAGE_CAP = 2000;
+const ACTIVITY_CAP = 2000;
+const TRIM_SLACK = 200;
+/** Snapshots of untagged history (Bot Chat transcripts) keep this many recent messages. */
+const UNTAGGED_SNAPSHOT = 200;
+
+function shellOf(thread: Thread): Partial<Thread> {
+  const shell: Partial<Thread> = { ...thread };
+  delete shell.messages; delete shell.activities; delete shell.checkpoints;
+  return shell;
+}
+
+/** Fields other than the transcript; any change here is rare (turn start/end) and resnapshots. */
+function baseOf(thread: Thread): string {
+  const base: Partial<Thread> = shellOf(thread);
+  delete base.updatedAt;
+  return JSON.stringify(base);
+}
+
+export function recordThread(thread: Thread): SentThread {
+  return {
+    base: baseOf(thread),
+    messages: new Map(thread.messages.map((m) => [m.id, { text: m.text, streaming: m.streaming, fixed: JSON.stringify([m.role, m.turnId, m.createdAt, m.attachments]) }])),
+    activities: new Map(thread.activities.map((a) => [a.id, JSON.stringify(a)])),
+    checkpoints: JSON.stringify(thread.checkpoints),
+  };
+}
+
+/** Like T3's turnLimit: snapshots carry the most recent turns, not the whole transcript. */
+export function recentTurns(thread: Thread, limit: number | undefined): Thread {
+  if (!limit) return thread;
+  const turns: string[] = [];
+  for (const m of thread.messages) if (m.turnId && !turns.includes(m.turnId)) turns.push(m.turnId);
+  let start: number;
+  if (turns.length > limit) {
+    const kept = new Set(turns.slice(-limit));
+    start = thread.messages.findIndex((m) => m.turnId !== null && kept.has(m.turnId));
+  } else if (turns.length === 0) start = Math.max(0, thread.messages.length - UNTAGGED_SNAPSHOT);
+  else return thread;
+  const messages = thread.messages.slice(start);
+  const since = messages[0]?.createdAt ?? "";
+  return { ...thread, messages, activities: thread.activities.filter((a) => a.createdAt >= since) };
+}
+
+/**
+ * Events that bring a client from `sent` to `thread`, or undefined when only a snapshot can
+ * (session/turn changes, replaced or reordered transcripts, non-append text edits).
+ */
+export function threadEvents(sent: SentThread, thread: Thread, sequence: () => number): Array<{ kind: "event"; event: JsonObject }> | undefined {
+  if (baseOf(thread) !== sent.base || JSON.stringify(thread.checkpoints) !== sent.checkpoints) return undefined;
+  const events: Array<{ kind: "event"; event: JsonObject }> = [];
+  const event = (type: string, payload: JsonObject) => events.push({ kind: "event", event: {
+    sequence: sequence(), aggregateKind: "thread", aggregateId: thread.id, occurredAt: now(), type, payload,
+  } });
+  const known = (ids: Map<string, unknown>, items: Array<{ id: string }>): boolean => {
+    let present = 0, added = false;
+    for (const item of items) {
+      if (ids.has(item.id)) { if (added) return false; present++; } else added = true;
+    }
+    return present === ids.size; // Nothing removed, and new items only ever follow known ones.
+  };
+  if (!known(sent.messages, thread.messages) || !known(sent.activities, thread.activities)) return undefined;
+  for (const m of thread.messages) {
+    const prev = sent.messages.get(m.id);
+    const fixed = JSON.stringify([m.role, m.turnId, m.createdAt, m.attachments]);
+    const payload: JsonObject = { messageId: m.id, role: m.role, turnId: m.turnId, createdAt: m.createdAt, updatedAt: m.updatedAt,
+      ...(m.attachments !== undefined ? { attachments: m.attachments } : {}) };
+    if (!prev) event("thread.message-sent", { ...payload, text: m.text, streaming: m.streaming });
+    else if (prev.fixed !== fixed) return undefined;
+    else if (m.streaming) {
+      // The browser appends streaming text, so only an append can travel as a delta.
+      if (!m.text.startsWith(prev.text)) return undefined;
+      if (m.text.length > prev.text.length || !prev.streaming) event("thread.message-sent", { ...payload, text: m.text.slice(prev.text.length), streaming: true });
+    } else if (prev.streaming || prev.text !== m.text) {
+      if (!m.text && prev.text) return undefined; // An empty final text would keep the old one.
+      event("thread.message-sent", { ...payload, text: m.text, streaming: false });
+    }
+  }
+  for (const a of thread.activities) {
+    if (sent.activities.get(a.id) !== JSON.stringify(a)) event("thread.activity-appended", { activity: a as unknown as JsonObject });
+  }
+  return events;
+}
+
+function trim<T>(items: T[], cap: number): void {
+  if (items.length > cap + TRIM_SLACK) items.splice(0, items.length - cap);
+}
 const object = (value: unknown): JsonObject => value && typeof value === "object" ? value as JsonObject : {};
 const MODE_IDS: Record<string, string> = { "approval-required": "default", "auto-accept-edits": "accept_edits" };
 
@@ -38,6 +146,7 @@ export class HermesBridge {
   private sequence = 0;
   private file: string;
   private writes: Promise<void> = Promise.resolve();
+  private pendingSave?: Promise<void>;
   private commands = new Map<string, Promise<{ sequence: number }>>();
   private launch: { command: string; args: string[] };
   private closed = false;
@@ -78,12 +187,23 @@ export class HermesBridge {
     } catch (err) { if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err; }
   }
 
+  /**
+   * Saves coalesce: callers share the next write, which serializes the state as of when it
+   * starts (after any write in progress), so it always includes the caller's changes.
+   */
   private save(): Promise<void> {
-    const body = JSON.stringify({ sequence: this.sequence, threads: [...this.threads.values()] });
+    if (this.pendingSave) return this.pendingSave;
     const write = this.writes.then(async () => {
+      this.pendingSave = undefined;
+      for (const { thread } of this.threads.values()) {
+        trim(thread.messages, MESSAGE_CAP);
+        trim(thread.activities, ACTIVITY_CAP);
+      }
+      const body = JSON.stringify({ sequence: this.sequence, threads: [...this.threads.values()] });
       await fs.writeFile(`${this.file}.tmp`, body, { mode: 0o600 });
       await fs.rename(`${this.file}.tmp`, this.file);
     });
+    this.pendingSave = write;
     this.writes = write.catch(() => {});
     return write;
   }
@@ -96,18 +216,47 @@ export class HermesBridge {
     }
   }
 
+  /** Send what changed since this stream's last chunk; one chunk in flight until the client acks. */
   private flush(client: Client, id: string, stream: Stream): void {
     if (stream.waiting || !stream.dirty) return;
     stream.dirty = false;
+    stream.seq = Math.max(stream.seq, this.sequence);
+    const next = () => ++stream.seq;
+    let values: JsonObject[];
+    if (stream.tag === "orchestration.subscribeShell") values = this.shellItems(stream, next);
+    else {
+      const thread = this.threads.get(stream.threadId!)?.thread;
+      if (!thread) return;
+      const events = stream.thread && threadEvents(stream.thread, thread, next);
+      if (events) values = events;
+      else {
+        values = [{ kind: "snapshot", snapshot: { snapshotSequence: stream.seq, thread: recentTurns(thread, stream.turnLimit) } }, { kind: "synchronized" }];
+      }
+      stream.thread = recordThread(thread);
+    }
+    if (!values.length) return;
     stream.waiting = true;
-    const snapshot = stream.tag === "orchestration.subscribeShell"
-      ? { snapshotSequence: this.sequence, projects: [this.project], threads: [...this.threads.values()].map(({ thread }) => {
-        const shell: Partial<SavedThread["thread"]> = { ...thread };
-        delete shell.messages; delete shell.activities; delete shell.checkpoints;
-        return shell;
-      }) }
-      : { snapshotSequence: this.sequence, thread: this.threads.get(stream.threadId!)!.thread };
-    this.send(client, { _tag: "Chunk", requestId: id, values: [{ kind: "snapshot", snapshot }, { kind: "synchronized" }] });
+    this.send(client, { _tag: "Chunk", requestId: id, values });
+  }
+
+  private shellItems(stream: Stream, next: () => number): JsonObject[] {
+    const project = JSON.stringify(this.project);
+    const threads = new Map([...this.threads.values()].map(({ thread }) => [thread.id, JSON.stringify(shellOf(thread))]));
+    const sent = stream.shell;
+    stream.shell = { project, threads };
+    if (!sent) {
+      return [{ kind: "snapshot", snapshot: { snapshotSequence: stream.seq, projects: [this.project],
+        threads: [...this.threads.values()].map(({ thread }) => shellOf(thread)) } }, { kind: "synchronized" }];
+    }
+    const items: JsonObject[] = [];
+    if (sent.project !== project) items.push({ kind: "project-upserted", sequence: next(), project: this.project as unknown as JsonObject });
+    for (const [threadId, shell] of threads) {
+      if (sent.threads.get(threadId) !== shell) items.push({ kind: "thread-upserted", sequence: next(), thread: JSON.parse(shell) as JsonObject });
+    }
+    for (const threadId of sent.threads.keys()) {
+      if (!threads.has(threadId)) items.push({ kind: "thread-removed", sequence: next(), threadId });
+    }
+    return items;
   }
 
   private send(client: Client, message: JsonObject): void {
@@ -150,7 +299,9 @@ export class HermesBridge {
       if (tag === "orchestration.subscribeShell" || tag === "orchestration.subscribeThread") {
         const threadId = tag.endsWith("Thread") ? String(payload.threadId) : undefined;
         if (threadId && !this.threads.has(threadId)) throw new Error("Unknown Hermes thread");
-        const stream: Stream = { tag, threadId, waiting: false, dirty: true };
+        const turnLimit = Number(payload.turnLimit);
+        const stream: Stream = { tag, threadId, waiting: false, dirty: true, seq: 0,
+          ...(Number.isInteger(turnLimit) && turnLimit > 0 ? { turnLimit } : {}) };
         client.streams.set(id, stream);
         this.flush(client, id, stream);
         return;

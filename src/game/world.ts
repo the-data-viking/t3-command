@@ -18,7 +18,7 @@ import { openHost, setSelection, unitKey, useGame, type GameState, type Selectio
 import { isHistory, unitState, type UnitState } from "../t3/derive";
 import { telemetry, type Telemetry } from "../t3/telemetry";
 import type { ThreadShell } from "../t3/types";
-import { computeFleetLayout, QUARTERS_SHOWN, TILE, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type EnvironmentNodeLayout, type StationLayout, type SystemRoom } from "./layout";
+import { computeFleetLayout, fingerprint, nodeDrawKey, QUARTERS_SHOWN, stationDrawKey, TILE, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type EnvironmentNodeLayout, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
 import { CrewMotion } from "./crew-motion";
 import { RenderLoop } from "./render-loop";
@@ -280,11 +280,20 @@ class StationSprite {
   readonly key: string;
   readonly root = new Container();
   private labels: Text[] = [];
+  private drawn?: string;
   /** Console sprites by "x,y" of their layout point, so screens can be updated live. */
   readonly consoles = new Map<string, Sprite>();
 
   constructor(key: string) {
     this.key = key;
+  }
+
+  /** Rebuild only if the layout, nameplate or art style changed. */
+  sync(s: StationLayout, state: GameState): void {
+    const drawn = stationDrawKey(state, s);
+    if (drawn === this.drawn) return;
+    this.drawn = drawn;
+    this.build(s, state);
   }
 
   build(s: StationLayout, state: GameState): void {
@@ -429,9 +438,18 @@ class EnvironmentNodeSprite {
   private cpuText?: Text;
   private memoryText?: Text;
   private caption?: Text;
+  private drawn?: string;
 
   constructor(envId: string) {
     this.envId = envId;
+  }
+
+  /** Rebuild only if the chassis layout, name or art style changed; meters update separately. */
+  sync(node: EnvironmentNodeLayout, state: GameState): void {
+    const drawn = nodeDrawKey(state, node);
+    if (drawn === this.drawn) return;
+    this.drawn = drawn;
+    this.build(node, state);
   }
 
   build(node: EnvironmentNodeLayout, state: GameState): void {
@@ -542,6 +560,10 @@ export class World {
   private lastDetails?: GameState["details"];
   private lastHosts?: GameState["hosts"];
   private lastStyle?: GameState["artStyle"];
+  private drawnCenter?: string;
+  private drawnGrid?: string;
+  private drawnLinks?: string;
+  private fittedBounds?: string;
 
   constructor(host: HTMLElement) {
     this.ready = this.init(host);
@@ -825,7 +847,7 @@ export class World {
           this.stations.set(key, sprite);
           this.stationLayer.addChild(sprite.root);
         }
-        sprite.build(station, state);
+        sprite.sync(station, state);
       }
       for (const [key, sprite] of this.stations) {
         if (seen.has(key)) continue;
@@ -839,7 +861,7 @@ export class World {
           this.environmentNodes.set(envId, sprite);
           this.environmentLayer.addChild(sprite.root);
         }
-        sprite.build(node, state);
+        sprite.sync(node, state);
       }
       for (const [envId, sprite] of this.environmentNodes) {
         if (this.layout.environmentNodes.has(envId)) continue;
@@ -850,13 +872,31 @@ export class World {
         if (!this.controlCenter) {
           this.controlCenter = new ControlCenterSprite();
           this.environmentLayer.addChild(this.controlCenter.root);
+          this.drawnCenter = undefined;
         }
         const center = this.layout.controlCenter;
-        this.controlCenter.build(center, center.envIds.some(id => state.envs[id]?.connection === 'live'),
-          [...this.layout.environmentNodes.values()].filter(n => state.envs[n.envId]?.connection === 'live').length);
+        const live = center.envIds.some(id => state.envs[id]?.connection === 'live');
+        const endpoints = [...this.layout.environmentNodes.values()].filter(n => state.envs[n.envId]?.connection === 'live').length;
+        // Sessions change with every Hermes thread update; desks only draw these operator fields.
+        const drawn = fingerprint(state.artStyle, center.hull, center.envId, live, endpoints, center.operators.map(({ bot, workstation }) =>
+          [bot.name, bot.title, bot.observed, bot.state, bot.provider, bot.model, workstation]));
+        if (drawn !== this.drawnCenter) {
+          this.drawnCenter = drawn;
+          this.controlCenter.build(center, live, endpoints);
+        }
       } else { this.controlCenter?.destroy(); this.controlCenter = undefined; }
-      this.drawGrid();
-      this.drawLinks(state);
+      const grid = fingerprint(this.layout.hub, [...this.layout.stations.values()].map((s) => s.port), this.layout.bounds);
+      if (grid !== this.drawnGrid) {
+        this.drawnGrid = grid;
+        this.drawGrid();
+      }
+      const links = fingerprint(state.artStyle, this.layout.controlCenter?.links,
+        [...this.layout.environmentNodes.values()].map((n) => [n.color, n.links, state.envs[n.envId]?.connection === "live"]),
+        this.layout.controlCenter?.links.map((l) => state.envs[l.envId]?.connection === "live"));
+      if (links !== this.drawnLinks) {
+        this.drawnLinks = links;
+        this.drawLinks(state);
+      }
     }
 
     const seenCrew = new Set<string>();
@@ -883,7 +923,12 @@ export class World {
       this.crew.delete(key);
     }
 
-    if (layoutChanged && !this.userMoved && Object.values(state.envs).some((e) => e.synced)) this.fitAll();
+    // Keep framing the fleet as it grows or shrinks, not on every thread update.
+    const bounds = fingerprint(this.layout.bounds);
+    if (bounds !== this.fittedBounds && !this.userMoved && Object.values(state.envs).some((e) => e.synced)) {
+      this.fittedBounds = bounds;
+      this.fitAll();
+    }
   }
 
   private drawGrid(): void {

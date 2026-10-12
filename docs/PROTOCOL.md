@@ -610,8 +610,13 @@ has `kind: "hermes"`; `url` contains the canonical workspace path. No T3 token i
 
 The existing authenticated `/env/:id/ws` endpoint routes these bases to `server/hermes/bridge.ts`.
 It implements `server.getConfig`, shell/thread subscriptions, and dispatch of turn start,
-interrupt, approval response, settle, and unsettle. Streams send fresh snapshots, coalescing
-updates while awaiting each Effect RPC `Ack`; browser disconnects cancel subscriptions only.
+interrupt, approval response, settle, and unsettle. Each subscription starts with a snapshot,
+then carries only what changed, coalescing updates while awaiting each Effect RPC `Ack`. The
+shell sends `thread-upserted`/`thread-removed`/`project-upserted` for changed entries. Thread
+streams send `thread.message-sent` (streamed text as appended deltas) and
+`thread.activity-appended` events. Session or turn changes, replaced or trimmed transcripts,
+and non-append edits resnapshot. Thread snapshots honour `turnLimit`; untagged Bot Chat history
+sends its latest 200 messages. Browser disconnects cancel subscriptions only.
 Command IDs are deduplicated in memory for the most recent 500 commands.
 
 The host starts one shell-free ACP stdio process per turn and reloads the thread's session.
@@ -629,7 +634,8 @@ model changes are available through bot management or Hermes configuration. Imag
 background-task telemetry, and usage-cost scans are unsupported, with no synthetic estimates.
 
 Transcripts and ACP session IDs persist separately from the environment registry in owner-only
-files. A host restart marks in-flight turns interrupted and clears pending approvals; the next
+files. Concurrent saves coalesce into one write. Each thread keeps its latest 2,000 messages
+and 2,000 activities, matching the browser's transcript cap. A host restart marks in-flight turns interrupted and clears pending approvals; the next
 order reloads the recorded session without duplicating ACP's history replay in the Command log.
 
 ### Hermes management

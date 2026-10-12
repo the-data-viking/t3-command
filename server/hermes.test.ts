@@ -8,6 +8,8 @@ import path from "node:path";
 import test from "node:test";
 import { WebSocket } from "ws";
 import { probeHermes } from "./hermes/acp.ts";
+import { applyThreadEvent } from "../src/t3/reducer.ts";
+import type { OrchestrationEvent, OrchestrationThread } from "../src/t3/types.ts";
 
 const fixture = `
 import fs from 'node:fs';
@@ -59,18 +61,44 @@ createInterface({ input: process.stdin }).on('line', (line) => {
 });
 `;
 
+type Thread = Record<string, unknown>;
+
 class RpcProbe {
   ws: WebSocket;
   messages: Record<string, unknown>[] = [];
   autoAck = true;
   private next = 0;
+  /** Stream state replayed exactly as the browser does: a snapshot, then incremental items. */
+  private threads = new Map<string, Thread>();
+  private shells = new Map<string, Map<string, Thread>>();
+  /** Every state each stream passed through, in arrival order. */
+  private timeline: Array<{ requestId: string; thread?: Thread; shell?: Map<string, Thread> }> = [];
   constructor(url: string, origin?: string) {
     this.ws = new WebSocket(url, { headers: { "Tailscale-User-Login": "test@example.com", ...(origin ? { origin } : {}) } });
     this.ws.on("message", (data) => {
       const message = JSON.parse(data.toString());
       this.messages.push(message);
+      if (message._tag === "Chunk") this.replay(message.requestId, message.values);
       if (message._tag === "Chunk" && this.autoAck) this.ws.send(JSON.stringify({ _tag: "Ack", requestId: message.requestId }));
     });
+  }
+  private replay(requestId: string, values: Array<{ kind: string; snapshot?: { thread?: Thread; threads?: Thread[] }; event?: OrchestrationEvent; thread?: Thread; threadId?: string }>) {
+    for (const item of values) {
+      if (item.kind === "snapshot" && item.snapshot?.thread) this.threads.set(requestId, item.snapshot.thread);
+      else if (item.kind === "snapshot") this.shells.set(requestId, new Map((item.snapshot?.threads ?? []).map((t) => [String(t.id), t])));
+      else if (item.kind === "event") {
+        const thread = this.threads.get(requestId);
+        assert.ok(thread && item.event, "thread events only follow a snapshot");
+        this.threads.set(requestId, applyThreadEvent(thread as unknown as OrchestrationThread, item.event) as unknown as Thread);
+      } else if (item.kind === "thread-upserted") this.shells.get(requestId)!.set(String(item.thread!.id), item.thread!);
+      else if (item.kind === "thread-removed") this.shells.get(requestId)!.delete(item.threadId!);
+    }
+    this.timeline.push({ requestId, thread: this.threads.get(requestId), shell: new Map(this.shells.get(requestId)) });
+  }
+  /** Forget earlier states (and messages) so later waits only match what happens next. */
+  reset() {
+    this.messages = [];
+    this.timeline = [];
   }
   async request(tag: string, payload: unknown = {}): Promise<unknown> {
     const id = String(++this.next);
@@ -93,9 +121,20 @@ class RpcProbe {
     }
     throw new Error("RPC condition timed out");
   }
-  async thread(id: string, predicate: (thread: Record<string, unknown>) => boolean) {
-    const chunk = await this.wait((msg) => msg._tag === "Chunk" && msg.requestId === id && (msg.values as Array<{ snapshot?: { thread: Record<string, unknown> } }>).some((item) => item.snapshot?.thread && predicate(item.snapshot.thread)));
-    return (chunk.values as Array<{ snapshot: { thread: Record<string, unknown> } }>)[0].snapshot.thread;
+  private async state<T>(find: () => T | undefined): Promise<T> {
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      const match = find();
+      if (match) return match;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error("RPC condition timed out");
+  }
+  thread(id: string, predicate: (thread: Thread) => boolean): Promise<Thread> {
+    return this.state(() => this.timeline.find((s) => s.requestId === id && s.thread && predicate(s.thread))?.thread);
+  }
+  shellThread(id: string, threadId: string): Promise<Thread> {
+    return this.state(() => this.timeline.find((s) => s.requestId === id && s.shell?.has(threadId))?.shell!.get(threadId));
   }
 }
 
@@ -167,9 +206,11 @@ test("local Hermes fleet supports approvals, reconnect, reload, cancellation, an
   assert.equal(activities.filter((a) => a.kind === "tool.started").at(-1)?.payload.itemType, "command_execution");
   assert.equal(rpc.messages.filter((msg) => msg.requestId === shell).length, 1, "shell snapshots wait for Ack");
   rpc.ws.send(JSON.stringify({ _tag: "Ack", requestId: shell }));
-  const updatedShell = await rpc.wait((msg) => msg.requestId === shell && (msg.values as Array<{ snapshot?: { threads?: Array<{ id: string }> } }>).some((item) => item.snapshot?.threads?.some((thread) => thread.id === "worker")));
-  const shellThread = (updatedShell.values as Array<{ snapshot: { threads: Array<{ messages?: unknown }> } }>)[0].snapshot.threads[0];
+  const shellThread = await rpc.shellThread(shell, "worker");
   assert.equal(shellThread.messages, undefined, "shell updates do not carry full transcripts");
+  const shellChunks = rpc.messages.filter((msg) => msg.requestId === shell && msg._tag === "Chunk") as Array<{ values: Array<{ kind: string; thread?: Thread }> }>;
+  assert.ok(shellChunks.slice(1).every((chunk) => chunk.values.every((item) => item.kind === "thread-upserted" && item.thread?.id === "worker")),
+    "after the first snapshot, the shell only resends threads that changed");
   await assert.rejects(rpc.request("orchestration.dispatchCommand", { commandId: "bad-choice", type: "thread.approval.respond", threadId: "worker", requestId: approval.payload.requestId, decision: "unknown" }), /did not offer/);
   await assert.rejects(rpc.request("orchestration.dispatchCommand", command("overlap")), /still working/);
   const mutation = (action: string, origin?: string) => fetch(`${base}/api/envs/${env.id}/hermes`, {
@@ -196,7 +237,7 @@ test("local Hermes fleet supports approvals, reconnect, reload, cancellation, an
   assert.equal(rows.filter((row) => row.method === "session/prompt").length, 1);
   assert.equal(rows.find((row) => row.id === "permission" && row.result)?.result.outcome.optionId, "allow_session");
   // Follow-ups reload the same saved session in a fresh process, and denial preserves Hermes's option ID.
-  rpc.messages = [];
+  rpc.reset();
   await rpc.request("orchestration.dispatchCommand", command("deny request", "deny-turn"));
   thread = await rpc.thread(detail, (thread) => thread.hasPendingApprovals === true);
   const deniedApproval = (thread.activities as typeof activities).filter((activity) => activity.kind === "approval.requested").at(-1)!;

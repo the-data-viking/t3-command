@@ -107,10 +107,13 @@ export const useGame = create<GameState>()(() => ({
   event: null,
 }));
 
+/** Returning the same env from `fn` is a no-op: subscribers (the map, panels) are not notified. */
 export function updateEnv(envId: string, fn: (env: EnvWorld) => EnvWorld): void {
   useGame.setState((s) => {
     const env = s.envs[envId];
-    return env ? { envs: { ...s.envs, [envId]: fn(env) } } : {};
+    if (!env) return s;
+    const next = fn(env);
+    return next === env ? s : { envs: { ...s.envs, [envId]: next } };
   });
 }
 

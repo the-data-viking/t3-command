@@ -362,6 +362,23 @@ export function route(s: StationLayout, from: RoomKind, to: RoomKind, target: Po
 
 // ---- Fleet ----------------------------------------------------------------------------
 
+/**
+ * Rebuilding a facility destroys and recreates all of its Graphics, sprites and text. Shell
+ * updates arrive for every streamed thread change, so sprites rebuild only when a fingerprint of
+ * exactly what they draw changes; live details (screens, meters, crew) update in place.
+ */
+export const fingerprint = (...parts: unknown[]): string => JSON.stringify(parts);
+
+/** Everything a project facility draws: its geometry, nameplate and the art style. */
+export function stationDrawKey(state: GameState, s: StationLayout): string {
+  return fingerprint(state.artStyle, s, state.envs[s.members[0]?.envId ?? ""]?.summary.label);
+}
+
+/** Everything an engineering chassis draws; host meters update separately. */
+export function nodeDrawKey(state: GameState, node: EnvironmentNodeLayout): string {
+  return fingerprint(state.artStyle, node, state.envs[node.envId]?.summary.label);
+}
+
 export function computeFleetLayout(state: GameState): FleetLayout {
   const envs = sortedEnvs(state);
   const hermes = envs.filter(env => env.summary.kind === 'hermes');

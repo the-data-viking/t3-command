@@ -176,7 +176,8 @@ export class EnvironmentClient {
 
   private async loadUsage(): Promise<void> {
     if (this.summary.kind === "hermes") {
-      updateEnv(this.id, (env) => ({ ...env, usage: { error: "Hermes usage estimates are unavailable" } }));
+      const error = "Hermes usage estimates are unavailable";
+      updateEnv(this.id, (env) => env.usage?.error === error && !env.usage.summary ? env : { ...env, usage: { error } });
       return;
     }
     const rpc = this.rpc;
@@ -577,7 +578,7 @@ export async function refreshEnvironments(): Promise<void> {
     // Re-create a client that was blocked (e.g. needs pairing) once the server says it's fine.
     const blocked = world && (world.connection === "needs-pairing" || world.connection === "needs-update");
     if (existing && !(blocked && summary.status === "ok")) {
-      updateEnv(summary.id, (e) => ({ ...e, summary }));
+      updateEnv(summary.id, (e) => JSON.stringify(e.summary) === JSON.stringify(summary) ? e : { ...e, summary });
       continue;
     }
     existing?.dispose();
