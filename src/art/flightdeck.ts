@@ -2,7 +2,7 @@
 // Original pixel geometry; provider, tier, team and activity remain independent.
 import * as S from './sprites';
 import { compose, type Arms, type Legs, type Silhouette, type Tier } from './render';
-import { panel } from './grid';
+import { panel, type PixelBox } from './grid';
 import type { Grid } from './sprites';
 
 const CONSOLE = panel(28, 18, [
@@ -34,7 +34,71 @@ const COMMS = panel(24, 20, [
   [17, 11, 7, 9, 'k'], [18, 12, 5, 7, 'H'], [19, 14, 3, 1, 'M'],
 ]);
 const CHAIR = panel(10, 8, [[1, 0, 8, 7, 'k'], [2, 1, 6, 5, 'G'], [2, 1, 6, 1, 'g'], [0, 3, 2, 4, 'k'], [8, 3, 2, 4, 'k']]);
-export const FLIGHT_KIT = { ...S, CONSOLE, TERMINAL, FILES, COMMS, CHAIR };
+
+// ---- Engineering deck: one per environment, docked to its projects ----
+// A compute bay (storage racks) beside an engine bay (core, coolant tank, cooling fins).
+// Drawn only in materials plus the environment's stripe (T/t): every light is an overlay the
+// map draws from measured host load and observed crew, so the art never implies activity.
+
+const RACK_X = [7, 26];
+const RACK_ROWS = 5;
+const CELL_X = [58, 64, 70, 76];
+
+function rack(x: number): PixelBox[] {
+  const rows: PixelBox[] = [];
+  for (let i = 0; i < RACK_ROWS; i++) {
+    const y = 21 + i * 5;
+    rows.push([x + 2, y, 12, 3, 'M'], [x + 3, y + 1, 5, 1, 'm'], [x + 10, y + 1, 2, 1, 'k']);
+  }
+  return [
+    [x, 17, 16, 30, 'k'], [x + 1, 18, 14, 28, 'G'], [x + 1, 18, 14, 2, 'g'],
+    ...rows,
+    [x + 2, 47, 3, 2, 'k'], [x + 11, 47, 3, 2, 'k'],
+  ];
+}
+
+const ENGINEERING_DECK = panel(112, 76, [
+  // Chamfered hull: outline, plating, top highlight, bottom shadow.
+  [6, 0, 100, 76, 'k'], [4, 2, 104, 72, 'k'], [2, 4, 108, 68, 'k'], [0, 6, 112, 64, 'k'],
+  [7, 2, 98, 72, 'H'], [5, 4, 102, 68, 'H'], [3, 6, 106, 64, 'H'], [2, 8, 108, 60, 'H'],
+  [7, 2, 98, 1, 'h'], [7, 73, 98, 1, 'D'],
+  // Nameplate recess and the environment's identity stripe.
+  [5, 5, 70, 8, 'k'], [78, 7, 28, 2, 'T'], [78, 9, 28, 1, 't'],
+  // Compute bay: two storage racks.
+  [4, 14, 42, 46, 'k'], [5, 15, 40, 44, 'F'], [6, 56, 38, 2, 'D'],
+  ...rack(RACK_X[0]), ...rack(RACK_X[1]),
+  [5, 49, 40, 7, 'k'], // Readout strip, legible on light and dark decks.
+  // Engine bay: core housing with four cell windows.
+  [49, 14, 59, 46, 'k'], [50, 15, 57, 44, 'F'], [51, 56, 55, 2, 'D'],
+  [52, 17, 32, 30, 'k'], [53, 18, 30, 28, 'H'], [53, 18, 30, 2, 'h'],
+  [56, 21, 24, 20, 'k'], [57, 22, 22, 1, 'M'], [57, 39, 22, 1, 'M'],
+  ...CELL_X.map((x): PixelBox => [x, 24, 4, 14, 'D']),
+  [54, 20, 1, 1, 'g'], [81, 20, 1, 1, 'g'], [54, 43, 1, 1, 'g'], [81, 43, 1, 1, 'g'],
+  // Coolant tank, fed from the core, and cooling fins.
+  [84, 30, 3, 2, 'm'], [86, 16, 12, 2, 'M'], [87, 17, 10, 30, 'k'], [88, 18, 8, 28, 'G'], [89, 19, 6, 26, 'k'], [86, 46, 12, 2, 'M'],
+  [97, 30, 2, 2, 'm'], [99, 18, 7, 29, 'D'],
+  [50, 49, 57, 7, 'k'],
+  ...[0, 1, 2, 3, 4, 5, 6].map((i): PixelBox => [99, 19 + i * 4, 7, 2, 'g']),
+  // Status plate along the bottom edge.
+  [4, 63, 104, 10, 'k'], [5, 64, 102, 8, 'D'],
+]);
+
+/** Where the map draws each light, in deck pixels. */
+export const ENGINEERING_SPOTS = {
+  /** Rack LEDs from the bottom row up, alternating racks so both fill together (CPU load). */
+  leds: Array.from({ length: RACK_ROWS * 2 }, (_, k) => ({ x: RACK_X[k % 2] + 10, y: 21 + (RACK_ROWS - 1 - Math.floor(k / 2)) * 5 + 1, w: 2, h: 1 })),
+  /** Core cell windows (observed crew activity). */
+  cells: CELL_X.map((x) => ({ x: x + 1, y: 25, w: 2, h: 12 })),
+  /** Coolant glass, filled bottom-up (RAM used). */
+  coolant: { x: 89, y: 19, w: 6, h: 26 },
+  /** Readout label anchors: CPU under the racks, RAM under the core. */
+  cpuLabel: { x: 7, y: 50 },
+  memoryLabel: { x: 52, y: 50 },
+  /** Status plate; matches the layout's node plate. */
+  plate: { x: 4, y: 63, w: 104, h: 10 },
+};
+
+export const FLIGHT_KIT = { ...S, CONSOLE, TERMINAL, FILES, COMMS, CHAIR, ENGINEERING_DECK };
 
 /** Suit mass is in the torso; headgear is compact, shoulders carry the team patch. */
 export function flightCrew(silhouette: Silhouette, tier: Tier, legs: Legs = 'idle', arms: Arms = 'idle'): Grid {

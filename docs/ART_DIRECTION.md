@@ -106,3 +106,21 @@ only translucent variants with `color-mix()`.
   A full context or a busy host never borrows the approval red or question yellow.
 - Add a new style's chrome by giving it a `hud` block in `src/art/palettes.ts`. `theme.test.ts`
   fails if the stylesheet reads an undefined variable or redeclares a generated color.
+
+## Engineering decks
+
+Each environment's engineering node is the design lab's integrated environment deck, drawn as
+one Flight Deck pixel sprite (`ENGINEERING_DECK` in `src/art/flightdeck.ts`). It keeps the node
+footprint, docking hatch and status plate, so layout and routing are unchanged.
+
+- **Compute bay:** two storage racks. Ten rack LEDs fill bottom-up with measured CPU load.
+- **Engine bay:** a core with four cell windows, a coolant tank and cooling fins. Cells light
+  for the environment's observed crew: pulsing cyan per working crew member, then steady
+  violet per monitoring one. The coolant column fills with measured RAM used.
+- **Readouts and caption:** CPU and RAM readouts sit on dark strips that stay legible on both
+  decks. The plate keeps the connection light and crew-state pips. A caption appears only
+  when samples are stale or unavailable.
+- **Materials only:** the sprite uses palette materials plus the environment stripe. Every
+  light is an overlay drawn from telemetry, so a quiet or disconnected deck stays dark.
+  `engineering-deck.test.ts` enforces the footprint, light sockets and the absence of baked-in
+  status colors. Review the deck on the styleboard contact sheet.

@@ -13,6 +13,7 @@
 
 import { Application, Container, Graphics, Rectangle, Sprite, Text, TilingSprite, type FederatedPointerEvent, type TextStyleOptions } from "pixi.js";
 import * as A from "../art/sprites";
+import { ENGINEERING_SPOTS, FLIGHT_KIT } from "../art/flightdeck";
 import type { Arms, Legs } from "../art/render";
 import { openHost, setSelection, unitKey, useGame, type GameState, type Selection } from "../store";
 import { isHistory, unitState, type UnitState } from "../t3/derive";
@@ -434,17 +435,21 @@ class EnvironmentNodeSprite {
   readonly envId: string;
   readonly root = new Container();
   private name?: Text;
+  /** Measured host load: rack LEDs (CPU) and the coolant level (RAM). Redrawn per sample. */
   private meters?: Graphics;
+  /** Observed crew activity in the core cells. Redrawn every frame. */
+  private cells?: Graphics;
   private cpuText?: Text;
   private memoryText?: Text;
   private caption?: Text;
+  private hull?: Rect;
   private drawn?: string;
 
   constructor(envId: string) {
     this.envId = envId;
   }
 
-  /** Rebuild only if the chassis layout, name or art style changed; meters update separately. */
+  /** Rebuild only if the chassis layout, name or art style changed; lights update separately. */
   sync(node: EnvironmentNodeLayout, state: GameState): void {
     const drawn = nodeDrawKey(state, node);
     if (drawn === this.drawn) return;
@@ -454,24 +459,22 @@ class EnvironmentNodeSprite {
 
   build(node: EnvironmentNodeLayout, state: GameState): void {
     for (const child of this.root.removeChildren()) child.destroy({ children: true });
-    const h = node.hull, style = currentStyle(), c = style.colors;
-    const g = new Graphics();
-    g.poly([h.x+16,h.y,h.x+h.w-16,h.y,h.x+h.w,h.y+16,h.x+h.w,h.y+h.h-16,h.x+h.w-16,h.y+h.h,h.x+16,h.y+h.h,h.x,h.y+h.h-16,h.x,h.y+16])
-      .fill(c.H).stroke({color:c.k,width:4});
-    g.rect(h.x+8,h.y+8,h.w-16,h.h-16).fill(c.k);
-    g.rect(h.x+12,h.y+34,64,86).fill(0x1a2b39).stroke({color:c.D,width:2});
-    g.rect(h.x+82,h.y+34,h.w-94,86).fill(0x1a2b39).stroke({color:c.D,width:2});
-    g.rect(h.x+h.w/2-18,h.y-4,36,8).fill(c.D).stroke({color:c.k,width:2});
-    this.root.addChild(g);
-    this.root.addChild(sprite(tex(A.FILES),h.x+44,h.y+68,.5,.5));
+    const h = node.hull, c = currentStyle().colors;
+    this.hull = h;
+    // Docking hatch above the deck, where bridge collars and conduits attach.
+    const hatch = new Graphics().rect(h.x+h.w/2-18,h.y-4,36,8).fill(c.D).stroke({color:c.k,width:2});
+    this.root.addChild(hatch, sprite(tex(FLIGHT_KIT.ENGINEERING_DECK, { team: node.color }), h.x, h.y));
+    this.meters = new Graphics();
+    this.cells = new Graphics();
     this.name=label(10,node.color,{letterSpacing:1});
     this.name.text=truncate((state.envs[node.envId]?.summary.label??'?').toUpperCase(),24);
-    this.name.position.set(h.x+12,h.y+13); this.root.addChild(this.name);
-    this.meters = new Graphics();
-    this.cpuText = label(10, GAUGE.unknown); this.cpuText.position.set(h.x+94,h.y+42);
-    this.memoryText = label(9, GAUGE.unknown); this.memoryText.position.set(h.x+94,h.y+78);
-    this.caption = label(7,0xa7bdcb,{letterSpacing:.6}); this.caption.position.set(h.x+12,h.y+111);
-    this.root.addChild(this.meters, this.cpuText, this.memoryText, this.caption);
+    this.name.position.set(h.x+14,h.y+12);
+    const at = (spot: { x: number; y: number }) => ({ x: h.x + spot.x * PX, y: h.y + spot.y * PX });
+    this.cpuText = label(9, GAUGE.unknown); this.cpuText.position.copyFrom(at(ENGINEERING_SPOTS.cpuLabel));
+    this.memoryText = label(9, GAUGE.unknown); this.memoryText.position.copyFrom(at(ENGINEERING_SPOTS.memoryLabel));
+    const plate = at(ENGINEERING_SPOTS.plate);
+    this.caption = label(7,0xa7bdcb,{letterSpacing:.6}); this.caption.position.set(plate.x + 8, plate.y + 6);
+    this.root.addChild(this.meters, this.cells, this.name, this.cpuText, this.memoryText, this.caption);
     this.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
     this.root.eventMode = 'static';
     this.root.cursor = 'pointer';
@@ -485,22 +488,45 @@ class EnvironmentNodeSprite {
     });
   }
 
+  /** Rack LEDs fill with measured CPU load and the coolant column with RAM used. */
   updateResources(node: EnvironmentNodeLayout, state: HostState | undefined, connection: string): void {
     const view = hostView(state, connection);
     const h = node.hull;
     this.cpuText!.text = view.cpuFraction === undefined ? "CPU —" : `CPU ${Math.round(view.cpuFraction * 100)}%`;
-    this.memoryText!.text = view.memoryFraction === undefined ? "RAM USED —" : `RAM USED ${Math.round(view.memoryFraction * 100)}%`;
-    this.cpuText!.style.fill = view.stale ? 0x8a96a8 : view.cpuColor;
-    this.memoryText!.style.fill = view.stale ? 0x8a96a8 : view.memoryColor;
-    this.caption!.text = view.stale ? "LAST SAMPLE · STALE" : view.snapshot ? "WHOLE HOST · UTILIZATION" : "HOST METRICS UNAVAILABLE";
+    this.memoryText!.text = view.memoryFraction === undefined ? "RAM —" : `RAM ${Math.round(view.memoryFraction * 100)}%`;
+    this.cpuText!.style.fill = view.stale ? HUD.muted : view.cpuColor;
+    this.memoryText!.style.fill = view.stale ? HUD.muted : view.memoryColor;
+    // Only speak up when the readings can't be trusted.
+    this.caption!.text = view.stale ? "LAST SAMPLE · STALE" : view.snapshot ? "" : "HOST METRICS UNAVAILABLE";
+    const alpha = view.stale ? 0.35 : 1;
     const g = this.meters!.clear();
-    for (const [fraction, y, color] of [[view.cpuFraction, 60, view.cpuColor], [view.memoryFraction, 95, view.memoryColor]] as const) {
-      for (let i = 0; i < 10; i++) {
-        const x = h.x + 94 + i * 11;
-        g.rect(x, h.y+y, 9, 10).fill(0x263845);
-        if (fraction !== undefined && fraction > i / 10) g.rect(x, h.y+y, Math.min(1, fraction * 10 - i) * 9, 10).fill({ color, alpha: view.stale ? 0.35 : 1 });
+    const rect = (s: { x: number; y: number; w: number; h: number }) => g.rect(h.x + s.x * PX, h.y + s.y * PX, s.w * PX, s.h * PX);
+    const leds = ENGINEERING_SPOTS.leds;
+    if (view.cpuFraction !== undefined) {
+      leds.forEach((led, k) => { if (view.cpuFraction! * leds.length > k + 0.5) rect(led).fill({ color: view.cpuColor, alpha }); });
+    }
+    if (view.memoryFraction !== undefined) {
+      const glass = ENGINEERING_SPOTS.coolant;
+      const level = Math.round(view.memoryFraction * glass.h);
+      if (level > 0) {
+        rect({ ...glass, y: glass.y + glass.h - level, h: level }).fill({ color: view.memoryColor, alpha });
+        rect({ ...glass, y: glass.y + glass.h - level, h: 1 }).fill({ color: 0xffffff, alpha: 0.35 * alpha });
       }
     }
+  }
+
+  /** Core cells: one per working crew member (pulsing), then monitoring crew (steady). */
+  setActivity(states: UnitState[], live: boolean, frame: number): void {
+    const g = this.cells?.clear();
+    if (!g || !this.hull || !live) return;
+    const working = states.filter((s) => s === "working").length;
+    const monitoring = states.filter((s) => s === "monitoring").length;
+    ENGINEERING_SPOTS.cells.forEach((cell, i) => {
+      const color = i < working ? STATUS.working : i < working + monitoring ? STATUS.monitoring : undefined;
+      if (color === undefined) return;
+      const alpha = i < working ? ((frame + i) % 2 ? 1 : 0.55) : 0.7;
+      g.rect(this.hull!.x + cell.x * PX, this.hull!.y + cell.y * PX, cell.w * PX, cell.h * PX).fill({ color, alpha });
+    });
   }
 
   setZoom(zoom: number): void {
@@ -1095,8 +1121,11 @@ export class World {
       const env = state.envs[node.envId];
       const live = env?.connection === "live";
       const states = environmentStates.get(node.envId) ?? [];
-      const sprite = this.environmentNodes.get(node.key)?.root;
-      if (sprite) sprite.alpha = live ? 1 : 0.45;
+      const deck = this.environmentNodes.get(node.key);
+      if (deck) {
+        deck.root.alpha = live ? 1 : 0.45;
+        deck.setActivity(states, live, frame);
+      }
       const p = node.plate;
       const lightColor = live ? STATUS.done : env?.connection === "reconnecting" || env?.connection === "connecting" ? STATUS.question : 0x59626c;
       g.rect(p.x + p.w - 13, p.y + p.h / 2 - 4, 8, 8).fill({ color: lightColor, alpha: live || frame % 2 ? 1 : 0.4 });
