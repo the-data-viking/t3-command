@@ -59,6 +59,7 @@ export function installHotkeys(): () => void {
       m: () => jumpTo("monitoring"),
       f: () => worldRef.current?.fitAll(),
       l: () => useGame.setState((s) => ({ showLog: !s.showLog })),
+      h: () => useGame.setState((s) => ({ showHistory: !s.showHistory })),
     };
     const action = actions[e.key];
     if (!action) return;

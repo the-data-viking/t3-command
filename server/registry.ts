@@ -110,6 +110,11 @@ export class Registry {
     await fs.rename(tmp, this.file);
   }
 
+  /** Every registered environment's id, without probing their status. */
+  ids(): string[] {
+    return [...this.envs.keys()];
+  }
+
   get(id: string): StoredEnv | undefined {
     return this.envs.get(id);
   }

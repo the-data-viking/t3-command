@@ -39,10 +39,10 @@ export function todayWindow(now = new Date(), timeZone = Intl.DateTimeFormat().r
   return { sinceDay: day, untilDay: day, timeZone };
 }
 
-export function historyWindow(now = new Date(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
+export function historyWindow(now = new Date(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, days = 7) {
   const today = todayWindow(now, timeZone);
   const first = new Date(`${today.sinceDay}T12:00:00Z`);
-  first.setUTCDate(first.getUTCDate() - 6);
+  first.setUTCDate(first.getUTCDate() - (days - 1));
   return { ...today, sinceDay: first.toISOString().slice(0, 10) };
 }
 

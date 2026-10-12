@@ -55,6 +55,15 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   dropping later turns. It only appears while the agent is idle on a provider that supports rollback,
   and asks for confirmation first. A module's panel shows the checkout's branch, ahead/behind,
   uncommitted files and the branch's pull request while it's open.
+- **Turn history**: **History** (or **H**) shows what the fleet got done over 7, 30 or 90 days.
+  It covers turns per day (done, failed, interrupted), typical and slowest turn times, failure rate
+  and the most common failures, busiest projects and models, recent turns, and daily spend. The
+  Command server records every finished turn on every station around the clock, with no browser
+  open, into owner-only files in `T3C_DATA_DIR`. Records are kept 90 days. Recording starts when
+  this version is deployed (no backfill). After a restart or outage, each thread's latest turn is
+  recovered; outages over 5 minutes are listed because additional turns in them can be missing.
+  Spend history comes from each machine's own T3 usage scan, asked for when the panel opens (up to
+  30 days).
 - **Comms log**: **Log** (or **L**) opens a scrollable history of the comms feed, kept in this
   browser (the last 200 events survive a reload). Click an entry to jump to its crew member.
 - **Attention**: an always-on **Inbox** of everything waiting on you (approvals, questions, failed

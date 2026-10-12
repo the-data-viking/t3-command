@@ -1820,3 +1820,33 @@ button.ftl-tab {
   .crew-roster { left: 8px; width: calc(100vw - 16px); max-height: 32vh; }
   .comms-log { left: 8px; width: calc(100vw - 16px); bottom: 8px; }
 }
+
+/* ---- Turn history ---- */
+
+.history-modal { width: min(880px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; gap: 8px; }
+.history-modal h3 { margin: 10px 0 4px; }
+.history-ranges { display: flex; gap: 4px; }
+.history-totals { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
+.history-stat { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; background: var(--slot); border: 2px solid var(--edge); border-radius: 4px; }
+.history-stat strong { font-family: var(--display); font-size: 16px; color: var(--bright); }
+.history-stat strong.st-done { color: var(--done); }
+.history-stat strong.st-error { color: var(--error); }
+.history-bars { display: flex; align-items: flex-end; gap: 2px; height: 110px; padding: 4px; background: var(--slot); border: 2px solid var(--edge); border-radius: 4px; }
+.history-bar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; min-width: 2px; }
+.history-bar .seg { display: block; width: 100%; }
+.history-axis { display: flex; justify-content: space-between; }
+.seg-completed { background: var(--done); }
+.seg-error { background: var(--error); }
+.seg-interrupted { background: var(--muted); }
+.legend { display: inline-block; width: 10px; height: 10px; margin: 0 4px 0 8px; vertical-align: -1px; }
+.history-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.history-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.history-table td { padding: 2px 4px; border-bottom: 1px solid var(--edge); }
+.history-table td:first-child { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-table td:not(:first-child) { text-align: right; white-space: nowrap; }
+.history-list { margin: 0; padding-left: 18px; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+.history-recent { list-style: none; padding: 0; }
+.history-recent li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; }
+.history-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) { .history-columns { grid-template-columns: 1fr; } }
+.history-modal .tele-chart { max-height: 150px; }

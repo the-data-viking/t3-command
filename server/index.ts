@@ -13,6 +13,9 @@ import { HermesBridge } from "./hermes/bridge.ts";
 import { HermesManager, acquireBot } from "./hermes/manager.ts";
 import type { HermesAction } from "../shared/hermes.ts";
 import { Updater, UpdateConflict } from "./updater.ts";
+import { TurnHistory } from "./history.ts";
+import { HistoryRecorder } from "./history-recorder.ts";
+import { HISTORY_RETENTION_DAYS } from "../shared/history.ts";
 
 const config = loadConfig();
 const hermesLaunch = { command: config.hermesCommand, args: config.hermesArgs };
@@ -30,6 +33,12 @@ function hermesBridge(envId: string, workspaceRoot: string): Promise<HermesBridg
   }
   return bridge;
 }
+// Turn history: followed from here so it keeps recording with no browser open.
+const history = new TurnHistory(config.dataDir);
+await history.load();
+const recorder = new HistoryRecorder(registry, history, hermesBridge);
+recorder.start();
+
 const updater = new Updater({ root: config.updateRoot, remote: config.updateRemote, enabled: config.managedUpdates,
   currentCommit: config.runningCommit, localChanges: config.localChanges,
   beforeActivate: ensureHermesIdle,
@@ -151,6 +160,14 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
 
   if (pathname === "/api/me" && method === "GET") {
     return sendJson(res, 200, { user, devMode: config.devNoAuth } satisfies MeResponse);
+  }
+  if (pathname === "/api/history" && method === "GET") {
+    const params = new URL(req.url ?? "/", "http://localhost").searchParams;
+    const days = Number(params.get("days") ?? 7);
+    const timeZone = params.get("tz") ?? "UTC";
+    if (!Number.isInteger(days) || days < 1 || days > HISTORY_RETENTION_DAYS) return sendJson(res, 400, { error: `days must be 1–${HISTORY_RETENTION_DAYS}` });
+    try { new Intl.DateTimeFormat("en-US", { timeZone }); } catch { return sendJson(res, 400, { error: "Unknown time zone" }); }
+    return sendJson(res, 200, history.summary(days, timeZone));
   }
   if (pathname === "/api/update" && method === "GET") return sendJson(res, 200, await updater.status());
   if ((pathname === "/api/update" || pathname === "/api/update/check") && method === "POST") {
@@ -343,6 +360,7 @@ server.listen(config.port, config.host, () => {
 });
 
 async function shutdown(): Promise<void> {
+  await recorder.stop();
   await Promise.all([...hermesBridges.values()].map(async (bridge) => (await bridge).close()));
   process.exit(0);
 }
