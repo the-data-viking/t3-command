@@ -34,9 +34,22 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   breakdowns, seven-day daily totals, cached-input share and estimated cache savings. T3's
   provider-history scan includes work outside T3; shared physical sources count once. This is
   estimated usage value, not subscription billing. Usage refreshes every minute while visible.
+- **Provider limits**: **LIMITS** shows the fullest quota window any provider reports (for example
+  Codex's weekly window), with reset times. Machines signed in to the same account share a row.
+  Providers that can't report quota, and health notes such as an outdated CLI, are listed. Updates
+  arrive live from T3's provider status stream.
+- **Mission telemetry**: the crew panel shows why a failed turn failed (also on hover in the
+  roster) and the thread's linked pull requests with state, checks and review. A collapsible
+  **Changes** list shows each recent turn's files and +/- counts, with a full-screen diff per turn.
+  **Roll back to here** restores the agent's files and conversation to just after an earlier turn,
+  dropping later turns. It only appears while the agent is idle on a provider that supports rollback,
+  and asks for confirmation first. A module's panel shows the checkout's branch, ahead/behind,
+  uncommitted files and the branch's pull request while it's open.
+- **Comms log**: **Log** (or **L**) opens a scrollable history of the comms feed, kept in this
+  browser (the last 200 events survive a reload). Click an entry to jump to its crew member.
 - **Attention**: an always-on **Inbox** of everything waiting on you (approvals, questions, failed
   turns, reports), edge-of-screen arrows for off-screen alerts, and RTS hotkeys: **Space** next
-  alert, **.** next report, **W** next active crew, **F** fit the fleet, **Esc** deselect.
+  alert, **.** next report, **W** next active crew, **F** fit the fleet, **L** comms log, **Esc** deselect.
   Waiting badges use the oldest unanswered request timestamp when available; crew show running
   turn duration, and the thread panel also shows the last completed turn's duration. Live timers
   tick every second while visible.
