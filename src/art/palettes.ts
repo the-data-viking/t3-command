@@ -12,6 +12,35 @@ export interface Style {
   space: number;
   /** Interior walls between rooms. */
   wall: number;
+  /** Materials for the HUD chrome around the map; styles without one use Night Shift's. */
+  hud?: HudMaterials;
+}
+
+/**
+ * FTL-style chrome: bevelled frames with title tabs around dark inset wells. These are
+ * materials only — status, accent and gauge colors keep their meaning across styles.
+ */
+export interface HudMaterials {
+  /** Bevelled frame, title tabs and secondary headings. */
+  frame: number;
+  /** Outline around frames, and text on frame-colored tabs. */
+  ink: number;
+  /** Panel body (drawn slightly translucent). */
+  surface: number;
+  /** Deepest backgrounds: modals, dropdown lists. */
+  deep: number;
+  /** Inset wells: transcripts, chips, roster rows. */
+  slot: number;
+  /** Well borders. */
+  edge: number;
+  /** Chip borders and dividers that need more contrast. */
+  edgeStrong: number;
+  /** Button face and portrait backdrops. */
+  control: number;
+  /** Empty meter segments. */
+  meter: number;
+  /** Brightest text: button labels, logo, selected tabs. */
+  bright: number;
 }
 
 const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
@@ -19,6 +48,11 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     id: "flightdeck", name: "Flight Deck",
     blurb: "FTL-inspired ship interiors: compact suited crew, broad wraparound consoles, inset displays and clearly separated system stations. Warm plating and restrained copper details.",
     space: 0x080d16, wall: 0x1a212a,
+    // Warm plating frames and charcoal wells, echoing the deck's ivory and copper.
+    hud: {
+      frame: 0xc9c1aa, ink: 0x14110d, surface: 0x1e1b17, deep: 0x100e0b, slot: 0x15130f,
+      edge: 0x3a352c, edgeStrong: 0x4c4639, control: 0x2a261f, meter: 0x35302a, bright: 0xf6eedc,
+    },
     colors: {
       k: 0x19212a, w: 0xf6eedc, W: 0xd7d3c4, s: 0x919c9b,
       G: 0x44515c, g: 0x73818b, h: 0xd7d3bc, H: 0xadb3ad, D: 0x6c7b80,
@@ -78,6 +112,11 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     blurb: "Dark industrial decks with amber and cyan light, in the spirit of StarNet.",
     space: 0x040508,
     wall: 0x08090c,
+    // Cool gray FTL frames around near-black wells.
+    hud: {
+      frame: 0xaeb7be, ink: 0x0d1114, surface: 0x161b20, deep: 0x080b10, slot: 0x11161a,
+      edge: 0x2c343b, edgeStrong: 0x3a444d, control: 0x20272d, meter: 0x2a3036, bright: 0xeef2f5,
+    },
     colors: {
       k: 0x0a0c0f,
       w: 0xe9edf1,

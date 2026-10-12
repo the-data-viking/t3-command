@@ -89,3 +89,20 @@ console offsets adjusted to frame the operator. Signal Workshop remains a review
 
 The thread panel renders Markdown links and bare URLs, keeps code blocks literal, and
 supports pointer and keyboard width adjustment with a saved per-browser width.
+
+## HUD theme tokens
+
+The HUD follows the map style. `src/game/theme.ts` is the single source of HUD colors.
+`hudTokens()` turns the active style's `hud` materials, plus the shared status, accent and
+gauge colors, into CSS variables. They are set on `<html>` before the first render and again
+whenever the palette toggles. The stylesheet (`src/index.css`, one FTL chrome layer) derives
+only translucent variants with `color-mix()`.
+
+- Night Shift keeps its cool gray frames. Warm Flight Deck uses warm plating frames around
+  charcoal wells.
+- Materials change per style. Status colors, the one "done / healthy / selected" green and the
+  gauge ramp never do.
+- Context-left bars and host CPU/RAM meters use their own gauge ramp (green → amber → rose).
+  A full context or a busy host never borrows the approval red or question yellow.
+- Add a new style's chrome by giving it a `hud` block in `src/art/palettes.ts`. `theme.test.ts`
+  fails if the stylesheet reads an undefined variable or redeclares a generated color.

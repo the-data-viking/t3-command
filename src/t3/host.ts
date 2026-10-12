@@ -1,3 +1,5 @@
+import { GAUGE, loadLevel } from "../game/theme";
+
 export interface HostResources {
   sampledAt: number;
   cpuUtilization: number | null;
@@ -13,8 +15,8 @@ export interface HostState {
   history: HostResources[];
 }
 
-const utilizationColor = (fraction: number | undefined) => fraction === undefined ? 0x59626c
-  : fraction >= 0.95 ? 0xff4655 : fraction >= 0.85 ? 0xffd23f : 0x59e1ff;
+// Host load uses the gauge ramp, never the approval/question status colors.
+const utilizationColor = (fraction: number | undefined) => fraction === undefined ? GAUGE.unknown : GAUGE[loadLevel(fraction)];
 
 export function hostView(state: HostState | undefined, connection: string, now = Date.now()) {
   const s = state?.snapshot;

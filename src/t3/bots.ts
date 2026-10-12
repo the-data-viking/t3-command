@@ -16,7 +16,7 @@ export const BOT_STATE_LABELS: Record<UnitState, string> = {
   alert: 'Needs approval', question: 'Has a question', working: 'Working', error: 'Turn failed',
   monitoring: 'Monitoring', done: 'Report ready', idle: 'On call', sleeping: 'On call',
 };
-export const HERMES_COLOR = 0xd6c09c;
+export { HERMES_COLOR } from '../game/theme';
 export function botColor(profile: string): number {
   let hash = 0;
   for (const ch of profile) hash = Math.imul(hash, 31) + ch.charCodeAt(0) | 0;

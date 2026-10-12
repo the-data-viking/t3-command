@@ -4,6 +4,7 @@ import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from ".
 import type { UsageState } from "./t3/usage";
 import type { HostState } from "./t3/host";
 import type { HermesBot } from "../shared/hermes";
+import { applyHudTheme } from "./game/theme";
 
 export type Connection = "connecting" | "live" | "reconnecting" | "needs-pairing" | "needs-update" | "offline";
 
@@ -82,7 +83,7 @@ export function setArtStyle(artStyle: ArtStyle): void {
   } catch {
     // Per-browser convenience only.
   }
-  document.documentElement.dataset.art = artStyle;
+  applyHudTheme(artStyle);
   useGame.setState({ artStyle });
 }
 

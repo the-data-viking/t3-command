@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hostView, type HostResources } from "./host";
+import { GAUGE, STATUS } from "../game/theme";
 
 const snapshot: HostResources = { sampledAt: 100_000, cpuUtilization: 0, cpuCount: 8, availableMemoryBytes: 20, totalMemoryBytes: 100 };
 
@@ -31,9 +32,11 @@ test("invalid host readings are unavailable and CPU and RAM share utilization th
   for (const [availableMemoryBytes, totalMemoryBytes] of [[-1, 100], [101, 100], [0, 0], [10, Infinity], [NaN, 100]]) {
     assert.equal(hostView({ snapshot: { ...snapshot, availableMemoryBytes, totalMemoryBytes }, history: [] }, "live", 100_000).memoryFraction, undefined);
   }
-  for (const [cpuUtilization, availableMemoryBytes, color] of [[0.84, 16, 0x59e1ff], [0.85, 15, 0xffd23f], [0.95, 5, 0xff4655]]) {
+  for (const [cpuUtilization, availableMemoryBytes, color] of [[0.84, 16, GAUGE.ok], [0.85, 15, GAUGE.high], [0.95, 5, GAUGE.critical]]) {
     const view = hostView({ snapshot: { ...snapshot, cpuUtilization, availableMemoryBytes }, history: [] }, "live", 100_000);
     assert.equal(view.cpuColor, color);
     assert.equal(view.memoryColor, color);
+    // A busy host must never look like an approval or a question.
+    assert.ok(color !== STATUS.alert && color !== STATUS.question);
   }
 });
