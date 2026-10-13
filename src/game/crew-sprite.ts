@@ -14,7 +14,7 @@ import { CrewMotion } from "./crew-motion";
 import { quietness } from "../t3/progress";
 import { crewTex, PX, tex } from "./textures";
 import { contextLevel, GAUGE, HUD, hudMaterials, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
-import { label, hash, truncate, STRATEGIC_ZOOM, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES } from "./map-common";
+import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale } from "./map-common";
 
 // ---- Crew ------------------------------------------------------------------------------
 
@@ -194,8 +194,10 @@ export class CrewSprite extends Container {
     this.position.set(Math.round(this.pos.x / PX) * PX, Math.round(this.pos.y / PX) * PX);
     this.zIndex = this.pos.y;
 
-    const boost = zoom < STRATEGIC_ZOOM ? Math.min(2, STRATEGIC_ZOOM / zoom) : 1;
+    const boost = figureBoost(zoom, PX);
     this.scale.set(boost);
+    // The name stays on whole screen pixels per font pixel too.
+    this.nameText.scale.set(crispScale(this.nameText.unit, zoom * boost));
 
     const visor = PROVIDER_VISOR[this.thread.modelSelection.instanceId] ?? 0x9fb3d1;
     if (resting) {

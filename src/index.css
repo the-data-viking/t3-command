@@ -513,6 +513,9 @@ code {
 /* Crew portraits are their map sprite, kept pixel-crisp. */
 .portrait.sprite-portrait { display: grid; place-items: end center; overflow: hidden; }
 .crew-portrait { display: block; image-rendering: pixelated; }
+/* The map renders one backing pixel per CSS pixel; on 2× and 3× screens the browser scales it up.
+   Without this it smooths the art into blur. */
+.map canvas, .minimap canvas { image-rendering: pixelated; }
 .pixel-icon { display: inline-block; vertical-align: -2px; flex: none; }
 
 .portrait.building {
