@@ -32,7 +32,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
-import { FLEET_VIEW_ZOOM, linkPath, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval } from "./map-common";
+import { FLEET_VIEW_ZOOM, linkPath, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { StationSprite } from "./station-sprite";
@@ -709,6 +709,32 @@ export class World {
     this.app.stage.addChild(this.fade);
   }
 
+  /**
+   * A room's ceiling strip, in the world's lamp colour: lit with a dithered bloom falling from it,
+   * dark when the room is, or catching for a frame in a brownout.
+   */
+  private ceilingLight(g: Graphics, r: { x: number; y: number; w: number; h: number }, mode: "on" | "off" | "flicker"): void {
+    const style = currentStyle();
+    const lamp = style.light ?? 0xe8f0f8;
+    const y0 = r.y + 2;
+    // Tubes of 20 px with gaps, centred along the ceiling.
+    const count = Math.max(1, Math.floor((r.w - 12) / 28));
+    const x0 = r.x + Math.round((r.w - (count * 28 - 8)) / 4) * 2;
+    for (let k = 0; k < count; k++) {
+      const x = x0 + k * 28;
+      if (mode === "off") { g.rect(x, y0, 20, 2).fill(style.colors.k); continue; }
+      g.rect(x, y0, 20, 2).fill(mode === "flicker" ? { color: lamp, alpha: 0.5 } : lamp);
+      if (mode === "flicker") continue;
+      // Bloom: three rows of 2-px cells fanning out below each tube, each sparser and fainter.
+      for (let row = 0; row < 3; row++) {
+        for (let cx = x - 2 - row * 2; cx < x + 22 + row * 2; cx += 2) {
+          if ((cx / 2 + row) % (row + 2) !== 0) continue;
+          g.rect(cx, y0 + 2 + row * 2, 2, 2).fill({ color: lamp, alpha: 0.28 - row * 0.08 });
+        }
+      }
+    }
+  }
+
   // ---- Frame ----
 
   private tick(dt: number): DrawResult {
@@ -868,6 +894,8 @@ export class World {
     // Unlit rooms are multiplied by the theme's own dim tone, not veiled in black.
     const shade = this.shade.clear();
     const dim = shadeColor(currentStyle().colors.F ?? 0x404040);
+    const offline = new Set([...this.layout.stations.values()]
+      .filter((s) => s.members.length && s.members.every((m) => state.envs[m.envId]?.connection !== "live")).map((s) => s.key));
     for (const s of this.layout.stations.values()) {
       const u = stationUse.get(s.key);
       const bridge = s.rooms.bridge?.rect;
@@ -877,6 +905,9 @@ export class World {
         if (!room) continue;
         const lit = kind === "bridge" ? onDuty.has(s.key) : kind === "terminal" || kind === "files" || kind === "comms" ? !!u?.[kind] : false;
         const r = room.rect;
+        // A brownout on a station whose machines have all dropped off: its lamps catch now and then.
+        const flicker = !lit && kind === "bridge" && offline.has(s.key) && !reducedMotion() && hash(`${s.key}:${frame}`) > 0.86;
+        this.ceilingLight(g, r, lit ? "on" : flicker ? "flicker" : "off");
         if (!lit) { shade.rect(r.x, r.y, r.w, r.h).fill(dim); continue; }
         if (kind === "bridge") continue;
         // Screen light spilling from the system's fixture into its room, dithered.

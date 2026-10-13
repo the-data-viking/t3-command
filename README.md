@@ -123,6 +123,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   in an owner-only file. Messages about what this browser did (recruits, errors, quiet turns it
   noticed) stay in this browser. **Clear** hides the log in this browser only. Click an entry to
   jump to its crew member.
+- **Light**: every room has ceiling tubes in its world's lamp colour (cold fluorescent for Night
+  Shift, warm white by day, sodium for Kestrel, candy pink for Pastel), lit with a dithered bloom
+  while the room is in use and dark otherwise. A station whose machines have all dropped off
+  browns out: its bridge lamps catch now and then.
 - **Screens**: a crew member writing at their console types lines that scroll, with a blinking
   cursor; a terminal in use runs a prompt over scrolling output; a console waiting on you or
   reporting back shows its status shape (▲ ◆ ✓ ✕) dark on the lit screen, matching the badges.
