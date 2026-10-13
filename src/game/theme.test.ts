@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { DEFAULT_VISOR, GAUGE, hudMaterials, hudTokens, PROVIDER_VISOR, STATUS, TEAM_COLORS } from "./theme";
 import { BADGES } from "./map-common";
 import { ART_STYLES } from "../store";
+import { STYLES } from "../art/palettes";
 
 const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const stylesheet = fs.readFileSync(path.join(src, "index.css"), "utf8");
@@ -172,4 +173,19 @@ test("each status badge has its own silhouette, matching its fleet-view glyph", 
   const alert = widths("alert"), question = widths("question");
   assert.ok(alert[0] < alert[4] && alert[4] < alert[8], "approval is a ▲, widening downward");
   assert.ok(question[4] === Math.max(...question) && question[0] < question[4] && question[8] < question[4], "question is a ◆, widest in the middle");
+});
+
+test("every theme is its own place: no two share a HUD or a map, and Hermes stands out from each frame", () => {
+  const hud = (id: (typeof LIVE_STYLES)[number]) => { const t = hudTokens(id); return ["--surface", "--frame", "--slot"].map((n) => hex(t[n])); };
+  const map = (id: (typeof LIVE_STYLES)[number]) => ["H", "f", "p"].map((code) => STYLES[id].colors[code]);
+  for (const [i, a] of LIVE_STYLES.entries()) for (const b of LIVE_STYLES.slice(i + 1)) {
+    const hudGap = Math.max(...hud(a).map((c, k) => deltaE(c, hud(b)[k])));
+    const mapGap = Math.max(...map(a).map((c, k) => deltaE(c, map(b)[k])));
+    assert.ok(hudGap >= 20, `${a} and ${b} HUDs are near-duplicates (max ΔE ${hudGap.toFixed(1)})`);
+    assert.ok(mapGap >= 20 || a === "flightdeck-nightshift" && b === "highcontrast" || hudGap >= 40, `${a} and ${b} maps are near-duplicates (max ΔE ${mapGap.toFixed(1)})`);
+  }
+  for (const id of LIVE_STYLES) {
+    const t = hudTokens(id);
+    assert.ok(deltaE(hex(t["--hermes"]), hex(t["--frame"])) >= 25, `${id}: Hermes tan blends into the frame`);
+  }
 });

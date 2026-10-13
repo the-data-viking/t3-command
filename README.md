@@ -163,11 +163,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
 
 The map uses compact suited crew and wraparound system consoles. The theme button (showing a tiny
 scene in the current theme) opens a picker with a rendered preview of each theme: Night Shift (the
-default), Kestrel (the warm FTL hull, with a brass-and-leather HUD over warm space), Signal (ink-blue decks
-and ceramic plating), Pastel Ops and High Contrast. Each theme recolors the map and brings its own
-HUD chrome: bevelled corners for Night Shift and Kestrel, rounded for Signal and Pastel, square for
-High Contrast. Pastel has a light cream HUD to match its decks. Status and gauge colors keep their
-meaning everywhere; on the light HUD they're deepened so they stay readable. High Contrast uses black
+default, a graveyard-shift engineering bay), Kestrel (the warm FTL hull: walnut decks under a
+bronze-and-leather HUD), Signal (a daylight ops room: a cool slate-and-white HUD over porcelain
+hulls), Pastel Ops (a warm cream HUD over dusk space) and High Contrast. Hovering a theme previews
+its HUD. Each theme recolors the map and brings its own HUD chrome: bevelled corners for Night
+Shift and Kestrel, rounded for Signal and Pastel, square for High Contrast. Status and gauge colors
+keep their meaning everywhere; on the light HUDs (Signal, Pastel) they're hand-tuned darker so they
+stay readable. High Contrast uses black
 space, white frames and text, and light hulls on dark floors. It is chosen automatically if your
 system asks for more contrast and you haven't picked a theme yet. Switching crossfades the map,
 except under reduced motion. Earlier saved preferences carry over (a saved Kestrel becomes Kestrel).

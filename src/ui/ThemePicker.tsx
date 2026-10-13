@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { STYLES } from "../art/palettes";
-import { css, hudMaterials } from "../game/theme";
+import { applyHudTheme, css, hudMaterials } from "../game/theme";
 import { ART_STYLES, setArtStyle, useGame } from "../store";
 import { themeThumbnail } from "./theme-thumbnail";
 import { THEME_NAMES } from "./themes";
@@ -10,6 +10,11 @@ export function ThemePicker() {
   const artStyle = useGame((s) => s.artStyle);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+
+  // Hovering or focusing a theme previews its HUD; leaving the menu puts the chosen one back.
+  useEffect(() => {
+    if (!open) applyHudTheme(artStyle);
+  }, [open, artStyle]);
 
   useEffect(() => {
     if (!open) return;
@@ -27,12 +32,13 @@ export function ThemePicker() {
         <img className="theme-icon" src={themeThumbnail(artStyle)} alt="" width={26} height={15} draggable={false} /><span className="phone-label">{THEME_NAMES[artStyle]}</span>
       </button>
       {open && (
-        <div className="theme-list hud-frame" role="menu" aria-label="Theme">
+        <div className="theme-list hud-frame" role="menu" aria-label="Theme" onPointerLeave={() => applyHudTheme(artStyle)}>
           {ART_STYLES.map((id) => {
             const style = STYLES[id];
             const m = hudMaterials(id);
             return (
               <button key={id} role="menuitemradio" aria-checked={artStyle === id} className={`theme-option ${artStyle === id ? "active" : ""}`}
+                onPointerEnter={() => applyHudTheme(id)} onFocus={() => applyHudTheme(id)}
                 onClick={() => { setArtStyle(id); setOpen(false); }}>
                 <img className="theme-thumb" src={themeThumbnail(id)} alt="" width={104} height={60} draggable={false} style={{ outline: `2px solid ${css(m.frame)}` }} />
                 <span className="theme-option-text"><span>{THEME_NAMES[id]}</span><span className="muted small">{style.blurb}</span></span>

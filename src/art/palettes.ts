@@ -63,12 +63,12 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   flightdeck: {
     id: "flightdeck", name: "Kestrel",
     mapInk: { text: 0xf1e6d0, muted: 0xb9a88c },
-    blurb: "FTL's warm hull: ivory and stone plating with copper details, a brass-and-leather HUD, over warm space.",
+    blurb: "FTL's warm hull: ivory plating on walnut decks, under a bronze-and-leather HUD.",
     // Warm space: a brown-black void, so the ivory hull reads warm against it.
     space: 0x110d0b, wall: 0x1f1813,
-    // Leather and brass: brass frames, oiled-leather panels and wells, cream text.
+    // Leather and bronze: bronze frames (well clear of Hermes tan), oiled-leather panels, cream text.
     hud: {
-      frame: 0xd9b77a, ink: 0x1a120b, surface: 0x2a2018, deep: 0x18120d, slot: 0x211912,
+      frame: 0xc28e52, ink: 0x1a120b, surface: 0x2a2018, deep: 0x18120d, slot: 0x211912,
       edge: 0x4a3a2a, edgeStrong: 0x6a5238, control: 0x3a2c1f, meter: 0x4a3a2a, bright: 0xfbf0d8,
       text: 0xf1e6d0, muted: 0xb9a88c,
       chrome: { corner: "bevel", radius: 6, width: 3 },
@@ -76,26 +76,37 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     colors: {
       k: 0x19212a, w: 0xf6eedc, W: 0xd7d3c4, s: 0x919c9b,
       G: 0x44515c, g: 0x73818b, h: 0xd7d3bc, H: 0xadb3ad, D: 0x6c7b80,
-      m: 0xb99a75, M: 0x756c61, f: 0xbcb8a5, F: 0x9f9d8b,
-      p: 0x85999f, P: 0x6d838d, q: 0xb6a690, Q: 0x988875,
+      // Walnut decks: dark enough that status lights and white suits read on them (the old pale
+      // decks held statuses at 1–2:1 and made Kestrel look like Pastel).
+      m: 0xb99a75, M: 0x756c61, f: 0x3b342c, F: 0x2f2a24,
+      p: 0x313c41, P: 0x283135, q: 0x4a3d32, Q: 0x3b3128,
       a: 0xf0a33a, r: 0xff4655, n: 0x5dff9a, c: 0x59e1ff, b: 0x527589,
     },
   },
   signal: {
     id: "signal",
     name: "Signal",
-    blurb: "A palette on the Flight Deck kit: ink-blue decks, ceramic plating and copper trim.",
+    blurb: "A daylight ops room: a cool slate-and-white HUD over porcelain hulls and ink-blue decks.",
     space: 0x0b1423,
     wall: 0x101c2a,
-    // Ceramic frames around ink-blue wells.
+    // The cool light HUD, counterpart to Pastel's warm one: slate frames on pale panels.
     hud: {
-      frame: 0xe1d5b9, ink: 0x101c2a, surface: 0x112032, deep: 0x0a1422, slot: 0x0e1a2a,
-      edge: 0x2a3d52, edgeStrong: 0x3a5068, control: 0x1a2b3f, meter: 0x2a3a4c, bright: 0xf9edcd,
+      frame: 0x2a3540, ink: 0xf3f6f8, surface: 0xe9eef1, deep: 0xdde4e9, slot: 0xf7f9fa,
+      edge: 0xc3ced6, edgeStrong: 0x9aabb8, control: 0xdfe6eb, meter: 0xcfd8df, bright: 0x0f1d2a,
+      text: 0x1d2b38, muted: 0x4f6070, light: true,
       chrome: { corner: "round", radius: 12, width: 2 },
+      plating: { surface: 0x112032, slot: 0x0e1a2a, edge: 0x2a3d52, edgeStrong: 0x3a5068, control: 0x1a2b3f },
+      // Status on pale slate, each at least 4.5:1 on every panel and well apart from each other.
+      tokens: {
+        alert: 0xb3243a, question: 0x765300, working: 0x0b6589, monitoring: 0x6a43b8, error: 0x9a3e0b,
+        done: 0x166b3d, idle: 0x56606d, sleeping: 0x5a6272,
+        "gauge-ok": 0x166b3d, "gauge-high": 0x855300, "gauge-critical": 0x9c2486, hermes: 0x6e5a48,
+      },
     },
     colors: {
       k: 0x101c2a, w: 0xf9edcd, W: 0xe1d5b9, s: 0x9daba9,
-      G: 0x33485b, g: 0x627d8b, h: 0xf0dfb9, H: 0xc3bfa7, D: 0x788c92,
+      // Porcelain hull (cool white-blue), well clear of Hermes tan.
+      G: 0x33485b, g: 0x627d8b, h: 0xe3ebf0, H: 0xc6d4dc, D: 0x8a9ba6,
       m: 0xd4a07a, M: 0x956e59, f: 0x3a4b5a, F: 0x2f3e4b,
       p: 0x2d4659, P: 0x23384a, q: 0x958474, Q: 0x7b6a5f,
       a: 0xf0a33a, r: 0xff4655, n: 0x5dff9a, c: 0x59e1ff, b: 0x486986,
@@ -142,7 +153,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     id: "pastel",
     mapInk: { text: 0xf6efe4, muted: 0xc9b8d4 },
     name: "Pastel Ops",
-    blurb: "A cozier, brighter take: cream decks, soft plum outlines, candy accents.",
+    blurb: "Cozy candy ops: a warm cream HUD and soft plum outlines over dusk space.",
     space: 0x2a2140,
     wall: 0x4a3a52,
     // A light HUD to match the cream decks: plum frames around cream panels, plum ink.
@@ -172,10 +183,10 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       D: 0xae957f,
       m: 0xcad7db,
       M: 0x92a7ae,
-      f: 0xeee7d8,
-      F: 0xd7ccb7,
-      p: 0xc8dadd,
-      P: 0xaabfc6,
+      f: 0xd8cdbd,
+      F: 0xc3b6a2,
+      p: 0xb0c3c9,
+      P: 0x97abb3,
       q: 0xe8d4c1,
       Q: 0xcdb5a4,
       a: 0xffb35c,
@@ -189,7 +200,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     id: "highcontrast",
     mapInk: { text: 0xffffff, muted: 0xc8ced6, line: 0xd0d0d0 },
     name: "High Contrast",
-    blurb: "Black space and wells, white frames and text, light hulls with black outlines, dark floors so crew stand out.",
+    blurb: "Maximum legibility: black wells, white frames and text, light hulls on the darkest decks.",
     space: 0x000000,
     wall: 0x000000,
     hud: {
@@ -203,8 +214,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     colors: {
       k: 0x000000, w: 0xffffff, W: 0xe8e8e8, s: 0xa8a8a8,
       G: 0x3c3c3c, g: 0x9a9a9a, h: 0xf0f0f0, H: 0xc8c8c8, D: 0x6a6a6a,
-      m: 0xd8d8d8, M: 0x7a7a7a, f: 0x262a30, F: 0x101317,
-      p: 0x1e2a36, P: 0x0e151c, q: 0x2e2620, Q: 0x16110d,
+      m: 0xd8d8d8, M: 0x7a7a7a, f: 0x1a1d22, F: 0x101317,
+      p: 0x141c25, P: 0x0e151c, q: 0x2e2620, Q: 0x16110d,
       a: 0xffb000, r: 0xff3b4d, n: 0x3dff8a, c: 0x40e0ff, b: 0x3f8fff,
     },
   },
@@ -216,7 +227,7 @@ export const STYLES: Record<StyleId, Style> = {
   "flightdeck-nightshift": {
     ...BASE_STYLES.nightshift,
     id: "flightdeck-nightshift",
-    name: "Flight Deck · Night Shift",
-    blurb: "The default: dark industrial decks lit amber and cyan, in the spirit of StarNet.",
+    name: "Night Shift",
+    blurb: "The default: a graveyard-shift engineering bay, graphite decks under cool grey frames.",
   },
 };
