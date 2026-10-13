@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { announceStorage, freeLabel, storageSummary } from "./storage";
-import { useGame } from "../store";
 import { GAUGE } from "../game/theme";
 import type { StorageView } from "../../shared/storage";
 
@@ -30,17 +29,17 @@ test("free space reads short on the deck plate", () => {
 });
 
 test("only a machine getting worse is announced, and never on first load", () => {
-  useGame.setState({ log: [] });
   const now = Date.now();
   const fresh = (gb: number) => view(gb, now);
-  announceStorage({}, [fresh(2)], true);
-  assert.equal(useGame.getState().log.length, 0);
-  announceStorage({ e1: fresh(50) }, [fresh(12)], false);
-  announceStorage({ e1: fresh(12) }, [fresh(11)], false);
-  announceStorage({ e1: fresh(11) }, [fresh(3)], false);
-  announceStorage({ e1: fresh(3) }, [fresh(40)], false);
-  announceStorage({ e1: fresh(40) }, [view(3)], false);
-  assert.deepEqual(useGame.getState().log.map((l) => l.text), [
+  const said = [
+    ...announceStorage({}, [fresh(2)], true),
+    ...announceStorage({ e1: fresh(50) }, [fresh(12)], false),
+    ...announceStorage({ e1: fresh(12) }, [fresh(11)], false),
+    ...announceStorage({ e1: fresh(11) }, [fresh(3)], false),
+    ...announceStorage({ e1: fresh(3) }, [fresh(40)], false),
+    ...announceStorage({ e1: fresh(40) }, [view(3)], false),
+  ];
+  assert.deepEqual(said, [
     "A machine disk running low: 12GB free on /",
     "A machine disk nearly full: 3.0GB free on /",
   ]);

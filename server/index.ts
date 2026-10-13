@@ -16,6 +16,8 @@ import { Updater, UpdateConflict } from "./updater.ts";
 import { TurnHistory } from "./history.ts";
 import { HistoryRecorder } from "./history-recorder.ts";
 import { StorageMonitor } from "./storage.ts";
+import { CommsLog } from "./comms.ts";
+import { HostHistoryRecorder } from "./host-history.ts";
 import { HISTORY_RETENTION_DAYS } from "../shared/history.ts";
 
 const config = loadConfig();
@@ -38,9 +40,23 @@ function hermesBridge(envId: string, workspaceRoot: string): Promise<HermesBridg
 const history = new TurnHistory(config.dataDir);
 await history.load();
 const recorder = new HistoryRecorder(registry, history, hermesBridge);
+// The fleet comms log, shared by every browser.
+const comms = new CommsLog(config.dataDir);
+await comms.load();
+recorder.listen({
+  observe: (envId, threads) => comms.observe(envId, threads),
+  connected: (envId, label) => comms.connected(envId, label),
+  disconnected: (envId, label) => comms.disconnected(envId, label),
+  removed: (envId) => comms.forget(envId),
+});
+setInterval(() => void comms.prune().catch((err) => console.warn("[comms] prune failed", (err as Error).message)), 6 * 3_600_000).unref();
 recorder.start();
+// Whole-host CPU/RAM history per machine.
+const hostHistory = new HostHistoryRecorder(config.dataDir, registry, recorder);
+await hostHistory.load();
+hostHistory.start();
 // Disk usage per machine, for the engineering decks.
-const storage = new StorageMonitor(config.dataDir, registry, recorder);
+const storage = new StorageMonitor(config.dataDir, registry, recorder, comms);
 await storage.load();
 storage.start();
 
@@ -175,6 +191,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return sendJson(res, 200, history.summary(days, timeZone));
   }
   if (pathname === "/api/storage" && method === "GET") return sendJson(res, 200, storage.views());
+  if (pathname === "/api/comms/stream" && method === "GET") return comms.stream(req, res);
+  if (pathname === "/api/hosts/history" && method === "GET") {
+    const params = new URL(req.url ?? "/", "http://localhost").searchParams;
+    const envId = params.get("envId") ?? "";
+    const hours = Number(params.get("hours") ?? 24);
+    if (!registry.get(envId)) return sendJson(res, 404, { error: "Unknown environment" });
+    if (!Number.isFinite(hours) || hours <= 0 || hours > 168) return sendJson(res, 400, { error: "hours must be 1–168" });
+    return sendJson(res, 200, hostHistory.history(envId, hours));
+  }
   if (pathname === "/api/update" && method === "GET") return sendJson(res, 200, await updater.status());
   if ((pathname === "/api/update" || pathname === "/api/update/check") && method === "POST") {
     const body = await readJson<unknown>(req);
@@ -368,6 +393,8 @@ server.listen(config.port, config.host, () => {
 async function shutdown(): Promise<void> {
   storage.stop();
   await recorder.stop();
+  await hostHistory.stop();
+  await comms.flush();
   await Promise.all([...hermesBridges.values()].map(async (bridge) => (await bridge).close()));
   process.exit(0);
 }

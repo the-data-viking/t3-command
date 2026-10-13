@@ -56,7 +56,7 @@ export function CommsLog() {
     <section className="comms-log hud-frame" aria-label="Comms log">
       <div className="hud-label">COMMS LOG</div>
       <header className="comms-log-head">
-        <span className="muted small">{log.length} event{log.length === 1 ? "" : "s"} · kept in this browser</span>
+        <span className="muted small">{log.length} event{log.length === 1 ? "" : "s"} · shared by every device, kept 30 days</span>
         <span className="spacer" />
         <button className="btn small" disabled={!log.length} onClick={clearLog}>Clear</button>
         <button className="icon-btn" aria-label="Close comms log" onClick={() => useGame.setState({ showLog: false })}>✕</button>

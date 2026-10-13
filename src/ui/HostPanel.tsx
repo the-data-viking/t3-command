@@ -4,7 +4,7 @@ import { envClient, logError } from "../t3/environment";
 import { gib, hostView } from "../t3/host";
 import { providerVersions, type ProviderVersion } from "../t3/providers";
 import { sfx } from "../game/sfx";
-import { BarChart } from "./BarChart";
+import { HostHistoryChart } from "./HostHistoryChart";
 import { ScratchBay } from "./ScratchBay";
 import { StorageSection } from "./StorageSection";
 import { useClock } from "./useClock";
@@ -15,7 +15,6 @@ export function HostPanel({ envId }: { envId: string }) {
   const now = useClock();
   const view = hostView(host, env?.connection ?? "offline", now);
   const s = view.snapshot;
-  const points = host?.history.filter((h) => hostView({ snapshot: h, history: [] }, "live", now).cpuFraction !== undefined && now - h.sampledAt < 20 * 60_000) ?? [];
   return (
     <aside className="panel host-panel" aria-label="Engineering host resources">
       <header className="panel-head">
@@ -32,9 +31,9 @@ export function HostPanel({ envId }: { envId: string }) {
           <div className="host-stat"><span>RAM used</span><strong>{view.memoryFraction === undefined ? "Unavailable" : `${Math.round(view.memoryFraction * 100)}%`}</strong></div>
           {view.memoryFraction !== undefined && <meter min={0} max={100} low={85} high={95} optimum={0} value={view.memoryFraction * 100} aria-label="RAM used percentage" />}
           {view.memoryFraction !== undefined && <p className="muted small">{gib(s.totalMemoryBytes - s.availableMemoryBytes)} of {gib(s.totalMemoryBytes)} used · {gib(s.availableMemoryBytes)} available</p>}
-          {points.length > 1 && <>
-            <h3>Observed CPU load</h3>
-            <BarChart label="CPU samples from this browser, up to 20 minutes" ceiling={100} points={points.map((p) => ({ label: new Date(p.sampledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), value: p.cpuUtilization! * 100, detail: `${new Date(p.sampledAt).toLocaleTimeString()}: ${Math.round(p.cpuUtilization! * 100)}% CPU` }))} />
+          {env?.summary.kind !== "hermes" && <>
+            <h3>CPU and RAM history</h3>
+            <HostHistoryChart envId={envId} />
           </>}
           <p className="muted small">Sampled {new Date(s.sampledAt).toLocaleTimeString()} · refreshes every 10 seconds while visible.</p>
         </>}

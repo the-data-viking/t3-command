@@ -2,7 +2,7 @@
 // latest readings and speaks up when a machine's disk crosses into low or critical.
 
 import { diskLevel, tightestVolume, type DiskVolume, type StorageView } from "../../shared/storage";
-import { addLog, useGame } from "../store";
+import { useGame } from "../store";
 import { GAUGE } from "../game/theme";
 import { fetchJson } from "./environment";
 
@@ -36,20 +36,25 @@ export function freeLabel(bytes: number): string {
 
 const RANK = { unknown: 0, ok: 0, high: 1, critical: 2 } as const;
 
-/** Log (and, if enabled, notify) when a machine's disk gets worse; quiet on the first load. */
-export function announceStorage(prev: Record<string, StorageView>, next: StorageView[], first: boolean): void {
-  if (first) return;
+/**
+ * A desktop notification (if enabled) when a machine's disk gets worse; quiet on the first load.
+ * The comms line comes from the Command server. Returns the texts announced.
+ */
+export function announceStorage(prev: Record<string, StorageView>, next: StorageView[], first: boolean): string[] {
+  const announced: string[] = [];
+  if (first) return announced;
   for (const view of next) {
     const before = storageSummary(prev[view.envId]);
     const after = storageSummary(view);
     if (after.stale || RANK[after.level] <= RANK[before.level] || !after.volume) continue;
     const machine = useGame.getState().envs[view.envId]?.summary.label ?? "A machine";
     const text = `${machine} disk ${after.level === "critical" ? "nearly full" : "running low"}: ${freeLabel(after.volume.availableBytes)}B free on ${after.volume.mount}`;
-    addLog({ tone: "alert", text, envId: view.envId });
+    announced.push(text);
     if (useGame.getState().notify && typeof Notification !== "undefined" && Notification.permission === "granted") {
       new Notification(after.level === "critical" ? "Disk nearly full" : "Disk running low", { body: text, tag: `disk:${view.envId}` });
     }
   }
+  return announced;
 }
 
 let loaded = false;
