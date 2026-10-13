@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useGame } from "../store";
 import { fleetSpend, formatSpend, historyWindow, todayWindow } from "../t3/usage";
 import { BarChart } from "./BarChart";
+import { PixelMeter } from "./PixelArt";
 import { useClock } from "./useClock";
 
 export function SpendTelemetry() {
@@ -50,7 +51,7 @@ export function SpendTelemetry() {
         </>}
         {spend.cacheAvailable && <div className="spend-cache">
           <div className="spend-station-head"><strong>Today's input cached</strong><span>{spend.inputTokens > 0 ? `${Math.round(spend.cachedInputTokens / spend.inputTokens * 100)}%` : "No input yet"}</span></div>
-          {spend.inputTokens > 0 && <meter min={0} max={100} value={spend.cachedInputTokens / spend.inputTokens * 100} aria-label="Cached input share today" />}
+          {spend.inputTokens > 0 && <PixelMeter value={spend.cachedInputTokens / spend.inputTokens} label="Cached input share today" />}
           <p className="muted small">{formatSpend(spend.cacheSavingsUsd)} estimated API-equivalent cache savings{spend.partial ? " · partial coverage" : ""}.</p>
         </div>}
         {spend.rows.length === 0 && <p className="muted">No stations connected.</p>}

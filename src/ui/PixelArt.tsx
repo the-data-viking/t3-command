@@ -67,3 +67,17 @@ export function PixelLabel({ text, scale = 2 }: { text: string; scale?: number }
     </span>
   );
 }
+
+/**
+ * A segmented pixel bar for a 0–1 reading, like the roster's context bar: lit segments in the
+ * gauge colour for its level (or the frame colour), the rest in the empty-meter colour.
+ */
+export function PixelMeter({ value, level = "neutral", label, segments = 20 }: { value: number; level?: "ok" | "high" | "critical" | "neutral"; label: string; segments?: number }) {
+  const v = Math.max(0, Math.min(1, value));
+  const lit = Math.round(v * segments);
+  return (
+    <span className="pixel-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(v * 100)} aria-label={label}>
+      {Array.from({ length: segments }, (_, i) => <i key={i} className={i < lit ? level : undefined} />)}
+    </span>
+  );
+}

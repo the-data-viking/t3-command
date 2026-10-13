@@ -2,6 +2,7 @@ import { diskLevel, gb, type StorageView } from "../../shared/storage";
 import { useGame } from "../store";
 import { storageSummary } from "../t3/storage";
 import { BarChart } from "./BarChart";
+import { PixelMeter } from "./PixelArt";
 
 const BUCKET_MS = 6 * 3_600_000;
 const SHOWN = 8;
@@ -44,7 +45,7 @@ export function StorageSection({ envId, now }: { envId: string; now: number }) {
       return (
         <div key={v.mount} className="storage-volume">
           <div className="host-stat"><span title={v.mount}>Disk {v.mount}</span><strong className={level === "ok" ? undefined : `gauge-${level}`}>{Math.round(used * 100)}%</strong></div>
-          <meter min={0} max={100} low={85} high={95} optimum={0} value={used * 100} aria-label={`Disk ${v.mount} used percentage`} />
+          <PixelMeter value={used} level={level} label={`Disk ${v.mount} used percentage`} />
           <p className="muted small">{gb(v.availableBytes)} free of {gb(v.totalBytes)}{level === "critical" ? " · nearly full" : level === "high" ? " · running low" : ""}</p>
         </div>
       );

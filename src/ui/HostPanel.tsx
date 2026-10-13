@@ -5,6 +5,8 @@ import { gib, hostView } from "../t3/host";
 import { providerVersions, type ProviderVersion } from "../t3/providers";
 import { sfx } from "../game/sfx";
 import { HostHistoryChart } from "./HostHistoryChart";
+import { PixelMeter } from "./PixelArt";
+import { loadLevel } from "../game/theme";
 import { ScratchBay } from "./ScratchBay";
 import { StorageSection } from "./StorageSection";
 import { useClock } from "./useClock";
@@ -26,10 +28,10 @@ export function HostPanel({ envId }: { envId: string }) {
         {!s && <p className="muted">{host?.error ?? "Loading host resources…"}</p>}
         {s && <>
           <div className="host-stat"><span>CPU load</span><strong>{view.cpuFraction === undefined ? "Unavailable" : `${Math.round(view.cpuFraction * 100)}%`}</strong></div>
-          {view.cpuFraction !== undefined && <meter min={0} max={100} low={85} high={95} optimum={0} value={view.cpuFraction * 100} aria-label="Whole-host CPU utilization" />}
+          {view.cpuFraction !== undefined && <PixelMeter value={view.cpuFraction} level={loadLevel(view.cpuFraction)} label="Whole-host CPU utilization" />}
           <p className="muted small">Across {s.cpuCount} logical processors</p>
           <div className="host-stat"><span>RAM used</span><strong>{view.memoryFraction === undefined ? "Unavailable" : `${Math.round(view.memoryFraction * 100)}%`}</strong></div>
-          {view.memoryFraction !== undefined && <meter min={0} max={100} low={85} high={95} optimum={0} value={view.memoryFraction * 100} aria-label="RAM used percentage" />}
+          {view.memoryFraction !== undefined && <PixelMeter value={view.memoryFraction} level={loadLevel(view.memoryFraction)} label="RAM used percentage" />}
           {view.memoryFraction !== undefined && <p className="muted small">{gib(s.totalMemoryBytes - s.availableMemoryBytes)} of {gib(s.totalMemoryBytes)} used · {gib(s.availableMemoryBytes)} available</p>}
           {env?.summary.kind !== "hermes" && <>
             <h3>CPU and RAM history</h3>
