@@ -843,7 +843,20 @@ export class World {
         const glow = kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.working;
         lightSpill(g, r.x + r.w * 0.3, r.y + r.h - 30, glow);
       }
-      if (bridge && u?.attention) g.rect(bridge.x, bridge.y, bridge.w, bridge.h).fill({ color: STATUS.alert, alpha: 0.1 + (frame % 2) * 0.08 });
+      if (bridge && u?.attention) {
+        g.rect(bridge.x, bridge.y, bridge.w, bridge.h).fill({ color: STATUS.alert, alpha: 0.1 + (frame % 2) * 0.08 });
+        // Alert beacons on the roof corners, sweeping a short beam left and right.
+        const i = s.interior;
+        for (const bx of [i.x + 12, i.x + i.w - 20]) {
+          const by = i.y - 18;
+          g.rect(bx, by, 8, 6).fill(0x101418);
+          g.rect(bx + 2, by - 4, 4, 4).fill(frame % 2 ? STATUS.alert : 0x7a1820);
+          if (!reducedMotion()) {
+            const dir = frame % 4 < 2 ? -1 : 1;
+            for (let k = 1; k <= 4; k++) g.rect(bx + 2 + dir * k * 6, by - 4 + (k % 2) * 2, 4, 2).fill({ color: STATUS.alert, alpha: 0.5 - k * 0.1 });
+          }
+        }
+      }
       // Doors slide open for crew walking through them, and close once they've passed.
       const sprite = this.stations.get(s.key);
       for (const door of sprite?.doors ?? []) {

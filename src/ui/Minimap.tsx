@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { PixelLabel } from "./PixelArt";
 import { css, hudMaterials } from "../game/theme";
 import { STYLES } from "../art/palettes";
 import { useGame } from "../store";
@@ -103,7 +104,7 @@ export function Minimap() {
 
   return (
     <div className="minimap hud-frame">
-      <div className="hud-label">SECTOR MAP</div>
+      <div className="hud-label"><PixelLabel text="Sector map" /></div>
       <canvas
         ref={canvas}
         style={{ width: W, height: H }}

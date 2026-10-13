@@ -1,5 +1,9 @@
 import { useEffect } from "react";
 import { useGame } from "../store";
+import * as A from "../art/sprites";
+import { STYLES } from "../art/palettes";
+import { rasterize } from "../art/render";
+import { STATUS } from "../game/theme";
 
 const KEYS: Array<[string, string]> = [
   ["Ctrl/⌘ K", "Command palette: find crew, stations, machines, actions"],
@@ -28,9 +32,27 @@ const LEGEND: Array<[string, string, string]> = [
   ["done", "Green ring", "Selected crew"],
   ["working", "Wide cyan ring", "In the squad"],
   ["muted", "Rack LEDs · coolant", "Whole-host CPU · RAM on each engineering deck"],
+  ["gauge-high", "Pips beside the head", "Turn running past 2, 6, 12, 24 hours (rose past 12)"],
   ["gauge-high", "DISK % · hazard stripes", "Fullest checkout disk; stripes when nearly full"],
   ["gauge-critical", "Snow · NO SIGNAL · dashed lines", "Machine unreachable (offline or needs pairing)"],
 ];
+
+/** Legend marks that are a sprite on the map, shown as that sprite. */
+const SPRITES: Record<string, A.Grid> = {
+  "Pulsing ring + !": A.BADGE_ALERT,
+  "Pulsing ring + ?": A.BADGE_QUESTION,
+  "✓ badge": A.BADGE_DONE,
+  "Sparks, then scorch and smoke": A.BADGE_ERROR,
+  "Drones orbiting": A.BADGE_MONITOR,
+};
+
+function LegendMark({ color, mark }: { color: string; mark: string }) {
+  const artStyle = useGame((s) => s.artStyle);
+  const grid = SPRITES[mark];
+  if (!grid) return <i className="help-chip" style={{ background: `var(--${color})` }} />;
+  const url = rasterize(grid, STYLES[artStyle], { visor: STATUS.monitoring }).toDataURL();
+  return <img className="help-sprite" src={url} alt="" width={grid[0].length * 2} height={grid.length * 2} draggable={false} />;
+}
 
 /** `?`: hotkeys, gestures and what the map's lights and effects mean. */
 export function HelpOverlay() {
@@ -58,7 +80,7 @@ export function HelpOverlay() {
             <h3>On the map</h3>
             <dl className="help-legend">
               {LEGEND.map(([color, mark, what]) => (
-                <div key={mark}><dt><i className="help-chip" style={{ background: `var(--${color})` }} />{mark}</dt><dd>{what}</dd></div>
+                <div key={mark}><dt><LegendMark color={color} mark={mark} />{mark}</dt><dd>{what}</dd></div>
               ))}
             </dl>
             <p className="muted small">The map only shows what T3 reports: consoles light for real turns, crew walk for real tool calls.</p>

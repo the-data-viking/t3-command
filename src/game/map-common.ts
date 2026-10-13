@@ -103,6 +103,8 @@ export const CREW_SPACING = 34;
 export const BEAM_SECONDS = 0.9;
 /** How long sparks fly after a failed turn before it settles into a scorch mark. */
 export const SPARK_MS = 60_000;
+/** How long the report-ready sparkle lasts. */
+export const REPORT_MS = 1600;
 export const CAMERA_SECONDS = 0.35;
 /** Theme changes crossfade from the old look over this long. */
 export const FADE_SECONDS = 0.45;

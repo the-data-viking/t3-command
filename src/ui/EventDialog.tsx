@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PixelLabel } from "./PixelArt";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
 import { openEvent, setSelection, unitKey, useGame } from "../store";
@@ -113,7 +114,7 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
   return (
     <div className="event-backdrop" onClick={close}>
       <div className="event ftl-frame" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Crew request">
-        <div className="ftl-tab">{request?.kind === "user-input" ? "INCOMING QUESTION" : "INCOMING REQUEST"}</div>
+        <div className="ftl-tab"><PixelLabel text={request?.kind === "user-input" ? "Incoming question" : "Incoming request"} /></div>
         <div className="event-meta">
           {env.summary.label} · {project?.title ?? "?"}
           {pending.length > 1 && ` · 1 of ${pending.length}`}

@@ -1364,7 +1364,8 @@ button.ftl-tab {
 /* ---- Crew roster ---- */
 
 .crew-roster {
-  top: var(--topbar-bottom, 74px);
+  /* Room for the title tab above the frame, clear of the top bar. */
+  top: calc(var(--topbar-bottom, 74px) + 12px);
   left: 10px;
   width: 290px;
   max-height: calc(100vh - var(--topbar-bottom, 74px) - 200px);
@@ -1929,6 +1930,7 @@ button.ftl-tab {
 .help-legend dt { display: flex; align-items: center; gap: 8px; color: var(--bright); }
 kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px solid var(--edge-strong); border-bottom-width: 2px; border-radius: 3px; background: var(--slot); color: var(--bright); white-space: nowrap; }
 .help-chip { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 2px; }
+.help-sprite { flex: none; image-rendering: pixelated; }
 
 .sound-panel { gap: 10px; padding: 12px; min-width: 260px; }
 .sound-panel p { margin: 0; }
@@ -1944,6 +1946,13 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px s
 [data-hud="light"] textarea, [data-hud="light"] input, [data-hud="light"] select { background: var(--slot); border-color: var(--edge-strong); color: var(--text); }
 [data-hud="light"] .markdown pre, [data-hud="light"] .markdown code { background: var(--deep); }
 [data-hud="light"] .hud-frame, [data-hud="light"] .ftl-frame, [data-hud="light"] .panel, [data-hud="light"] .modal { box-shadow: inset 0 0 0 2px var(--ink), 0 0 0 2px color-mix(in srgb, var(--frame) 60%, black), 0 8px 22px rgba(0, 0, 0, 0.45); }
+
+/* Pixel-font labels in the HUD (frame tabs), filled with the tab's text colour. */
+.pixel-label { display: inline-flex; align-items: center; }
+.pixel-label svg { fill: currentColor; display: block; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Charts that aren't about state use a neutral ink, not a status colour. */
+:root { --chart-neutral: color-mix(in srgb, var(--frame) 70%, var(--surface)); }
 
 /* Theme picker */
 .theme-menu { position: relative; }
@@ -2011,7 +2020,10 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px s
     padding: 0 0 env(safe-area-inset-bottom); border-radius: 0;
   }
   .crew-roster.collapsed { height: auto; padding: 0 0 env(safe-area-inset-bottom); }
-  .crew-roster .roster-tab { position: static; order: -1; width: 100%; min-height: 44px; border: none; border-radius: 0; padding: 0 14px; justify-content: flex-start; }
+  /* The dock bar: a dark panel with a frame-coloured top edge and label, not a pale slab. */
+  .crew-roster .roster-tab { position: static; order: -1; width: 100%; min-height: 44px; border: none; border-top: 3px solid var(--frame); border-radius: 0; padding: 0 14px; justify-content: flex-start; background: var(--surface); color: var(--frame); }
+  .crew-roster .roster-tab .count, .crew-roster .roster-tab .operator-count { color: var(--bright); }
+  .crew-roster .roster-tab .needs-count.hot { color: var(--alert); }
   .crew-roster .roster-tab .needs-count { color: var(--ink); }
   .crew-roster .roster-tab .needs-count.hot { color: color-mix(in srgb, var(--alert) 70%, black); }
   .crew-row { min-height: 52px; }
