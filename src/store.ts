@@ -86,6 +86,8 @@ export interface GameState {
   incoming: { envId: string; threadId: string; at: number } | null;
   /** The finished job shown as a report card ("." opens the oldest unread). */
   debrief: { envId: string; threadId: string } | null;
+  /** Photo mode: the HUD hidden, the map alone with a title card (P). */
+  photo: boolean;
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
@@ -225,6 +227,7 @@ export const useGame = create<GameState>()(() => ({
   event: null,
   incoming: null,
   debrief: null,
+  photo: false,
 }));
 
 /** Returning the same env from `fn` is a no-op: subscribers (the map, panels) are not notified. */

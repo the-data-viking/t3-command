@@ -9,15 +9,18 @@ test("labels land on whole screen pixels per font pixel, never below one", () =>
   }
 });
 
-test("the camera settles on zoom steps where art pixels cover whole screen pixels", () => {
+test("the camera settles on zoom steps where art pixels cover whole screen pixels (or, in the fleet view, glyph cells do)", () => {
   for (const z of ZOOM_STEPS) {
     const art = 2 * z; // PX = 2
-    assert.ok(art >= 1 ? Math.abs(art * 2 - Math.round(art * 2)) < 1e-9 : Math.abs(1 / art - Math.round(1 / art)) < 1e-9 || z === 1 / 3, `step ${z}`);
+    // Below FLEET_VIEW_ZOOM the map is flat glyphs and blocks: whole-pixel glyph cells are what count.
+    const crisp = z < FLEET_VIEW_ZOOM ? Number.isInteger(3 / z)
+      : art >= 1 ? Math.abs(art * 2 - Math.round(art * 2)) < 1e-9 : Math.abs(1 / art - Math.round(1 / art)) < 1e-9;
+    assert.ok(crisp, `step ${z}`);
   }
   assert.equal(snapZoom(0.9), 1);
   assert.equal(snapZoom(0.55), 0.5);
   assert.equal(snapZoom(1.3), 1);
-  assert.equal(floorZoom(0.49), 1 / 3, "framing never zooms past what fits");
+  assert.equal(floorZoom(0.49), 3 / 7, "framing never zooms past what fits");
   assert.equal(floorZoom(5), 3);
 });
 

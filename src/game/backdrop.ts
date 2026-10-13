@@ -1,20 +1,20 @@
-// The space behind the fleet: parallax layers of dim stars and nebulae, distant pixel-art planets,
-// nearer stars, and a few bright ones that twinkle while the map is animating anyway. Nothing here
-// keeps the render loop running; panning shows the depth.
+// The space behind the fleet: parallax layers of dim and near stars, a few bright ones that
+// twinkle, and one planet's horizon along the bottom of the frame. Nothing here keeps the render
+// loop running; panning shows the depth.
 
-import { Container, Graphics, Rectangle, TilingSprite, type Renderer, type Texture } from "pixi.js";
+import { Container, Graphics, Rectangle, Sprite, Texture, TilingSprite, type Renderer } from "pixi.js";
 import type { StyleId } from "../art/palettes";
 import { STYLES } from "../art/palettes";
 import { hash } from "./map-common";
 
-/** Nebula tints and planet colors (light, mid, shade) per theme. */
-const SKY: Record<StyleId, { nebula: number[]; planets: Array<[number, number, number]>; nebulaAlpha: number }> = {
-  "flightdeck-nightshift": { nebula: [0x1a1033, 0x0b1f2e, 0x2a1220], planets: [[0x6f8fa8, 0x3d566b, 0x1c2733], [0xb08a6a, 0x6e5240, 0x2d2119]], nebulaAlpha: 0.05 },
-  nightshift: { nebula: [0x1a1033, 0x0b1f2e, 0x2a1220], planets: [[0x6f8fa8, 0x3d566b, 0x1c2733], [0xb08a6a, 0x6e5240, 0x2d2119]], nebulaAlpha: 0.05 },
-  flightdeck: { nebula: [0x2b1a10, 0x2a1c18, 0x2e1c12], planets: [[0xd0a070, 0x8a6040, 0x3a2818], [0x8fa6b8, 0x56697a, 0x232c35]], nebulaAlpha: 0.06 },
-  signal: { nebula: [0x0e2a40, 0x14233f, 0x0a3038], planets: [[0x7fc4d6, 0x3f7f92, 0x163440], [0xd9b98f, 0x957552, 0x3b2c1d]], nebulaAlpha: 0.07 },
-  pastel: { nebula: [0x3a1f4a, 0x23305a, 0x4a2140], planets: [[0xffc6d9, 0xc58aa8, 0x5a3a5a], [0xa8d8ff, 0x6f9ccc, 0x33466a]], nebulaAlpha: 0.08 },
-  highcontrast: { nebula: [], planets: [], nebulaAlpha: 0 },
+/** The horizon planet's colours (light, mid, shade) per theme; High Contrast keeps a bare sky. */
+const SKY: Record<StyleId, { planet?: [number, number, number] }> = {
+  "flightdeck-nightshift": { planet: [0x6f8fa8, 0x3d566b, 0x1c2733] },
+  nightshift: { planet: [0x6f8fa8, 0x3d566b, 0x1c2733] },
+  flightdeck: { planet: [0xd0a070, 0x8a6040, 0x3a2818] },
+  signal: { planet: [0x7fc4d6, 0x3f7f92, 0x163440] },
+  pastel: { planet: [0xffc6d9, 0xc58aa8, 0x5a3a5a] },
+  highcontrast: {},
 };
 
 interface Layer { sprite: TilingSprite; parallax: number; twinkle?: number }
@@ -35,39 +35,51 @@ function mix(a: number, b: number, k: number): number {
   return (m(16) << 16) | (m(8) << 8) | m(0);
 }
 
+/** The visible cap of the horizon planet: width and height of its texture, and the planet's radius. */
+const HORIZON_W = 2600, HORIZON_H = 560, HORIZON_R = 1700, HORIZON_CELL = 3;
+
 /**
- * A pixel-art planet in 2-px cells (an art pixel at 1× zoom), lit from the upper left with a
- * dithered terminator. `haze` mixes its colours toward space so it sits back without being
- * drawn translucent over the stars.
+ * A planet's horizon as pixel art: the top cap of a huge disc in 3-px cells, lit from the upper
+ * left with a dithered terminator and three dithered bands of atmosphere along its rim. Colours
+ * are hazed toward space so it sits behind the fleet. Drawn on a 2D canvas (tens of thousands of
+ * cells), once per theme.
  */
-function planet(g: Graphics, cx: number, cy: number, radius: number, colors: [number, number, number], ringed: boolean, space: number, haze: number): void {
-  const [light, mid, shade] = colors.map((c) => mix(c, space, haze));
-  const cell = 2;
-  const n = Math.ceil(radius / cell);
-  for (let y = -n; y <= n; y++) {
-    for (let x = -n; x <= n; x++) {
-      const d = Math.hypot(x, y) / n;
-      if (d > 1) continue;
-      const z = Math.sqrt(1 - d * d);
-      const lit = (-x / n) * 0.6 + (-y / n) * 0.5 + z * 0.62; // dot with a light from the upper left
-      const dither = (x + y) & 1 ? 0.08 : -0.08;
-      const level = lit + dither;
-      g.rect(cx + x * cell, cy + y * cell, cell, cell).fill(level > 0.55 ? light : level > 0.05 ? mid : shade);
+function horizonTexture(colors: [number, number, number], space: number): Texture {
+  const [light, mid, shade] = colors.map((c) => mix(c, space, 0.5));
+  const rim = mix(colors[0], 0xffffff, 0.25);
+  const canvas = document.createElement("canvas");
+  canvas.width = HORIZON_W;
+  canvas.height = HORIZON_H;
+  const ctx = canvas.getContext("2d")!;
+  const hex = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
+  const cx = HORIZON_W / 2, cy = HORIZON_R;
+  for (let y = 0; y < HORIZON_H; y += HORIZON_CELL) {
+    for (let x = 0; x < HORIZON_W; x += HORIZON_CELL) {
+      const dx = x - cx, dy = y - cy;
+      const d = Math.hypot(dx, dy);
+      const inside = HORIZON_R - d;
+      const cell = Math.floor(x / HORIZON_CELL) + Math.floor(y / HORIZON_CELL);
+      if (inside < 0) {
+        // Atmosphere: three bands outside the rim, each sparser than the last.
+        const band = Math.floor(-inside / (HORIZON_CELL * 2));
+        if (band < 3 && cell % (band + 2) === 0) { ctx.fillStyle = hex(mix(rim, space, 0.55 + band * 0.15)); ctx.fillRect(x, y, HORIZON_CELL, HORIZON_CELL); }
+        continue;
+      }
+      const lit = (-dx / HORIZON_R) * 0.9 + (-dy / HORIZON_R) * 0.4 + (inside < HORIZON_CELL * 3 ? 0.25 : 0);
+      const level = lit + (cell & 1 ? 0.04 : -0.04);
+      ctx.fillStyle = hex(level > 0.12 ? light : level > -0.18 ? mid : shade);
+      ctx.fillRect(x, y, HORIZON_CELL, HORIZON_CELL);
     }
   }
-  if (ringed) {
-    for (let x = -n * 1.8; x <= n * 1.8; x++) {
-      const y = Math.round(x * 0.22);
-      if (Math.hypot(x, y) < n * 0.95 && y < 0) continue; // behind the planet
-      if (Math.round(x) % 3 === 0) continue; // a dithered, broken ring rather than a translucent one
-      g.rect(cx + Math.round(x) * cell, cy + y * cell, cell, cell).fill(mid);
-    }
-  }
+  const t = Texture.from(canvas);
+  t.source.scaleMode = "nearest";
+  return t;
 }
 
 export class Backdrop {
   readonly root = new Container();
   private layers: Layer[] = [];
+  private horizon?: Sprite;
 
   private readonly renderer: Renderer;
 
@@ -83,23 +95,11 @@ export class Backdrop {
     const space = STYLES[style].space;
     const far = texture(this.renderer, 1024, (g) => {
       g.rect(0, 0, 1024, 1024).fill(space);
-      sky.nebula.forEach((color, i) => {
-        for (let c = 0; c < 2; c++) {
-          const x = hash(`nx${i}${c}`) * 1024, y = hash(`ny${i}${c}`) * 1024;
-          for (let j = 0; j < 40; j++) {
-            g.circle(x + (hash(`n${i}${c}${j}x`) - 0.5) * 360, y + (hash(`n${i}${c}${j}y`) - 0.5) * 240, 20 + hash(`n${i}${c}${j}r`) * 60).fill({ color, alpha: sky.nebulaAlpha });
-          }
-        }
-      });
       for (let i = 0; i < 420; i++) {
         const m = hash(`fs${i}`);
         g.rect(Math.round(hash(`fx${i}`) * 1024), Math.round(hash(`fy${i}`) * 1024), 1, 1).fill({ color: 0xffffff, alpha: 0.15 + m * 0.35 });
       }
     });
-    const planets = sky.planets.length ? texture(this.renderer, 2048, (g) => {
-      planet(g, 520, 380, 30, sky.planets[0], false, space, 0.45);
-      planet(g, 1560, 1420, 18, sky.planets[1], true, space, 0.45);
-    }) : undefined;
     const near = texture(this.renderer, 1024, (g) => {
       for (let i = 0; i < 160; i++) {
         const m = hash(`ns${i}`);
@@ -124,17 +124,27 @@ export class Backdrop {
     };
     add(far, 0.06);
     add(near, 0.2);
-    if (sky.planets.length) {
+    if (sky.planet) {
       add(twinkle("ta"), 0.2, 0);
       add(twinkle("tb"), 0.2, Math.PI / 2);
     }
-    // Planets go over the star layers (no star shows through a planet's face), hazed toward space
-    // so they sit back rather than competing with the stations.
-    add(planets, 0.1);
+    // One hero body: a planet's horizon along the bottom of the frame, over the stars (none shows
+    // through it), hazed toward space so it sits behind the fleet rather than competing with it.
+    this.horizon?.destroy({ texture: true });
+    this.horizon = undefined;
+    if (sky.planet) {
+      this.horizon = new Sprite(horizonTexture(sky.planet, space));
+      this.horizon.anchor.set(0.5, 0);
+      this.root.addChild(this.horizon);
+    }
   }
 
   /** Follow the camera at each layer's depth; twinkle with the animation clock. */
   update(width: number, height: number, camX: number, camY: number, t: number): void {
+    if (this.horizon) {
+      // The horizon fills about the bottom fifth of the frame and drifts only slightly as you pan.
+      this.horizon.position.set(Math.round(width / 2 + camX * 0.03), Math.round(height * 0.8 + Math.max(-60, Math.min(60, camY * 0.03))));
+    }
     for (const l of this.layers) {
       l.sprite.width = width;
       l.sprite.height = height;
@@ -146,6 +156,7 @@ export class Backdrop {
 
   destroy(): void {
     for (const l of this.layers) l.sprite.destroy({ texture: true });
+    this.horizon?.destroy({ texture: true });
     this.root.destroy();
   }
 }

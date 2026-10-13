@@ -23,6 +23,7 @@ import { PixelText } from "./pixel-text";
 import { endGesture, gesturing, holdTaps } from "./gesture";
 import { isPhone } from "../ui/phone";
 import { hudInsets } from "../ui/hud-insets";
+import { waitingSince } from "../ui/queue";
 import { doorState } from "./crew-motion";
 import { RenderLoop, type DrawResult } from "./render-loop";
 import { Backdrop } from "./backdrop";
@@ -68,6 +69,9 @@ export class World {
   private crewLayer = new Container();
   /** Crew name labels, above every crew sprite (see CrewSprite.labelLayer). */
   private crewLabels = new Container();
+  /** Fleet-view rollup lines under each station ("2 WORKING · 1 WAITING 22M · 1 PR"). */
+  private fleetLabels = new Container();
+  private fleetRollups = new Map<string, PixelText>();
   private overlay = new Graphics();
   private edge = new Graphics();
   private edgeHits = new Container();
@@ -141,7 +145,7 @@ export class World {
     this.backdrop = new Backdrop(this.app.renderer);
     this.backdrop.build(useGame.getState().artStyle, this.app.screen.width, this.app.screen.height);
     this.crewLayer.sortableChildren = true;
-    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.shade, this.lights, this.fleetView, this.crewLayer, this.crewLabels, this.overlay);
+    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.shade, this.lights, this.fleetView, this.fleetLabels, this.crewLayer, this.crewLabels, this.overlay);
     this.app.stage.addChild(this.backdrop.root, this.camera, this.edge, this.edgeHits);
     this.setupCamera();
 
@@ -483,6 +487,15 @@ export class World {
       const z = clampZoom(Math.max(this.zoom, 2));
       this.moveCamera(area.x + area.w / 2 - target.x * z, area.y + area.h / 2 + 20 - target.y * z, z);
     });
+  }
+
+  /** The map as it looks now, rendered at `resolution` times its screen size (for photo mode). */
+  async snapshot(resolution = 2): Promise<HTMLCanvasElement | undefined> {
+    if (!this.initialized) return undefined;
+    this.app.render();
+    // Just what's on screen (the stage also holds the oversized horizon and off-screen fleet).
+    const { width, height } = this.app.screen;
+    return this.app.renderer.extract.canvas({ target: this.app.stage, frame: new Rectangle(0, 0, width, height), resolution }) as HTMLCanvasElement;
   }
 
   minimap(): MinimapData | undefined {
@@ -985,6 +998,7 @@ export class World {
     const far = this.zoom < FLEET_VIEW_ZOOM;
     this.crewLayer.visible = !far;
     this.crewLabels.visible = !far;
+    this.fleetLabels.visible = far;
     this.controlCenter?.setFleetView(far);
     if (!far) return;
     const c = currentStyle().colors;
@@ -994,9 +1008,13 @@ export class World {
     const urgency: UnitState[] = ["alert", "question", "error", "done", "working", "monitoring", "idle", "sleeping"];
     // Glyphs are 5 cells on a 6-cell dark tile, packed edge to edge so a room holds as many as it can.
     const pitch = 6 * cell;
-    const glyph = (x: number, y: number, state: UnitState, color: number, selected: boolean) => {
+    const now = Date.now();
+    const glyph = (x: number, y: number, state: UnitState, color: number, selected: boolean, waitedMs = 0) => {
       // A dark tile under each glyph, so it reads on light floors too; white-framed when selected.
       g.rect(x - cell, y - cell, 6 * cell, 6 * cell).fill({ color: 0x0b0d10, alpha: 0.8 });
+      // Someone waiting on you gets a frame in their colour that thickens with the wait: from
+      // 2 minutes, thicker from 15. The rollup line under the station gives the minutes.
+      if (waitedMs >= 120_000) pixelFrame(g, x - cell, y - cell, 6 * cell, 6 * cell, color, 1, Math.max(1, Math.round(cell * (waitedMs >= 900_000 ? 0.5 : 0.25))));
       if (selected) pixelFrame(g, x - cell, y - cell, 6 * cell, 6 * cell, SELECTION, 1, cell);
       for (const [cx, cy] of cells(STATUS_GLYPHS[state])) g.rect(x + cx * cell, y + cy * cell, cell, cell).fill(color);
     };
@@ -1007,8 +1025,10 @@ export class World {
       if (!force && crew.length > cols * rows) return false;
       crew.slice(0, cols * rows).forEach((sprite, k) => {
         const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
+        const waiting = sprite.state === "alert" || sprite.state === "question";
+        const waited = waiting ? now - waitingSince(sprite.thread, state.details[sprite.key]?.thread) : 0;
         glyph(r.x + 2 * cell + (k % cols) * pitch, r.y + 2 * cell + Math.floor(k / cols) * pitch, sprite.state,
-          sprite.offline ? 0x59626c : STATUS[sprite.state], selected);
+          sprite.offline ? 0x59626c : STATUS[sprite.state], selected, waited);
       });
       return true;
     };
@@ -1042,6 +1062,12 @@ export class World {
         g.rect(i.x, i.y, i.w, i.h).fill({ color: plating.slot, alpha: 0.7 });
         fill(i, crew, true);
       }
+      this.drawRollup(s, crew, now);
+    }
+    for (const [key, text] of this.fleetRollups) {
+      if (this.layout.stations.has(key)) continue;
+      text.destroy();
+      this.fleetRollups.delete(key);
     }
     // Hermes operators become glyphs in their bays, like crew (their figures hide at this scale).
     for (const { bot, workstation: r } of this.layout.controlCenter?.operators ?? []) {
@@ -1049,6 +1075,37 @@ export class World {
       const selected = sel?.kind === "hermes" && sel.profile === bot.name;
       glyph(Math.round(r.x + r.w / 2 - 2.5 * cell), r.y + 8, state, bot.observed ? STATUS[state] : 0x59626c, selected);
     }
+  }
+
+  /**
+   * The fleet view's one line under a station: what its crew are doing and how long the oldest has
+   * waited on you, plus open PRs (with failing checks called out). Counts of what the glyphs show.
+   */
+  private drawRollup(s: StationLayout, crew: CrewSprite[], now: number): void {
+    const { details, artStyle } = useGame.getState();
+    const working = crew.filter((c) => c.state === "working").length;
+    const waiting = crew.filter((c) => c.state === "alert" || c.state === "question");
+    const oldest = waiting.length ? Math.max(...waiting.map((c) => now - waitingSince(c.thread, details[c.key]?.thread))) : 0;
+    const prs = crew.flatMap((c) => c.thread.pullRequests ?? []).filter((pr) => pr.snapshot?.state === "open");
+    const failing = prs.filter((pr) => pr.snapshot?.checksState === "failing").length;
+    const span = (ms: number) => ms >= 3_600_000 ? `${Math.floor(ms / 3_600_000)}H` : `${Math.max(1, Math.floor(ms / 60_000))}M`;
+    const parts = [
+      waiting.length ? `${waiting.length} WAITING ${span(oldest)}` : "",
+      working ? `${working} WORKING` : "",
+      prs.length ? `${prs.length} PR${prs.length === 1 ? "" : "S"}${failing ? ` · ${failing} FAILING` : ""}` : "",
+    ].filter(Boolean);
+    let text = this.fleetRollups.get(s.key);
+    if (!text) {
+      text = new PixelText(10, mapInk(artStyle).text);
+      this.fleetRollups.set(s.key, text);
+      this.fleetLabels.addChild(text);
+    }
+    // A station whose crew are all on unreachable machines says so: its counts are last known.
+    const offline = crew.length > 0 && crew.every((c) => c.offline);
+    text.fill = offline ? mapInk(artStyle).muted : waiting.length ? STATUS.alert : mapInk(artStyle).muted;
+    text.text = offline ? `NO SIGNAL · LAST KNOWN ${parts.join(" · ") || "QUIET"}` : parts.join(" · ") || "QUIET";
+    text.position.set(s.interior.x, s.interior.y + s.interior.h + 24);
+    text.scale.set(crispScale(text.unit, this.zoom));
   }
 
   /** Arrows on the screen edge pointing at off-screen crew who need you. */

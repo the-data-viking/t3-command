@@ -63,7 +63,8 @@ export function installHotkeys(): () => void {
     const state = useGame.getState();
     if (state.showPalette || state.showHelp) return; // They handle their own keys.
     if (e.key === "Escape") {
-      if (state.event) openEvent(null);
+      if (state.photo) useGame.setState({ photo: false });
+      else if (state.event) openEvent(null);
       else if (state.showEnvManager) useGame.setState({ showEnvManager: false });
       else if (state.showLog) useGame.setState({ showLog: false });
       else if (state.squad.length) setSquad([]);
@@ -92,6 +93,7 @@ export function installHotkeys(): () => void {
       f: () => worldRef.current?.fitAll(),
       l: () => useGame.setState((s) => ({ showLog: !s.showLog })),
       h: () => useGame.setState((s) => ({ showHistory: !s.showHistory })),
+      p: () => useGame.setState((s) => ({ photo: !s.photo })),
     };
     const action = actions[e.key];
     if (!action) return;

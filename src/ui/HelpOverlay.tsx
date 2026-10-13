@@ -20,6 +20,7 @@ const KEYS: Array<[string, string]> = [
   ["Shift-drag", "Box-select crew on the map into the squad"],
   ["Drag · scroll · pinch", "Pan · zoom · zoom (touch)"],
   ["Esc", "Close dialogs, clear the squad, then deselect"],
+  ["P", "Photo mode: hide the HUD, save the map as a PNG"],
   ["?", "This help"],
 ];
 
