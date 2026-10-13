@@ -69,7 +69,8 @@ function fleet(): Record<string, EnvWorld> {
     mini: env("mini", "Mac mini (local)", [stone, cmd], [
       thread("a1", "command", "Check out the current state of the t3-command interface", "working", 42),
       thread("a2", "stone", "Restore Glassrun Gorge Canyon", "alert", 1300, "gpt-6", "codex"),
-      thread("a3", "command", "Clear out stale worktrees", "done", 90),
+      { ...thread("a3", "command", "Clear out stale worktrees", "done", 90), pullRequests: [{ host: "github.com", repository: "demo/command", number: 72, url: "https://github.com/demo/command/pull/72",
+        snapshot: { state: "open", title: "Remove stale worktrees", headBranch: "t3/a3", baseBranch: "main", isDraft: false, additions: 14, deletions: 212, changedFiles: 6, checksState: "passing", reviewDecision: null } }] } as ThreadShell,
       thread("a4", "stone", "Old settled thread", "sleeping", 3000),
     ]),
     agent1: env("agent1", "tls-agent-01", [stone], [
@@ -142,7 +143,15 @@ function demoDetails(envs: Record<string, EnvWorld>): GameState["details"] {
     ] } as unknown as OrchestrationThread;
     return [`${envId}:${threadId}`, { thread, synced: true }] as const;
   };
+  // A finished job with a written report, changes and a PR, for the debrief card.
+  const done = envs.mini.threads.a3;
+  const report = { ...done, activities: [], messages: [{ id: "a3-m", role: "assistant", turnId: done.latestTurn?.turnId ?? null, streaming: false, createdAt: ago(70), updatedAt: ago(70),
+    text: "Removed 9 stale worktrees under ~/.t3/worktrees (all merged or abandoned, none with uncommitted work).\n\n- Kept 3 active worktrees with open threads.\n- Added `npm run prune-worktrees` so this can be repeated.\n- Opened PR #72; checks are green." }],
+    checkpoints: [{ turnId: done.latestTurn?.turnId ?? "", checkpointTurnCount: 1, status: "ready", completedAt: ago(70), files: [
+      { path: "tools/prune-worktrees.mjs", kind: "added", additions: 12, deletions: 0 }, { path: "package.json", kind: "modified", additions: 2, deletions: 0 },
+      { path: "docs/worktrees.md", kind: "modified", additions: 0, deletions: 212 } ] }] } as unknown as OrchestrationThread;
   return Object.fromEntries([
+    ["mini:a3", { thread: report, synced: true }] as const,
     detail("mini", "a2", 22, "approval", { requestKind: "command", detail: "pnpm migrate --force" }),
     detail("agent1", "b2", 9, "user-input", { questions: [{ id: "env", question: "Which environment should the client build target?", options: [{ label: "Staging" }, { label: "Production" }] }] }),
   ]);

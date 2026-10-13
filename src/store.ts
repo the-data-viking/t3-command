@@ -81,6 +81,8 @@ export interface GameState {
   event: { envId: string; threadId: string } | null;
   /** A request that arrived just as you pressed a number key: announced, not popped up. */
   incoming: { envId: string; threadId: string; at: number } | null;
+  /** The finished job shown as a report card ("." opens the oldest unread). */
+  debrief: { envId: string; threadId: string } | null;
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
@@ -198,6 +200,7 @@ export const useGame = create<GameState>()(() => ({
   notify: loadNotify(),
   event: null,
   incoming: null,
+  debrief: null,
 }));
 
 /** Returning the same env from `fn` is a no-op: subscribers (the map, panels) are not notified. */
