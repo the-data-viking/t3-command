@@ -3,15 +3,15 @@
 import { Container, Graphics, Rectangle, Sprite, TilingSprite, type FederatedPointerEvent } from "pixi.js";
 import { PixelText } from "./pixel-text";
 import * as A from "../art/sprites";
-import { setSelection, type GameState } from "../store";
+import { setSelection, useGame, type GameState } from "../store";
 import { QUARTERS_SHOWN, stationDrawKey, systemFixtureX, TILE, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { currentStyle, PX, tex } from "./textures";
-import { mapInk } from "./theme";
+import { mapInk, STATUS } from "./theme";
 import { fitLabel, hash, pixelFrame, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
 import { worldRef } from "./world-ref";
-import { JOBS_PER_SHELF, MAX_PATCHES, stationMemory, type StationMemory } from "./memory";
+import { dockedPrs, JOBS_PER_SHELF, MAX_PATCHES, MAX_PODS, stationMemory, type DockedPr, type StationMemory } from "./memory";
 
 // ---- Stations --------------------------------------------------------------------------
 
@@ -24,6 +24,8 @@ export class StationSprite {
   private titleText = "";
   private subText = "";
   private fitWidth = 0;
+  /** PR numbers under the cargo pods, shown only close up. */
+  private podLabels: PixelText[] = [];
   private drawn?: string;
   /** Console sprites by "x,y" of their layout point, so screens can be updated live. */
   readonly consoles = new Map<string, Sprite>();
@@ -150,6 +152,8 @@ export class StationSprite {
       this.doors.push({ sprite: door, x: d.x, y: d.y, open: A.DOOR_H });
     }
 
+    this.drawPods(dockedPrs(state, s), hullBottom, i);
+
     // Own the hit area on the rendered facility, rather than an empty child container.
     const first = s.members[0];
     this.root.eventMode = 'static';
@@ -195,6 +199,7 @@ export class StationSprite {
    * out far away.
    */
   setZoom(zoom: number): void {
+    for (const l of this.podLabels) l.visible = zoom >= 1;
     if (this.title) fitLabel(this.title, this.titleText, this.fitWidth, zoom);
     if (this.sub) {
       this.sub.visible = zoom >= 0.45;
@@ -285,6 +290,57 @@ export class StationSprite {
       g.rect(x + 2, y + 2, w - 4, h - 4).fill(n > 0.5 ? c.s : c.g);
       g.rect(x + 2, y + 2, w - 4, 2).fill(c.W);
       for (const [rx, ry] of [[2, 4], [w - 4, 4], [2, h - 6], [w - 4, h - 6]]) if (ry >= 4) g.rect(x + rx, y + ry, 2, 2).fill(c.k);
+    }
+  }
+
+  /**
+   * Open PRs as cargo pods hanging under the hull's right end, newest outermost: a capsule on a
+   * strut with a light for its checks (green passing, red failing, white pending, dim for a draft).
+   * Tapping a pod opens the PR.
+   */
+  private drawPods(prs: DockedPr[], hullBottom: number, i: { x: number; y: number; w: number; h: number }): void {
+    this.podLabels = [];
+    if (!prs.length) return;
+    const c = currentStyle().colors;
+    const ink = mapInk(useGame.getState().artStyle);
+    const top = hullBottom + 4;
+    prs.slice(0, MAX_PODS).forEach((pr, k) => {
+      const x = i.x + i.w - 30 - k * 28, y = top + 6;
+      const pod = new Graphics();
+      pod.rect(x + 10, top, 4, 6).fill(c.k);
+      pod.rect(x + 11, top, 2, 6).fill(c.D);
+      steppedPlate(pod, x, y, 24, 14, 4, 2, c.k);
+      steppedPlate(pod, x + 2, y + 2, 20, 10, 2, 2, c.W);
+      pod.rect(x + 4, y + 4, 16, 2).fill(c.w);
+      pod.rect(x + 4, y + 8, 16, 2).fill(c.g);
+      const light = pr.checks === "passing" ? STATUS.done : pr.checks === "failing" ? STATUS.error : pr.checks === "draft" ? c.g : c.w;
+      pod.rect(x + 8, y + 2, 2, 10).fill(c.g); // Hatch seam.
+      pod.rect(x + 14, y + 4, 6, 6).fill(c.k);
+      pod.rect(x + 16, y + 6, 2, 2).fill(light);
+      pod.rect(x + 14, y + 4, 2, 2).fill(light); // A catch of the lamp on its bezel.
+      pod.eventMode = "static";
+      pod.cursor = "pointer";
+      pod.hitArea = new Rectangle(x - 2, top - 2, 28, 24);
+      pod.on("pointertap", (e: FederatedPointerEvent) => {
+        e.stopPropagation();
+        if (gesturing()) return;
+        sfx.select();
+        window.open(pr.url, "_blank", "noopener");
+      });
+      this.root.addChild(pod);
+      const label = new PixelText(7, ink.muted);
+      label.text = `#${pr.number}`;
+      label.anchor.set(0.5, 0);
+      label.position.set(x + 12, y + 16);
+      this.root.addChild(label);
+      this.podLabels.push(label);
+    });
+    if (prs.length > MAX_PODS) {
+      const more = new PixelText(7, ink.muted);
+      more.text = `+${prs.length - MAX_PODS}`;
+      more.anchor.set(1, 0);
+      more.position.set(i.x + i.w - 30 - MAX_PODS * 28 + 20, top + 10);
+      this.root.addChild(more);
     }
   }
 
