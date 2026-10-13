@@ -93,6 +93,7 @@ export function installHotkeys(): () => void {
       f: () => worldRef.current?.fitAll(),
       l: () => useGame.setState((s) => ({ showLog: !s.showLog })),
       h: () => useGame.setState((s) => ({ showHistory: !s.showHistory })),
+      t: () => useGame.setState((s) => ({ showTimeline: !s.showTimeline })),
       p: () => useGame.setState((s) => ({ photo: !s.photo })),
     };
     const action = actions[e.key];

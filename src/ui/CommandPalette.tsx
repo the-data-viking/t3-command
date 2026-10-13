@@ -68,6 +68,7 @@ function buildItems(state: GameState): Item[] {
   items.push(
     { id: "go:log", group: "Go to", label: "Comms log", detail: "L", run: () => useGame.setState({ showLog: true }) },
     { id: "go:history", group: "Go to", label: "Turn history", detail: "H", run: () => useGame.setState({ showHistory: true }) },
+    { id: "go:timeline", group: "Go to", label: "Fleet timeline", detail: "T", run: () => useGame.setState({ showTimeline: true }) },
     { id: "go:stations", group: "Go to", label: "Stations (manage machines)", run: () => useGame.setState({ showEnvManager: true }) },
     { id: "go:playbooks", group: "Go to", label: "Saved orders (/name shortcuts)", run: () => useGame.setState({ showPlaybooks: true }) },
     { id: "go:help", group: "Go to", label: "Keyboard and map help", detail: "?", run: () => useGame.setState({ showHelp: true }) },

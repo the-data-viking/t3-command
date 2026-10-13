@@ -144,6 +144,11 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   under six hours, and the Command server posts a comms warning (and a push) once it's under 12
   hours. When the fullest provider quota is 75% or more, the top bar's **LIMITS** chip shows when
   it resets (↺1h12m).
+- **Fleet timeline** (**T**, or the command palette): every crew member's turns over the last 6
+  hours, 24 hours or 3 days, one lane each, grouped by project. Bars are coloured and named by
+  outcome (done, failed, interrupted), and the right edge is live: what's running, or waiting on
+  your approval or answer, right now. Hover a bar for its times, model, agent time and time spent
+  waiting on you; click a lane to go to that crew member. Served by `GET /api/history/timeline`.
 - **Posture and plan-first**: the crew panel shows what a crew member may do without asking (Ask
   before acting, Auto-accept edits, Auto, Full access; raising it to full access asks first) and a
   **Plan first** toggle (T3's plan mode). Recruits can start in plan mode ("Plan first: propose

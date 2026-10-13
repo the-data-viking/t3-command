@@ -26,7 +26,7 @@ import { HostHistoryRecorder } from "./host-history.ts";
 import { t3SocketUrl } from "./t3-socket.ts";
 import { T3Versions } from "./t3-versions.ts";
 import { LongTurns } from "./long-turns.ts";
-import { HISTORY_RETENTION_DAYS } from "../shared/history.ts";
+import { HISTORY_RETENTION_DAYS, TIMELINE_MAX_HOURS } from "../shared/history.ts";
 
 const config = loadConfig();
 const hermesLaunch = { command: config.hermesCommand, args: config.hermesArgs };
@@ -226,6 +226,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (pathname === "/api/storage" && method === "GET") return sendJson(res, 200, storage.views());
   if (pathname === "/api/memory" && method === "GET") return sendJson(res, 200, history.memory());
+  if (pathname === "/api/history/timeline" && method === "GET") {
+    const hours = Number(new URL(req.url ?? "/", "http://localhost").searchParams.get("hours") ?? 24);
+    if (!Number.isInteger(hours) || hours < 1 || hours > TIMELINE_MAX_HOURS) return sendJson(res, 400, { error: `hours must be 1–${TIMELINE_MAX_HOURS}` });
+    return sendJson(res, 200, history.timeline(hours));
+  }
   // The comms stream also carries report read marks: all of them on connect, then each change.
   if (pathname === "/api/comms/stream" && method === "GET") {
     return comms.stream(req, res, (send) => {

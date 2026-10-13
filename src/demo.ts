@@ -141,6 +141,10 @@ export function demoFetch(path: string): unknown {
     const env = { mini: "Mac mini (local)" };
     return summarizeHistory(records(), [{ envId: "mini", from: ago(8 * 1440), to: ago(0) }], env, { days: Number(url.searchParams.get("days") ?? 7), timeZone: "UTC", now: NOW });
   }
+  if (url.pathname === "/api/history/timeline") {
+    const hours = Number(url.searchParams.get("hours") ?? 24), from = NOW - hours * 3_600_000;
+    return { from, to: NOW, turns: records().filter((r) => Date.parse(r.completedAt) >= from) };
+  }
   if (url.pathname === "/api/hosts/history") return hostHistory(url.searchParams.get("envId") ?? "", Number(url.searchParams.get("hours") ?? 24));
   if (url.pathname === "/api/update") return { enabled: false, phase: "idle", reason: "Demo fleet" };
   if (url.pathname === "/api/playbooks") return DEFAULT_PLAYBOOKS;
