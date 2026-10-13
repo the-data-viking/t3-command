@@ -7,7 +7,7 @@ import type { HostHistory } from "../shared/host";
 import type { StorageView } from "../shared/storage";
 import type { EnvWorld } from "./store";
 import { useGame } from "./store";
-import type { ProjectShell, ThreadShell } from "./t3/types";
+import type { ProjectShell, Provider, ThreadShell } from "./t3/types";
 
 export const DEMO = !!import.meta.env?.DEV && typeof location !== "undefined" && new URLSearchParams(location.search).has("demo");
 
@@ -41,8 +41,18 @@ function env(id: string, label: string, projects: ProjectShell[], threads: Threa
     connection: "live", synced: true,
     projects: Object.fromEntries(projects.map((p) => [p.id, p])),
     threads: Object.fromEntries(threads.map((t) => [t.id, t])),
-    providers: [],
+    providers: providers(id),
   };
+}
+
+/** Codex reports a weekly quota on one machine and fails on another; Claude reports none. */
+function providers(envId: string): Provider[] {
+  const base = { enabled: true, installed: true, status: "ready", models: [] };
+  const codex = envId === "mini"
+    ? { ...base, instanceId: "codex", driver: "codex", displayName: "Codex", usageLimits: { checkedAt: ago(1), windows: [{ id: "w", kind: "weekly", label: "Weekly", usedPercent: 28, resetsAt: new Date(NOW + 3 * 86_400_000).toISOString() }] } }
+    : { ...base, instanceId: "codex", driver: "codex", displayName: "Codex", usageLimits: { checkedAt: ago(1), windows: [], unavailable: { reason: "probeFailed", message: "JSON-RPC -32600" } } };
+  const claude = { ...base, instanceId: "claudeAgent", driver: "claudeAgent", displayName: "Claude", usageLimits: { checkedAt: ago(1), windows: [], unavailable: { reason: "unsupported" } } };
+  return [codex, claude] as unknown as Provider[];
 }
 
 function fleet(): Record<string, EnvWorld> {

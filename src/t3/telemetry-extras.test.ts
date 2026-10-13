@@ -63,3 +63,12 @@ test("huge diffs stop rendering at the budget but keep counting", () => {
   assert.equal(files[0].lines.length, 5);
   assert.equal(files[0].additions, 10);
 });
+
+test("limits say how much of the fleet they cover", () => {
+  const limits = fleetLimits([
+    env("Mac mini", [{ instanceId: "codex", displayName: "Codex", usageLimits: weekly(28) }, { instanceId: "claudeAgent", displayName: "Claude", usageLimits: { checkedAt: "", windows: [], unavailable: { reason: "unsupported" } } }]),
+    env("Agent 1", [{ instanceId: "codex", displayName: "Codex", usageLimits: { checkedAt: "", windows: [], unavailable: { reason: "probeFailed" } } }, { instanceId: "claudeAgent", displayName: "Claude" }]),
+  ]);
+  assert.deepEqual({ reporting: limits.coverage.reporting, total: limits.coverage.total }, { reporting: 1, total: 4 });
+  assert.deepEqual(limits.coverage.silent.map((s) => [s.provider, s.failed, s.machines.join("+")]), [["Claude", false, "Mac mini+Agent 1"], ["Codex", true, "Agent 1"]]);
+});

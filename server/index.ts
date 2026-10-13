@@ -20,6 +20,7 @@ import { CommsLog } from "./comms.ts";
 import { HostHistoryRecorder } from "./host-history.ts";
 import { t3SocketUrl } from "./t3-socket.ts";
 import { T3Versions } from "./t3-versions.ts";
+import { LongTurns } from "./long-turns.ts";
 import { HISTORY_RETENTION_DAYS } from "../shared/history.ts";
 
 const config = loadConfig();
@@ -57,6 +58,9 @@ recorder.start();
 const t3Versions = new T3Versions(config.dataDir, registry, comms);
 await t3Versions.load();
 t3Versions.start();
+// Note runaway turns (2/6/12/24 h) in the comms log.
+const longTurns = new LongTurns(registry, recorder, comms);
+longTurns.start();
 // Whole-host CPU/RAM history per machine.
 const hostHistory = new HostHistoryRecorder(config.dataDir, registry, recorder);
 await hostHistory.load();
@@ -395,6 +399,7 @@ server.listen(config.port, config.host, () => {
 async function shutdown(): Promise<void> {
   storage.stop();
   t3Versions.stop();
+  longTurns.stop();
   await recorder.stop();
   await hostHistory.stop();
   await comms.flush();
