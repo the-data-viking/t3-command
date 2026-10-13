@@ -1977,6 +1977,15 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .theme-icon { outline: 1px solid var(--edge-strong); }
 .theme-option-text { display: flex; flex-direction: column; gap: var(--space-0); white-space: normal; }
 .theme-option-text .small { line-height: 1.35; }
+.theme-head { padding: var(--space-1) var(--space-2) 0; font-size: var(--fs-2xs); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+.theme-world { border: 2px solid transparent; border-radius: var(--radius-control); }
+.theme-world.active { border-color: var(--frame); }
+.theme-world.active .theme-option { color: var(--bright); }
+.theme-world .theme-option { width: 100%; }
+.theme-variants { display: flex; gap: var(--space-1); padding: 0 var(--space-2) var(--space-1h) calc(104px + var(--space-3) + var(--space-2)); }
+.theme-variants .btn.active { background: var(--frame); border-color: var(--frame); color: var(--ink); }
+.theme-hc { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2); margin-top: var(--space-1); border-top: 1px solid var(--hairline); cursor: pointer; font-size: var(--fs-md); }
+.theme-hc input { margin-top: 3px; }
 
 /* ---- Phone layout (src/ui/phone.ts); kept last so it wins the cascade ---- */
 

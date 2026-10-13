@@ -156,8 +156,8 @@ export function setSquad(squad: SquadMember[]): void {
   useGame.setState({ squad });
 }
 
-/** Map styles offered in the theme picker, in menu order. */
-export const ART_STYLES = ["flightdeck-nightshift", "flightdeck", "signal", "pastel", "highcontrast"] as const;
+/** Map styles in menu order: Night Shift by night and by day, Kestrel, Pastel, then High Contrast (an accessibility mode). */
+export const ART_STYLES = ["flightdeck-nightshift", "signal", "flightdeck", "pastel", "highcontrast"] as const;
 export type ArtStyle = (typeof ART_STYLES)[number];
 
 function loadArtStyle(): ArtStyle {
@@ -180,11 +180,21 @@ function loadArtStyle(): ArtStyle {
 export function setArtStyle(artStyle: ArtStyle): void {
   try {
     localStorage.setItem("t3c:theme", artStyle);
+    // The world to return to when High Contrast is turned off again.
+    if (artStyle !== "highcontrast") localStorage.setItem("t3c:world", artStyle);
   } catch {
     // Per-browser convenience only.
   }
   applyHudTheme(artStyle);
   useGame.setState({ artStyle });
+}
+
+/** High Contrast is an accessibility mode over the worlds: turning it off restores the last world. */
+export function setHighContrast(on: boolean): void {
+  if (on) { setArtStyle("highcontrast"); return; }
+  let world: string | null = null;
+  try { world = localStorage.getItem("t3c:world"); } catch { /* Per-browser convenience only. */ }
+  setArtStyle((ART_STYLES as readonly string[]).includes(world ?? "") && world !== "highcontrast" ? world as ArtStyle : "flightdeck-nightshift");
 }
 
 function loadNotify(): boolean {
