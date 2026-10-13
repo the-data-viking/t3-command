@@ -131,17 +131,24 @@ export function reducedMotion(): boolean {
 }
 export const SCREEN_OFF = 0x1c2228;
 
+/** A status colour stepped down toward an unlit screen (k 0–1), so a dim screen keeps its hue. */
+function dimmed(color: number, k: number): number {
+  const ch = (c: number, s: number) => (c >> s) & 255;
+  const m = (s: number) => Math.round(ch(color, s) * (1 - k) + ch(SCREEN_OFF, s) * k);
+  return (m(16) << 16) | (m(8) << 8) | m(0);
+}
+
 /** Console screen color for a crew member's state; blinks and flicker alternate per frame. */
 export function screenColor(state: UnitState, frame: number, atConsole: boolean): number {
   switch (state) {
     case "working":
-      return atConsole ? (frame % 2 ? STATUS.working : 0x9ff0ff) : 0x2a6f80;
+      return atConsole ? (frame % 2 ? STATUS.working : 0x9ff0ff) : dimmed(STATUS.working, 0.55);
     case "monitoring":
-      return 0x7a5fb8;
+      return dimmed(STATUS.monitoring, 0.3);
     case "alert":
-      return frame % 2 ? STATUS.alert : 0x7a1820;
+      return frame % 2 ? STATUS.alert : dimmed(STATUS.alert, 0.45);
     case "question":
-      return frame % 2 ? STATUS.question : 0x7a6418;
+      return frame % 2 ? STATUS.question : dimmed(STATUS.question, 0.45);
     case "done":
       return STATUS.done;
     case "error":

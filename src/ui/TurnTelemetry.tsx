@@ -15,7 +15,7 @@ export function PlanLine({ thread, detail }: { thread: ThreadShell; detail?: Orc
     <span className="crew-plan small">
       {quiet && <span className={quiet.kind === "quiet" ? "orange" : "muted"} title={quietText(quiet)}>{quiet.kind === "quiet" ? `Quiet ${elapsed(quiet.ms)}` : quiet.kind === "tool" ? `Tool ${elapsed(quiet.ms)}` : `Tasks · quiet ${elapsed(quiet.ms)}`}</span>}
       {plan && <span className="muted" title={`Plan step ${plan.completedSteps + 1} of ${plan.totalSteps}: ${plan.step}`}>
-        <span className="cyan">{Math.min(plan.completedSteps + 1, plan.totalSteps)}/{plan.totalSteps}</span> · {plan.step}
+        <span className="count-working">{Math.min(plan.completedSteps + 1, plan.totalSteps)}/{plan.totalSteps}</span> · {plan.step}
       </span>}
     </span>
   );

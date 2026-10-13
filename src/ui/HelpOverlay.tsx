@@ -25,7 +25,7 @@ const KEYS: Array<[string, string]> = [
 
 const LEGEND: Array<[string, string, string]> = [
   ["working", "Spinning pip", "Turn running; pips over the head show plan steps done / current / left"],
-  ["question", "Three amber dots", "Running turn with no activity for 10+ minutes (quiet)"],
+  ["muted", "Three grey dots", "Running turn with no activity for 10+ minutes (quiet)"],
   ["alert", "Pulsing ring + !", "Waiting for your approval"],
   ["question", "Pulsing ring + ?", "Waiting for your answer"],
   ["done", "✓ badge", "Report ready (finished, not yet sent to camp)"],
@@ -36,7 +36,7 @@ const LEGEND: Array<[string, string, string]> = [
   ["muted", "Rack LEDs · coolant", "Whole-host CPU · RAM on each engineering deck"],
   ["gauge-high", "Pips beside the head", "Turn running past 2, 6, 12, 24 hours (magenta past 12)"],
   ["gauge-high", "DISK % · hazard stripes", "Fullest checkout disk; stripes when nearly full"],
-  ["gauge-critical", "Snow · NO SIGNAL · dashed lines", "Machine unreachable (offline or needs pairing)"],
+  ["muted", "Snow · NO SIGNAL · dashed lines", "Machine unreachable (offline or needs pairing)"],
   ["muted", "Grey crew · static", "Last known state from an unreachable machine"],
 ];
 

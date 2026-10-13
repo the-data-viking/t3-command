@@ -17,3 +17,19 @@ test("map code draws on the art grid: no smooth vector shapes (art bible rule 1)
   }
   assert.deepEqual(offenders, []);
 });
+
+test("sprite art never paints with a status colour code (a, c, r, n); only badges carry status (rule 6)", async () => {
+  const S = await import("../art/sprites");
+  const { FLIGHT_KIT, flightCrew } = await import("../art/flightdeck");
+  // The bridge-era fixtures are swapped for the Flight Deck kit when drawn (textures.ts).
+  const swapped = new Set<unknown>([S.CONSOLE, S.TERMINAL, S.FILES, S.COMMS, S.CHAIR]);
+  const grids: Array<[string, readonly string[]]> = [
+    ...Object.entries(S.ALL).filter(([name, grid]) => !name.startsWith("BADGE_") && !swapped.has(grid)),
+    ...Object.entries(FLIGHT_KIT).filter(([name, grid]) => Array.isArray(grid) && !name.startsWith("BADGE_") && !swapped.has(grid)) as Array<[string, readonly string[]]>,
+  ];
+  for (const silhouette of ["round", "angular"] as const) for (const tier of ["light", "standard", "heavy", "reviewer"] as const) {
+    grids.push([`crew ${silhouette} ${tier}`, flightCrew(silhouette, tier)]);
+  }
+  const offenders = grids.filter(([, grid]) => /[acrn]/.test(grid.join(""))).map(([name]) => name);
+  assert.deepEqual(offenders, []);
+});

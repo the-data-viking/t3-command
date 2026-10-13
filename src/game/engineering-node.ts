@@ -3,7 +3,7 @@
 import { Container, Graphics, Rectangle, type FederatedPointerEvent } from "pixi.js";
 import { PixelText } from "./pixel-text";
 import { ENGINEERING_SPOTS, FLIGHT_KIT } from "../art/flightdeck";
-import { openHost, type GameState } from "../store";
+import { openHost, useGame, type GameState } from "../store";
 import type { UnitState } from "../t3/derive";
 import { nodeDrawKey, type Rect, type EnvironmentNodeLayout } from "./layout";
 import { sfx } from "./sfx";
@@ -12,7 +12,7 @@ import { hostView, type HostState } from "../t3/host";
 import { freeLabel, storageSummary } from "../t3/storage";
 import type { StorageView } from "../../shared/storage";
 import { currentStyle, PX, tex } from "./textures";
-import { GAUGE, HUD, STATUS } from "./theme";
+import { GAUGE, mapInk, STATUS } from "./theme";
 import { label, fitLabel, truncate, sprite, hash, ROOM_SHADOW } from "./map-common";
 import { worldRef } from "./world-ref";
 
@@ -81,10 +81,11 @@ export class EnvironmentNodeSprite {
     this.cpuText = label(9, GAUGE.unknown); this.cpuText.position.copyFrom(at(ENGINEERING_SPOTS.cpuLabel));
     this.memoryText = label(9, GAUGE.unknown); this.memoryText.position.copyFrom(at(ENGINEERING_SPOTS.memoryLabel));
     const plate = at(ENGINEERING_SPOTS.plate);
-    this.caption = label(7,0xa7bdcb); this.caption.position.set(plate.x + 8, plate.y + 6);
+    const ink = mapInk(state.artStyle);
+    this.caption = label(7, ink.muted); this.caption.position.set(plate.x + 8, plate.y + 6);
     this.diskText = label(7, GAUGE.unknown); this.diskText.position.set(plate.x + 8, plate.y + 6);
     const hidden = node.scratch?.overflow.length ?? 0;
-    this.overflowText = label(7, HUD.text);
+    this.overflowText = label(7, ink.text);
     this.overflowText.text = hidden ? `+${hidden}` : "";
     this.overflowText.position.copyFrom(at(ENGINEERING_SPOTS.bayCount));
     this.callsignText = (state.envs[node.envId]?.summary.label ?? "?").toUpperCase();
@@ -115,14 +116,16 @@ export class EnvironmentNodeSprite {
     const h = node.hull;
     this.cpuText!.text = view.cpuFraction === undefined ? "CPU —" : `CPU ${Math.round(view.cpuFraction * 100)}%`;
     this.memoryText!.text = view.memoryFraction === undefined ? "RAM —" : `RAM ${Math.round(view.memoryFraction * 100)}%`;
-    this.cpuText!.fill = view.stale ? HUD.muted : view.cpuColor;
-    this.memoryText!.fill = view.stale ? HUD.muted : view.memoryColor;
+    const ink = mapInk(useGame.getState().artStyle);
+    this.cpuText!.fill = view.stale ? ink.muted : view.cpuColor;
+    this.memoryText!.fill = view.stale ? ink.muted : view.memoryColor;
     // Unreachable (not just reconnecting): the deck loses signal rather than showing old numbers.
     const offline = !["live", "connecting", "reconnecting"].includes(connection);
     // Only speak up when the readings can't be trusted.
     // A newer T3 protocol isn't an outage: what's needed is a Command update.
     this.caption!.text = connection === "needs-update" ? "NEEDS COMMAND UPDATE" : offline ? "NO SIGNAL" : view.stale ? "STALE SAMPLE" : view.snapshot ? "" : "NO HOST METRICS";
-    this.caption!.fill = offline ? GAUGE.critical : 0xa7bdcb;
+    // A message, not a load reading: theme text, never the critical-load magenta.
+    this.caption!.fill = offline ? ink.text : ink.muted;
     if (offline !== this.offline) { this.offline = offline; this.drawDamage(); }
     const alpha = view.stale ? 0.35 : 1;
     const g = this.meters!.clear();

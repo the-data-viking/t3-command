@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { stationColor } from "../game/layout";
 import { sfx } from "../game/sfx";
-import { contextLevel, css, modelTier, TIER_LABEL } from "../game/theme";
+import { contextLevel, css, hudAccent, modelTier, TIER_LABEL } from "../game/theme";
 import { worldRef } from "../game/world";
 import { openEvent, setSelection, toggleSquad, unitKey, useGame } from "../store";
 import { squadKeys } from "./squad";
@@ -21,6 +21,7 @@ const ORDER: UnitState[] = [...NEEDS_YOU, ...ON_DUTY];
 
 /** FTL-style crew list: who needs you first, then who's on duty. Settled crew stay in quarters. */
 export function CrewRoster() {
+  useGame((s) => s.artStyle); // Re-render on theme change: team and bot colours deepen on light HUDs.
   const envs = useGame((s) => s.envs);
   const details = useGame((s) => s.details);
   const selection = useGame((s) => s.selection);
@@ -83,7 +84,7 @@ export function CrewRoster() {
     const key = unitKey(u.envId, u.thread.id);
     const detail = details[key];
     const ctx = detail ? telemetry(detail.thread).context : undefined;
-    const team = css(stationColor(useGame.getState(), u.envId));
+    const team = css(hudAccent(stationColor(useGame.getState(), u.envId), useGame.getState().artStyle));
     const tier = modelTier(u.thread.modelSelection.model);
     const active = selection?.kind === "unit" && selection.envId === u.envId && selection.threadId === u.thread.id;
     return (

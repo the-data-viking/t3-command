@@ -5,7 +5,7 @@ import { STYLES } from "../art/palettes";
 import { ADVANCE, cells, GLYPH_H, glyphFor } from "../art/pixelfont";
 import { flightCrew } from "../art/flightdeck";
 import { rasterize } from "../art/render";
-import { modelTier, PROVIDER_VISOR, providerSilhouette } from "../game/theme";
+import { DEFAULT_VISOR, modelTier, PROVIDER_VISOR, providerSilhouette } from "../game/theme";
 import { useGame } from "../store";
 
 const ICONS = {
@@ -40,7 +40,7 @@ const portraits = new Map<string, string>();
 export function CrewPortrait({ instanceId, model, team, scale = 2 }: { instanceId: string; model: string; team: number; scale?: number }) {
   const artStyle = useGame((s) => s.artStyle);
   const silhouette = providerSilhouette(instanceId), tier = modelTier(model);
-  const visor = PROVIDER_VISOR[instanceId] ?? 0x9fb3d1;
+  const visor = PROVIDER_VISOR[instanceId] ?? DEFAULT_VISOR;
   const key = [artStyle, silhouette, tier, team, visor].join("|");
   let url = portraits.get(key);
   if (!url) {

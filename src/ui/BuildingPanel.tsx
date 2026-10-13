@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
 import { groupFor, stationColor } from "../game/layout";
-import { css } from "../game/theme";
+import { css, hudAccent } from "../game/theme";
 import { addLog, setSelection, useGame } from "../store";
 import { isHistory, unitState } from "../t3/derive";
 import { envClient, logError } from "../t3/environment";
@@ -62,6 +62,7 @@ function defaultSelection(providers: Provider[], preferred: Array<ModelSelection
 }
 
 export function BuildingPanel({ envId, projectId }: { envId: string; projectId: string }) {
+  useGame((s) => s.artStyle); // Re-render on theme change: team and bot colours deepen on light HUDs.
   const env = useGame((s) => s.envs[envId]);
   const project = env?.projects[projectId];
   const [showHermes, setShowHermes] = useState(false);
@@ -287,7 +288,7 @@ function MachineTabs({ envId, projectId }: { envId: string; projectId: string })
             role="tab"
             aria-selected={active}
             className={`machine-tab ${active ? "active" : ""}`}
-            style={{ ["--team" as string]: css(stationColor(useGame.getState(), id)) }}
+            style={{ ["--team" as string]: css(hudAccent(stationColor(useGame.getState(), id), useGame.getState().artStyle)) }}
             onClick={() => {
               sfx.select();
               setSelection({ kind: "building", envId: id, projectId: m.project.id });

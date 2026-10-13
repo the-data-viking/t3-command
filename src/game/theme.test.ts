@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { GAUGE, hudMaterials, hudTokens, STATUS, TEAM_COLORS } from "./theme";
+import { DEFAULT_VISOR, GAUGE, hudMaterials, hudTokens, PROVIDER_VISOR, STATUS, TEAM_COLORS } from "./theme";
 import { BADGES } from "./map-common";
 import { ART_STYLES } from "../store";
 
@@ -54,7 +54,9 @@ test("live styles change HUD materials but never the meaning of status or gauge 
       }
       continue;
     }
-    for (const state of Object.keys(STATUS)) assert.equal(other[`--${state}`], night[`--${state}`]);
+    // Dark HUDs share them exactly, except where a theme hand-tunes one for its own panels.
+    const tuned = hudMaterials(style).tokens ?? {};
+    for (const state of Object.keys(STATUS)) if (!(state in tuned)) assert.equal(other[`--${state}`], night[`--${state}`]);
     for (const level of ["ok", "high", "critical"]) assert.equal(other[`--gauge-${level}`], night[`--gauge-${level}`]);
   }
   // Night Shift keeps its established chrome.
@@ -129,5 +131,32 @@ test("status badges are drawn only in outline, white and their status colour (V)
     const codes = new Set(grid!.join(""));
     for (const code of codes) assert.ok(".kwV".includes(code), `${state} badge uses palette code ${code}`);
     assert.ok(codes.has("V"), `${state} badge has a status fill`);
+  }
+});
+
+test("text on every status fill reads at 4.5:1 or better, in every theme", () => {
+  for (const style of LIVE_STYLES) {
+    const t = hudTokens(style);
+    for (const state of Object.keys(STATUS)) assert.ok(contrast(t[`--on-${state}`], t[`--${state}`]) >= 4.5, `${style} ${state} pill`);
+  }
+});
+
+test("interface colours never borrow a status: no accent tokens, charts and frames clear of status hues", () => {
+  const hues = ["alert", "question", "working", "monitoring", "error", "done"];
+  for (const style of LIVE_STYLES) {
+    const t = hudTokens(style);
+    assert.ok(!("--cyan" in t) && !("--amber" in t), `${style} still generates an accent that doubles as a status`);
+    // The two host-chart series are told apart from each other.
+    assert.ok(deltaE(hex(t["--chart-cpu"]), hex(t["--chart-ram"])) >= 20, `${style} CPU vs RAM series`);
+    for (const name of ["--frame", "--chart-cpu", "--chart-ram"]) {
+      for (const state of hues) assert.ok(deltaE(hex(t[name]), hex(t[`--${state}`])) >= 15, `${style} ${name} vs ${state}`);
+    }
+  }
+});
+
+test("visor glass stays clear of every status hue", () => {
+  const hues = { alert: STATUS.alert, question: STATUS.question, working: STATUS.working, monitoring: STATUS.monitoring, error: STATUS.error, done: STATUS.done, high: GAUGE.high, critical: GAUGE.critical };
+  for (const [provider, visor] of Object.entries({ ...PROVIDER_VISOR, default: DEFAULT_VISOR })) {
+    for (const [name, color] of Object.entries(hues)) assert.ok(deltaE(visor, color) >= 20, `${provider} visor vs ${name}`);
   }
 });
