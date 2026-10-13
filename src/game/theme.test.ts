@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { GAUGE, hudTokens, STATUS } from "./theme";
+import { GAUGE, hudMaterials, hudTokens, STATUS } from "./theme";
 import { ART_STYLES } from "../store";
 
 const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -34,6 +34,13 @@ test("live styles change HUD materials but never the meaning of status or gauge 
     assert.deepEqual(Object.keys(other).sort(), Object.keys(night).sort());
     assert.notEqual(other["--frame"], night["--frame"], `${style} has its own frame`);
     assert.notEqual(other["--surface"], night["--surface"], `${style} has its own surface`);
+    // A light HUD deepens the same hues so they read on pale panels; dark HUDs share them exactly.
+    if (hudMaterials(style).light) {
+      for (const name of [...Object.keys(STATUS).map((s) => `--${s}`), "--gauge-ok", "--gauge-high", "--gauge-critical"]) {
+        assert.ok(contrast(other[name], other["--surface"]) >= 4.5, `${style} ${name} readable on its panels`);
+      }
+      continue;
+    }
     for (const state of Object.keys(STATUS)) assert.equal(other[`--${state}`], night[`--${state}`]);
     for (const level of ["ok", "high", "critical"]) assert.equal(other[`--gauge-${level}`], night[`--gauge-${level}`]);
   }
@@ -70,4 +77,10 @@ test("every theme keeps text readable, and High Contrast goes further", () => {
   assert.ok(contrast(hc["--text"], hc["--surface"]) >= 18);
   assert.ok(contrast(hc["--muted"], hc["--surface"]) >= 10);
   assert.ok(contrast(hc["--edge-strong"], hc["--surface"]) >= 7, "borders stand out");
+});
+
+test("each theme sets its own frame chrome", () => {
+  const corners = new Set(LIVE_STYLES.map((s) => `${hudTokens(s)["--corner-shape"]}/${hudTokens(s)["--frame-radius"]}/${hudTokens(s)["--frame-width"]}`));
+  assert.equal(corners.size, LIVE_STYLES.length, "no two themes share the same frame");
+  assert.equal(hudTokens("highcontrast")["--frame-radius"], "0px");
 });

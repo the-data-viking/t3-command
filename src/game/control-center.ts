@@ -6,7 +6,7 @@ import { setSelection, useGame, type Selection } from '../store';
 import { botColor, BOT_STATE_LABELS, HERMES_COLOR, type BotOperator } from '../t3/bots';
 import type { UnitState } from '../t3/derive';
 import type { ControlCenterLayout, Rect } from './layout';
-import { HUD, hudMaterials, modelTier, providerSilhouette, STATUS } from './theme';
+import { HUD, platingMaterials, modelTier, providerSilhouette, STATUS } from './theme';
 import { crewTex, currentStyle, PX, tex } from './textures';
 import { crispScale, figureBoost, fitLabel, pixelDiamond, steppedPlate } from './map-common';
 
@@ -47,7 +47,7 @@ export class ControlCenterSprite {
     const c = currentStyle().colors;
     // Dark plating in every theme (the HUD's own materials); Hermes tan is trim only, so the
     // hall never becomes the brightest thing on a light-themed map.
-    const m = hudMaterials(useGame.getState().artStyle);
+    const m = platingMaterials(useGame.getState().artStyle);
     const g = new Graphics();
     this.root.addChild(g);
     steppedPlate(g, h.x - 4, h.y - 4, h.w + 8, h.h + 8, 44, 8, c.k);

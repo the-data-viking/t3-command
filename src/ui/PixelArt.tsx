@@ -49,3 +49,4 @@ export function CrewPortrait({ instanceId, model, team, scale = 2 }: { instanceI
   }
   return <img className="crew-portrait" src={url} width={16 * scale} height={22 * scale} alt="" draggable={false} />;
 }
+

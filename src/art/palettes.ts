@@ -44,17 +44,24 @@ export interface HudMaterials {
   /** Body and secondary text, where a style needs more contrast than the shared defaults. */
   text?: number;
   muted?: number;
+  /** A light HUD (dark text on pale panels). Status colours are deepened to stay readable. */
+  light?: boolean;
+  /** Frame shape: bevelled (FTL), rounded (ceramic, soft) or square; corner size and frame weight. */
+  chrome?: { corner: "bevel" | "round" | "square"; radius: number; width: number };
+  /** Dark plating for map structures drawn from HUD materials (Hermes hall, operations hub). */
+  plating?: { surface: number; slot: number; edge: number; edgeStrong: number; control: number };
 }
 
 const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   flightdeck: {
-    id: "flightdeck", name: "Flight Deck",
-    blurb: "FTL-inspired ship interiors: compact suited crew, broad wraparound consoles, inset displays and clearly separated system stations. Warm plating and restrained copper details.",
+    id: "flightdeck", name: "Kestrel",
+    blurb: "FTL's warm hull: ivory and stone plating, copper details and charcoal wells, on the Flight Deck kit.",
     space: 0x080d16, wall: 0x1a212a,
     // Warm plating frames and charcoal wells, echoing the deck's ivory and copper.
     hud: {
       frame: 0xc9c1aa, ink: 0x14110d, surface: 0x1e1b17, deep: 0x100e0b, slot: 0x15130f,
       edge: 0x3a352c, edgeStrong: 0x4c4639, control: 0x2a261f, meter: 0x35302a, bright: 0xf6eedc,
+      chrome: { corner: "bevel", radius: 6, width: 3 },
     },
     colors: {
       k: 0x19212a, w: 0xf6eedc, W: 0xd7d3c4, s: 0x919c9b,
@@ -66,14 +73,15 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   },
   signal: {
     id: "signal",
-    name: "Signal Workshop",
-    blurb: "An orbital repair atelier: ceramic pods, copper service spines, ink-blue decks and goggled technicians. New silhouettes and fixtures, not just a palette swap.",
+    name: "Signal",
+    blurb: "A palette on the Flight Deck kit: ink-blue decks, ceramic plating and copper trim.",
     space: 0x0b1423,
     wall: 0x101c2a,
     // Ceramic frames around ink-blue wells.
     hud: {
       frame: 0xe1d5b9, ink: 0x101c2a, surface: 0x112032, deep: 0x0a1422, slot: 0x0e1a2a,
       edge: 0x2a3d52, edgeStrong: 0x3a5068, control: 0x1a2b3f, meter: 0x2a3a4c, bright: 0xf9edcd,
+      chrome: { corner: "round", radius: 12, width: 2 },
     },
     colors: {
       k: 0x101c2a, w: 0xf9edcd, W: 0xe1d5b9, s: 0x9daba9,
@@ -129,6 +137,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     hud: {
       frame: 0xaeb7be, ink: 0x0d1114, surface: 0x161b20, deep: 0x080b10, slot: 0x11161a,
       edge: 0x2c343b, edgeStrong: 0x3a444d, control: 0x20272d, meter: 0x2a3036, bright: 0xeef2f5,
+      chrome: { corner: "bevel", radius: 8, width: 3 },
     },
     colors: {
       k: 0x0a0c0f,
@@ -161,10 +170,13 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     blurb: "A cozier, brighter take: cream decks, soft plum outlines, candy accents.",
     space: 0x1b1530,
     wall: 0x4a3a52,
-    // Cream frames around plum wells.
+    // A light HUD to match the cream decks: plum frames around cream panels, plum ink.
     hud: {
-      frame: 0xe8d4c1, ink: 0x3a2e3f, surface: 0x241c38, deep: 0x150f24, slot: 0x1d1630,
-      edge: 0x43365a, edgeStrong: 0x56466f, control: 0x2e2445, meter: 0x3a2f52, bright: 0xffffff,
+      frame: 0x5a4566, ink: 0xfaf3e8, surface: 0xf6efe4, deep: 0xeee4d6, slot: 0xfffaf2,
+      edge: 0xd9c9b8, edgeStrong: 0xb7a392, control: 0xefe3d4, meter: 0xe2d4c4, bright: 0x2b2034,
+      text: 0x3a2e3f, muted: 0x6b5d73, light: true,
+      chrome: { corner: "round", radius: 14, width: 3 },
+      plating: { surface: 0x2a2236, slot: 0x221a2e, edge: 0x43365a, edgeStrong: 0x56466f, control: 0x2e2445 },
     },
     colors: {
       k: 0x3a2e3f,
@@ -201,6 +213,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       frame: 0xffffff, ink: 0x000000, surface: 0x000000, deep: 0x000000, slot: 0x0a0a0a,
       edge: 0x8a8a8a, edgeStrong: 0xd0d0d0, control: 0x1a1a1a, meter: 0x4a4a4a, bright: 0xffffff,
       text: 0xffffff, muted: 0xc8ced6,
+      chrome: { corner: "square", radius: 0, width: 2 },
     },
     colors: {
       k: 0x000000, w: 0xffffff, W: 0xe8e8e8, s: 0xa8a8a8,
@@ -219,6 +232,6 @@ export const STYLES: Record<StyleId, Style> = {
     ...BASE_STYLES.nightshift,
     id: "flightdeck-nightshift",
     name: "Flight Deck · Night Shift",
-    blurb: "Flight Deck crew and wraparound workstations in Night Shift’s dark industrial palette, with amber and cyan accents.",
+    blurb: "The default: dark industrial decks lit amber and cyan, in the spirit of StarNet.",
   },
 };

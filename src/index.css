@@ -89,8 +89,10 @@ code {
 .panel,
 .modal {
   background: var(--frame-bg);
-  border: 3px solid var(--frame);
-  border-radius: 7px;
+  /* Per-theme chrome: bevelled FTL corners, rounded ceramic, or square (src/art/palettes.ts). */
+  border: var(--frame-width, 3px) solid var(--frame);
+  border-radius: var(--frame-radius, 7px);
+  corner-shape: var(--corner-shape, round);
   box-shadow:
     inset 0 0 0 2px var(--ink),
     0 0 0 2px var(--ink),
@@ -1938,14 +1940,21 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px s
 .away-counts { margin: 0; color: var(--bright); font-family: var(--display); letter-spacing: 1px; }
 .away-actions { display: flex; justify-content: flex-end; }
 
+/* Light HUD (Pastel): inputs and insets that assume a dark panel get the theme's own wells. */
+[data-hud="light"] textarea, [data-hud="light"] input, [data-hud="light"] select { background: var(--slot); border-color: var(--edge-strong); color: var(--text); }
+[data-hud="light"] .markdown pre, [data-hud="light"] .markdown code { background: var(--deep); }
+[data-hud="light"] .hud-frame, [data-hud="light"] .ftl-frame, [data-hud="light"] .panel, [data-hud="light"] .modal { box-shadow: inset 0 0 0 2px var(--ink), 0 0 0 2px color-mix(in srgb, var(--frame) 60%, black), 0 8px 22px rgba(0, 0, 0, 0.45); }
+
 /* Theme picker */
 .theme-menu { position: relative; }
-.theme-list { position: absolute; right: 0; top: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; gap: 2px; padding: 6px; min-width: 220px; }
+.theme-list { position: absolute; right: 0; top: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; gap: 4px; padding: 6px; width: 380px; }
 .theme-option { display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: none; border: 2px solid transparent; border-radius: 4px; color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .theme-option:hover, .theme-option:focus-visible { border-color: var(--edge-strong); }
 .theme-option.active { border-color: var(--frame); color: var(--bright); }
-.theme-swatch { display: inline-flex; border: 1px solid var(--edge-strong); }
-.theme-swatch i { width: 10px; height: 16px; }
+.theme-thumb, .theme-icon { image-rendering: pixelated; flex: none; display: block; }
+.theme-icon { outline: 1px solid var(--edge-strong); }
+.theme-option-text { display: flex; flex-direction: column; gap: 2px; white-space: normal; }
+.theme-option-text .small { line-height: 1.35; }
 
 /* ---- Phone layout (src/ui/phone.ts); kept last so it wins the cascade ---- */
 
@@ -1983,7 +1992,7 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px s
   .topbar-more > .theme-menu { flex: 1 1 40%; }
   .sound-row { min-height: 44px; }
   .topbar-more > .theme-menu > .icon-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 2px solid var(--edge-strong); border-radius: 4px; color: var(--text); }
-  .theme-list { position: fixed; left: 8px; right: 8px; top: auto; bottom: max(8px, env(safe-area-inset-bottom)); max-height: 70dvh; overflow-y: auto; }
+  .theme-list { position: fixed; left: 8px; right: 8px; width: auto; top: auto; bottom: max(8px, env(safe-area-inset-bottom)); max-height: 70dvh; overflow-y: auto; }
   /* Spend and limits open from the tall phone menu: anchor them as bottom sheets too. */
   .spend-breakdown { left: 8px; right: 8px; width: auto; top: auto; bottom: max(8px, env(safe-area-inset-bottom)); max-height: 70dvh; }
   /* Full-screen panels are opaque; the map behind is just noise here. */
