@@ -109,6 +109,8 @@ export const ENGINEERING_SPOTS = {
   bayScreen: { x: 115, y: 20, w: 12, h: 8 },
   /** Inside the core housing's window; static when the machine is unreachable. */
   coreScreen: { x: 57, y: 23, w: 22, h: 16 },
+  /** Cooling fins beside the coolant tank (lit in turn, faster with CPU load). */
+  fins: { x: 99, y: 19, w: 7, h: 2, pitch: 4, count: 7 },
   /** Plating strip above the status plate; hazard-striped when the disk is nearly full. */
   hazard: { x: 5, y: 60, w: 134, h: 2 },
 };

@@ -14,7 +14,7 @@ import { CrewMotion } from "./crew-motion";
 import { quietness } from "../t3/progress";
 import { crewTex, PX, tex } from "./textures";
 import { contextLevel, GAUGE, HUD, hudMaterials, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
-import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale, pixelOval } from "./map-common";
+import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale, pixelOval, REPORT_MS } from "./map-common";
 
 // ---- Crew ------------------------------------------------------------------------------
 
@@ -55,17 +55,23 @@ export class CrewSprite extends Container {
   private leaving = 0;
   /** When the last turn failed, for the burst of sparks right after. */
   private failedAt = 0;
+  /** When this crew member finished a job (working → done), for the report-ready sparkle. */
+  private reportAt = 0;
 
   /** Sleepers' decorative drift doesn't keep an otherwise idle fleet rendering. */
   get animated(): boolean {
     if (reducedMotion()) return this.motion.moving;
     return this.motion.moving || this.arriving > 0 || this.state === "working" || this.state === "monitoring"
-      || this.state === "alert" || this.state === "question" || !!this.info?.tasks || this.sparking();
+      || this.state === "alert" || this.state === "question" || !!this.info?.tasks || this.sparking() || this.celebrating();
   }
 
   /** Sparks fly for a minute after a failure, then it settles into a scorch mark and smoke. */
   private sparking(now = Date.now()): boolean {
     return this.state === "error" && now - this.failedAt < SPARK_MS;
+  }
+
+  private celebrating(now = performance.now()): boolean {
+    return now - this.reportAt < REPORT_MS;
   }
 
   /** Dematerialize; returns false if there's nothing to animate (reduced motion). */
@@ -125,7 +131,9 @@ export class CrewSprite extends Container {
   update(thread: ThreadShell, info: Telemetry | undefined, team: number, detail?: OrchestrationThread): void {
     this.thread = thread;
     if (detail !== this.detail) { this.detail = detail; this.quietCheckedAt = 0; }
+    const before = this.state;
     this.state = unitState(thread);
+    if (this.state === "done" && (before === "working" || before === "monitoring") && this.thread) this.reportAt = performance.now();
     if (this.state === "error") {
       const at = Date.parse(thread.latestTurn?.completedAt ?? thread.session?.updatedAt ?? "");
       this.failedAt = Number.isFinite(at) ? at : 0;
@@ -241,6 +249,7 @@ export class CrewSprite extends Container {
       return;
     }
     if (this.state === "error") this.drawDamage(f, t);
+    if (this.celebrating() && !reducedMotion()) this.drawReport(f);
     this.drawTurnAge(f);
     if (this.state === "working") {
       // Re-checked every few seconds rather than per frame: it scans the turn's activity.
@@ -293,6 +302,23 @@ export class CrewSprite extends Container {
     const hours = (Date.now() - Date.parse(turn.startedAt ?? turn.requestedAt)) / 3_600_000;
     const pips = [2, 6, 12, 24].filter((h) => hours >= h).length;
     for (let i = 0; i < pips; i++) f.rect(-20, -44 + i * 6, 3, 4).fill(hours >= 12 ? GAUGE.critical : GAUGE.high);
+  }
+
+  /**
+   * Job's done: a short burst of pixel confetti rising from the crew member in the "done" green,
+   * white and their team colour, over 1.6 seconds.
+   */
+  private drawReport(f: Graphics): void {
+    const k = (performance.now() - this.reportAt) / REPORT_MS;
+    const colors = [STATUS.done, 0xffffff, this.team];
+    for (let j = 0; j < 10; j++) {
+      const lane = hash(`${this.key}${j}`);
+      const x = Math.round((-18 + lane * 36) / 2) * 2;
+      const rise = (k * (40 + lane * 24)) | 0;
+      const y = Math.round((-30 - rise + Math.sin(k * 8 + j) * 3) / 2) * 2;
+      if ((j + Math.floor(k * 12)) % 3 === 0) continue; // Twinkle.
+      f.rect(x, y, 2, 2).fill({ color: colors[j % 3], alpha: 1 - k });
+    }
   }
 
   /** A teleporter column in the crew member's team color at strength `fade` (0–1). */

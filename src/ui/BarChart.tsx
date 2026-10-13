@@ -1,4 +1,4 @@
-export function BarChart({ points, label, color = "var(--cyan)", ceiling }: {
+export function BarChart({ points, label, color = "var(--chart-neutral)", ceiling }: {
   points: Array<{ label: string; value: number; detail: string }>;
   label: string; color?: string; ceiling?: number;
 }) {

@@ -37,6 +37,8 @@ export class EnvironmentNodeSprite {
   private storage?: StorageView;
   /** Crew glyphs fill the plate from the right; past five, the disk readout drops free space. */
   private crowded = false;
+  /** Measured CPU (0–1), for how fast the cooling fins cycle. */
+  private cpu = 0;
   /** Damage drawn from real state: static on an unreachable machine, hazard stripes on a full disk. */
   private damage?: Graphics;
   private offline = false;
@@ -109,6 +111,7 @@ export class EnvironmentNodeSprite {
   /** Rack LEDs fill with measured CPU load and the coolant column with RAM used. */
   updateResources(node: EnvironmentNodeLayout, state: HostState | undefined, connection: string): void {
     const view = hostView(state, connection);
+    this.cpu = view.stale ? 0 : view.cpuFraction ?? 0;
     const h = node.hull;
     this.cpuText!.text = view.cpuFraction === undefined ? "CPU —" : `CPU ${Math.round(view.cpuFraction * 100)}%`;
     this.memoryText!.text = view.memoryFraction === undefined ? "RAM —" : `RAM ${Math.round(view.memoryFraction * 100)}%`;
@@ -194,6 +197,12 @@ export class EnvironmentNodeSprite {
     if (!live) return;
     const screen = bay.includes("working") ? STATUS.working : bay.includes("monitoring") ? STATUS.monitoring : undefined;
     if (screen !== undefined) box(ENGINEERING_SPOTS.bayScreen).fill({ color: screen, alpha: screen === STATUS.working && frame % 2 ? 0.55 : 0.9 });
+    // Cooling fins: a light runs down them, faster the busier the CPU (idle machines stay dark).
+    if (this.cpu > 0.05) {
+      const fins = ENGINEERING_SPOTS.fins;
+      const k = Math.floor(frame * (0.4 + this.cpu * 1.6)) % fins.count;
+      box({ x: fins.x, y: fins.y + k * fins.pitch, w: fins.w, h: fins.h }).fill({ color: this.cpu >= 0.85 ? GAUGE.high : STATUS.working, alpha: 0.75 });
+    }
     const working = states.filter((s) => s === "working").length;
     const monitoring = states.filter((s) => s === "monitoring").length;
     ENGINEERING_SPOTS.cells.forEach((cell, i) => {

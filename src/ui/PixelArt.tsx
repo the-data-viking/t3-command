@@ -2,7 +2,7 @@
 // (which render differently on every OS) and CSS-painted helmets.
 
 import { STYLES } from "../art/palettes";
-import { cells } from "../art/pixelfont";
+import { ADVANCE, cells, GLYPH_H, glyphFor } from "../art/pixelfont";
 import { flightCrew } from "../art/flightdeck";
 import { rasterize } from "../art/render";
 import { modelTier, PROVIDER_VISOR, providerSilhouette } from "../game/theme";
@@ -50,3 +50,20 @@ export function CrewPortrait({ instanceId, model, team, scale = 2 }: { instanceI
   return <img className="crew-portrait" src={url} width={16 * scale} height={22 * scale} alt="" draggable={false} />;
 }
 
+
+/**
+ * HUD text in the map's 5×7 pixel font, so frame tabs speak the same type as the map. Drawn as
+ * SVG cells (crisp at any scale); the text itself stays available to screen readers.
+ */
+export function PixelLabel({ text, scale = 2 }: { text: string; scale?: number }) {
+  const chars = [...text.toUpperCase()];
+  const width = Math.max(1, chars.length * ADVANCE - 1);
+  return (
+    <span className="pixel-label">
+      <svg width={width * scale} height={GLYPH_H * scale} viewBox={`0 0 ${width} ${GLYPH_H}`} aria-hidden shapeRendering="crispEdges">
+        {chars.flatMap((ch, i) => cells(glyphFor(ch)).map(([x, y]) => <rect key={`${i}-${x}-${y}`} x={i * ADVANCE + x} y={y} width={1} height={1} />))}
+      </svg>
+      <span className="visually-hidden">{text}</span>
+    </span>
+  );
+}

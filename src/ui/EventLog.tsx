@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PixelLabel } from "./PixelArt";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
 import { clearLog, setSelection, useGame } from "../store";
@@ -54,7 +55,7 @@ export function CommsLog() {
   const envs = useGame((s) => s.envs);
   return (
     <section className="comms-log hud-frame" aria-label="Comms log">
-      <div className="hud-label">COMMS LOG</div>
+      <div className="hud-label"><PixelLabel text="Comms log" /></div>
       <header className="comms-log-head">
         <span className="muted small">{log.length} event{log.length === 1 ? "" : "s"} · shared by every device, kept 30 days</span>
         <span className="spacer" />
