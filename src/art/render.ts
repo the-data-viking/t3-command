@@ -5,8 +5,8 @@ import type { Grid } from "./sprites";
 
 export type Silhouette = "round" | "angular";
 export type Tier = "light" | "standard" | "heavy" | "reviewer";
-/** Walk frames: stride (A), passing (B), the other stride (C), passing (B). */
-export type Legs = "idle" | "walkA" | "walkB" | "walkC" | "sit";
+/** Walk frames: stride (A), passing (B), the other stride (C), passing (B); "behind" is seated at a console, seen from behind. */
+export type Legs = "idle" | "walkA" | "walkB" | "walkC" | "sit" | "behind";
 export type Arms = "idle" | "typeA" | "typeB";
 
 export interface Fill {

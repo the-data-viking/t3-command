@@ -960,10 +960,15 @@ export class World {
       const p = node.plate;
       const lightColor = live ? STATUS.done : env?.connection === "reconnecting" || env?.connection === "connecting" ? STATUS.question : 0x59626c;
       g.rect(p.x + p.w - 13, p.y + p.h / 2 - 4, 8, 8).fill({ color: lightColor, alpha: live || frame % 2 ? 1 : 0.4 });
-      // One glyph per crew member: shape and color both carry the state.
-      states.slice(0, 8).forEach((st, k) => {
-        const x = p.x + p.w - 24 - (Math.min(8, states.length) - k) * 12, y = p.y + 5;
-        for (const [cx, cy] of cells(STATUS_GLYPHS[st])) g.rect(x + cx * 2, y + cy * 2, 2, 2).fill(STATUS[st]);
+      // One glyph per crew member: shape and color both carry the state. In the fleet view the
+      // cells grow to three screen pixels like the stations' glyphs, on dark tiles over the deck.
+      const far = this.zoom < FLEET_VIEW_ZOOM;
+      const gc = far ? Math.round(3 / this.zoom) : 2, pitch = 6 * gc;
+      const fit = Math.max(1, Math.min(8, Math.floor((p.w - 32) / pitch)));
+      states.slice(0, fit).forEach((st, k) => {
+        const x = p.x + p.w - 24 - (Math.min(fit, states.length) - k) * pitch, y = far ? p.y + p.h - 6 * gc : p.y + 5;
+        if (far) g.rect(x - gc, y - gc, 7 * gc, 7 * gc).fill({ color: 0x0b0d10, alpha: 0.8 });
+        for (const [cx, cy] of cells(STATUS_GLYPHS[st])) g.rect(x + cx * gc, y + cy * gc, gc, gc).fill(STATUS[st]);
       });
     }
 
@@ -986,12 +991,34 @@ export class World {
     const far = this.zoom < FLEET_VIEW_ZOOM;
     this.crewLayer.visible = !far;
     this.crewLabels.visible = !far;
+    this.controlCenter?.setFleetView(far);
     if (!far) return;
     const c = currentStyle().colors;
     const plating = platingMaterials(state.artStyle);
     const cell = Math.round(3 / this.zoom);
     const tone: Record<RoomKind, number> = { bridge: c.f, terminal: c.p, files: c.p, comms: c.p, quarters: c.q, archive: c.F };
     const urgency: UnitState[] = ["alert", "question", "error", "done", "working", "monitoring", "idle", "sleeping"];
+    // Glyphs are 5 cells on a 6-cell dark tile, packed edge to edge so a room holds as many as it can.
+    const pitch = 6 * cell;
+    const glyph = (x: number, y: number, state: UnitState, color: number, selected: boolean) => {
+      // A dark tile under each glyph, so it reads on light floors too; white-framed when selected.
+      g.rect(x - cell, y - cell, 6 * cell, 6 * cell).fill({ color: 0x0b0d10, alpha: 0.8 });
+      if (selected) pixelFrame(g, x - cell, y - cell, 6 * cell, 6 * cell, SELECTION, 1, cell);
+      for (const [cx, cy] of cells(STATUS_GLYPHS[state])) g.rect(x + cx * cell, y + cy * cell, cell, cell).fill(color);
+    };
+    /** Lay glyphs out in rows inside a rect; false (and nothing drawn) if they don't all fit. */
+    const fill = (r: Rect, crew: CrewSprite[], force = false): boolean => {
+      const cols = Math.max(1, Math.floor((r.w - cell) / pitch));
+      const rows = Math.max(1, Math.floor((r.h - cell) / pitch));
+      if (!force && crew.length > cols * rows) return false;
+      crew.slice(0, cols * rows).forEach((sprite, k) => {
+        const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
+        glyph(r.x + 2 * cell + (k % cols) * pitch, r.y + 2 * cell + Math.floor(k / cols) * pitch, sprite.state,
+          sprite.offline ? 0x59626c : STATUS[sprite.state], selected);
+      });
+      return true;
+    };
+    const order = (a: CrewSprite, b: CrewSprite) => urgency.indexOf(a.state) - urgency.indexOf(b.state) || a.key.localeCompare(b.key);
     const byStation = new Map<string, CrewSprite[]>();
     for (const sprite of this.crew.values()) {
       const lay = this.layout.crew.get(sprite.key);
@@ -1000,23 +1027,33 @@ export class World {
     }
     for (const s of this.layout.stations.values()) {
       const i = s.interior;
-      g.rect(i.x, i.y, i.w, i.h).fill(plating.slot);
-      for (const [kind, room] of Object.entries(s.rooms) as Array<[RoomKind, StationLayout["rooms"][RoomKind]]>) {
-        if (room) g.rect(room.rect.x + cell, room.rect.y + cell, room.rect.w - 2 * cell, room.rect.h - 2 * cell).fill(tone[kind]);
+      const crew = (byStation.get(s.key) ?? []).sort(order);
+      const byRoom = new Map<RoomKind, CrewSprite[]>();
+      for (const sprite of crew) {
+        const room = s.rooms[sprite.room] ? sprite.room : "bridge";
+        byRoom.set(room, [...(byRoom.get(room) ?? []), sprite]);
       }
-      const crew = (byStation.get(s.key) ?? []).sort((a, b) => urgency.indexOf(a.state) - urgency.indexOf(b.state) || a.key.localeCompare(b.key));
-      const pitch = 7 * cell;
-      const cols = Math.max(1, Math.floor((i.w - 2 * cell) / pitch));
-      const rows = Math.max(1, Math.floor((i.h - 2 * cell) / pitch));
-      crew.slice(0, cols * rows).forEach((sprite, k) => {
-        const x = i.x + 2 * cell + (k % cols) * pitch, y = i.y + 2 * cell + Math.floor(k / cols) * pitch;
-        const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
-        // A dark tile under each glyph, so it reads on light floors too; white-framed when selected.
-        g.rect(x - cell, y - cell, 7 * cell, 7 * cell).fill({ color: 0x0b0d10, alpha: 0.8 });
-        if (selected) pixelFrame(g, x - cell, y - cell, 7 * cell, 7 * cell, SELECTION, 1, cell);
-        const color = sprite.offline ? 0x59626c : STATUS[sprite.state];
-        for (const [cx, cy] of cells(STATUS_GLYPHS[sprite.state])) g.rect(x + cx * cell, y + cy * cell, cell, cell).fill(color);
-      });
+      g.rect(i.x, i.y, i.w, i.h).fill(plating.slot);
+      // Rooms in the theme's floor tones, lit while someone is in them and dimmed otherwise.
+      const rooms = Object.entries(s.rooms) as Array<[RoomKind, StationLayout["rooms"][RoomKind]]>;
+      for (const [kind, room] of rooms) {
+        if (!room) continue;
+        const lit = byRoom.has(kind);
+        g.rect(room.rect.x + cell, room.rect.y + cell, room.rect.w - 2 * cell, room.rect.h - 2 * cell).fill({ color: tone[kind], alpha: lit ? 1 : 0.45 });
+      }
+      // Each glyph sits in the room its crew member is in; a station whose rooms are too small
+      // for its crew at this zoom lists them all across its interior instead.
+      const inRooms = [...byRoom].every(([kind, members]) => fill(s.rooms[kind]!.rect, members, false));
+      if (!inRooms) {
+        g.rect(i.x, i.y, i.w, i.h).fill({ color: plating.slot, alpha: 0.7 });
+        fill(i, crew, true);
+      }
+    }
+    // Hermes operators become glyphs in their bays, like crew (their figures hide at this scale).
+    for (const { bot, workstation: r } of this.layout.controlCenter?.operators ?? []) {
+      const state: UnitState = bot.observed ? bot.state : "idle";
+      const selected = sel?.kind === "hermes" && sel.profile === bot.name;
+      glyph(Math.round(r.x + r.w / 2 - 2.5 * cell), r.y + 8, state, bot.observed ? STATUS[state] : 0x59626c, selected);
     }
   }
 

@@ -35,10 +35,12 @@ const rows = (top: number, lines: string[], total = CREW_H): Grid => {
 
 // ---- Packs and tier extras --------------------------------------------------------------
 
+/** On the back, below the shoulder pad: a 2×3 block, lit on top. */
 export const PACK_STANDARD = rows(12, [
   ".kkk............",
-  ".kGk............",
   ".kgk............",
+  ".kGk............",
+  ".kGk............",
   ".kkk............",
 ]);
 
@@ -104,9 +106,9 @@ export const LEGS_WALK_B = rows(17, [
 // ---- Arms (animation) ------------------------------------------------------------------
 
 export const ARMS_IDLE = rows(13, [
-  "............kWk.",
-  "............kWk.",
   "............kwk.",
+  "............kWk.",
+  "............ksk.",
   "............kk..",
 ]);
 

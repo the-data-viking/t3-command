@@ -32,6 +32,14 @@ export class ControlCenterSprite {
   private selection = new Graphics();
   private operators: OperatorSprite[] = [];
 
+  /** In the fleet view operators are drawn as glyphs by the world; their figures and badges hide. */
+  setFleetView(far: boolean): void {
+    for (const { figure, badge } of this.operators) {
+      figure.visible = !far;
+      if (far) badge.visible = false;
+    }
+  }
+
   /** Observed bot activity wakes the demand-driven map loop; on-call bots stay still. */
   get animated(): boolean {
     return this.operators.some(({ bot }) => bot.observed
@@ -169,12 +177,12 @@ export class ControlCenterSprite {
       const active = bot.observed && bot.state === 'working';
       const color = botColor(bot.name);
       figure.texture = crewTex(providerSilhouette(bot.provider ?? 'hermes'), modelTier(bot.model ?? ''),
-        'sit', active ? (frame % 2 ? 'typeA' : 'typeB') : 'idle', color, HERMES_COLOR);
+        'behind', active ? (frame % 2 ? 'typeA' : 'typeB') : 'idle', color, HERMES_COLOR);
       figure.scale.set(PX * figureBoost(zoom, PX));
       const screen = bot.observed && bot.state !== 'idle' ? STATUS[bot.state] : 0x1c2228;
       console.texture = tex(A.CONSOLE, { screen });
       const grid = bot.observed ? badges[bot.state] : undefined;
-      badge.visible = !!grid;
+      badge.visible = !!grid && figure.visible; // Hidden with the figure in the fleet view.
       if (grid) {
         // Status-filled, like crew badges on the map and pills in the HUD.
         badge.texture = tex(grid, { visor: STATUS[bot.state] });
