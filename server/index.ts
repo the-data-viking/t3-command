@@ -17,6 +17,7 @@ import { TurnHistory } from "./history.ts";
 import { HistoryRecorder } from "./history-recorder.ts";
 import { StorageMonitor } from "./storage.ts";
 import { CommsLog } from "./comms.ts";
+import { ReadState } from "./read-state.ts";
 import { HostHistoryRecorder } from "./host-history.ts";
 import { t3SocketUrl } from "./t3-socket.ts";
 import { T3Versions } from "./t3-versions.ts";
@@ -46,6 +47,8 @@ const recorder = new HistoryRecorder(registry, history, hermesBridge);
 // The fleet comms log, shared by every browser.
 const comms = new CommsLog(config.dataDir);
 await comms.load();
+const readState = new ReadState(config.dataDir);
+await readState.load();
 recorder.listen({
   observe: (envId, threads) => comms.observe(envId, threads),
   connected: (envId, label) => comms.connected(envId, label),
@@ -201,7 +204,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return sendJson(res, 200, history.summary(days, timeZone));
   }
   if (pathname === "/api/storage" && method === "GET") return sendJson(res, 200, storage.views());
-  if (pathname === "/api/comms/stream" && method === "GET") return comms.stream(req, res);
+  // The comms stream also carries report read marks: all of them on connect, then each change.
+  if (pathname === "/api/comms/stream" && method === "GET") {
+    return comms.stream(req, res, (send) => {
+      send("read", readState.all());
+      return readState.subscribe((changed) => send("read", changed));
+    });
+  }
+  if (pathname === "/api/read" && method === "PUT") {
+    const body = await readJson<{ marks?: Record<string, string> }>(req);
+    if (!body?.marks || typeof body.marks !== "object" || Object.keys(body.marks).length > 500) return sendJson(res, 400, { error: "marks must be an object of up to 500 entries" });
+    return sendJson(res, 200, { changed: readState.mark(body.marks) });
+  }
   if (pathname === "/api/hosts/history" && method === "GET") {
     const params = new URL(req.url ?? "/", "http://localhost").searchParams;
     const envId = params.get("envId") ?? "";
@@ -403,6 +417,7 @@ async function shutdown(): Promise<void> {
   await recorder.stop();
   await hostHistory.stop();
   await comms.flush();
+  await readState.flush();
   await Promise.all([...hermesBridges.values()].map(async (bridge) => (await bridge).close()));
   process.exit(0);
 }

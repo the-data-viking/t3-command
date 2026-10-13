@@ -142,7 +142,11 @@ export class CommsLog {
   }
 
   /** Server-sent events: the backlog (or what was missed after Last-Event-ID), then live entries. */
-  stream(req: http.IncomingMessage, res: http.ServerResponse): void {
+  /**
+   * Stream entries (resuming after Last-Event-ID). `attach` may push other named events on the
+   * same connection (read marks) and returns its cleanup.
+   */
+  stream(req: http.IncomingMessage, res: http.ServerResponse, attach?: (send: (event: string, data: unknown) => void) => () => void): void {
     const resume = Number(req.headers["last-event-id"] ?? new URL(req.url ?? "/", "http://localhost").searchParams.get("after") ?? NaN);
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive", "x-accel-buffering": "no" });
     const send = (entry: CommsEntry) => res.write(`id: ${entry.id}\ndata: ${JSON.stringify(entry)}\n\n`);
@@ -150,8 +154,9 @@ export class CommsLog {
     for (const entry of this.since(Number.isFinite(resume) ? resume : undefined)) send(entry);
     res.write("event: synced\ndata: {}\n\n");
     this.listeners.add(send);
+    const detach = attach?.((event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
     const keepalive = setInterval(() => res.write(": keepalive\n\n"), KEEPALIVE_MS);
-    req.on("close", () => { clearInterval(keepalive); this.listeners.delete(send); });
+    req.on("close", () => { clearInterval(keepalive); this.listeners.delete(send); detach?.(); });
   }
 
   /** Drop entries past retention and rewrite the file. */
