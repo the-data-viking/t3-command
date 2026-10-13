@@ -249,6 +249,9 @@ export const SHELF: Grid = [
   "kkkkkkkkkkkkkk",
 ];
 
+/** An archive shelf not yet filled: the same unit, its slots bare. */
+export const SHELF_EMPTY: Grid = SHELF.map((row) => row.replace(/[bT]/g, "F"));
+
 export const FLOOR: Grid = [
   "FFFFFFFFFFFFFFFF",
   "Ffffffffffffffff",

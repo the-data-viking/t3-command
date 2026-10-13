@@ -3,6 +3,7 @@
 // to the project it serves. Crew remain inside connected, door-routed project rooms;
 // scratch crew (work not tied to a project) stand in their machine's engineering bay.
 
+import { stationMemory } from "./memory";
 import type { EnvWorld, GameState } from "../store";
 import { unitKey } from "../store";
 import { isHistory, unitState } from "../t3/derive";
@@ -426,7 +427,7 @@ export const fingerprint = (...parts: unknown[]): string => JSON.stringify(parts
 
 /** Everything a project facility draws: its geometry, nameplate and the art style. */
 export function stationDrawKey(state: GameState, s: StationLayout): string {
-  return fingerprint(state.artStyle, s, state.envs[s.members[0]?.envId ?? ""]?.summary.label);
+  return fingerprint(state.artStyle, s, state.envs[s.members[0]?.envId ?? ""]?.summary.label, stationMemory(state, s));
 }
 
 /** Everything an engineering chassis draws; host meters update separately. */

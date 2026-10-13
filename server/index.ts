@@ -225,6 +225,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return sendJson(res, 200, history.summary(days, timeZone));
   }
   if (pathname === "/api/storage" && method === "GET") return sendJson(res, 200, storage.views());
+  if (pathname === "/api/memory" && method === "GET") return sendJson(res, 200, history.memory());
   // The comms stream also carries report read marks: all of them on connect, then each change.
   if (pathname === "/api/comms/stream" && method === "GET") {
     return comms.stream(req, res, (send) => {

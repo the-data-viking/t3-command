@@ -123,6 +123,11 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   in an owner-only file. Messages about what this browser did (recruits, errors, quiet turns it
   noticed) stay in this browser. **Clear** hides the log in this browser only. Click an entry to
   jump to its crew member.
+- **Station memory**: stations wear what they've been through. Every merged PR from a project's
+  threads is a painted tally mark on its hull (groups of five), every failed turn in the Command
+  server's 90-day history a riveted patch plate with soot beside it (up to eight), and the archive's
+  shelves fill with books as the station finishes work (one shelf per five clean turns; bare slots
+  until then). `GET /api/memory` serves the per-project counts.
 - **Hazard telegraphs**: warnings before something runs out, not after. A disk filling up (a
   least-squares line over the last six hours of readings) shows **FULL IN 8H** on its engineering
   deck and in the station panel, turns amber under two days and critical (with hazard stripes)

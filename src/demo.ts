@@ -6,6 +6,7 @@ import { summarizeHistory, type TurnRecord } from "../shared/history";
 import type { HostHistory } from "../shared/host";
 import type { StorageView } from "../shared/storage";
 import { DEFAULT_PLAYBOOKS } from "../shared/playbooks";
+import { memoryOf } from "../shared/memory";
 import type { EnvWorld, GameState } from "./store";
 import { useGame } from "./store";
 import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
@@ -72,7 +73,10 @@ function fleet(): Record<string, EnvWorld> {
       thread("a2", "stone", "Restore Glassrun Gorge Canyon", "alert", 1300, "gpt-6", "codex"),
       { ...thread("a3", "command", "Clear out stale worktrees", "done", 90), pullRequests: [{ host: "github.com", repository: "demo/command", number: 72, url: "https://github.com/demo/command/pull/72",
         snapshot: { state: "open", title: "Remove stale worktrees", headBranch: "t3/a3", baseBranch: "main", isDraft: false, additions: 14, deletions: 212, changedFiles: 6, checksState: "passing", reviewDecision: null } }] } as ThreadShell,
-      thread("a4", "stone", "Old settled thread", "sleeping", 3000),
+      // A long-lived thread whose merged PRs are tallied on the Living Stone's hull.
+      { ...thread("a4", "stone", "Old settled thread", "sleeping", 3000), pullRequests: Array.from({ length: 12 }, (_, k) => ({ host: "github.com", repository: "demo/stone", number: 40 + k, url: `https://github.com/demo/stone/pull/${40 + k}`,
+        snapshot: { state: "merged", title: `Stone change ${k + 1}`, headBranch: `t3/s${k}`, baseBranch: "main", isDraft: false } })) } as ThreadShell,
+      { ...thread("a5", "stone", "Imported: first pass at the canyon", "sleeping", 9000), latestTurn: null, session: null, latestUserMessageAt: null } as ThreadShell,
     ]),
     agent1: env("agent1", "tls-agent-01", [stone], [
       thread("b1", "stone", "I'm considering a 2D top down reimagining of Aurvanga", "working", 130, "gpt-6", "codex"),
@@ -135,6 +139,8 @@ export function demoFetch(path: string): unknown {
   if (url.pathname === "/api/hosts/history") return hostHistory(url.searchParams.get("envId") ?? "", Number(url.searchParams.get("hours") ?? 24));
   if (url.pathname === "/api/update") return { enabled: false, phase: "idle", reason: "Demo fleet" };
   if (url.pathname === "/api/playbooks") return DEFAULT_PLAYBOOKS;
+  // Station memory: a busy Living Stone with a few scars, a lab that mostly fails.
+  if (url.pathname === "/api/memory") return { ...memoryOf(records(), 0), "mini:stone": { completed: 23, failed: 3 }, "agent1:stone": { completed: 9, failed: 1 }, "lab:lab": { completed: 2, failed: 5 } };
   return undefined;
 }
 
