@@ -28,6 +28,10 @@ test("every CSS variable the HUD reads is generated from the theme or derived in
   for (const name of Object.keys(hudTokens("flightdeck-nightshift"))) assert.ok(!declared.has(name), `${name} is redeclared in CSS`);
 });
 
+test("no CSS variable is defined in terms of itself", () => {
+  for (const m of stylesheet.matchAll(/(--[a-z-]+)\s*:([^;]*);/g)) assert.ok(!m[2].includes(`var(${m[1]})`), `${m[1]} refers to itself`);
+});
+
 test("live styles change HUD materials but never the meaning of status or gauge colors", () => {
   const night = hudTokens("flightdeck-nightshift");
   for (const style of LIVE_STYLES.filter((s) => s !== "flightdeck-nightshift")) {
