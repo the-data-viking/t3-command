@@ -19,6 +19,8 @@ import { StorageMonitor } from "./storage.ts";
 import { CommsLog } from "./comms.ts";
 import { ReadState } from "./read-state.ts";
 import { PushNotifier } from "./push.ts";
+import { FollowUps } from "./followups.ts";
+import { randomUUID } from "node:crypto";
 import { HostHistoryRecorder } from "./host-history.ts";
 import { t3SocketUrl } from "./t3-socket.ts";
 import { T3Versions } from "./t3-versions.ts";
@@ -54,8 +56,18 @@ await readState.load();
 const push = new PushNotifier(config.dataDir);
 await push.load();
 comms.onEntry((entry) => void push.notify(entry, entry.envId ? registry.get(entry.envId)?.label : undefined).catch((err) => console.warn("[push]", (err as Error).message)));
+// Follow-ups go out over the server's own link to each machine, as the browser would send them.
+const followUps = new FollowUps(config.dataDir, comms, async (envId, thread, text) => {
+  await recorder.request(envId, "orchestration.dispatchCommand", {
+    commandId: randomUUID(), type: "thread.turn.start", threadId: thread.id,
+    message: { messageId: randomUUID(), role: "user", text, attachments: [] },
+    modelSelection: thread.modelSelection, runtimeMode: thread.runtimeMode, interactionMode: thread.interactionMode,
+    createdAt: new Date().toISOString(),
+  });
+}, (envId) => registry.get(envId)?.label);
+await followUps.load();
 recorder.listen({
-  observe: (envId, threads) => comms.observe(envId, threads),
+  observe: (envId, threads) => { comms.observe(envId, threads); followUps.observe(envId, threads); },
   connected: (envId, label) => comms.connected(envId, label),
   disconnected: (envId, label) => comms.disconnected(envId, label),
   removed: (envId) => comms.forget(envId),
@@ -214,8 +226,26 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (pathname === "/api/comms/stream" && method === "GET") {
     return comms.stream(req, res, (send) => {
       send("read", readState.all());
-      return readState.subscribe((changed) => send("read", changed));
+      send("followups", followUps.view());
+      const offRead = readState.subscribe((changed) => send("read", changed));
+      const offFollowUps = followUps.subscribe((view) => send("followups", view));
+      return () => { offRead(); offFollowUps(); };
     });
+  }
+  if (pathname === "/api/followups" && method === "GET") return sendJson(res, 200, followUps.view());
+  if (pathname === "/api/followups" && method === "POST") {
+    const body = await readJson<{ envId?: string; threadId?: string; text?: string }>(req);
+    try { return sendJson(res, 200, followUps.add(String(body?.envId ?? ""), String(body?.threadId ?? ""), String(body?.text ?? ""))); }
+    catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
+  }
+  if (pathname === "/api/followups/cancel" && method === "POST") {
+    const body = await readJson<{ id?: string }>(req);
+    return sendJson(res, followUps.cancel(String(body?.id ?? "")) ? 200 : 404, followUps.view());
+  }
+  if (pathname === "/api/followups/pause" && method === "PUT") {
+    const body = await readJson<{ paused?: boolean }>(req);
+    followUps.setPaused(body?.paused === true);
+    return sendJson(res, 200, followUps.view());
   }
   if (pathname === "/api/push" && method === "GET") return sendJson(res, 200, push.status());
   if (pathname === "/api/push/subscribe" && method === "POST") {
@@ -444,6 +474,7 @@ async function shutdown(): Promise<void> {
   await comms.flush();
   await readState.flush();
   await push.flush();
+  await followUps.flush();
   await Promise.all([...hermesBridges.values()].map(async (bridge) => (await bridge).close()));
   process.exit(0);
 }

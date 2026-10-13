@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { cancelFollowUp, followUpFor, queueFollowUp } from "../t3/followups";
 import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
 import { isHistory, pendingRequests, unitState } from "../t3/derive";
@@ -204,7 +205,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         ))}
       </div>
 
-      {!archived && <OrderBox envId={envId} threadId={threadId} disabled={env.connection !== "live"} working={state === "working"} />}
+      {!archived && <OrderBox envId={envId} threadId={threadId} disabled={env.connection !== "live"} working={state === "working"} busy={state === "working" || state === "alert" || state === "question"} />}
     </aside>
   );
 }
@@ -287,9 +288,11 @@ function PendingCard({ request, envId, threadId }: { request: PendingRequest; en
   );
 }
 
-function OrderBox({ envId, threadId, disabled, working }: { envId: string; threadId: string; disabled: boolean; working: boolean }) {
+function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string; threadId: string; disabled: boolean; working: boolean; busy: boolean }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const followUps = useGame((s) => s.followUps);
+  const queued = followUpFor(followUps, envId, threadId);
   const input = useRef<HTMLTextAreaElement>(null);
   // Phone keyboards have no Shift+Enter: Return adds a line and the Send button sends.
   const phone = usePhone();
@@ -316,7 +319,31 @@ function OrderBox({ envId, threadId, disabled, working }: { envId: string; threa
     }
   };
 
+  // Busy: hold the order on the Command server and send it when this turn ends (Alt+Enter).
+  const queue = async () => {
+    const order = text.trim();
+    if (!order || sending) return;
+    setSending(true);
+    try {
+      await queueFollowUp(envId, threadId, order);
+      sfx.order();
+      setText("");
+    } catch (err) {
+      sfx.error();
+      logError("Couldn't queue the follow-up", err);
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
+    <>
+    {queued && (
+      <div className="follow-up">
+        <span className="follow-up-text"><strong>Queued for when this turn ends{followUps.paused ? " (follow-ups paused)" : ""}:</strong> {queued.text}</span>
+        <button className="btn small" onClick={() => void cancelFollowUp(queued.id).catch((err) => logError("Couldn't cancel", err))}>Cancel</button>
+      </div>
+    )}
     <div className="order-box">
       <textarea
         ref={input}
@@ -326,15 +353,26 @@ function OrderBox({ envId, threadId, disabled, working }: { envId: string; threa
         rows={3}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey && !phone) {
+          if (e.key === "Enter" && e.altKey && busy) {
+            e.preventDefault();
+            void queue();
+          } else if (e.key === "Enter" && !e.shiftKey && !phone) {
             e.preventDefault();
             void send();
           }
         }}
       />
-      <button className="btn primary" disabled={disabled || sending || !text.trim()} onClick={() => void send()}>
-        {sending ? "…" : "Send ▶"}
-      </button>
+      <div className="order-actions">
+        <button className="btn primary" disabled={disabled || sending || !text.trim()} onClick={() => void send()}>
+          {sending ? "…" : "Send ▶"}
+        </button>
+        {busy && (
+          <button className="btn" disabled={sending || !text.trim()} title="The Command server sends it when this turn ends cleanly (Alt+Enter)" onClick={() => void queue()}>
+            After turn ↻
+          </button>
+        )}
+      </div>
     </div>
+    </>
   );
 }

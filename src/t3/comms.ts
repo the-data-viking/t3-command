@@ -2,6 +2,7 @@
 // its own and resumes after the last entry it saw.
 
 import type { CommsEntry } from "../../shared/comms";
+import type { FollowUpsView } from "../../shared/followups";
 import { mergeReadMarks, mergeServerLog, setReadSink, useGame } from "../store";
 import { fetchJson } from "./environment";
 
@@ -15,6 +16,10 @@ export function connectComms(): () => void {
     try { batch.push(JSON.parse(event.data) as CommsEntry); } catch { return; }
     flush ??= setTimeout(() => { flush = undefined; mergeServerLog(batch); batch = []; }, 50);
   };
+  // Follow-ups queued on the server: the whole queue on connect, then each change.
+  source.addEventListener("followups", (event) => {
+    try { useGame.setState({ followUps: JSON.parse((event as MessageEvent).data) as FollowUpsView }); } catch { /* Skip a bad frame. */ }
+  });
   // Report read marks are shared through the server: every mark on connect, then each change.
   source.addEventListener("read", (event) => {
     try { mergeReadMarks(JSON.parse((event as MessageEvent).data) as Record<string, string>); } catch { /* Skip a bad frame. */ }
