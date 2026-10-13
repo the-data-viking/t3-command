@@ -17,6 +17,9 @@ export const STATUS: Record<UnitState, number> = {
   sleeping: 0x4a5266,
 };
 
+/** Selection on the map: the picked crew member and the box-select, in a colour no status uses. */
+export const SELECTION = 0xf4f6f8;
+
 export const HUD = {
   amber: 0xf0a33a,
   cyan: 0x59e1ff,
@@ -34,7 +37,8 @@ export const HERMES_COLOR = 0xd6c09c;
 export const GAUGE = {
   ok: STATUS.done,
   high: HUD.amber,
-  critical: 0xff6f91,
+  // Magenta, well clear of the approval red.
+  critical: 0xf25cd0,
   unknown: 0x59626c,
 };
 export type GaugeLevel = Exclude<keyof typeof GAUGE, "unknown">;
@@ -79,13 +83,20 @@ export function hudTokens(styleId: StyleId): Record<string, string> {
     "gauge-ok": GAUGE.ok,
     "gauge-high": GAUGE.high,
     "gauge-critical": GAUGE.critical,
+    // Host charts plot in the theme's own materials, so a series never reads as a status.
+    "chart-cpu": m.bright,
+    "chart-ram": m.frame,
+    // The map's selection white, for legends that show it.
+    selection: SELECTION,
   };
-  // On a light HUD the status and gauge hues are deepened until they read as text on its panels.
+  // On a light HUD the status and gauge hues are deepened until they read as text on its panels;
+  // a theme can hand-tune any of them instead.
   if (m.light) {
     for (const name of [...Object.keys(STATUS), "gauge-ok", "gauge-high", "gauge-critical", "cyan", "amber", "hermes"]) {
       colors[name] = deepen(colors[name], m.surface);
     }
   }
+  Object.assign(colors, m.tokens);
   const tokens: Record<string, string> = Object.fromEntries(Object.entries(colors).map(([name, color]) => [`--${name}`, css(color)]));
   const chrome = m.chrome ?? { corner: "round", radius: 7, width: 3 };
   tokens["--frame-radius"] = `${chrome.radius}px`;
@@ -134,8 +145,11 @@ export function applyHudTheme(styleId: StyleId): void {
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", css(STYLES[styleId].space));
 }
 
-/** Distinct station colors, chosen to stay clear of the status colors above. */
-const TEAM_COLORS = [0xf0a33a, 0x9b7bff, 0x3ec7b3, 0xe45fbf, 0x5b8cff, 0xa8d65a, 0xff8a5c, 0x49b6ff];
+/**
+ * Distinct station colors, chosen to stay clear of the status and gauge colors above (no amber,
+ * orange, red, magenta or violet; see theme.test.ts for the separation each keeps).
+ */
+export const TEAM_COLORS = [0x3ec7b3, 0x5b7cff, 0xa8d65a, 0x2fa36b, 0x9c6b3c, 0x1f9fd6];
 
 export function teamColor(index: number): number {
   return TEAM_COLORS[index % TEAM_COLORS.length];

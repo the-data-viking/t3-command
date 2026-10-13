@@ -118,15 +118,16 @@ export class ControlCenterSprite {
     // Reuse familiar archive and communications furniture for the shared bridge services.
     const serviceY = h.y + h.h - 52;
     g.rect(h.x + 30, serviceY - 12, h.w - 60, 2).fill({ color: HERMES_COLOR, alpha: 0.35 });
-    // Holo-table at the centre of the dock: a pedestal with a dithered projection above it.
+    // Holo-table at the centre of the dock: a pedestal with a dithered projection above it, in
+    // the Hermes accent (cyan would read as "working").
     const hx = h.x + h.w / 2;
     g.rect(hx - 24, serviceY - 6, 48, 10).fill(c.k);
     g.rect(hx - 22, serviceY - 4, 44, 6).fill(m.control);
-    g.rect(hx - 16, serviceY - 6, 32, 2).fill(HUD.cyan);
+    g.rect(hx - 16, serviceY - 6, 32, 2).fill(HERMES_COLOR);
     for (let row = 0; row < 4; row++) {
       for (let x = -14 + row * 2; x < 14 - row * 2; x += 4) {
         if (((x + 14) / 4 + row) % 2) continue;
-        g.rect(hx + x, serviceY - 10 - row * 4, 4, 4).fill({ color: HUD.cyan, alpha: 0.5 - row * 0.1 });
+        g.rect(hx + x, serviceY - 10 - row * 4, 4, 4).fill({ color: HERMES_COLOR, alpha: 0.5 - row * 0.1 });
       }
     }
     this.fixture(A.FILES, h.x + 50, serviceY + 4, 0.5, 0.5);

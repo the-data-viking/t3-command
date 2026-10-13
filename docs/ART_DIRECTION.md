@@ -10,9 +10,8 @@ Bridge rooms use cool alloy decking; quarters use warmer acoustic panels; system
 archives keep the neutral utility deck. Material changes should make a station easier to
 read without competing with crew, labels, or attention badges.
 
-This pass keeps all three candidate palettes available for review. Kestrel is the warm,
-utilitarian option; Night Shift is darker and industrial; Pastel Ops is the softer option.
-No final palette choice has been made for this pass.
+The live themes are Night Shift (the default), Kestrel (warm FTL hull), Signal (an ink-blue
+palette), Pastel Ops (a light HUD over dusk space) and High Contrast.
 
 ## Review
 
@@ -100,10 +99,16 @@ only translucent variants with `color-mix()`.
 
 - Night Shift keeps its cool gray frames. Warm Flight Deck uses warm plating frames around
   charcoal wells.
-- Materials change per style. Status colors, the one "done / healthy / selected" green and the
-  gauge ramp never do.
-- Context-left bars and host CPU/RAM meters use their own gauge ramp (green → amber → rose).
+- Materials change per style. Status colors, the one "done / healthy" green and the gauge ramp
+  never change meaning. A light HUD (Pastel) hand-tunes darker versions in its `hud.tokens` so they
+  read on cream; `theme.test.ts` holds each at 4.5:1 on every panel and apart from each other.
+- Selection is white on the map (crew ring, station outline, box select) and the bright frame
+  colour in the HUD. It never borrows a status colour: green already means "report ready".
+- Context-left bars and host CPU/RAM meters use their own gauge ramp (green → amber → magenta).
   A full context or a busy host never borrows the approval red or question yellow.
+- Status badges are drawn in `V` and filled with `STATUS[state]`, so a badge is always the colour
+  of that state's HUD pill. Failed is an orange octagon with a ✕, never the approval red diamond.
+- Team colours (`TEAM_COLORS`) avoid every status and gauge hue (ΔE ≥ 20, tested).
 - Add a new style's chrome by giving it a `hud` block in `src/art/palettes.ts`. `theme.test.ts`
   fails if the stylesheet reads an undefined variable or redeclares a generated color.
 

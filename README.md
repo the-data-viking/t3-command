@@ -42,7 +42,7 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   CPU is. Frame tabs use the map's pixel font, and the help legend shows the real badges.
   Zoomed out, each engineering deck shows its machine's callsign in large type on a dark band, and
   Hermes operators keep their names. A crew member whose turn has run past 2, 6, 12 and 24 hours
-  gets a pip for each beside the head (amber, then rose past 12 hours). Rooms are lit only
+  gets a pip for each beside the head (amber, then magenta past 12 hours). Rooms are lit only
   while in use: a bridge while its station has crew on duty, a system room while someone works
   there. Crew walk to quarters when their thread settles and back when it wakes, doors slide
   open as they pass, and a freshly recruited crew member beams in at their seat. Camera jumps
@@ -59,7 +59,7 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   selects them. Return adds a line in the order box (Send sends), and opening a unit doesn't raise
   the keyboard.
 - **Host resources**: each environment's engineering deck shows whole-host CPU load as lit
-  rack LEDs and RAM used as its coolant level, with green/amber/rose gauge thresholds; its
+  rack LEDs and RAM used as its coolant level, with green/amber/magenta gauge thresholds; its
   core cells light for that environment's working (pulsing) and monitoring crew. Click a deck to zoom in and open its readings;
   environment chips also open the host panel. Samples refresh every 10 seconds while visible,
   with stale readings clearly marked. The Command server also samples every T3 machine once a
