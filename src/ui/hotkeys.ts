@@ -2,10 +2,11 @@
 
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
-import { openEvent, setSelection, setSquad, useGame } from "../store";
+import { openEvent, setSelection, setSquad, unitKey, useGame } from "../store";
 import { recallGroup, saveGroup } from "./squad";
 import type { UnitState } from "../t3/derive";
 import { allUnits, reportRead } from "./util";
+import { byWait, waitingSince } from "./queue";
 
 export type JumpGroup = "attention" | "done" | "working" | "monitoring" | "error";
 
@@ -19,10 +20,13 @@ const GROUPS: Record<JumpGroup, UnitState[]> = {
 
 /** Select and center the next unit in a group, cycling from the current selection. */
 export function jumpTo(group: JumpGroup): void {
-  const { envs, selection, readReports } = useGame.getState();
-  const units = allUnits(envs)
-    .filter((u) => GROUPS[group].includes(u.state) && !(group === "done" && reportRead(readReports, u.envId, u.thread)))
-    .sort((a, b) => (a.thread.updatedAt < b.thread.updatedAt ? 1 : -1));
+  const { envs, selection, readReports, details } = useGame.getState();
+  const found = allUnits(envs)
+    .filter((u) => GROUPS[group].includes(u.state) && !(group === "done" && reportRead(readReports, u.envId, u.thread)));
+  // Waiting on you: longest wait first, the same order as the roster. Others: most recent first.
+  const units = group === "attention"
+    ? found.map((u) => ({ u, key: unitKey(u.envId, u.thread.id), since: waitingSince(u.thread, details[unitKey(u.envId, u.thread.id)]?.thread) })).sort(byWait).map(({ u }) => u)
+    : found.sort((a, b) => (a.thread.updatedAt < b.thread.updatedAt ? 1 : -1));
   if (units.length === 0) {
     sfx.deny();
     return;

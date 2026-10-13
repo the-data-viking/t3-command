@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PixelLabel } from "./PixelArt";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
@@ -7,6 +7,7 @@ import { pendingRequests } from "../t3/derive";
 import { envClient, logError } from "../t3/environment";
 import { QuestionForm } from "./QuestionForm";
 import { ARM_MS } from "./event-guard";
+import { waitQueue } from "./queue";
 import type { ApprovalDecision, PendingRequest } from "../t3/types";
 
 const DEFAULT_OPTIONS: Array<{ decision: ApprovalDecision; label: string }> = [
@@ -58,10 +59,25 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
   }, [requestId]);
   const armed = !!requestId && armedFor === requestId;
 
-  // Nothing (left) to decide: close.
+  // Others waiting on you, longest first: after a decision here, the card moves on to the next.
+  const envs = useGame((s) => s.envs);
+  const details = useGame((s) => s.details);
+  const queue = useMemo(() => waitQueue(envs, details).filter((q) => !(q.envId === envId && q.threadId === threadId)), [envs, details, envId, threadId]);
+  const next = queue[0];
+  const decided = useRef(false);
+
+  // Nothing (left) to decide here: move on to the next crew member waiting on you if you just
+  // decided something (a short beat, so the change reads), otherwise close.
+  // Keyed by who is next (not the array), so streaming updates don't keep restarting the beat.
+  const synced = detail?.synced;
+  const nextKey = next ? `${next.envId}:${next.threadId}` : "";
   useEffect(() => {
-    if (detail?.synced && !request) openEvent(null);
-  }, [detail?.synced, request]);
+    if (!synced || request) return;
+    if (!decided.current || !nextKey) { openEvent(null); return; }
+    const [nextEnv, ...rest] = nextKey.split(":");
+    const timer = setTimeout(() => openEvent({ envId: nextEnv, threadId: rest.join(":") }), 180);
+    return () => clearTimeout(timer);
+  }, [synced, request, nextKey]);
 
   const close = () => openEvent(null);
   const openLog = () => {
@@ -94,6 +110,7 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
     setBusy(true);
     try {
       await choice.run();
+      if (choice !== choices[choices.length - 1]) decided.current = true;
     } catch (err) {
       sfx.error();
       logError("Response failed", err);
@@ -148,7 +165,7 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
               <p className="event-text">
                 <strong>{thread.title || "A crew member"}</strong> needs an answer before continuing:
               </p>
-              <QuestionForm key={request.requestId} request={request} envId={envId} threadId={threadId} />
+              <QuestionForm key={request.requestId} request={request} envId={envId} threadId={threadId} onAnswered={() => { decided.current = true; }} />
             </>
           )}
           {request?.kind === "user-input" ? (
@@ -163,7 +180,10 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
             ))}
           </ol>}
         </div>
-        <div className="event-foot muted">{request?.kind === "user-input" ? "Select or type your answers · Esc to decide later" : "Press a number to choose · Esc to decide later"}</div>
+        <div className="event-foot muted">
+          {request?.kind === "user-input" ? "Select or type your answers" : "Press a number to choose"}
+          {queue.length > 0 ? ` · ${queue.length} more waiting, next after this · Esc stops` : " · Esc to decide later"}
+        </div>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import type { UnitState } from "../t3/derive";
 
 const KEYS: Array<[string, string]> = [
   ["Ctrl/⌘ K", "Command palette: find crew, stations, machines, actions"],
-  ["Space", "Next crew waiting on you (approval or question)"],
+  ["Space", "Next crew waiting on you, longest wait first (approval or question)"],
   [".", "Next report ready"],
   ["W / M", "Next working / monitoring crew"],
   ["F", "Fit the whole fleet"],
