@@ -3,7 +3,7 @@
 import { Container, Graphics, Rectangle, Sprite, type FederatedPointerEvent } from "pixi.js";
 import * as A from "../art/sprites";
 import type { Arms, Legs } from "../art/render";
-import { setSelection, useGame } from "../store";
+import { setSelection, toggleSquad, useGame } from "../store";
 import { unitState, type UnitState } from "../t3/derive";
 import type { Telemetry } from "../t3/telemetry";
 import type { OrchestrationThread, ThreadShell } from "../t3/types";
@@ -43,6 +43,8 @@ export class CrewSprite extends Container {
   silhouette: Silhouette = "round";
   team = 0xffffff;
   hovered = false;
+  /** Picked for batch actions; set by the World each frame. */
+  inSquad = false;
   /** At their own console (vs. walking, at a system room, or in quarters). */
   atConsole = true;
   /** At the system room their current work needs. */
@@ -114,7 +116,9 @@ export class CrewSprite extends Container {
       e.stopPropagation();
       if (gesturing()) return;
       sfx.select();
-      setSelection({ kind: "unit", envId: this.envId, threadId: this.threadId });
+      // Shift-click builds a squad for batch actions instead of opening one crew member.
+      if (e.shiftKey) toggleSquad({ envId: this.envId, threadId: this.threadId });
+      else setSelection({ kind: "unit", envId: this.envId, threadId: this.threadId });
     });
   }
 
@@ -312,8 +316,11 @@ export class CrewSprite extends Container {
     const r = this.ring.clear();
     if (sleeping) {
       if (selected) r.rect(-26, -10, 52, 20).stroke({ color: STATUS.done, width: 2 });
+      if (this.inSquad) r.rect(-29, -13, 58, 26).stroke({ color: STATUS.working, width: 2 });
       return;
     }
+    // Squad members wear a second, wider cyan ring (alongside any state or selection ring).
+    if (this.inSquad) r.ellipse(0, 0, 20, 8).stroke({ color: STATUS.working, width: 2 });
     if (selected) {
       r.ellipse(0, 0, 16, 6).stroke({ color: STATUS.done, width: 2 });
     } else if (this.state === "alert" || this.state === "question") {

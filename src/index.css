@@ -1884,6 +1884,30 @@ button.ftl-tab {
 @media (max-width: 700px) { .history-columns { grid-template-columns: 1fr; } }
 .history-modal .tele-chart { max-height: 150px; }
 
+/* Squad bar, command palette, help */
+.crew-row.in-squad { box-shadow: inset 0 0 0 2px var(--working); }
+.squad-bar { position: absolute; left: 50%; bottom: 36px; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+.squad-count strong { color: var(--working); font-family: var(--display); font-size: 16px; }
+.palette-backdrop { place-items: start center; padding-top: 12vh; }
+.palette { width: min(640px, 100%); display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.palette-input { font-size: 16px; padding: 14px 16px; border: none; border-bottom: 2px solid var(--edge-strong); background: var(--deep); color: var(--bright); outline: none; }
+.palette-list { list-style: none; margin: 0; padding: 6px; max-height: min(420px, 55vh); overflow-y: auto; }
+.palette-item { display: grid; grid-template-columns: 76px 1fr auto; gap: 10px; align-items: baseline; padding: 7px 10px; border-radius: 4px; cursor: pointer; }
+.palette-item.active { background: var(--slot); box-shadow: inset 0 0 0 2px var(--frame); }
+.palette-group { font-family: var(--display); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+.palette-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.palette-detail { white-space: nowrap; }
+.palette-empty { padding: 10px; }
+.palette-foot { padding: 8px 14px; border-top: 1px solid var(--edge); }
+.help-modal { width: min(920px, 100%); }
+.help-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.help-keys > div, .help-legend > div { display: grid; grid-template-columns: 150px 1fr; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--edge); font-size: 12px; }
+.help-legend > div { grid-template-columns: 210px 1fr; }
+.help-keys dd, .help-legend dd { margin: 0; color: var(--text); }
+.help-legend dt { display: flex; align-items: center; gap: 8px; color: var(--bright); }
+kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px solid var(--edge-strong); border-bottom-width: 2px; border-radius: 3px; background: var(--slot); color: var(--bright); white-space: nowrap; }
+.help-chip { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 2px; }
+
 /* Theme picker */
 .theme-menu { position: relative; }
 .theme-list { position: absolute; right: 0; top: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; gap: 2px; padding: 6px; min-width: 220px; }
@@ -1930,6 +1954,11 @@ button.ftl-tab {
   .topbar-more > .theme-menu > .icon-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 2px solid var(--edge-strong); border-radius: 4px; color: var(--text); }
   .theme-list { position: fixed; left: 8px; right: 8px; top: auto; bottom: max(8px, env(safe-area-inset-bottom)); max-height: 70dvh; overflow-y: auto; }
   .theme-option { min-height: 44px; }
+  .squad-bar { left: 8px; right: 8px; bottom: calc(52px + env(safe-area-inset-bottom)); transform: none; flex-wrap: wrap; }
+  .squad-hint { display: none; }
+  .palette-backdrop { padding-top: 0; }
+  .help-columns { grid-template-columns: 1fr; }
+  .help-keys > div, .help-legend > div { grid-template-columns: 1fr; gap: 2px; }
 
   /* Crew dock along the bottom edge; opens upward over the map. */
   .crew-roster {

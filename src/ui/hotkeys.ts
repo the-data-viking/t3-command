@@ -2,7 +2,8 @@
 
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
-import { openEvent, setSelection, useGame } from "../store";
+import { openEvent, setSelection, setSquad, useGame } from "../store";
+import { recallGroup, saveGroup } from "./squad";
 import type { UnitState } from "../t3/derive";
 import { allUnits } from "./util";
 
@@ -42,16 +43,36 @@ function typing(target: EventTarget | null): boolean {
 
 export function installHotkeys(): () => void {
   const onKey = (e: KeyboardEvent) => {
+    // The palette opens from anywhere, even while typing.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      useGame.setState((s) => ({ showPalette: !s.showPalette, showHelp: false }));
+      return;
+    }
+    const state = useGame.getState();
+    if (state.showPalette || state.showHelp) return; // They handle their own keys.
     if (e.key === "Escape") {
-      if (useGame.getState().event) openEvent(null);
-      else if (useGame.getState().showEnvManager) useGame.setState({ showEnvManager: false });
-      else if (useGame.getState().showLog) useGame.setState({ showLog: false });
+      if (state.event) openEvent(null);
+      else if (state.showEnvManager) useGame.setState({ showEnvManager: false });
+      else if (state.showLog) useGame.setState({ showLog: false });
+      else if (state.squad.length) setSquad([]);
       else setSelection(null);
       (document.activeElement as HTMLElement | null)?.blur?.();
       return;
     }
+    if (typing(e.target)) return;
+    // Control groups by physical key: Alt+digit types symbols on a Mac, and Chrome keeps Ctrl+digit
+    // for switching tabs on Windows and Linux, so saving takes either Ctrl or Alt.
+    const digit = /^Digit([1-9])$/.exec(e.code);
+    if (digit && !e.metaKey && !e.shiftKey) {
+      e.preventDefault();
+      if (e.ctrlKey || e.altKey) saveGroup(Number(digit[1]));
+      else recallGroup(Number(digit[1]));
+      return;
+    }
     if (e.target instanceof Element && e.target.closest("button, summary, a")) return;
-    if (typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "?") { e.preventDefault(); useGame.setState({ showHelp: true }); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const actions: Record<string, () => void> = {
       " ": () => jumpTo("attention"),
       ".": () => jumpTo("done"),

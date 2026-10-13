@@ -57,6 +57,11 @@ export interface GameState {
   /** Disk usage per machine, as last measured by the Command server. */
   storage: Record<string, StorageView>;
   selection: Selection;
+  /** Crew picked together (shift-click, shift-drag, control groups) for batch actions. */
+  squad: SquadMember[];
+  /** Command palette and help overlay. */
+  showPalette: boolean;
+  showHelp: boolean;
   log: LogEntry[];
   muted: boolean;
   /** Flight Deck map palette: warm plating or Night Shift. */
@@ -73,6 +78,21 @@ export interface GameState {
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
+
+export interface SquadMember { envId: string; threadId: string }
+
+/** Add a crew member to the squad, or take them out if already in it. */
+export function toggleSquad(member: SquadMember): void {
+  useGame.setState((s) => {
+    const key = unitKey(member.envId, member.threadId);
+    const inSquad = s.squad.some((m) => unitKey(m.envId, m.threadId) === key);
+    return { squad: inSquad ? s.squad.filter((m) => unitKey(m.envId, m.threadId) !== key) : [...s.squad, member] };
+  });
+}
+
+export function setSquad(squad: SquadMember[]): void {
+  useGame.setState({ squad });
+}
 
 /** Map styles offered in the theme picker, in menu order. */
 export const ART_STYLES = ["flightdeck-nightshift", "flightdeck", "signal", "kestrel", "pastel", "highcontrast"] as const;
@@ -135,6 +155,9 @@ export const useGame = create<GameState>()(() => ({
   hostPanel: null,
   storage: {},
   selection: null,
+  squad: [],
+  showPalette: false,
+  showHelp: false,
   log: loadLog(),
   muted: loadMuted(),
   artStyle: loadArtStyle(),
