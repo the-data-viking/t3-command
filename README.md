@@ -525,3 +525,12 @@ Command at that crew member.
 On iPhone and iPad, web push needs the app on the Home Screen: open T3 Command in Safari, tap
 Share → **Add to Home Screen**, then open it from the Home Screen and turn push on. The Command
 server keeps its keys, subscriptions and rules in owner-only files in its data directory.
+
+## Follow-ups
+
+When a crew member is busy, **After turn ↻** (or Alt+Enter) in their order box queues the order on
+the Command server, which sends it the moment their current turn completes cleanly, with or
+without a browser open. A follow-up is dropped (and the comms log says why) if the turn fails or
+is interrupted, if another order starts a new turn first, or after 12 hours. There's at most one
+per crew member; it shows in their panel and roster row and can be cancelled, every send is logged
+as "sent by follow-up", and the command palette can pause them all.

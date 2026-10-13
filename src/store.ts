@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { CommsKind } from "../shared/comms";
+import type { FollowUpsView } from "../shared/followups";
 import type { EnvSummary, MeResponse } from "../shared/api";
 import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
 import type { UsageState } from "./t3/usage";
@@ -88,6 +89,8 @@ export interface GameState {
   debrief: { envId: string; threadId: string } | null;
   /** Photo mode: the HUD hidden, the map alone with a title card (P). */
   photo: boolean;
+  /** Orders the Command server will send when a busy crew member's turn ends (every device's). */
+  followUps: FollowUpsView;
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
@@ -228,6 +231,7 @@ export const useGame = create<GameState>()(() => ({
   incoming: null,
   debrief: null,
   photo: false,
+  followUps: { paused: false, queued: [] },
 }));
 
 /** Returning the same env from `fn` is a no-op: subscribers (the map, panels) are not notified. */

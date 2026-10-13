@@ -5,6 +5,7 @@ import { contextLevel, css, hudAccent, modelTier, TIER_LABEL } from "../game/the
 import { worldRef } from "../game/world";
 import { openEvent, setSelection, toggleSquad, unitKey, useGame } from "../store";
 import { squadKeys } from "./squad";
+import { followUpFor } from "../t3/followups";
 import { byWait, requestSummary, waitingSince } from "./queue";
 import { pendingRequests } from "../t3/derive";
 import type { UnitState } from "../t3/derive";
@@ -26,6 +27,7 @@ export function CrewRoster() {
   useGame((s) => s.artStyle); // Re-render on theme change: team and bot colours deepen on light HUDs.
   const envs = useGame((s) => s.envs);
   const details = useGame((s) => s.details);
+  const followUps = useGame((s) => s.followUps);
   const selection = useGame((s) => s.selection);
   const hermesCatalog = useGame(s => s.hermesCatalog);
   const operators = botOperators({ envs, hermesCatalog });
@@ -112,6 +114,7 @@ export function CrewRoster() {
             {(u.state === "alert" || u.state === "question") && detail && (
               <span className={`crew-ask st-${u.state}`}>{requestSummary(pendingRequests(detail.thread)[0], 44)}</span>
             )}
+            {followUpFor(followUps, u.envId, u.thread.id) && <span className="crew-queued">↻ Follow-up queued{followUps.paused ? " (paused)" : ""}</span>}
             <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
             <PlanLine thread={u.thread} detail={detail?.thread} />
             {ctx !== undefined && (

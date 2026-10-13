@@ -19,6 +19,7 @@ const KEYS: Array<[string, string]> = [
   ["Shift-click", "Add or remove crew from the squad (map or roster)"],
   ["Shift-drag", "Box-select crew on the map into the squad"],
   ["Drag · scroll · pinch", "Pan · zoom · zoom (touch)"],
+  ["Alt+Enter", "In a busy crew member's order box: queue it to send when their turn ends"],
   ["Esc", "Close dialogs, clear the squad, then deselect"],
   ["P", "Photo mode: hide the HUD, save the map as a PNG"],
   ["?", "This help"],

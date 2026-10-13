@@ -7,6 +7,7 @@ import { isSettled } from "../t3/derive";
 import { prState } from "../t3/changes";
 import { envClient, logError } from "../t3/environment";
 import { openDebrief } from "./debrief";
+import { pauseFollowUps } from "../t3/followups";
 import { fuzzyFilter } from "./fuzzy";
 import { jumpTo } from "./hotkeys";
 import { batchSettle, currentPick } from "./squad";
@@ -90,6 +91,11 @@ function buildItems(state: GameState): Item[] {
     // Accepting is reading and sending to camp; the count is in the label, so it's never a surprise.
     items.push({ id: "act:accept-all", group: "Action", label: `Accept all ${unread.length} reports and send to camp`,
       run: () => { markReportsRead(marks); void batchSettle(true, marks.map(({ envId, threadId }) => ({ envId, threadId }))); } });
+  }
+  // Follow-ups the Command server will send: hold them all, or let them go again.
+  if (state.followUps.queued.length || state.followUps.paused) {
+    items.push({ id: "act:followups", group: "Action", label: state.followUps.paused ? `Resume follow-ups (${state.followUps.queued.length} queued)` : `Pause all ${state.followUps.queued.length} follow-ups`,
+      run: () => void pauseFollowUps(!state.followUps.paused).catch((err) => logError("Couldn't change follow-ups", err)) });
   }
   // Verbs on crew: read a report, give an order, open a PR.
   for (const u of unread) {
