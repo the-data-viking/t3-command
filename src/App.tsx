@@ -36,7 +36,7 @@ function announceTransitions(): () => void {
   return onUnitTransition(({ envId, thread, from, to }) => {
     const at = { envId, threadId: thread.id };
     if (to === "alert" || to === "question") {
-      sfx.alert();
+      if (to === "alert") sfx.alert(); else sfx.question();
       notifyAttention(envId, thread, to);
       // FTL-style: pop the event, unless you're busy typing or already looking at one.
       const active = document.activeElement?.tagName;

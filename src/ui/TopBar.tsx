@@ -3,7 +3,7 @@ import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { css, teamColor } from "../game/theme";
 import { worldRef } from "../game/world";
-import { openHost, setSelection, setMuted, useGame, setNotify } from "../store";
+import { openHost, setSelection, useGame, setNotify } from "../store";
 import { hostView } from "../t3/host";
 import { isHistory, unitState } from "../t3/derive";
 import { jumpTo } from "./hotkeys";
@@ -16,12 +16,12 @@ import { botOperators } from '../t3/bots';
 import { PixelIcon } from "./PixelArt";
 import { usePhone } from "./phone";
 import { ThemePicker } from "./ThemePicker";
+import { SoundMenu } from "./SoundMenu";
 
 export function TopBar() {
   const bar = useRef<HTMLElement>(null);
   const envs = useGame((s) => s.envs);
   const hosts = useGame((s) => s.hosts);
-  const muted = useGame((s) => s.muted);
   const notify = useGame((s) => s.notify);
   const showLog = useGame((s) => s.showLog);
   const hermesCatalog = useGame(s => s.hermesCatalog);
@@ -158,9 +158,7 @@ export function TopBar() {
           <PixelIcon name={notify ? "bell" : "bellOff"} /><span className="phone-label">{notify ? "Alerts on" : "Alerts off"}</span>
         </button>
       )}
-      <button className="icon-btn" title={muted ? "Unmute" : "Mute"} aria-label={muted ? "Unmute" : "Mute"} onClick={() => setMuted(!muted)}>
-        <PixelIcon name={muted ? "muted" : "sound"} /><span className="phone-label">{muted ? "Muted" : "Sound"}</span>
-      </button>
+      <SoundMenu />
       </div>
     </header>
   );

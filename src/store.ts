@@ -64,6 +64,8 @@ export interface GameState {
   showHelp: boolean;
   log: LogEntry[];
   muted: boolean;
+  /** Master sound volume, 0–1. */
+  volume: number;
   /** Flight Deck map palette: warm plating or Night Shift. */
   artStyle: ArtStyle;
   showEnvManager: boolean;
@@ -160,6 +162,7 @@ export const useGame = create<GameState>()(() => ({
   showHelp: false,
   log: loadLog(),
   muted: loadMuted(),
+  volume: loadVolume(),
   artStyle: loadArtStyle(),
   showEnvManager: false,
   showLog: false,
@@ -188,6 +191,21 @@ export function openHost(envId: string): void {
 
 export function openEvent(event: GameState["event"]): void {
   useGame.setState({ event });
+}
+
+function loadVolume(): number {
+  try {
+    const v = Number(localStorage.getItem("t3c:volume"));
+    return localStorage.getItem("t3c:volume") !== null && v >= 0 && v <= 1 ? v : 0.7;
+  } catch {
+    return 0.7;
+  }
+}
+
+export function setVolume(volume: number): void {
+  const v = Math.min(1, Math.max(0, volume));
+  try { localStorage.setItem("t3c:volume", String(v)); } catch { /* Per-browser convenience only. */ }
+  useGame.setState({ volume: v, ...(v > 0 ? { muted: false } : {}) });
 }
 
 export function setMuted(muted: boolean): void {

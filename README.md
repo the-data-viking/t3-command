@@ -125,7 +125,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   use its arrow-key controls, or double-click the edge to reset; width is saved per browser.
   Consecutive tool events, including tool failures, are collapsed into expandable **Tool activity**
   rows with a failure count. Turn errors and approval requests stay visible.
-- Synthesized sound effects (mutable) and a comms feed of events.
+- Synthesized sound effects with a volume control (the sound button). Approvals sound a klaxon
+  and questions a rising tone. The same sound never plays twice within 0.35 s, and alerts take
+  turns 0.9 s apart, so a reconnect or a wave of finished turns plays the most urgent sound once
+  instead of a pile of alarms. Plus a comms feed of events.
 
 The map uses compact suited crew and wraparound system consoles. The theme button opens a picker
 with Night Shift (the default), warm Flight Deck plating, Signal Workshop, Kestrel, Pastel Ops and

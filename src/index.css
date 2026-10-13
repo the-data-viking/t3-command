@@ -1908,6 +1908,12 @@ button.ftl-tab {
 kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px solid var(--edge-strong); border-bottom-width: 2px; border-radius: 3px; background: var(--slot); color: var(--bright); white-space: nowrap; }
 .help-chip { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 2px; }
 
+.sound-panel { gap: 10px; padding: 12px; min-width: 260px; }
+.sound-panel p { margin: 0; }
+.sound-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text); }
+.sound-row input[type=range] { flex: 1; accent-color: var(--cyan); }
+.sound-value { width: 36px; text-align: right; font-family: var(--mono); }
+
 /* Theme picker */
 .theme-menu { position: relative; }
 .theme-list { position: absolute; right: 0; top: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; gap: 2px; padding: 6px; min-width: 220px; }
@@ -1951,6 +1957,7 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px s
   .phone-label { display: inline; font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
   .update-panel { position: fixed; left: 8px; right: 8px; top: var(--topbar-bottom, 64px); width: auto; }
   .topbar-more > .theme-menu { flex: 1 1 40%; }
+  .sound-row { min-height: 44px; }
   .topbar-more > .theme-menu > .icon-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 2px solid var(--edge-strong); border-radius: 4px; color: var(--text); }
   .theme-list { position: fixed; left: 8px; right: 8px; top: auto; bottom: max(8px, env(safe-area-inset-bottom)); max-height: 70dvh; overflow-y: auto; }
   .theme-option { min-height: 44px; }
