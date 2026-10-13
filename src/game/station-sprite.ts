@@ -11,6 +11,7 @@ import { currentStyle, PX, tex } from "./textures";
 import { mapInk } from "./theme";
 import { fitLabel, hash, pixelFrame, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
 import { worldRef } from "./world-ref";
+import { JOBS_PER_SHELF, MAX_PATCHES, stationMemory, type StationMemory } from "./memory";
 
 // ---- Stations --------------------------------------------------------------------------
 
@@ -75,6 +76,8 @@ export class StationSprite {
     g.rect(Math.round(s.port.x / 2) * 2 - 6, s.port.y - 20, 12, 40).fill(c.k);
     g.rect(Math.round(s.port.x / 2) * 2 - 4, s.port.y - 18, 8, 36).fill(c.D);
     this.drawExterior(g, s, { x: hx, y: hy, w: hw, h: hh }, hullTop, i);
+    const memory = stationMemory(state, s);
+    this.drawMemory(g, s, memory, hullTop, hullBottom, i);
 
     // Deck plating.
     const floor = new TilingSprite({ texture: tex(A.FLOOR), width: i.w, height: i.h });
@@ -117,14 +120,18 @@ export class StationSprite {
     if (q) {
       for (let k = 0; k < QUARTERS_SHOWN; k++) fixtures.addChild(sprite(tex(A.BUNK_EMPTY), q.x + TILE * 1.5 + k * TILE * 1.5, q.y + q.h - TILE / 2, 0.5, 0.5));
     }
-    // Archive shelves.
+    // Archive shelves, filling with finished work: one shelf unit per few clean turns.
     const ar = s.rooms.archive?.rect;
     if (ar) {
       // Book spines in the theme's own materials (team colours mean machines, not decor).
       const teams = [c.b, c.m, c.q, c.M];
+      const filled = Math.ceil(memory.completed / JOBS_PER_SHELF);
       let k = 0;
       for (let y = ar.y + 8; y + 18 <= ar.y + ar.h - 4; y += 26) {
-        for (let x = ar.x + 4; x + 28 <= ar.x + ar.w - 2; x += 30) fixtures.addChild(sprite(tex(A.SHELF, { team: teams[k++ % teams.length] }), x, y));
+        for (let x = ar.x + 4; x + 28 <= ar.x + ar.w - 2; x += 30) {
+          fixtures.addChild(sprite(k < filled ? tex(A.SHELF, { team: teams[k % teams.length] }) : tex(A.SHELF_EMPTY), x, y));
+          k++;
+        }
       }
     }
 
@@ -234,6 +241,50 @@ export class StationSprite {
       g.rect(rx, hullTop - 18, 4, 18).fill(c.k);
       g.rect(rx - 4, hullTop - 14, 12, 2).fill(c.k);
       g.rect(rx, hullTop - 22, 4, 4).fill(c.w);
+    }
+  }
+
+  /**
+   * Memory on the hull: a painted tally for every merged PR (groups of five, from the left of the
+   * bottom band) and a riveted patch plate for every failed turn (up to eight, on the right of the
+   * bottom band and the free ends of the top band, placed by the station's seed).
+   */
+  private drawMemory(g: Graphics, s: StationLayout, m: StationMemory, hullTop: number, hullBottom: number, i: { x: number; y: number; w: number; h: number }): void {
+    const c = currentStyle().colors;
+    const bandTop = i.y + i.h + 4, bandH = hullBottom - 6 - bandTop;
+    if (bandH >= 10) {
+      const y = bandTop + Math.floor((bandH - 8) / 4) * 2;
+      const groups = Math.min(Math.ceil(m.merged / 5), Math.floor((i.w * 0.5) / 24));
+      for (let gi = 0; gi < groups; gi++) {
+        const x0 = i.x + 10 + gi * 24;
+        const marks = Math.min(5, m.merged - gi * 5);
+        for (let k = 0; k < Math.min(4, marks); k++) g.rect(x0 + k * 4, y, 2, 8).fill(c.w);
+        // The fifth strikes through the four, as a stepped diagonal.
+        if (marks === 5) for (let k = 0; k < 9; k++) g.rect(x0 - 2 + k * 2, y + 6 - Math.floor(k / 2) * 2, 2, 2).fill(c.w);
+      }
+    }
+    const patches = Math.min(m.failed, MAX_PATCHES);
+    if (!patches) return;
+    const slots: Array<{ x: number; y: number; h: number }> = [];
+    const topBand = i.y - hullTop;
+    if (bandH >= 10) for (let x = i.x + i.w - 22; x > i.x + i.w * 0.55; x -= 22) slots.push({ x, y: bandTop + 1, h: bandH - 2 });
+    if (topBand >= 14) for (const x of [i.x + 8, i.x + 30, i.x + i.w - 56]) slots.push({ x, y: hullTop + 6, h: topBand - 12 });
+    slots.sort((a, b) => hash(`${s.key}${a.x},${a.y}`) - hash(`${s.key}${b.x},${b.y}`));
+    // Mismatched plates bolted over the hull: lighter than it, dark rivets, a lit top edge, and a
+    // seam where the plate overlaps — slightly different sizes so they read as repairs, not trim.
+    for (const slot of slots.slice(0, patches)) {
+      const n = hash(`${s.key}${slot.x}p`);
+      const w = n > 0.5 ? 18 : 16, h = Math.max(8, Math.floor(slot.h / 2) * 2 + 2);
+      const x = slot.x, y = slot.y - 1 - (h > slot.h ? 1 : 0);
+      // Soot from the failure, dithered out to one side of the plate.
+      const side = n > 0.3 ? 1 : -1;
+      for (let k = 0; k < 4; k++) {
+        for (let r = 0; r < h; r += 2) if ((k + r / 2) % 2 === 0 && hash(`${s.key}${x}${k}${r}`) > k * 0.22) g.rect(side > 0 ? x + w + k * 2 : x - 2 - k * 2, y + r, 2, 2).fill(c.k);
+      }
+      g.rect(x, y, w, h).fill(c.k);
+      g.rect(x + 2, y + 2, w - 4, h - 4).fill(n > 0.5 ? c.s : c.g);
+      g.rect(x + 2, y + 2, w - 4, 2).fill(c.W);
+      for (const [rx, ry] of [[2, 4], [w - 4, 4], [2, h - 6], [w - 4, h - 6]]) if (ry >= 4) g.rect(x + rx, y + ry, 2, 2).fill(c.k);
     }
   }
 

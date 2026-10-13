@@ -16,6 +16,7 @@ import { PhotoMode } from "./ui/PhotoMode";
 import { PlaybooksDialog } from "./ui/PlaybooksDialog";
 import { registerServiceWorker } from "./t3/push";
 import { loadPlaybooks } from "./t3/playbooks";
+import { loadMemory, MEMORY_REFRESH_MS } from "./t3/memory";
 import { mayAutoOpen, noteKey } from "./ui/event-guard";
 import { CommandPalette } from "./ui/CommandPalette";
 import { HelpOverlay } from "./ui/HelpOverlay";
@@ -99,6 +100,8 @@ export default function App() {
     const offHotkeys = installHotkeys();
     registerServiceWorker();
     void loadPlaybooks();
+    void loadMemory();
+    const memoryTimer = setInterval(() => void loadMemory(), MEMORY_REFRESH_MS);
     window.addEventListener("keydown", noteKey, true);
     const offTransitions = announceTransitions();
     const offTitle = installTitleBadge();
@@ -109,6 +112,7 @@ export default function App() {
     return () => {
       clearInterval(timer);
       clearInterval(storageTimer);
+      clearInterval(memoryTimer);
       offHotkeys();
       window.removeEventListener("keydown", noteKey, true);
       offTransitions();

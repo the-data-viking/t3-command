@@ -13,6 +13,7 @@ import {
   GAP_THRESHOLD_MS, HISTORY_RETENTION_DAYS, summarizeHistory,
   type CoverageSpan, type HistorySummary, type TurnOutcome, type TurnRecord,
 } from "../shared/history.ts";
+import { memoryOf, type FleetMemory } from "../shared/memory.ts";
 
 const TERMINAL = new Set<string>(["completed", "error", "interrupted"]);
 const DAY_MS = 86_400_000;
@@ -147,6 +148,11 @@ export class TurnHistory {
     const coverage: CoverageSpan[] = Object.entries(this.state.envs).flatMap(([envId, env]) =>
       env.spans.map((s) => ({ envId, from: s.from, to: this.live.has(envId) && s === env.spans.at(-1) ? new Date(this.now()).toISOString() : s.to })));
     return summarizeHistory(this.records, coverage, this.labels, { days, timeZone, now: this.now() });
+  }
+
+  /** Each project copy's finished and failed turns over the retention window, for station memory. */
+  memory(): FleetMemory {
+    return memoryOf(this.records, this.now() - HISTORY_RETENTION_DAYS * DAY_MS);
   }
 
   /** Write the coverage state if it changed; called on a timer and at shutdown. */

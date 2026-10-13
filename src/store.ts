@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { FleetMemory } from "../shared/memory";
 import type { CommsKind } from "../shared/comms";
 import type { FollowUpsView } from "../shared/followups";
 import { DEFAULT_PLAYBOOKS, type Playbook } from "../shared/playbooks";
@@ -95,6 +96,8 @@ export interface GameState {
   /** Saved orders, typed as /name in any order box (from the Command server). */
   playbooks: Playbook[];
   showPlaybooks: boolean;
+  /** Each project copy's finished and failed turns (90 days), worn by its station. */
+  memory: FleetMemory;
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
@@ -248,6 +251,7 @@ export const useGame = create<GameState>()(() => ({
   followUps: { paused: false, queued: [] },
   playbooks: DEFAULT_PLAYBOOKS,
   showPlaybooks: false,
+  memory: {},
 }));
 
 /** Returning the same env from `fn` is a no-op: subscribers (the map, panels) are not notified. */

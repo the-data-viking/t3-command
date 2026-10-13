@@ -13,7 +13,7 @@ function fixture(crewCount=1): GameState {
       session:{status:'idle'},latestTurn:null,latestUserMessageAt:'2026-01-01',
     }]))),
   });
-  return {envs:{a:env('a',['shared','other']),b:env('b',['shared']),empty:env('empty',[])}} as unknown as GameState;
+  return {envs:{a:env('a',['shared','other']),b:env('b',['shared']),empty:env('empty',[])},memory:{}} as unknown as GameState;
 }
 const intersects=(a:Rect,b:Rect)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 
