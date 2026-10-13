@@ -8,7 +8,7 @@ import { STATUS } from "../game/theme";
 import type { UnitState } from "../t3/derive";
 
 const KEYS: Array<[string, string]> = [
-  ["Ctrl/⌘ K", "Command palette: find crew, stations, machines, actions"],
+  ["Ctrl/⌘ K", "Command palette: find anything, or act: order a crew member, read a report, open a PR"],
   ["Space", "Next crew waiting on you, longest wait first (approval or question)"],
   [".", "Next report, as a debrief card: what was done, what changed, accept or follow up"],
   ["W / M", "Next working / monitoring crew"],
