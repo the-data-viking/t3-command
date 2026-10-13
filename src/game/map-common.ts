@@ -183,6 +183,33 @@ export function steppedPlate(g: Graphics, x: number, y: number, w: number, h: nu
   }
 }
 
+/** A rectangular outline one art pixel (`cell`) wide, inside the box: no centred hairline strokes. */
+export function pixelFrame(g: Graphics, x: number, y: number, w: number, h: number, color: number, alpha = 1, cell = PX): void {
+  g.rect(x, y, w, cell).fill({ color, alpha });
+  g.rect(x, y + h - cell, w, cell).fill({ color, alpha });
+  g.rect(x, y + cell, cell, h - 2 * cell).fill({ color, alpha });
+  g.rect(x + w - cell, y + cell, cell, h - 2 * cell).fill({ color, alpha });
+}
+
+/**
+ * The outline of a chamfered box (corners cut by `cut`), `width` thick, with the cut corners as
+ * pixel staircases of `width`-sized cells rather than smooth diagonal strokes.
+ */
+export function chamferOutline(g: Graphics, x: number, y: number, w: number, h: number, cut: number, color: number, width = 2 * PX): void {
+  const c = Math.round(cut / width) * width;
+  g.rect(x + c, y, w - 2 * c, width).fill(color);
+  g.rect(x + c, y + h - width, w - 2 * c, width).fill(color);
+  g.rect(x, y + c, width, h - 2 * c).fill(color);
+  g.rect(x + w - width, y + c, width, h - 2 * c).fill(color);
+  for (let k = width; k < c; k += width) {
+    // One step of each corner's staircase, k in from the corner.
+    g.rect(x + c - k, y + k, width, width).fill(color);
+    g.rect(x + w - c + k - width, y + k, width, width).fill(color);
+    g.rect(x + c - k, y + h - k - width, width, width).fill(color);
+    g.rect(x + w - c + k - width, y + h - k - width, width, width).fill(color);
+  }
+}
+
 /** A pixel diamond (centre, half-size), drawn in `cell` rows. */
 export function pixelDiamond(g: Graphics, cx: number, cy: number, r: number, color: number, cell = PX): void {
   for (let dy = -r; dy <= r; dy += cell) {

@@ -17,7 +17,7 @@ import * as A from "../art/sprites";
 import { setSelection, setSquad, unitKey, useGame, type GameState, type Selection, type SquadMember } from "../store";
 import { isHistory, unitState, type UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
-import { computeFleetLayout, fingerprint, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type StationLayout, type SystemRoom } from "./layout";
+import { computeFleetLayout, fingerprint, systemFixtureX, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
 import { PixelText } from "./pixel-text";
 import { endGesture, gesturing, holdTaps } from "./gesture";
@@ -30,7 +30,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { HUD, SELECTION, STATUS, platingMaterials } from "./theme";
-import { crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate } from "./map-common";
+import { crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { StationSprite } from "./station-sprite";
@@ -64,6 +64,8 @@ export class World {
   /** Unlit rooms, multiplied by a theme-tinted dim tone. */
   private shade = Object.assign(new Graphics(), { blendMode: "multiply" as const });
   private crewLayer = new Container();
+  /** Crew name labels, above every crew sprite (see CrewSprite.labelLayer). */
+  private crewLabels = new Container();
   private overlay = new Graphics();
   private edge = new Graphics();
   private edgeHits = new Container();
@@ -137,7 +139,7 @@ export class World {
     this.backdrop = new Backdrop(this.app.renderer);
     this.backdrop.build(useGame.getState().artStyle, this.app.screen.width, this.app.screen.height);
     this.crewLayer.sortableChildren = true;
-    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.shade, this.lights, this.crewLayer, this.overlay);
+    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.shade, this.lights, this.crewLayer, this.crewLabels, this.overlay);
     this.app.stage.addChild(this.backdrop.root, this.camera, this.edge, this.edgeHits);
     this.setupCamera();
 
@@ -601,6 +603,7 @@ export class World {
           sprite = new CrewSprite(lay);
           this.crew.set(key, sprite);
           this.crewLayer.addChild(sprite);
+          this.crewLabels.addChild(sprite.labelLayer);
           // Crew already aboard when the map loads are just placed; a fresh recruit beams in.
           if (this.seeded.has(env.summary.id) && Date.now() - Date.parse(thread.createdAt) < RECRUIT_WINDOW_MS) sprite.beamIn();
         }
@@ -739,6 +742,7 @@ export class World {
       if (!lay || !s) continue;
       const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
       sprite.inSquad = squad.has(key);
+      sprite.offline = state.envs[sprite.envId]?.connection !== "live";
       sprite.tick(lay, s, t, dt, frame, selected, this.zoom, this.tween?.to.zoom ?? this.zoom);
     }
     for (const sprite of this.departing) {
@@ -803,9 +807,16 @@ export class World {
     let doorsOpen = false;
     const onDuty = new Set<string>(); // stations with awake crew on a live connection
     const walkers = new Map<string, CrewSprite[]>(); // stationKey → crew walking right now
+    const asking: Array<{ x: number; y: number; color: number }> = []; // consoles of crew waiting on you
     for (const sprite of this.crew.values()) {
       const lay = this.layout.crew.get(sprite.key);
       if (!lay) continue;
+      // Last-known state from a machine that isn't connected lights nothing: its console goes dark.
+      if (sprite.offline) {
+        const con = lay.console && this.stations.get(lay.stationKey)?.consoles.get(`${lay.console.x},${lay.console.y}`);
+        if (con) con.texture = tex(A.CONSOLE, { screen: SCREEN_OFF });
+        continue;
+      }
       if (!lay.sleeping && state.envs[sprite.envId]?.connection === "live") onDuty.add(lay.stationKey);
       if (sprite.moving) walkers.set(lay.stationKey, [...(walkers.get(lay.stationKey) ?? []), sprite]);
       const u = stationUse.get(lay.stationKey) ?? { terminal: false, files: false, comms: false, attention: false, monitoringOnly: true };
@@ -816,7 +827,10 @@ export class World {
           if (sprite.info.workstation === "comms") u.monitoringOnly = false;
         }
       }
-      if (sprite.state === "alert" || sprite.state === "question") u.attention = true;
+      if (sprite.state === "alert" || sprite.state === "question") {
+        u.attention = true;
+        if (lay.console && !lay.sleeping) asking.push({ ...lay.console, color: STATUS[sprite.state] });
+      }
       stationUse.set(lay.stationKey, u);
       if (!lay.sleeping) {
         const key = lay.envId;
@@ -854,10 +868,17 @@ export class World {
         if (kind === "bridge") continue;
         // Screen light spilling from the system's fixture into its room, dithered.
         const glow = kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.working;
-        lightSpill(g, r.x + r.w * 0.3, r.y + r.h - 30, glow);
+        lightSpill(g, systemFixtureX(r), r.y + r.h - 30, glow);
+      }
+      // System screens show use, like the bridge consoles: lit and flickering while crew work
+      // there, violet on comms when only background tasks are being watched, dark otherwise.
+      for (const [kind, fixture] of this.stations.get(s.key)?.systems ?? []) {
+        const on = !!u?.[kind];
+        const screen = !on ? SCREEN_OFF : kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : frame % 2 ? STATUS.working : 0x9ff0ff;
+        const next = tex(fixture.grid, { screen });
+        if (fixture.sprite.texture !== next) fixture.sprite.texture = next;
       }
       if (bridge && u?.attention) {
-        g.rect(bridge.x, bridge.y, bridge.w, bridge.h).fill({ color: STATUS.alert, alpha: 0.1 + (frame % 2) * 0.08 });
         // Alert beacons on the roof corners, sweeping a short beam left and right.
         const i = s.interior;
         for (const bx of [i.x + 12, i.x + i.w - 20]) {
@@ -895,6 +916,14 @@ export class World {
 
     this.doorsOpen = doorsOpen;
 
+    // Each crew member waiting on you lights their own console: a dithered wash in their state's
+    // colour and a ring that grows in art-pixel steps. The roof beacons say which station.
+    for (const c of asking) {
+      lightSpill(g, c.x, c.y - 10, c.color);
+      const k = reducedMotion() ? 0.5 : (frame % 4) / 4;
+      pixelOval(g, c.x, c.y - 18, 22 + k * 12, 12 + k * 6, c.color, 0.9 - k * 0.6);
+    }
+
     // Supply lines: one per (node, station it crews); packets flow while that crew is working.
     const l = this.packets.clear();
     for (const node of this.layout.environmentNodes.values()) {
@@ -903,8 +932,7 @@ export class World {
         if (live && workingAt.has(`${node.envId}|${link.stationKey}`)) {
           for (let k = 0; k < 4; k++) {
             const p = linkPoint(link.from, link.to, (t * 0.3 + k / 4) % 1, link.via);
-            l.rect(Math.round(p.x) - 3, Math.round(p.y) - 3, 6, 6).fill(node.color);
-
+            l.rect(Math.round((p.x - 3) / 2) * 2, Math.round((p.y - 3) / 2) * 2, 6, 6).fill(node.color);
           }
         }
       }
@@ -936,7 +964,8 @@ export class World {
     // Selected project: outline its station.
     if (sel && sel.kind === "building") {
       const s = this.stationFor(sel.envId, sel.projectId);
-      if (s) o.poly(s.hull).stroke({ color: SELECTION, width: 4 });
+      // The hull is a chamfered box: [x+c, y, …, x, y+c]. Outline it in pixel steps.
+      if (s) { const h = s.hull; chamferOutline(o, h[12], h[1], h[4] - h[12], h[9] - h[1], h[0] - h[12], SELECTION); }
     }
   }
 

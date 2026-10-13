@@ -37,6 +37,7 @@ const LEGEND: Array<[string, string, string]> = [
   ["gauge-high", "Pips beside the head", "Turn running past 2, 6, 12, 24 hours (magenta past 12)"],
   ["gauge-high", "DISK % · hazard stripes", "Fullest checkout disk; stripes when nearly full"],
   ["gauge-critical", "Snow · NO SIGNAL · dashed lines", "Machine unreachable (offline or needs pairing)"],
+  ["muted", "Grey crew · static", "Last known state from an unreachable machine"],
 ];
 
 /** Legend marks that are a status badge on the map, shown as that badge. */

@@ -26,6 +26,13 @@ export interface Rect {
 export type RoomKind = "terminal" | "files" | "comms" | "bridge" | "quarters" | "archive";
 export type SystemRoom = "terminal" | "files" | "comms";
 
+/** Centre x of a system room's fixture (terminal, file bank, comms), against the room's left side. */
+export function systemFixtureX(room: Rect): number {
+  return Math.round((room.x + room.w * 0.3) / 2) * 2;
+}
+/** Half the width of a system fixture (24 art px at 2 world px each). */
+export const SYSTEM_FIXTURE_HALF = 24;
+
 export interface Room {
   kind: RoomKind;
   rect: Rect;
@@ -287,8 +294,8 @@ function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLa
 
   const spot = (kind: SystemRoom): Point => {
     const r = rooms[kind]!.rect;
-    // Crew stand to the right of the system sprite, feet near the bottom of the room.
-    return { x: r.x + r.w * 0.66, y: r.y + r.h - 8 };
+    // Crew stand right at the system's fixture, on its right side, feet near the bottom of the room.
+    return { x: systemFixtureX(r) + SYSTEM_FIXTURE_HALF + 12, y: r.y + r.h - 8 };
   };
 
   return {
