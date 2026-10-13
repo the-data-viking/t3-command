@@ -18,7 +18,7 @@ export function HostPanel({ envId }: { envId: string }) {
   return (
     <aside className="panel host-panel" aria-label="Engineering host resources">
       <header className="panel-head">
-        <div className="panel-title"><h2>{env?.summary.label ?? "Host"}</h2><div className="muted small">Engineering · whole-host resources</div></div>
+        <div className="panel-title"><h2>{env?.summary.label ?? "Host"}</h2><div className="muted small">Engineering · whole-host resources{env?.summary.serverVersion && env.summary.kind !== "hermes" ? ` · T3 ${env.summary.serverVersion} (protocol v${env.summary.protocolVersion ?? 1})` : ""}</div></div>
         <button className="icon-btn" title="Close host details" aria-label="Close host details" onClick={() => useGame.setState({ hostPanel: null })}>✕</button>
       </header>
       <div className="host-body">

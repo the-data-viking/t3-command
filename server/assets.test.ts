@@ -19,8 +19,9 @@ test('HTTP image relay authenticates, selects the environment, and preserves ima
   const requests: Array<{ url?: string; auth?: string; range?: string }> = [];
   const bytes = Buffer.from('test image bytes');
   const upstream = http.createServer((req, res) => {
-    // The turn history recorder subscribes to every environment's shell; only count asset requests.
-    if (req.url?.startsWith('/ws')) { res.writeHead(404); res.end(); return; }
+    // Background monitoring (the recorder's shell subscription and its descriptor/session checks)
+    // also reaches the environment; only count asset requests.
+    if (req.url?.startsWith('/ws') || req.url?.startsWith('/.well-known/') || req.url?.startsWith('/api/auth/')) { res.writeHead(404); res.end(); return; }
     requests.push({ url: req.url, auth: req.headers.authorization, range: req.headers.range });
     if (req.url?.endsWith('redirect.png')) { res.writeHead(302, { location: 'https://example.com/' }); res.end(); return; }
     if (req.url?.endsWith('missing.png')) { res.writeHead(404); res.end(); return; }

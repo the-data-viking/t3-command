@@ -17,6 +17,15 @@ Verified live against `http://127.0.0.1:3773` with a read-only probe (`/tmp/t3pr
 > **Your client must read `GET /.well-known/t3/environment` → `orchestrationProtocolVersion` (absent ⇒ 1) and refuse/branch
 > when it is not the version you implement.** The desktop app auto-updates, so expect v2 to arrive.
 > This document describes **v1** (what is installed).
+>
+> **What Command does about it:** every T3 socket URL is built in `server/t3-socket.ts`. It reads the
+> machine's descriptor (cached 10 s) and refuses protocols outside `SUPPORTED_PROTOCOL_VERSIONS`
+> (`shared/api.ts`) with a "needs Command update" error rather than sending v1 requests to a v2 server.
+> This covers the browser relay, the history recorder (which retries such machines slowly) and the
+> storage terminal. When a supported version is above 1, it appends `?orchestrationProtocol=N` like
+> T3's own client. `server/t3-versions.ts` checks each machine every 5 minutes and logs T3 updates in
+> the comms log, with an explicit warning when the new protocol isn't supported. Adding v2 means
+> listing 2 as supported and decoding its payloads where the shell and thread streams are read.
 
 ---
 

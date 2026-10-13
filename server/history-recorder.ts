@@ -7,6 +7,7 @@ import type { ProjectShell, ShellStreamItem, ThreadShell } from "../src/t3/types
 import type { HermesBridge } from "./hermes/bridge.ts";
 import type { TurnHistory } from "./history.ts";
 import type { Registry } from "./registry.ts";
+import { ProtocolUnsupported, t3SocketUrl } from "./t3-socket.ts";
 
 const SYNC_MS = 60_000;
 const PRUNE_MS = 6 * 3_600_000;
@@ -157,15 +158,14 @@ export class HistoryRecorder {
       let url: URL;
       let token: string;
       try {
-        url = new URL("/ws", await registry.resolveUrl(env));
+        url = await t3SocketUrl(registry, env, "t3-command-history");
         token = await registry.tokenFor(env);
-      } catch {
+      } catch (err) {
+        // A machine on a newer protocol isn't followed until Command is updated; check back slowly.
+        if (err instanceof ProtocolUnsupported) attempts = Math.max(attempts, 6);
         schedule();
         return;
       }
-      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-      url.searchParams.set("clientSurface", "web");
-      url.searchParams.set("clientAppVersion", "t3-command-history");
       const socket = new WebSocket(url, { headers: { authorization: `Bearer ${token}` }, maxPayload: 64 * 1024 * 1024 });
       ws = socket;
       let projects: Record<string, ProjectShell> = {};
