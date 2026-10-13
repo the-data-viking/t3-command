@@ -6,7 +6,7 @@ import type { PendingRequest } from "../t3/types";
 import { useGame } from "../store";
 
 /** Shared by the incoming-question dialog and the crew log. Mount with the request ID as key. */
-export function QuestionForm({ request, envId, threadId }: { request: PendingRequest; envId: string; threadId: string }) {
+export function QuestionForm({ request, envId, threadId, onAnswered }: { request: PendingRequest; envId: string; threadId: string; onAnswered?: () => void }) {
   const prefix = useId();
   const connected = useGame((s) => s.envs[envId]?.connection === "live");
   const questions = requestQuestions(request.activity.payload ?? {});
@@ -26,6 +26,7 @@ export function QuestionForm({ request, envId, threadId }: { request: PendingReq
       if (dismiss) await client.dismissQuestion(threadId, request.requestId);
       else await client.respondToQuestion(threadId, request.requestId, answers!);
       sfx.order();
+      onAnswered?.();
     } catch (err) {
       setBusy(false);
       setError(err instanceof Error ? err.message : "Response failed. Please try again.");

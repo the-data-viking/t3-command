@@ -5,9 +5,9 @@
 import { summarizeHistory, type TurnRecord } from "../shared/history";
 import type { HostHistory } from "../shared/host";
 import type { StorageView } from "../shared/storage";
-import type { EnvWorld } from "./store";
+import type { EnvWorld, GameState } from "./store";
 import { useGame } from "./store";
-import type { ProjectShell, Provider, ThreadShell } from "./t3/types";
+import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
 
 export const DEMO = !!import.meta.env?.DEV && typeof location !== "undefined" && new URLSearchParams(location.search).has("demo");
 
@@ -133,6 +133,21 @@ export function demoFetch(path: string): unknown {
   return undefined;
 }
 
+/** Thread details for the crew waiting on you, so their requests show in the roster and event card. */
+function demoDetails(envs: Record<string, EnvWorld>): GameState["details"] {
+  const detail = (envId: string, threadId: string, minutesAgo: number, kind: "approval" | "user-input", payload: Record<string, unknown>) => {
+    const shell = envs[envId].threads[threadId];
+    const thread = { ...shell, messages: [], checkpoints: [], activities: [
+      { id: `${threadId}-req`, tone: "approval", kind: `${kind}.requested`, summary: "", createdAt: ago(minutesAgo), turnId: shell.latestTurn?.turnId ?? null, payload: { requestId: `${threadId}-req`, ...payload } },
+    ] } as unknown as OrchestrationThread;
+    return [`${envId}:${threadId}`, { thread, synced: true }] as const;
+  };
+  return Object.fromEntries([
+    detail("mini", "a2", 22, "approval", { requestKind: "command", detail: "pnpm migrate --force" }),
+    detail("agent1", "b2", 9, "user-input", { questions: [{ id: "env", question: "Which environment should the client build target?", options: [{ label: "Staging" }, { label: "Production" }] }] }),
+  ]);
+}
+
 export function loadDemoFleet(): void {
   const envs = fleet();
   useGame.setState({
@@ -143,6 +158,7 @@ export function loadDemoFleet(): void {
       { name: "money-guy", title: "Money Guy", description: "", model: null, provider: null, skillCount: 0, isDefault: false },
     ] },
     storage: storage(),
+    details: demoDetails(envs),
     hosts: Object.fromEntries(Object.keys(envs).map((id, i) => [id, { history: [], snapshot: { sampledAt: Date.now(), cpuUtilization: 0.2 + i * 0.25, cpuCount: 8, availableMemoryBytes: 8 * GB, totalMemoryBytes: 24 * GB } }])),
   });
 }
