@@ -1,6 +1,6 @@
 // Helpers and constants shared by the map's sprites and the World.
 
-import { Sprite } from "pixi.js";
+import { Sprite, type Graphics } from "pixi.js";
 import { PixelText } from "./pixel-text";
 import { fitText } from "../art/pixelfont";
 import * as A from "../art/sprites";
@@ -147,3 +147,67 @@ export const BADGES: Partial<Record<UnitState, A.Grid>> = {
   error: A.BADGE_ERROR,
   monitoring: A.BADGE_MONITOR,
 };
+
+// ---- Pixel-native drawing ---------------------------------------------------------------------
+// The map is pixel art: shapes are built from cells on the art grid (PX world px), never smooth
+// ellipses, rounded rectangles or hairlines (see docs/ART_DIRECTION.md, "Art bible").
+
+/** An oval ring plotted as whole art-pixel cells. */
+export function pixelOval(g: Graphics, cx: number, cy: number, rx: number, ry: number, color: number, alpha = 1, cell = PX): void {
+  const seen = new Set<string>();
+  const steps = Math.max(16, Math.ceil((Math.PI * (rx + ry)) / cell) * 2);
+  for (let i = 0; i < steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    const x = Math.round((cx + Math.cos(a) * rx) / cell) * cell;
+    const y = Math.round((cy + Math.sin(a) * ry) / cell) * cell;
+    const key = `${x},${y}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    g.rect(x - cell / 2, y - cell / 2, cell, cell).fill({ color, alpha });
+  }
+}
+
+/** A plate with stepped (staircase) chamfered corners: `cut` deep, in `step`-sized stairs. */
+export function steppedPlate(g: Graphics, x: number, y: number, w: number, h: number, cut: number, step: number, color: number, alpha = 1): void {
+  const n = Math.max(1, Math.round(cut / step));
+  g.rect(x, y + n * step, w, h - 2 * n * step).fill({ color, alpha });
+  for (let j = 0; j < n; j++) {
+    const inset = (n - j) * step;
+    g.rect(x + inset, y + j * step, w - 2 * inset, step).fill({ color, alpha });
+    g.rect(x + inset, y + h - (j + 1) * step, w - 2 * inset, step).fill({ color, alpha });
+  }
+}
+
+/** A pixel diamond (centre, half-size), drawn in `cell` rows. */
+export function pixelDiamond(g: Graphics, cx: number, cy: number, r: number, color: number, cell = PX): void {
+  for (let dy = -r; dy <= r; dy += cell) {
+    const half = r - Math.abs(dy);
+    g.rect(cx - half, cy + dy - cell / 2, half * 2 || cell, cell).fill(color);
+  }
+}
+
+/**
+ * Light spilling from a screen into its room: a dithered cone (checkerboard cells that thin out
+ * with distance) instead of a soft rectangle.
+ */
+export function lightSpill(g: Graphics, fx: number, fy: number, color: number, cell = 4): void {
+  for (let row = 0; row < 7; row++) {
+    const half = 8 + row * 5;
+    const fade = 1 - row / 7;
+    for (let x = -half; x < half; x += cell) {
+      if (((x / cell) + row) % 2 !== 0) continue;
+      g.rect(Math.round((fx + x) / cell) * cell, Math.round((fy - 6 + row * cell) / cell) * cell, cell, cell).fill({ color, alpha: 0.16 * fade });
+    }
+  }
+}
+
+/**
+ * The colour a dark room is multiplied by: the style's floor seam brightened to about 70%, so an
+ * unlit room keeps its theme's hue (a warm deck dims warm) instead of greying under black.
+ */
+export function shadeColor(seam: number): number {
+  const r = (seam >> 16) & 255, gr = (seam >> 8) & 255, b = seam & 255;
+  const k = (0.7 * 255) / Math.max(1, r, gr, b);
+  const c = (v: number) => Math.min(255, Math.round(v * k));
+  return (c(r) << 16) | (c(gr) << 8) | c(b);
+}

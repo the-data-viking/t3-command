@@ -29,8 +29,8 @@ import { Backdrop } from "./backdrop";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
-import { HUD, STATUS } from "./theme";
-import { crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, ROOM_SHADOW, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor } from "./map-common";
+import { HUD, STATUS, hudMaterials } from "./theme";
+import { crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { StationSprite } from "./station-sprite";
@@ -61,6 +61,8 @@ export class World {
   private stationLayer = new Container();
   private environmentLayer = new Container();
   private lights = new Graphics();
+  /** Unlit rooms, multiplied by a theme-tinted dim tone. */
+  private shade = Object.assign(new Graphics(), { blendMode: "multiply" as const });
   private crewLayer = new Container();
   private overlay = new Graphics();
   private edge = new Graphics();
@@ -133,7 +135,7 @@ export class World {
     this.backdrop = new Backdrop(this.app.renderer);
     this.backdrop.build(useGame.getState().artStyle, this.app.screen.width, this.app.screen.height);
     this.crewLayer.sortableChildren = true;
-    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.lights, this.crewLayer, this.overlay);
+    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.shade, this.lights, this.crewLayer, this.overlay);
     this.app.stage.addChild(this.backdrop.root, this.camera, this.edge, this.edgeHits);
     this.setupCamera();
 
@@ -626,7 +628,10 @@ export class World {
     for(const child of this.operations.removeChildren())child.destroy({children:true});
     const hub=this.layout.hub;
     if(hub){
-      g.roundRect(hub.x,hub.y,hub.w,hub.h,12).fill(0x172c3c).stroke({color:0x698d9f,width:2});
+      // Operations hub: a stepped-corner plate in the theme's HUD materials.
+      const m = hudMaterials(useGame.getState().artStyle);
+      steppedPlate(g, hub.x - 2, hub.y - 2, hub.w + 4, hub.h + 4, 12, 4, m.edgeStrong);
+      steppedPlate(g, hub.x, hub.y, hub.w, hub.h, 10, 4, m.surface);
       const title=label(12,0xc9e1e8);title.text='OPERATIONS';title.position.set(hub.x+18,hub.y+22);this.operations.addChild(title);
       const count=label(8,0x7eaaa8);count.text=`${this.layout.stations.size} PROJECT MODULES`;count.position.set(hub.x+18,hub.y+48);this.operations.addChild(count);
       this.opsLabels = { title, count };
@@ -820,6 +825,9 @@ export class World {
       }
     }
 
+    // Unlit rooms are multiplied by the theme's own dim tone, not veiled in black.
+    const shade = this.shade.clear();
+    const dim = shadeColor(currentStyle().colors.F ?? 0x404040);
     for (const s of this.layout.stations.values()) {
       const u = stationUse.get(s.key);
       const bridge = s.rooms.bridge?.rect;
@@ -829,13 +837,11 @@ export class World {
         if (!room) continue;
         const lit = kind === "bridge" ? onDuty.has(s.key) : kind === "terminal" || kind === "files" || kind === "comms" ? !!u?.[kind] : false;
         const r = room.rect;
-        if (!lit) { g.rect(r.x, r.y, r.w, r.h).fill({ color: 0x000000, alpha: ROOM_SHADOW }); continue; }
+        if (!lit) { shade.rect(r.x, r.y, r.w, r.h).fill(dim); continue; }
         if (kind === "bridge") continue;
-        // Screen glow spilling from the system's fixture into its room.
+        // Screen light spilling from the system's fixture into its room, dithered.
         const glow = kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.working;
-        const fx = r.x + r.w * 0.3, fy = r.y + r.h - 26;
-        g.rect(fx - 30, fy - 20, 60, 36).fill({ color: glow, alpha: 0.04 });
-        g.rect(fx - 18, fy - 12, 36, 22).fill({ color: glow, alpha: 0.05 });
+        lightSpill(g, r.x + r.w * 0.3, r.y + r.h - 30, glow);
       }
       if (bridge && u?.attention) g.rect(bridge.x, bridge.y, bridge.w, bridge.h).fill({ color: STATUS.alert, alpha: 0.1 + (frame % 2) * 0.08 });
       // Doors slide open for crew walking through them, and close once they've passed.
@@ -932,7 +938,7 @@ export class World {
       const pulse = 1 + Math.sin(t * 6) * 0.15;
       const tip = (r: number, da: number) => [ex + Math.cos(a + da) * r, ey + Math.sin(a + da) * r];
       g.poly([...tip(14 * pulse, 0), ...tip(10, 2.5), ...tip(10, -2.5)]).fill(color).stroke({ color: 0x000000, width: 1.5 });
-      g.circle(ex - Math.cos(a) * 6, ey - Math.sin(a) * 6, 3).fill(sprite.team);
+      g.rect(Math.round(ex - Math.cos(a) * 6) - 3, Math.round(ey - Math.sin(a) * 6) - 3, 6, 6).fill(sprite.team);
       seen.add(sprite.key);
       let hit = this.edgeTargets.get(sprite.key);
       if (!hit) {
