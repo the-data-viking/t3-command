@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { QueueButton } from "./QueueButton";
 import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { css, hudAccent, teamColor } from "../game/theme";
@@ -77,6 +78,7 @@ export function TopBar() {
           </span>
         </span>
       </div>
+      <QueueButton />
       {phone && <button className="icon-btn menu-btn" aria-expanded={menuOpen} aria-controls="topbar-more" aria-label={menuOpen ? "Close menu" : "Open menu"}
         title="Menu" onClick={() => setMenu(!menu)}><PixelIcon name="menu" /></button>}
       {/* Going somewhere from the phone menu closes it, so the map or panel it opens is in view;

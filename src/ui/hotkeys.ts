@@ -1,5 +1,6 @@
 // RTS-style hotkeys: jump between units that want attention, like "find idle worker".
 
+import { startQueue, stopQueue } from "./queue-run";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
 import { openEvent, setSelection, setSquad, unitKey, useGame } from "../store";
@@ -64,7 +65,7 @@ export function installHotkeys(): () => void {
     if (state.showPalette || state.showHelp) return; // They handle their own keys.
     if (e.key === "Escape") {
       if (state.photo) useGame.setState({ photo: false });
-      else if (state.event) openEvent(null);
+      else if (state.event) { stopQueue(); openEvent(null); }
       else if (state.showEnvManager) useGame.setState({ showEnvManager: false });
       else if (state.showLog) useGame.setState({ showLog: false });
       else if (state.squad.length) setSquad([]);
@@ -95,6 +96,7 @@ export function installHotkeys(): () => void {
       h: () => useGame.setState((s) => ({ showHistory: !s.showHistory })),
       t: () => useGame.setState((s) => ({ showTimeline: !s.showTimeline })),
       p: () => useGame.setState((s) => ({ photo: !s.photo })),
+      q: () => startQueue(),
     };
     const action = actions[e.key];
     if (!action) return;

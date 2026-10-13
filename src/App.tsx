@@ -15,6 +15,7 @@ import { DebriefCard } from "./ui/DebriefCard";
 import { PhotoMode } from "./ui/PhotoMode";
 import { PlaybooksDialog } from "./ui/PlaybooksDialog";
 import { TimelinePanel } from "./ui/TimelinePanel";
+import { QueueClear } from "./ui/QueueButton";
 import { registerServiceWorker } from "./t3/push";
 import { loadPlaybooks } from "./t3/playbooks";
 import { loadMemory, MEMORY_REFRESH_MS } from "./t3/memory";
@@ -158,6 +159,7 @@ export default function App() {
       <AwayDigest />
       <IncomingToast />
       <DebriefCard />
+      <QueueClear />
       {showPalette && <CommandPalette />}
       {showHelp && <HelpOverlay />}
       {showPlaybooks && <PlaybooksDialog />}

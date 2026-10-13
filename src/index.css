@@ -2218,3 +2218,14 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .tl-group-name { margin: 0; font-size: var(--fs-2xs); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
 .tl-tooltip { position: absolute; z-index: var(--z-alert); display: flex; flex-direction: column; gap: 2px; padding: var(--space-1h) var(--space-2); max-width: 320px; pointer-events: none; font-size: var(--fs-sm); background: var(--deep); }
 @media (max-width: 640px) { .tl-row { grid-template-columns: 120px 1fr; } }
+
+/* ---- Working the queue ---- */
+.queue-btn { flex: none; border-color: var(--alert); color: var(--bright); }
+.queue-btn strong { margin-left: var(--space-1); color: var(--alert); }
+.queue-clear { position: absolute; left: 50%; top: 96px; transform: translateX(-50%); z-index: var(--z-banner); padding: var(--space-3) var(--space-4) var(--space-2); max-width: min(420px, calc(100vw - 32px)); cursor: pointer; }
+.queue-clear p { margin: var(--space-1) 0 0; }
+@media (max-width: 640px) {
+  .queue-btn { min-height: var(--touch-target); padding: 0 var(--space-2); }
+  .event-choice { min-height: var(--touch-target); }
+  .queue-clear { top: auto; bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
