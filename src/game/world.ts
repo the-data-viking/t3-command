@@ -19,6 +19,7 @@ import { isHistory, unitState, type UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { computeFleetLayout, fingerprint, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
+import type { PixelText } from "./pixel-text";
 import { endGesture, gesturing, holdTaps } from "./gesture";
 import { isPhone } from "../ui/phone";
 import { hudInsets } from "../ui/hud-insets";
@@ -71,6 +72,8 @@ export class World {
   private crew = new Map<string, CrewSprite>();
   /** Screen-space rectangle of an in-progress shift-drag selection. */
   private selectBox?: Rect;
+  /** The operations hub's labels: the title held crisp when zoomed out, the count hidden. */
+  private opsLabels?: { title: PixelText; count: PixelText };
   /** Crew beaming out after their thread was archived or removed. */
   private departing = new Set<CrewSprite>();
   private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
@@ -609,6 +612,7 @@ export class World {
       g.roundRect(hub.x,hub.y,hub.w,hub.h,12).fill(0x172c3c).stroke({color:0x698d9f,width:2});
       const title=label(12,0xc9e1e8);title.text='OPERATIONS';title.position.set(hub.x+18,hub.y+22);this.operations.addChild(title);
       const count=label(8,0x7eaaa8);count.text=`${this.layout.stations.size} PROJECT MODULES`;count.position.set(hub.x+18,hub.y+48);this.operations.addChild(count);
+      this.opsLabels = { title, count };
       for(const station of this.layout.stations.values()){
         const left=station.port.x<hub.x, lane=left?hub.x-50:hub.x+hub.w+50;
         const targetY=hub.y+hub.h/2;
@@ -722,6 +726,10 @@ export class World {
     if (this.layout.controlCenter) this.controlCenter?.update(this.layout.controlCenter, sel, this.zoom, frame);
     for (const station of this.stations.values()) station.setZoom(this.zoom);
     for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
+    if (this.opsLabels && !this.opsLabels.title.destroyed) {
+      this.opsLabels.title.scale.set(Math.max(1, 1 / (this.opsLabels.title.unit * this.zoom)));
+      this.opsLabels.count.visible = this.opsLabels.count.unit * this.zoom >= 0.8;
+    }
     this.drawEdgeIndicators(t);
     if (this.selectBox) {
       const b = this.selectBox;

@@ -26,6 +26,8 @@ export class ControlCenterSprite {
   readonly root = new Container();
   private labels: PixelText[] = [];
   private title?: PixelText;
+  /** Operator names stay readable at fleet zoom, like the station titles. */
+  private names: PixelText[] = [];
   private selection = new Graphics();
   private operators: OperatorSprite[] = [];
 
@@ -38,6 +40,7 @@ export class ControlCenterSprite {
   build(center: ControlCenterLayout, live: boolean, endpointCount: number): void {
     for (const child of this.root.removeChildren()) child.destroy({ children: true });
     this.labels = [];
+    this.names = [];
     this.operators = [];
     const { hull: h } = center;
     const c = currentStyle().colors;
@@ -87,6 +90,7 @@ export class ControlCenterSprite {
       this.operators.push({ bot, workstation: r, figure, console, badge });
       const name = this.text(bot.title.length > 18 ? bot.title.slice(0, 17) + '…' : bot.title, x, r.y + 103, 12, HUD.text);
       name.anchor.set(0.5, 0);
+      this.names.push(name);
       const status = this.text(bot.observed ? BOT_STATE_LABELS[bot.state].toUpperCase() : 'ON CALL · UNOBSERVED',
         x, r.y + 121, 8, bot.observed ? STATUS[bot.state] : HUD.muted);
       status.anchor.set(0.5, 0);
@@ -130,8 +134,9 @@ export class ControlCenterSprite {
 
   update(center: ControlCenterLayout, selection: Selection, zoom: number, frame: number): void {
     // Small bridge text hides once it would turn sub-pixel; the title holds a crisp minimum size.
-    for (const label of this.labels) label.visible = label === this.title || label.unit * zoom >= 0.8;
+    for (const label of this.labels) label.visible = label === this.title || this.names.includes(label) || label.unit * zoom >= 0.8;
     if (this.title) this.title.scale.set(Math.max(1, 1 / (this.title.unit * zoom)));
+    for (const name of this.names) name.scale.set(Math.max(1, 1 / (name.unit * zoom)));
     for (const { bot, figure, console, badge, workstation } of this.operators) {
       const active = bot.observed && bot.state === 'working';
       const color = botColor(bot.name);

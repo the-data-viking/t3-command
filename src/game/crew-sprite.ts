@@ -236,6 +236,7 @@ export class CrewSprite extends Container {
       return;
     }
     if (this.state === "error") this.drawDamage(f, t);
+    this.drawTurnAge(f);
     if (this.state === "working") {
       // Re-checked every few seconds rather than per frame: it scans the turn's activity.
       const now = Date.now();
@@ -275,6 +276,18 @@ export class CrewSprite extends Container {
       const color = GAUGE[contextLevel(ctx)];
       for (let i = 0; i < 8; i++) f.rect(-16 + i * 4, 4, 3, 4).fill(i / 8 < left ? color : hudMaterials(useGame.getState().artStyle).meter);
     }
+  }
+
+  /**
+   * How long the current turn has run, as pips beside the head: one each past 2, 6, 12 and 24
+   * hours, amber then rose. A runaway turn stands out from one that started a minute ago.
+   */
+  private drawTurnAge(f: Graphics): void {
+    const turn = this.thread?.latestTurn;
+    if (turn?.state !== "running") return;
+    const hours = (Date.now() - Date.parse(turn.startedAt ?? turn.requestedAt)) / 3_600_000;
+    const pips = [2, 6, 12, 24].filter((h) => hours >= h).length;
+    for (let i = 0; i < pips; i++) f.rect(-20, -44 + i * 6, 3, 4).fill(hours >= 12 ? GAUGE.critical : GAUGE.high);
   }
 
   /** A teleporter column in the crew member's team color at strength `fade` (0–1). */
