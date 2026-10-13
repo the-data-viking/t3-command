@@ -452,7 +452,8 @@ code {
 
 .panel {
   position: absolute;
-  top: 62px;
+  /* Below the top bar however many rows it wraps to (measured by TopBar). */
+  top: var(--topbar-bottom, 62px);
   right: 8px;
   bottom: 8px;
   width: min(440px, calc(100vw - 16px));
@@ -1254,7 +1255,7 @@ select:focus {
 .ops-endpoints { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 16px; }
 .operator-row .bot-portrait { width: 28px; height: 32px; border-radius: 8px 2px; }
 .operator-row .bot-portrait span { font-size: 10px; }
-.operator-count { font-size: 9px; color: var(--hermes); letter-spacing: 0; }
+.operator-count { font-size: inherit; font-family: inherit; letter-spacing: inherit; color: var(--hermes); }
 /* On a frame-colored title tab the sand accent washes out; use the tab's ink. */
 .ftl-tab .operator-count { color: var(--ink); opacity: 0.75; }
 .ops-back { align-self: flex-start; color: var(--hermes); border-color: color-mix(in srgb, var(--hermes) 25%, transparent); }
@@ -1805,9 +1806,10 @@ button.ftl-tab {
 }
 
 .comms-log {
-  left: 260px;
+  /* Beside the crew roster, not over it. */
+  left: 310px;
   bottom: 30px;
-  width: min(520px, calc(100vw - 280px));
+  width: min(520px, calc(100vw - 330px));
   max-height: min(60vh, 520px);
   display: flex;
   flex-direction: column;
@@ -1858,6 +1860,8 @@ button.ftl-tab {
 /* ---- Turn history ---- */
 
 .history-modal { width: min(880px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; gap: 8px; }
+/* The dialog scrolls; its sections keep their height instead of the charts being squeezed to nothing. */
+.history-modal > * { flex-shrink: 0; }
 .history-modal h3 { margin: 10px 0 4px; }
 .history-ranges { display: flex; gap: 4px; }
 .history-totals { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
@@ -1878,6 +1882,8 @@ button.ftl-tab {
 .history-table td { padding: 2px 4px; border-bottom: 1px solid var(--edge); }
 .history-table td:first-child { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .history-table td:not(:first-child) { text-align: right; white-space: nowrap; }
+.history-table th { padding: 2px 4px; font-family: var(--display); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); text-align: right; font-weight: 600; }
+.history-table th:first-child { text-align: left; }
 .history-list { margin: 0; padding-left: 18px; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
 .history-recent { list-style: none; padding: 0; }
 .history-recent li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; }
@@ -1962,6 +1968,10 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px s
   .sound-row { min-height: 44px; }
   .topbar-more > .theme-menu > .icon-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 2px solid var(--edge-strong); border-radius: 4px; color: var(--text); }
   .theme-list { position: fixed; left: 8px; right: 8px; top: auto; bottom: max(8px, env(safe-area-inset-bottom)); max-height: 70dvh; overflow-y: auto; }
+  /* Spend and limits open from the tall phone menu: anchor them as bottom sheets too. */
+  .spend-breakdown { left: 8px; right: 8px; width: auto; top: auto; bottom: max(8px, env(safe-area-inset-bottom)); max-height: 70dvh; }
+  /* Full-screen panels are opaque; the map behind is just noise here. */
+  .panel { background: var(--surface); }
   .theme-option { min-height: 44px; }
   .squad-bar { left: 8px; right: 8px; bottom: calc(52px + env(safe-area-inset-bottom)); transform: none; flex-wrap: wrap; }
   .squad-hint { display: none; }

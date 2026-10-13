@@ -21,6 +21,7 @@ import { computeFleetLayout, fingerprint, type CrewLayout, type FleetLayout, typ
 import { sfx } from "./sfx";
 import { endGesture, gesturing, holdTaps } from "./gesture";
 import { isPhone } from "../ui/phone";
+import { hudInsets } from "../ui/hud-insets";
 import { doorState } from "./crew-motion";
 import { RenderLoop } from "./render-loop";
 import { Backdrop } from "./backdrop";
@@ -301,37 +302,45 @@ export class World {
     this.invalidate();
   }
 
-  private frame(rect: Rect, maxZoom: number, rightInset = 0, leftInset = 0): void {
+  /**
+   * The visible part of the map: the screen minus what the HUD covers right now. Measured after
+   * the next render, so a panel opened by the same click is already in place.
+   */
+  private visibleArea(): { x: number; y: number; w: number; h: number } {
     const { width, height } = this.app.screen;
-    // Phones open panels full screen, so only the top bar and the crew dock cover the map.
-    const phone = isPhone();
-    if (phone) rightInset = leftInset = 0;
-    const usableW = width - rightInset - leftInset;
-    const topInset = phone ? 60 : 64;
-    const usableH = height - topInset - (phone ? 56 : 0);
-    const margin = phone ? 40 : 120;
-    const z = clampZoom(Math.min(maxZoom, Math.min(usableW / (rect.w + margin), usableH / (rect.h + margin))));
-    this.moveCamera(leftInset + usableW / 2 - (rect.x + rect.w / 2) * z, topInset + usableH / 2 - (rect.y + rect.h / 2) * z, z, this.framed);
-    this.framed = true;
+    const inset = hudInsets();
+    const w = Math.max(120, width - inset.left - inset.right);
+    const h = Math.max(120, height - inset.top - inset.bottom);
+    return { x: inset.left, y: inset.top, w, h };
+  }
+
+  private frame(rect: Rect, maxZoom: number): void {
+    requestAnimationFrame(() => {
+      if (this.destroyed) return;
+      const area = this.visibleArea();
+      const margin = isPhone() ? 40 : 80;
+      const z = clampZoom(Math.min(maxZoom, Math.min(area.w / (rect.w + margin), area.h / (rect.h + margin))));
+      this.moveCamera(area.x + area.w / 2 - (rect.x + rect.w / 2) * z, area.y + area.h / 2 - (rect.y + rect.h / 2) * z, z, this.framed);
+      this.framed = true;
+    });
   }
 
   fitAll(): void {
     if (!this.initialized) return;
-    this.frame(this.layout.bounds, 1.2, 0, Math.min(300, this.app.screen.width * 0.2));
+    this.frame(this.layout.bounds, 1.2);
   }
 
   focusRect(rect: Rect): void {
     if (!this.initialized) return;
     this.userMoved = true;
-    this.frame(rect, 2, Math.min(460, this.app.screen.width * 0.3), Math.min(300, this.app.screen.width * 0.2));
+    this.frame(rect, 2);
   }
 
   private focusControlCenter(): void {
     const center = this.layout.controlCenter;
     if (!center || !this.initialized) return;
     this.userMoved = true;
-    const width = this.app.screen.width;
-    this.frame(center.bounds, 1.4, width >= 1000 ? 526 : 0, width >= 1000 ? Math.min(260, width * 0.2) : 0);
+    this.frame(center.bounds, 1.4);
   }
 
   /** Frame all service nodes and project modules belonging to an environment. */
@@ -439,9 +448,13 @@ export class World {
     }
     if (!p) return;
     this.userMoved = true;
-    const { width, height } = this.app.screen;
-    const z = clampZoom(Math.max(this.zoom, 2));
-    this.moveCamera(width * 0.4 - p.x * z, height / 2 + 20 - p.y * z, z);
+    const target = p;
+    requestAnimationFrame(() => {
+      if (this.destroyed) return;
+      const area = this.visibleArea();
+      const z = clampZoom(Math.max(this.zoom, 2));
+      this.moveCamera(area.x + area.w / 2 - target.x * z, area.y + area.h / 2 + 20 - target.y * z, z);
+    });
   }
 
   minimap(): MinimapData | undefined {

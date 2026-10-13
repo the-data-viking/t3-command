@@ -24,6 +24,7 @@ import { HermesControlCenter } from "./ui/HermesControlCenter";
 import { refreshHermesBots } from "./t3/hermes";
 import { refreshStorage, STORAGE_REFRESH_MS } from "./t3/storage";
 import { connectComms } from "./t3/comms";
+import { DEMO, loadDemoFleet } from "./demo";
 import { installQuietWatch, installTitleBadge, notifyAttention } from "./ui/attention";
 
 const ENV_REFRESH_MS = 30_000;
@@ -64,6 +65,8 @@ export default function App() {
     // Keeps polling in the background so a filling disk can still raise a desktop notification.
     const storageTimer = setInterval(() => void refreshStorage().catch(() => {}), STORAGE_REFRESH_MS);
     (async () => {
+      // `?demo` (dev builds): a fixed fleet in the store, nothing on the network.
+      if (DEMO) { loadDemoFleet(); return; }
       try {
         const me = await fetchJson<MeResponse>("/api/me");
         useGame.setState({ me });
@@ -82,7 +85,7 @@ export default function App() {
     const offTitle = installTitleBadge();
     const offWatches = installActiveWatches();
     const offQuiet = installQuietWatch();
-    const offComms = connectComms();
+    const offComms = DEMO ? () => {} : connectComms();
     return () => {
       clearInterval(timer);
       clearInterval(storageTimer);
@@ -121,7 +124,7 @@ export default function App() {
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
       {selection?.kind === "library" && <LibraryPanel key={`lib:${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
       {selection?.kind === "building" && <BuildingPanel key={`${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
-      <div className="hint">CTRL-K command · ? help · DRAG pan · SCROLL zoom · SHIFT pick squad · SPACE next alert · . next report · W next active · F fit fleet · L log · H history</div>
+      <div className="hint">CTRL-K command · ? help · DRAG pan · SCROLL zoom · SHIFT pick squad · SPACE next alert · PERIOD next report · W next active · F fit fleet · L log · H history</div>
       <EventDialog />
       {showEnvManager && <EnvManager />}
     </div>

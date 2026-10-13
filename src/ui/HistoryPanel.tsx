@@ -191,7 +191,7 @@ function Ranking({ title, rows }: { title: string; rows: HistorySummary["project
     <div>
       <h3>{title}</h3>
       {rows.length === 0 ? <p className="muted small">—</p> : (
-        <table className="history-table"><tbody>
+        <table className="history-table"><thead><tr><th>{title === "Models" ? "Model" : "Project"}</th><th>Turns</th><th>Time</th></tr></thead><tbody>
           {rows.map((r) => <tr key={r.name}><td title={r.name}>{r.name}</td><td>{r.turns}</td><td className="muted">{formatDuration(r.durationMs)}</td></tr>)}
         </tbody></table>
       )}

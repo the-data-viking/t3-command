@@ -405,9 +405,17 @@ encrypted by WireGuard, and browsers never see those addresses.
 npm install
 T3C_DEV_NO_AUTH=1 npm run dev     # t3-command server on :4773 + Vite UI on http://localhost:5173
 npm run pair:local                 # pair the T3 Code running on this machine (in another terminal)
+npm run check:layout               # desktop + phone layout check against the built-in demo fleet
 ```
 
 `T3C_DEV_NO_AUTH=1` turns off the Tailscale identity check so you can use it from localhost.
+
+In development, open the UI with `?demo` (for example `http://localhost:5173/?demo`) to load a fixed
+demo fleet straight into the store. It covers crew in every state, three machines, disk readings,
+history and host charts, with no server and no real agents. `npm run check:layout` drives that demo
+at 1440×900, 1280×800, iPhone 14 and iPhone SE with the system Chrome. It checks that panels stay below
+the top bar, History charts keep their height, the comms log doesn't cover the roster, phone sheets
+stay on screen, and nothing overflows sideways. Screenshots of each view are kept for a look.
 Never run it that way behind `tailscale serve`.
 
 `npm run pair:local` uses the installed T3 Code desktop app's own CLI to create a one-time

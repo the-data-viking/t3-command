@@ -1,6 +1,7 @@
 // One live connection to one T3 environment, relayed through the t3-command server.
 // Keeps that environment's slice of the game store up to date and sends commands to it.
 
+import { DEMO, demoFetch } from "../demo";
 import type { EnvSummary } from "../../shared/api";
 import { addLog, unitKey, updateEnv, useGame, type Connection, type EnvWorld } from "../store";
 import { unitState, type UnitState } from "./derive";
@@ -658,6 +659,11 @@ export function envClient(envId: string): EnvironmentClient | undefined {
 }
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  if (DEMO) {
+    const answer = demoFetch(path);
+    if (answer === undefined) throw new Error("Not available in the demo fleet");
+    return answer as T;
+  }
   const res = await fetch(path, {
     ...init,
     headers: { "content-type": "application/json", ...init?.headers },
