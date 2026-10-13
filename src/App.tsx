@@ -9,6 +9,7 @@ import { EnvManager } from "./ui/EnvManager";
 import { CommsLog, EventLog } from "./ui/EventLog";
 import { HistoryPanel } from "./ui/HistoryPanel";
 import { SquadBar } from "./ui/SquadBar";
+import { AwayDigest } from "./ui/AwayDigest";
 import { CommandPalette } from "./ui/CommandPalette";
 import { HelpOverlay } from "./ui/HelpOverlay";
 import { LibraryPanel } from "./ui/LibraryPanel";
@@ -25,6 +26,7 @@ import { refreshHermesBots } from "./t3/hermes";
 import { refreshStorage, STORAGE_REFRESH_MS } from "./t3/storage";
 import { connectComms } from "./t3/comms";
 import { DEMO, loadDemoFleet } from "./demo";
+import { installDeepLinks } from "./ui/deeplink";
 import { installQuietWatch, installTitleBadge, notifyAttention } from "./ui/attention";
 
 const ENV_REFRESH_MS = 30_000;
@@ -86,6 +88,7 @@ export default function App() {
     const offWatches = installActiveWatches();
     const offQuiet = installQuietWatch();
     const offComms = DEMO ? () => {} : connectComms();
+    const offLinks = installDeepLinks();
     return () => {
       clearInterval(timer);
       clearInterval(storageTimer);
@@ -95,6 +98,7 @@ export default function App() {
       offWatches();
       offQuiet();
       offComms();
+      offLinks();
     };
   }, []);
 
@@ -117,6 +121,7 @@ export default function App() {
       {showLog && <CommsLog />}
       {showHistory && <HistoryPanel />}
       <SquadBar />
+      <AwayDigest />
       {showPalette && <CommandPalette />}
       {showHelp && <HelpOverlay />}
       {hostPanel && <HostPanel envId={hostPanel} />}

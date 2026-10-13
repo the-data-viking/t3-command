@@ -30,7 +30,7 @@ export function PullRequestChips({ thread }: { thread: ThreadShell }) {
   const [all, setAll] = useState(false);
   const prs = thread.pullRequests ?? [];
   if (!prs.length) return null;
-  const { shown, hidden } = orderPullRequests(prs);
+  const { shown, hidden } = orderPullRequests(prs, 2, thread.branch);
   return (
     <div className="pr-chips">
       {(all ? [...shown, ...hidden] : shown).map((pr) => {

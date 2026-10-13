@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
-import { ART_STYLES, openEvent, openHost, setArtStyle, setMuted, setNotify, setSelection, useGame, type GameState } from "../store";
+import { ART_STYLES, markReportsRead, openEvent, openHost, setArtStyle, setMuted, setNotify, setSelection, useGame, type GameState } from "../store";
 import { isSettled } from "../t3/derive";
 import { fuzzyFilter } from "./fuzzy";
 import { jumpTo } from "./hotkeys";
 import { batchSettle, currentPick } from "./squad";
 import { THEME_NAMES } from "./themes";
-import { allUnits, STATE_LABELS } from "./util";
+import { allUnits, reportRead, STATE_LABELS } from "./util";
 
 interface Item {
   id: string;
@@ -29,10 +29,13 @@ function buildItems(state: GameState): Item[] {
   };
   // Crew: waiting on you first, then by recent activity.
   const urgent = new Set(["alert", "question"]);
+  // Threads sharing a title are told apart by branch (or a short id).
+  const titles = new Map<string, number>();
+  for (const u of allUnits(state.envs)) titles.set(u.thread.title, (titles.get(u.thread.title) ?? 0) + 1);
   for (const u of allUnits(state.envs).sort((a, b) => Number(urgent.has(b.state)) - Number(urgent.has(a.state)) || b.thread.updatedAt.localeCompare(a.thread.updatedAt))) {
     const env = state.envs[u.envId];
     items.push({ id: `crew:${u.envId}:${u.thread.id}`, group: "Crew", label: u.thread.title || "Untitled",
-      detail: `${STATE_LABELS[u.state]} · ${env?.summary.label ?? ""}`,
+      detail: `${STATE_LABELS[u.state]} · ${env?.summary.label ?? ""}${(titles.get(u.thread.title) ?? 0) > 1 ? ` · ${u.thread.branch ?? u.thread.id.slice(0, 8)}` : ""}`,
       run: () => { focusUnit(u.envId, u.thread.id); if (urgent.has(u.state)) openEvent({ envId: u.envId, threadId: u.thread.id }); } });
   }
   for (const env of sortedEnvs(state)) {
@@ -67,6 +70,9 @@ function buildItems(state: GameState): Item[] {
     items.push({ id: "act:camp", group: "Action", label: `Send ${who} to camp`, run: () => void batchSettle(true, picked) });
     if (anySettled) items.push({ id: "act:wake", group: "Action", label: `Wake ${who}`, run: () => void batchSettle(false, picked) });
   }
+  const unread = allUnits(state.envs).filter((u) => u.state === "done" && u.thread.latestTurn && !reportRead(state.readReports, u.envId, u.thread));
+  if (unread.length) items.push({ id: "act:read-all", group: "Action", label: `Mark all ${unread.length} reports read`,
+    run: () => markReportsRead(unread.map((u) => ({ envId: u.envId, threadId: u.thread.id, turnId: u.thread.latestTurn!.turnId }))) });
   for (const id of ART_STYLES) {
     if (id !== state.artStyle) items.push({ id: `theme:${id}`, group: "Theme", label: `Theme: ${THEME_NAMES[id]}`, run: () => setArtStyle(id) });
   }

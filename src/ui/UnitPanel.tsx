@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sfx } from "../game/sfx";
-import { setSelection, unitKey, useGame } from "../store";
+import { markReportsRead, setSelection, unitKey, useGame } from "../store";
 import { isHistory, pendingRequests, unitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { contextLevel, modelTier, TIER_LABEL } from "../game/theme";
 import { envClient, logError } from "../t3/environment";
 import type { ApprovalDecision, Message, PendingRequest } from "../t3/types";
-import { modelName, providerName, stateLabel, timeAgo } from "./util";
+import { modelName, providerName, reportRead, stateLabel, timeAgo } from "./util";
 import { ThreadImage } from "./ThreadImage";
 
 import { MessageMarkdown } from "./MessageMarkdown";
@@ -31,6 +31,7 @@ import { contextWarning } from '../t3/progress';
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
   const panelWidth = usePanelWidth();
   const env = useGame((s) => s.envs[envId]);
+  const readReports = useGame((s) => s.readReports);
   const thread = env?.threads[threadId];
   const detail = useGame((s) => s.details[unitKey(envId, threadId)]);
   const hermesCatalog = useGame(s => s.hermesCatalog);
@@ -110,6 +111,10 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         {env.summary.kind !== 'hermes' && <span className="muted small">{thread.runtimeMode}</span>}
         <ThreadTiming thread={thread} detail={detail?.thread} />
         <span className="spacer" />
+        {!bot && state === "done" && thread.latestTurn && !reportRead(readReports, envId, thread) && (
+          <button className="btn" title="Take this report out of Needs you and the REPORTS count (this browser), until the thread's next turn"
+            onClick={() => markReportsRead([{ envId, threadId, turnId: thread.latestTurn!.turnId }])}>✓ Mark read</button>
+        )}
         {canHalt && (
           <button className="btn danger" onClick={() => run("Interrupt", () => client?.interrupt(threadId))}>
             ■ Halt

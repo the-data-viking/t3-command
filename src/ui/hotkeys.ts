@@ -5,7 +5,7 @@ import { worldRef } from "../game/world";
 import { openEvent, setSelection, setSquad, useGame } from "../store";
 import { recallGroup, saveGroup } from "./squad";
 import type { UnitState } from "../t3/derive";
-import { allUnits } from "./util";
+import { allUnits, reportRead } from "./util";
 
 export type JumpGroup = "attention" | "done" | "working" | "monitoring" | "error";
 
@@ -19,9 +19,9 @@ const GROUPS: Record<JumpGroup, UnitState[]> = {
 
 /** Select and center the next unit in a group, cycling from the current selection. */
 export function jumpTo(group: JumpGroup): void {
-  const { envs, selection } = useGame.getState();
+  const { envs, selection, readReports } = useGame.getState();
   const units = allUnits(envs)
-    .filter((u) => GROUPS[group].includes(u.state))
+    .filter((u) => GROUPS[group].includes(u.state) && !(group === "done" && reportRead(readReports, u.envId, u.thread)))
     .sort((a, b) => (a.thread.updatedAt < b.thread.updatedAt ? 1 : -1));
   if (units.length === 0) {
     sfx.deny();

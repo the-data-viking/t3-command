@@ -59,6 +59,8 @@ export interface GameState {
   selection: Selection;
   /** Crew picked together (shift-click, shift-drag, control groups) for batch actions. */
   squad: SquadMember[];
+  /** Reports marked read in this browser: unitKey → the turn whose report was read. */
+  readReports: Record<string, string>;
   /** Command palette and help overlay. */
   showPalette: boolean;
   showHelp: boolean;
@@ -89,6 +91,27 @@ export function toggleSquad(member: SquadMember): void {
     const key = unitKey(member.envId, member.threadId);
     const inSquad = s.squad.some((m) => unitKey(m.envId, m.threadId) === key);
     return { squad: inSquad ? s.squad.filter((m) => unitKey(m.envId, m.threadId) !== key) : [...s.squad, member] };
+  });
+}
+
+const READ_KEY = "t3c:read-reports";
+
+function loadReadReports(): Record<string, string> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(READ_KEY) ?? "{}") as Record<string, string>;
+    return saved && typeof saved === "object" ? saved : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Mark crew members' current reports read; a later turn's report shows up again. */
+export function markReportsRead(members: Array<{ envId: string; threadId: string; turnId: string }>): void {
+  useGame.setState((s) => {
+    const readReports = { ...s.readReports };
+    for (const m of members) readReports[unitKey(m.envId, m.threadId)] = m.turnId;
+    try { localStorage.setItem(READ_KEY, JSON.stringify(readReports)); } catch { /* Per-browser convenience only. */ }
+    return { readReports };
   });
 }
 
@@ -158,6 +181,7 @@ export const useGame = create<GameState>()(() => ({
   storage: {},
   selection: null,
   squad: [],
+  readReports: loadReadReports(),
   showPalette: false,
   showHelp: false,
   log: loadLog(),

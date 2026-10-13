@@ -29,3 +29,11 @@ test("generated and data files are flagged out of the totals", () => {
   ]);
   assert.deepEqual(totals, { additions: 163, deletions: 13, generated: 7 });
 });
+
+test("the PR for the thread's current branch leads, even when it's merged", async () => {
+  const { orderPullRequests } = await import("./changes");
+  const pr = (number: number, state: string, headBranch: string) => ({ host: "github.com", repository: "o/r", number, url: "", snapshot: { state, title: "", headBranch, baseBranch: "main", isDraft: false } });
+  const { shown, hidden } = orderPullRequests([pr(1, "merged", "old"), pr(2, "open", "other"), pr(3, "merged", "mine"), pr(4, "merged", "x"), pr(5, "merged", "y")], 2, "mine");
+  assert.deepEqual(shown.map((p) => p.number), [3, 2, 5, 4]);
+  assert.deepEqual(hidden.map((p) => p.number), [1]);
+});

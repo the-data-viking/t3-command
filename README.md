@@ -121,6 +121,14 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   selected crew member) as a control group. **1–9** recalls it, and pressing again frames it on the
   map. Alt works where the browser keeps Ctrl+digit for switching tabs. **?** lists every key and
   explains what the map's lights and effects mean.
+- **Links, reports and catching up**: the address bar follows what's open (`#crew/…`, `#host/…`,
+  `#station/…`), so a link opens the same crew member, machine or station on any device once that
+  machine connects. **Mark read** on a crew member's report takes it out of Needs you and the
+  REPORTS count in this browser until the thread's next turn (also "Mark all reports read" in the
+  palette). After 30 minutes or more away, a **While you were away** card sums up the comms log:
+  jobs done, failures, crew waiting on you, and lost machines, disk and long-turn warnings. A
+  thread's pull request for its current branch is listed first. Threads that share a title show
+  their branch in the palette, and History shows when each turn started.
 - **Navigation**: sector minimap, station chips in the top bar that jump to their station, and
   project banners that stay readable when zoomed out. Environment chips frame all of that environment’s
   project modules and attached engineering nodes.
