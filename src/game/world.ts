@@ -11,7 +11,7 @@
 // icons light up only for real work, crew walk only for real tool calls, and supply lines carry
 // packets only while crew are working. Engineering gauges show measured whole-host load.
 
-import { Application, Container, Graphics, Rectangle, Sprite, TilingSprite, type FederatedPointerEvent } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Sprite, type FederatedPointerEvent } from "pixi.js";
 import { cells, STATUS_GLYPHS } from "../art/pixelfont";
 import * as A from "../art/sprites";
 import { setSelection, setSquad, unitKey, useGame, type GameState, type Selection, type SquadMember } from "../store";
@@ -23,11 +23,12 @@ import { endGesture, gesturing, holdTaps } from "./gesture";
 import { isPhone } from "../ui/phone";
 import { doorState } from "./crew-motion";
 import { RenderLoop } from "./render-loop";
+import { Backdrop } from "./backdrop";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { HUD, STATUS } from "./theme";
-import { label, hash, linkPoint, CAMERA_SECONDS, FADE_SECONDS, ROOM_SHADOW, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor } from "./map-common";
+import { label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, ROOM_SHADOW, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { StationSprite } from "./station-sprite";
@@ -49,7 +50,7 @@ interface CameraView { cx: number; cy: number; zoom: number }
 
 export class World {
   private app = new Application();
-  private sky?: TilingSprite;
+  private backdrop?: Backdrop;
   private camera = new Container();
   private grid = new Graphics();
   private operations = new Container();
@@ -123,10 +124,11 @@ export class World {
     host.appendChild(this.app.canvas);
     this.initialized = true;
 
-    this.sky = new TilingSprite({ texture: this.makeStarTexture(), width: this.app.screen.width, height: this.app.screen.height });
+    this.backdrop = new Backdrop(this.app.renderer);
+    this.backdrop.build(useGame.getState().artStyle, this.app.screen.width, this.app.screen.height);
     this.crewLayer.sortableChildren = true;
     this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.lights, this.crewLayer, this.overlay);
-    this.app.stage.addChild(this.sky, this.camera, this.edge, this.edgeHits);
+    this.app.stage.addChild(this.backdrop.root, this.camera, this.edge, this.edgeHits);
     this.setupCamera();
 
     this.renderLoop = new RenderLoop((dt) => {
@@ -161,31 +163,6 @@ export class World {
     void this.ready.then(() => {
       if (this.app.renderer) this.app.destroy(true, { children: true });
     });
-  }
-
-  private makeStarTexture() {
-    const size = 1024;
-    const g = new Graphics();
-    g.rect(0, 0, size, size).fill(currentStyle().space);
-    for (let i = 0; i < 6; i++) {
-      const x = hash(`nx${i}`) * size;
-      const y = hash(`ny${i}`) * size;
-      const color = [0x1a1033, 0x0b1f2e, 0x2a1220][i % 3];
-      for (let j = 0; j < 40; j++) {
-        g.circle(x + (hash(`n${i}${j}x`) - 0.5) * 360, y + (hash(`n${i}${j}y`) - 0.5) * 240, 20 + hash(`n${i}${j}r`) * 60).fill({ color, alpha: 0.05 });
-      }
-    }
-    for (let i = 0; i < 520; i++) {
-      const x = hash(`sx${i}`) * size;
-      const y = hash(`sy${i}`) * size;
-      const m = hash(`sm${i}`);
-      const color = m > 0.97 ? 0xffd9a0 : m > 0.94 ? 0xa0d8ff : 0xffffff;
-      const px = m > 0.985 ? 2 : 1;
-      g.rect(Math.round(x), Math.round(y), px, px).fill({ color, alpha: 0.25 + m * 0.6 });
-    }
-    const texture = this.app.renderer.generateTexture({ target: g, frame: new Rectangle(0, 0, size, size) });
-    g.destroy();
-    return texture;
   }
 
   // ---- Camera ----
@@ -505,12 +482,10 @@ export class World {
     this.lastDetails = state.details;
     this.lastStyle = state.artStyle;
 
-    if (styleChanged && this.initialized && this.sky) {
+    if (styleChanged && this.initialized && this.backdrop) {
       this.crossfade();
       this.app.renderer.background.color = currentStyle().space;
-      const previous = this.sky.texture;
-      this.sky.texture = this.makeStarTexture();
-      previous.destroy(true);
+      this.backdrop.build(state.artStyle, this.app.screen.width, this.app.screen.height);
     }
 
     if (layoutChanged || styleChanged) {
@@ -701,11 +676,7 @@ export class World {
       if (this.fade.alpha <= 0) { this.fade.destroy({ texture: true }); this.fade = undefined; }
     }
 
-    if (this.sky) {
-      this.sky.width = this.app.screen.width;
-      this.sky.height = this.app.screen.height;
-      this.sky.tilePosition.set(this.camera.x * 0.15, this.camera.y * 0.15);
-    }
+    this.backdrop?.update(this.app.screen.width, this.app.screen.height, this.camera.x, this.camera.y, t);
 
     // Crew heading to the same system room take evenly spaced slots, in a stable order.
     const sharing = new Map<string, CrewSprite[]>();
