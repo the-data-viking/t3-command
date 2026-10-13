@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cancelFollowUp, followUpFor, queueFollowUp } from "../t3/followups";
 import { expandPlaybook } from "../../shared/playbooks";
+import { RiskBanner } from "./RiskBanner";
+import { allowedDecisions, assessRisk } from "./risk";
 import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
 import { isHistory, pendingRequests, unitState } from "../t3/derive";
@@ -261,13 +263,15 @@ function PendingCard({ request, envId, threadId }: { request: PendingRequest; en
     );
   }
 
-  const options = (p.options as Array<{ decision: ApprovalDecision; label: string; warning?: string }> | undefined) ?? DEFAULT_APPROVAL_OPTIONS;
+  const risk = assessRisk(request);
+  const options = allowedDecisions((p.options as Array<{ decision: ApprovalDecision; label: string; warning?: string }> | undefined) ?? DEFAULT_APPROVAL_OPTIONS, risk);
   const detail = typeof p.detail === "string" ? p.detail : undefined;
   return (
     <div className="pending approval">
       <div className="pending-title">! Requesting permission: {String(p.requestKind ?? p.requestType ?? "action")}</div>
       <div className="pending-summary">{request.activity.summary}</div>
-      {detail && <pre className="pending-detail">{detail}</pre>}
+      {risk && <RiskBanner risk={risk} />}
+      {detail && <pre className={`pending-detail ${risk ? `risk-${risk.level}` : ""}`}>{detail}</pre>}
       <div className="pending-actions">
         {options.map((o) => (
           <button

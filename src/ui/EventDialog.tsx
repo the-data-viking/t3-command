@@ -8,6 +8,8 @@ import { envClient, logError } from "../t3/environment";
 import { QuestionForm } from "./QuestionForm";
 import { ARM_MS } from "./event-guard";
 import { waitQueue } from "./queue";
+import { RiskBanner } from "./RiskBanner";
+import { allowedDecisions, assessRisk, RISK_ARM_MS } from "./risk";
 import type { ApprovalDecision, PendingRequest } from "../t3/types";
 
 const DEFAULT_OPTIONS: Array<{ decision: ApprovalDecision; label: string }> = [
@@ -47,16 +49,19 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
 
   const pending = detail ? pendingRequests(detail.thread) : [];
   const request: PendingRequest | undefined = pending[0];
+  const risk = assessRisk(request);
+  const dangerous = risk?.level === "danger";
 
   // Each request's choices arm only after it has been on screen for a moment, so a key or click
-  // meant for something else (a control group, the map) can't land on "Approve".
+  // meant for something else (a control group, the map) can't land on "Approve". A dangerous one
+  // waits longer, long enough to read what it does.
   const requestId = request?.requestId;
   const [armedFor, setArmedFor] = useState<string>();
   useEffect(() => {
     if (!requestId) return;
-    const timer = setTimeout(() => setArmedFor(requestId), ARM_MS);
+    const timer = setTimeout(() => setArmedFor(requestId), dangerous ? RISK_ARM_MS : ARM_MS);
     return () => clearTimeout(timer);
-  }, [requestId]);
+  }, [requestId, dangerous]);
   const armed = !!requestId && armedFor === requestId;
 
   // Others waiting on you, longest first: after a decision here, the card moves on to the next.
@@ -90,9 +95,12 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
   const choices: Choice[] = [];
   if (request?.kind === "approval") {
     const p = request.activity.payload ?? {};
-    const options = (p.options as Array<{ decision: ApprovalDecision; label: string }> | undefined) ?? DEFAULT_OPTIONS;
+    const offered = allowedDecisions((p.options as Array<{ decision: ApprovalDecision; label: string }> | undefined) ?? DEFAULT_OPTIONS, risk);
+    // Dangerous: Deny comes first, so a reflexive 1 refuses rather than approves.
+    const isDeny = (o: { decision: ApprovalDecision }) => o.decision === "decline" || o.decision === "cancel";
+    const options = dangerous ? [...offered.filter(isDeny), ...offered.filter((o) => !isDeny(o))] : offered;
     for (const o of options) {
-      const deny = o.decision === "decline" || o.decision === "cancel";
+      const deny = isDeny(o);
       choices.push({
         label: `${o.label}.`,
         tone: deny ? "bad" : "good",
@@ -158,7 +166,8 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
               <p className="event-text">
                 <strong>{thread.title || "A crew member"}</strong> requests permission to {VERB[String(p.requestKind)] ?? "proceed"}.
               </p>
-              {detailText && <pre className="event-detail">{detailText}</pre>}
+              {risk && <RiskBanner risk={risk} />}
+              {detailText && <pre className={`event-detail ${risk ? `risk-${risk.level}` : ""}`}>{detailText}</pre>}
             </>
           ) : (
             <>
