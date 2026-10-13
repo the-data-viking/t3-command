@@ -82,6 +82,10 @@ function fleet(): Record<string, EnvWorld> {
       thread("c1", "stone", "Update Althing and Synthbench repos", "error", 60),
       thread("c2", "stone", "Background review sweep", "background", 25),
     ]),
+    // A machine that has dropped off: its crew show last-known state, greyed, with no signal.
+    lab: { ...env("lab", "lab-runner", [project("lab", "lab-tools")], [
+      thread("d1", "lab", "Profile the nightly import", "working", 50),
+    ]), connection: "reconnecting" },
   };
 }
 

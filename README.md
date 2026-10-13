@@ -19,7 +19,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   it serves, with its team color; shared repositories keep their crew together.
 - **Truthful telemetry** (borrowed from [StarNet](https://starnetos.com/)): the map never shows
   activity T3 can't prove. Consoles light up only during a real turn; crew walk to the terminal,
-  file archive or comms dish only for a real open tool call; drones orbit crew for each running
+  file archive or comms dish only for a real open tool call, and that system's screen lights while
+  they stand at it; crew on an unreachable machine turn grey with static over their heads; drones orbit crew for each running
   background task; a health bar shows how much context window is left. While an agent works
   through a plan, pips over its head and its roster row show the step it's on ("3/5 · Write
   tests"), and the unit panel lists the whole plan. The unit panel also splits each turn into agent
@@ -38,7 +39,7 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   angular helmet with a visor slit and crest; the chest plate carries the machine's team colour, and
   crew sit at their consoles instead of standing in front of them.
   A crew member who finishes a job throws a brief burst of pixel confetti. A station with an approval
-  waiting flashes red beacons on its roof. Each deck's cooling fins run a light faster the busier its
+  waiting flashes red beacons on its roof, and the asking crew member's console pulses. Each deck's cooling fins run a light faster the busier its
   CPU is. Frame tabs use the map's pixel font, and the help legend shows the real badges.
   Zoomed out, each engineering deck shows its machine's callsign in large type on a dark band, and
   Hermes operators keep their names. A crew member whose turn has run past 2, 6, 12 and 24 hours

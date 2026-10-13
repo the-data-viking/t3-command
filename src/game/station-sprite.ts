@@ -4,7 +4,7 @@ import { Container, Graphics, Rectangle, Sprite, TilingSprite, type FederatedPoi
 import { PixelText } from "./pixel-text";
 import * as A from "../art/sprites";
 import { setSelection, type GameState } from "../store";
-import { QUARTERS_SHOWN, stationDrawKey, TILE, type StationLayout, type SystemRoom } from "./layout";
+import { QUARTERS_SHOWN, stationDrawKey, systemFixtureX, TILE, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { currentStyle, PX, tex } from "./textures";
@@ -25,6 +25,8 @@ export class StationSprite {
   private drawn?: string;
   /** Console sprites by "x,y" of their layout point, so screens can be updated live. */
   readonly consoles = new Map<string, Sprite>();
+  /** Each system room's fixture, whose screen the world lights while crew use it. */
+  readonly systems = new Map<SystemRoom, { sprite: Sprite; grid: A.Grid }>();
   /** Door sprites at their layout points, opened by approaching crew. */
   doors: Array<{ sprite: Sprite; x: number; y: number; open: A.Grid }> = [];
 
@@ -95,7 +97,10 @@ export class StationSprite {
     ];
     for (const [kind, grid] of sys) {
       const r = s.rooms[kind]?.rect;
-      if (r) fixtures.addChild(sprite(tex(grid), r.x + r.w * 0.3, r.y + r.h - 6, 0.5, 1));
+      if (!r) continue;
+      const fixture = sprite(tex(grid, { screen: SCREEN_OFF }), systemFixtureX(r), r.y + r.h - 6, 0.5, 1);
+      fixtures.addChild(fixture);
+      this.systems.set(kind, { sprite: fixture, grid });
     }
     // Bridge consoles with chairs (screens update live).
     for (const p of s.consoles) {
