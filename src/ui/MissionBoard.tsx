@@ -8,7 +8,8 @@ import { openEvent, setSelection, unitKey, useGame } from "../store";
 import { pendingRequests, type UnitState } from "../t3/derive";
 import { boardOf, COLUMNS, type Card } from "./board";
 import { openDebrief } from "./debrief";
-import { PullRequestChips } from "./MissionTelemetry";
+import { prState } from "../t3/changes";
+import type { ThreadShell } from "../t3/types";
 import { requestSummary, waitingSince } from "./queue";
 import { startQueue } from "./queue-run";
 import { useClock } from "./useClock";
@@ -100,7 +101,7 @@ function BoardCard({ card, onGo }: { card: Card; onGo: () => void }) {
         {ask && <span className={`board-card-ask st-${state}`}>{ask}</span>}
         {state === "error" && thread.session?.lastError && <span className="board-card-ask st-error">{thread.session.lastError.split("\n")[0].slice(0, 90)}</span>}
       </button>
-      <PullRequestChips thread={thread} />
+      <OpenPrs thread={thread} />
       {(state === "alert" || state === "question") && (
         <button className="btn small board-card-act" onClick={() => { onGo(); openEvent({ envId, threadId: thread.id }); }}>{state === "alert" ? "Decide" : "Answer"}</button>
       )}
@@ -108,5 +109,29 @@ function BoardCard({ card, onGo }: { card: Card; onGo: () => void }) {
         <button className="btn small board-card-act" onClick={() => { onGo(); openDebrief({ envId, threadId: thread.id }); }}>Read report</button>
       )}
     </article>
+  );
+}
+
+const CHECK_MARK: Record<string, string> = { passing: "✓", failing: "✗", pending: "…" };
+
+/** A card's open and draft PRs only, newest first, two at most: merged and linked history stays in the crew panel. */
+function OpenPrs({ thread }: { thread: ThreadShell }) {
+  const open = [...new Map((thread.pullRequests ?? []).filter((pr) => pr.snapshot?.state === "open").map((pr) => [`${pr.repository}#${pr.number}`, pr])).values()]
+    .sort((a, b) => b.number - a.number);
+  if (!open.length) return null;
+  return (
+    <div className="pr-chips">
+      {open.slice(0, 2).map((pr) => {
+        const state = prState(pr), checks = pr.snapshot?.checksState;
+        return (
+          <a key={`${pr.repository}#${pr.number}`} className={`pr-chip pr-${state}`} href={pr.url} target="_blank" rel="noreferrer" title={pr.snapshot?.title ?? pr.url}>
+            <span className="pr-number">#{pr.number}</span>
+            <span className="pr-state">{state.toUpperCase()}</span>
+            {checks && CHECK_MARK[checks] && <span>{CHECK_MARK[checks]} checks</span>}
+          </a>
+        );
+      })}
+      {open.length > 2 && <span className="muted small">+{open.length - 2} open</span>}
+    </div>
   );
 }
