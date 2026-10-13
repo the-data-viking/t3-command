@@ -833,7 +833,7 @@ export class World {
       }
       if (sprite.state === "alert" || sprite.state === "question") {
         u.attention = true;
-        if (lay.console && !lay.sleeping) asking.push({ ...lay.console, color: STATUS[sprite.state] });
+        if (lay.console && !lay.sleeping && sprite.atConsole) asking.push({ ...lay.console, color: STATUS[sprite.state] });
       }
       stationUse.set(lay.stationKey, u);
       if (!lay.sleeping) {

@@ -139,7 +139,7 @@ export const ENV_BAY = { x: 222, y: 30, w: 56, h: 88 };
 export const BAY_SHOWN = 2;
 const NODE_GAP = 24;
 /** Height of a row of Hermes operator bays (console, chair, name and status). */
-const HERMES_BAY_PITCH = 104;
+const HERMES_BAY_PITCH = 124;
 const CAMPUS_GAP = 400;
 const STATION_GAP_Y = 180;
 
@@ -521,7 +521,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
         const row = Math.floor(i / 4);
         const columns = Math.min(4, operators.length - row * 4);
         return { bot, workstation: { x: hull.x + (hull.w - (columns * 166 - 8)) / 2 + (i % 4) * 166,
-          y: hull.y + 104 + row * HERMES_BAY_PITCH, w: 158, h: 96 } };
+          y: hull.y + 104 + row * HERMES_BAY_PITCH, w: 158, h: 116 } };
       }),
       links: [...fleet.environmentNodes.values()].map((node, index) => ({ envId: node.envId,
         from: index < 3 ? { x: node.hull.x + node.hull.w / 2, y: hull.y + hull.h }

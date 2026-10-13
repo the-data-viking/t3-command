@@ -160,3 +160,16 @@ test("visor glass stays clear of every status hue", () => {
     for (const [name, color] of Object.entries(hues)) assert.ok(deltaE(visor, color) >= 20, `${provider} visor vs ${name}`);
   }
 });
+
+test("each status badge has its own silhouette, matching its fleet-view glyph", () => {
+  const mask = (grid: readonly string[]): number[][] => grid.map((row) => [...row].map((c) => (c === "." ? 0 : 1)));
+  const entries = Object.entries(BADGES).map(([state, grid]) => [state, mask(grid!)] as const);
+  for (const [i, [a, ma]] of entries.entries()) for (const [b, mb] of entries.slice(i + 1)) {
+    const differ = ma.flat().filter((v, k) => v !== mb.flat()[k]).length;
+    assert.ok(differ >= 6, `${a} and ${b} badges differ by only ${differ} cells`);
+  }
+  const widths = (state: string) => mask(BADGES[state as keyof typeof BADGES]!).map((row) => row.reduce((n, v) => n + v, 0));
+  const alert = widths("alert"), question = widths("question");
+  assert.ok(alert[0] < alert[4] && alert[4] < alert[8], "approval is a ▲, widening downward");
+  assert.ok(question[4] === Math.max(...question) && question[0] < question[4] && question[8] < question[4], "question is a ◆, widest in the middle");
+});

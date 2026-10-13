@@ -272,43 +272,45 @@ export const DOOR_H_OPEN: Grid = ["kkffffffffffffkk", "kmffffffffffffmk", "kDfff
 // Drawn in V, filled with the crew member's status colour (STATUS) when rasterized, so a badge is
 // always the same colour as the HUD's pill for that state. Glyphs are solid white (or ink on yellow).
 
+/** Approval: a ▲ with a "!", the same shape as its glyph in the fleet view and minimap. */
 export const BADGE_ALERT: Grid = [
   "....k....",
   "...kVk...",
+  "...kVk...",
+  "..kVwVk..",
   "..kVwVk..",
   ".kVVwVVk.",
-  "kVVVwVVVk",
   ".kVVVVVk.",
-  "..kVwVk..",
+  "kVVVwVVVk",
+  "kkkkkkkkk",
+];
+
+/** Question: a ◆ with a dark "?" (bar, hook, stem; the bottom tip is the dot). */
+export const BADGE_QUESTION: Grid = [
+  "....k....",
   "...kVk...",
+  "..kVVVk..",
+  ".kVkkkVk.",
+  "kVVVVkVVk",
+  ".kVVkVVk.",
+  "..kVVVk..",
+  "...kkk...",
   "....k....",
 ];
 
-export const BADGE_QUESTION: Grid = [
-  "..kkkkk..",
-  ".kVVVVVk.",
-  "kVVkkkVVk",
-  "kVVVVkVVk",
-  "kVVVkVVVk",
-  "kVVVkVVVk",
-  "kVVVVVVVk",
-  ".kVVkVVk.",
-  "..kkkkk..",
-];
-
+/** Report ready: a round badge with a solid ✓. */
 export const BADGE_DONE: Grid = [
-  "..kkkkk..",
-  ".kVVVVVk.",
-  "kVVVVVVwk",
-  "kVVVVVwwk",
-  "kVwVVwwVk",
-  "kVwwwwVVk",
-  "kVVwwVVVk",
-  ".kVVVVVk.",
-  "..kkkkk..",
+  "...kkk...",
+  ".kkVVVkk.",
+  ".kVVVVwk.",
+  "kVVVVwwVk",
+  "kVwVwwVVk",
+  "kVwwwVVVk",
+  ".kVwVVVk.",
+  ".kkVVVkk.",
+  "...kkk...",
 ];
 
-/** Failed: an octagon with a solid ✕ (orange, not the approval red diamond). */
 export const BADGE_ERROR: Grid = [
   "..kkkkk..",
   ".kVVVVVk.",
@@ -321,16 +323,17 @@ export const BADGE_ERROR: Grid = [
   "..kkkkk..",
 ];
 
+/** Monitoring: a ring (○), open in the middle. */
 export const BADGE_MONITOR: Grid = [
-  "..kkkkk..",
-  ".kVVVVVk.",
-  "kVkkkkkVk",
-  "kVkkkVkVk",
-  "kVkkVkkVk",
-  "kVkkkkkVk",
-  "kVVkkkVVk",
-  ".kVVVVVk.",
-  "..kkkkk..",
+  "...kkk...",
+  ".kkVVVkk.",
+  ".kVkkkVk.",
+  "kVk...kVk",
+  "kVk...kVk",
+  "kVk...kVk",
+  ".kVkkkVk.",
+  ".kkVVVkk.",
+  "...kkk...",
 ];
 
 /** All grids, for validation. */

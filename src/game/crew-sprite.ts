@@ -56,6 +56,11 @@ export class CrewSprite extends Container {
   hovered = false;
   /** Picked for batch actions; set by the World each frame. */
   inSquad = false;
+  /**
+   * How far the head sits below its standing height (seated crew drop 14 px). Every overlay over
+   * the head (badge, spinner, pips) moves with it, so none lands on the console behind them.
+   */
+  private lift = 0;
   /** Their machine isn't connected, so what they show is last known; set by the World each frame. */
   offline = false;
   /**
@@ -242,6 +247,7 @@ export class CrewSprite extends Container {
       const legs: Legs = moving ? WALK[Math.floor(t * 8) % 4] : seated ? "sit" : "idle";
       // Seated below the screen; walking, the body rises an art pixel as the legs pass.
       this.figure.y = seated ? 14 : moving && legs === "walkB" ? -PX : 0;
+      this.lift = seated ? 14 : 0;
       const arms: Arms = working ? (frame % 2 ? "typeA" : "typeB") : "idle";
       this.figure.texture = crewTex(this.silhouette, this.tier, legs, arms, this.team, visor);
       this.figure.anchor.set(0.5, 1);
@@ -255,7 +261,8 @@ export class CrewSprite extends Container {
         // Badges are drawn in their status colour (the V cells), the same one the HUD uses.
         this.badge.texture = tex(badge, { visor: STATUS[this.state] });
         const bob = this.state === "alert" || this.state === "question" ? (frame % 2) * PX : 0;
-        this.badge.position.set(8, -40 - bob);
+        // Beside the head: seated, it moves right and down with it, off the console screen.
+        this.badge.position.set(this.lift ? 14 : 8, -40 + this.lift - bob);
         this.badge.alpha = this.offline ? 0.5 : 1;
       }
     }
@@ -294,7 +301,7 @@ export class CrewSprite extends Container {
       // No signal: a flickering block of static where the status effects would be. Nothing they
       // show is live, so no spinner, drones or plan pips.
       for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) {
-        if ((x + y + (reducedMotion() ? 0 : Math.floor(t * 6))) % 2) f.rect(10 + x * 2, -44 + y * 2, 2, 2).fill(0x8a919a);
+        if ((x + y + (reducedMotion() ? 0 : Math.floor(t * 6))) % 2) f.rect(10 + x * 2, -44 + this.lift + y * 2, 2, 2).fill(0x8a919a);
       }
       return;
     }
@@ -310,12 +317,14 @@ export class CrewSprite extends Container {
       }
       if (this.quiet) {
         // Quiet turn: three steady grey dots where the busy pip spins (not a status or gauge colour).
-        for (const x of [8, 12, 16]) f.rect(x, -40, 2, 2).fill(mapInk(useGame.getState().artStyle).muted);
+        for (const x of [8, 12, 16]) f.rect(x, -40 + this.lift, 2, 2).fill(mapInk(useGame.getState().artStyle).muted);
       } else {
         // Spinning pip: busy, no attention needed.
         const a = Math.floor(t * 8) % 4;
         const pts = [[0, -2], [2, 0], [0, 2], [-2, 0]];
-        pts.forEach(([x, y], i) => f.rect(12 + x, -40 + y, 2, 2).fill({ color: i === a ? STATUS.working : 0x1d4a57 }));
+        // Ringed in outline so it reads on a lit screen of the same colour.
+        f.rect(8, -44 + this.lift, 10, 10).fill(0x101418);
+        pts.forEach(([x, y], i) => f.rect(12 + x, -40 + this.lift + y, 2, 2).fill({ color: i === a ? STATUS.working : 0x1d4a57 }));
       }
       // Plan pips over the head: done, current (blinking), still to do.
       const plan = this.thread.planProgress;
@@ -325,7 +334,7 @@ export class CrewSprite extends Container {
         const x0 = -n * 2;
         for (let i = 0; i < n; i++) {
           const color = i < done ? STATUS.done : i === done ? (Math.floor(t * 2) % 2 ? STATUS.working : 0x1d4a57) : hudMaterials(useGame.getState().artStyle).meter;
-          f.rect(x0 + i * 4, -50, 2, 2).fill(color);
+          f.rect(x0 + i * 4, -50 + this.lift, 2, 2).fill(color);
         }
       }
     }
@@ -354,7 +363,7 @@ export class CrewSprite extends Container {
     if (turn?.state !== "running") return;
     const hours = (Date.now() - Date.parse(turn.startedAt ?? turn.requestedAt)) / 3_600_000;
     const pips = [2, 6, 12, 24].filter((h) => hours >= h).length;
-    for (let i = 0; i < pips; i++) f.rect(-20, -44 + i * 6, 2, 4).fill(hours >= 12 ? GAUGE.critical : GAUGE.high);
+    for (let i = 0; i < pips; i++) f.rect(-20, -44 + this.lift + i * 6, 2, 4).fill(hours >= 12 ? GAUGE.critical : GAUGE.high);
   }
 
   /**
@@ -439,7 +448,8 @@ export class CrewSprite extends Container {
     if (this.inSquad) pixelOval(r, 0, 0, 20, 8, SELECTION, 0.5);
     if (selected) {
       pixelOval(r, 0, 0, 16, 6, SELECTION);
-    } else if (!this.offline && (this.state === "alert" || this.state === "question")) {
+    } else if (!this.offline && !this.atConsole && (this.state === "alert" || this.state === "question")) {
+      // Away from their console (seated, the console pulses instead: one ask ring, not two).
       // The pulse grows in whole art-pixel steps rather than smoothly.
       const g = Math.floor(((t * 1.1 + this.seed) % 1) * 6) / 6;
       pixelOval(r, 0, 0, 10 + g * 22, 4 + g * 8, STATUS[this.state], 1 - g);
