@@ -123,6 +123,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   in an owner-only file. Messages about what this browser did (recruits, errors, quiet turns it
   noticed) stay in this browser. **Clear** hides the log in this browser only. Click an entry to
   jump to its crew member.
+- **Risk lens**: an approval whose command or files look dangerous is marked ⚠ in the roster, the
+  event card and the crew panel, with the reasons ("deletes files recursively", "force-pushes",
+  "drops or empties database data", "reads secrets or keys", "runs a script straight from the
+  internet"…). A dangerous one puts **Deny** first, arms its buttons more slowly, and drops "approve
+  for the rest of this session", so it's only ever approved on its own. Cautions (migrations,
+  `sudo`, `--force`, pushing to main, publishing, `.env` and CI workflow edits) are marked in amber
+  and keep every choice. It's a heuristic reading of the request, not a sandbox.
 - **Attention**: an always-on **Inbox** of everything waiting on you (approvals, questions, failed
   turns, reports), edge-of-screen arrows for off-screen alerts, and RTS hotkeys: **Space** next
   alert, **.** next report, **W** next active crew, **F** fit the fleet, **L** comms log, **Esc** deselect.

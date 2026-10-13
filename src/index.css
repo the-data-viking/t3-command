@@ -2164,3 +2164,13 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
   .playbooks-modal ol.playbooks li textarea { grid-column: 1 / -1; grid-row: 2; }
   .squad-order { width: 100%; }
 }
+
+/* ---- Risk lens: flagged approvals, on the gauges' hazard scale (high, critical) ---- */
+.risk-caution { --risk: var(--gauge-high); }
+.risk-danger { --risk: var(--gauge-critical); }
+.risk-banner { display: flex; gap: var(--space-2); align-items: baseline; padding: var(--space-1h) var(--space-2); margin: 0 0 var(--space-2); border: 2px solid var(--risk); border-radius: var(--radius-control); background: color-mix(in srgb, var(--risk) 14%, transparent); font-size: var(--fs-md); line-height: 1.45; }
+.risk-banner .risk-mark { color: var(--risk); font-weight: bold; }
+.risk-banner.risk-danger .risk-mark { animation: blink var(--pulse); }
+.event-detail.risk-caution, .event-detail.risk-danger, .pending-detail.risk-caution, .pending-detail.risk-danger { border-color: var(--risk); }
+.crew-ask .risk-mark { color: var(--risk); margin-right: var(--space-1); }
+@media (prefers-reduced-motion: reduce) { .risk-banner.risk-danger .risk-mark { animation: none; } }

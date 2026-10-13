@@ -31,6 +31,7 @@ const LEGEND: Array<[string, string, string]> = [
   ["muted", "Three grey dots", "Running turn with no activity for 10+ minutes (quiet)"],
   ["alert", "▲ badge · console pulses", "Waiting for your approval"],
   ["question", "◆ badge · console pulses", "Waiting for your answer"],
+  ["gauge-critical", "⚠ on a request", "Risk lens: a dangerous command or file (amber: be careful); Deny comes first"],
   ["done", "Round ✓ badge", "Report ready (finished, not yet sent to camp)"],
   ["error", "✕ badge · sparks, then scorch", "Last turn failed"],
   ["monitoring", "○ badge · drones orbiting", "Background tasks running"],

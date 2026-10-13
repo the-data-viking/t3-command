@@ -7,6 +7,8 @@ import { openEvent, setSelection, toggleSquad, unitKey, useGame } from "../store
 import { squadKeys } from "./squad";
 import { followUpFor } from "../t3/followups";
 import { byWait, requestSummary, waitingSince } from "./queue";
+import { assessRisk } from "./risk";
+import type { PendingRequest } from "../t3/types";
 import { pendingRequests } from "../t3/derive";
 import type { UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
@@ -112,7 +114,7 @@ export function CrewRoster() {
               <span className="muted"> · {envs[u.envId]?.summary.label}</span>
             </span>
             {(u.state === "alert" || u.state === "question") && detail && (
-              <span className={`crew-ask st-${u.state}`}>{requestSummary(pendingRequests(detail.thread)[0], 44)}</span>
+              <RosterAsk state={u.state} request={pendingRequests(detail.thread)[0]} />
             )}
             {followUpFor(followUps, u.envId, u.thread.id) && <span className="crew-queued">↻ Follow-up queued{followUps.paused ? " (paused)" : ""}</span>}
             <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
@@ -162,5 +164,16 @@ export function CrewRoster() {
         </div>
       )}
     </aside>
+  );
+}
+
+/** What a waiting crew member asks, with the risk lens's mark when an approval is flagged. */
+function RosterAsk({ state, request }: { state: string; request: PendingRequest | undefined }) {
+  const risk = assessRisk(request);
+  return (
+    <span className={`crew-ask st-${state} ${risk ? `risk-${risk.level}` : ""}`} title={risk ? `${risk.level === "danger" ? "Dangerous" : "Careful"}: ${risk.reasons.join("; ")}` : undefined}>
+      {risk && <span className="risk-mark" aria-label={risk.level === "danger" ? "Dangerous" : "Careful"}>⚠</span>}
+      {risk ? requestSummary(request, 44)?.replace(/^▲ /, "") : requestSummary(request, 44)}
+    </span>
   );
 }
