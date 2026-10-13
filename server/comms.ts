@@ -78,6 +78,12 @@ export class CommsLog {
     return full;
   }
 
+  /** Run `listener` for every new entry (push notifications); returns the unsubscribe. */
+  onEntry(listener: (entry: CommsEntry) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
   /** Entries after `afterId`, or the most recent backlog. */
   since(afterId?: number): CommsEntry[] {
     if (afterId === undefined || !Number.isFinite(afterId)) return this.entries.slice(-COMMS_BACKLOG);

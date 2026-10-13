@@ -512,3 +512,16 @@ Layout:
 
 - `tools/extract-rpcs.mjs` regenerates the RPC method list (`tools/rpcs.tsv`) from an installed T3
   Code server bundle, so you can diff protocol changes after a T3 update.
+
+## Push notifications to your phone
+
+T3 Command can push fleet events to any device that turns it on, even with no tab open: approvals
+and questions, failed turns, turns gone quiet (no update for 20 minutes) or running long, merged
+PRs, finished jobs, machines going offline and low disks. Open the bell menu in the top bar to
+turn push on for this device, choose which events come through, and set quiet hours (only the
+kinds you allow, approvals by default, get through overnight). Tapping a notification opens T3
+Command at that crew member.
+
+On iPhone and iPad, web push needs the app on the Home Screen: open T3 Command in Safari, tap
+Share → **Add to Home Screen**, then open it from the Home Screen and turn push on. The Command
+server keeps its keys, subscriptions and rules in owner-only files in its data directory.

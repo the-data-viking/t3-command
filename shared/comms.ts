@@ -8,7 +8,7 @@ export type CommsTone = "info" | "good" | "alert" | "bad";
  * Entries written before kinds existed have none; treat those as "info".
  */
 export type CommsKind =
-  | "approval" | "question" | "failed" | "done" | "started" | "monitoring" | "merged"
+  | "approval" | "question" | "failed" | "done" | "started" | "monitoring" | "merged" | "quiet"
   | "offline" | "online" | "disk" | "long-turn" | "update" | "info";
 
 /** Routine entries a log can fold away: work starting and background watching. */

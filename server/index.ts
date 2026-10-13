@@ -18,6 +18,7 @@ import { HistoryRecorder } from "./history-recorder.ts";
 import { StorageMonitor } from "./storage.ts";
 import { CommsLog } from "./comms.ts";
 import { ReadState } from "./read-state.ts";
+import { PushNotifier } from "./push.ts";
 import { HostHistoryRecorder } from "./host-history.ts";
 import { t3SocketUrl } from "./t3-socket.ts";
 import { T3Versions } from "./t3-versions.ts";
@@ -49,6 +50,10 @@ const comms = new CommsLog(config.dataDir);
 await comms.load();
 const readState = new ReadState(config.dataDir);
 await readState.load();
+// Fleet events pushed to subscribed devices, filtered by the push rules and quiet hours.
+const push = new PushNotifier(config.dataDir);
+await push.load();
+comms.onEntry((entry) => void push.notify(entry, entry.envId ? registry.get(entry.envId)?.label : undefined).catch((err) => console.warn("[push]", (err as Error).message)));
 recorder.listen({
   observe: (envId, threads) => comms.observe(envId, threads),
   connected: (envId, label) => comms.connected(envId, label),
@@ -147,6 +152,7 @@ const CONTENT_TYPES: Record<string, string> = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".json": "application/json",
+  ".webmanifest": "application/manifest+json",
   ".woff2": "font/woff2",
   ".ico": "image/x-icon",
   ".mp3": "audio/mpeg",
@@ -210,6 +216,25 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       send("read", readState.all());
       return readState.subscribe((changed) => send("read", changed));
     });
+  }
+  if (pathname === "/api/push" && method === "GET") return sendJson(res, 200, push.status());
+  if (pathname === "/api/push/subscribe" && method === "POST") {
+    const body = await readJson<{ subscription?: unknown; label?: string }>(req);
+    try { push.subscribe(body?.subscription as never, String(body?.label ?? "")); } catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
+    return sendJson(res, 200, push.status());
+  }
+  if (pathname === "/api/push/unsubscribe" && method === "POST") {
+    const body = await readJson<{ endpoint?: string }>(req);
+    push.unsubscribe(String(body?.endpoint ?? ""));
+    return sendJson(res, 200, push.status());
+  }
+  if (pathname === "/api/push/rules" && method === "PUT") {
+    try { push.setRules((await readJson<{ rules?: unknown }>(req))?.rules); } catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
+    return sendJson(res, 200, push.status());
+  }
+  if (pathname === "/api/push/test" && method === "POST") {
+    const body = await readJson<{ endpoint?: string }>(req);
+    return sendJson(res, 200, { sent: await push.test(body?.endpoint) });
   }
   if (pathname === "/api/read" && method === "PUT") {
     const body = await readJson<{ marks?: Record<string, string> }>(req);
@@ -418,6 +443,7 @@ async function shutdown(): Promise<void> {
   await hostHistory.stop();
   await comms.flush();
   await readState.flush();
+  await push.flush();
   await Promise.all([...hermesBridges.values()].map(async (bridge) => (await bridge).close()));
   process.exit(0);
 }
