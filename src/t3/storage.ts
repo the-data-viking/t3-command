@@ -1,7 +1,7 @@
 // Disk usage per machine, measured by the Command server every few minutes. The browser polls the
 // latest readings and speaks up when a machine's disk crosses into low or critical.
 
-import { diskLevel, tightestVolume, type DiskVolume, type StorageView } from "../../shared/storage";
+import { diskEta, diskLevel, ETA_SHOW_MS, etaLabel, tightestVolume, type DiskVolume, type StorageView } from "../../shared/storage";
 import { useGame } from "../store";
 import { GAUGE } from "../game/theme";
 import { fetchJson } from "./environment";
@@ -18,15 +18,25 @@ export interface StorageSummary {
   color: number;
   stale: boolean;
   error?: string;
+  /** At the recent rate, how long until the disk is full: set only when that's under two days. */
+  eta?: number;
 }
+
+/** A disk-full estimate under six hours is critical whatever space is left; under two days, high. */
+const ETA_CRITICAL_MS = 6 * 3_600_000;
 
 export function storageSummary(view: StorageView | undefined, now = Date.now()): StorageSummary {
   const latest = view?.latest;
   const volume = latest ? tightestVolume(latest.volumes) : undefined;
   const stale = !!latest && now - latest.sampledAt > STALE_MS;
   if (!volume || volume.totalBytes <= 0) return { level: "unknown", color: GAUGE.unknown, stale, error: latest?.error };
-  const level = diskLevel(volume);
-  return { volume, level, usedFraction: 1 - volume.availableBytes / volume.totalBytes, color: stale ? GAUGE.unknown : GAUGE[level], stale, error: latest?.error };
+  const estimate = stale ? undefined : diskEta(view?.trend ?? [], now);
+  const eta = estimate !== undefined && estimate < ETA_SHOW_MS ? estimate : undefined;
+  const byEta = eta === undefined ? "ok" : eta < ETA_CRITICAL_MS ? "critical" : "high";
+  const rank = { ok: 0, high: 1, critical: 2 } as const;
+  const space = diskLevel(volume);
+  const level = rank[byEta] > rank[space] ? byEta : space;
+  return { volume, level, usedFraction: 1 - volume.availableBytes / volume.totalBytes, color: stale ? GAUGE.unknown : GAUGE[level], stale, error: latest?.error, eta };
 }
 
 /** Short free-space label for the deck plate: "2.2G", "31G", "1.4T". */
@@ -49,10 +59,13 @@ export function announceStorage(prev: Record<string, StorageView>, next: Storage
     const after = storageSummary(view);
     if (after.stale || RANK[after.level] <= RANK[before.level] || !after.volume) continue;
     const machine = useGame.getState().envs[view.envId]?.summary.label ?? "A machine";
-    const text = `${machine} disk ${after.level === "critical" ? "nearly full" : "running low"}: ${freeLabel(after.volume.availableBytes)}B free on ${after.volume.mount}`;
+    const free = `${freeLabel(after.volume.availableBytes)}B free on ${after.volume.mount}`;
+    const text = after.eta !== undefined
+      ? `${machine} disk filling up: full in about ${etaLabel(after.eta)} at this rate, ${free}`
+      : `${machine} disk ${after.level === "critical" ? "nearly full" : "running low"}: ${free}`;
     announced.push(text);
     if (useGame.getState().notify && typeof Notification !== "undefined" && Notification.permission === "granted") {
-      new Notification(after.level === "critical" ? "Disk nearly full" : "Disk running low", { body: text, tag: `disk:${view.envId}` });
+      new Notification(after.eta !== undefined ? "Disk filling up" : after.level === "critical" ? "Disk nearly full" : "Disk running low", { body: text, tag: `disk:${view.envId}` });
     }
   }
   return announced;

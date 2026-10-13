@@ -5,7 +5,7 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { diskLevel, gb, parseStorageOutput, storageCommand, storageDone, tightestVolume, type StorageReading, type StorageView } from "../shared/storage.ts";
+import { diskEta, diskLevel, ETA_ALERT_MS, etaLabel, gb, parseStorageOutput, storageCommand, storageDone, tightestVolume, type DiskVolume, type StorageReading, type StorageView } from "../shared/storage.ts";
 import type { CommsLog } from "./comms.ts";
 import type { HistoryRecorder } from "./history-recorder.ts";
 import type { Registry, StoredEnv } from "./registry.ts";
@@ -128,6 +128,23 @@ export class StorageMonitor {
     if (tightest && tightest.totalBytes > 0) entry.trend.push({ at: reading.sampledAt, usedFraction: 1 - tightest.availableBytes / tightest.totalBytes });
     const cutoff = Date.now() - TREND_MS;
     entry.trend = entry.trend.filter((p) => p.at >= cutoff);
+    this.telegraph(envId, entry.trend, tightest);
+  }
+
+  /** When a disk-full estimate was last announced, per machine: at most once per 12 hours. */
+  private etaAnnounced = new Map<string, number>();
+
+  /** A comms warning (and so a push) when a disk is filling fast enough to be full within 12 hours. */
+  private telegraph(envId: string, trend: Array<{ at: number; usedFraction: number }>, volume: DiskVolume | undefined): void {
+    const now = Date.now();
+    const eta = diskEta(trend, now);
+    if (!this.comms || !volume || eta === undefined || eta > ETA_ALERT_MS) return;
+    // The comms log survives restarts (every deploy), so it is the memory of what was announced.
+    const last = this.etaAnnounced.get(envId) ?? this.comms.since().findLast((e) => e.kind === "disk" && e.envId === envId && e.text.includes(" will be full in "))?.at ?? 0;
+    if (now - last < ETA_ALERT_MS) return;
+    this.etaAnnounced.set(envId, now);
+    const machine = this.registry.get(envId)?.label ?? "A machine";
+    this.comms.add({ tone: "alert", kind: "disk", envId, text: `${machine} disk will be full in about ${etaLabel(eta)} at this rate: ${gb(volume.availableBytes)} free on ${volume.mount}` });
   }
 
   /** A comms warning when a machine's fullest disk crosses into low or critical. */

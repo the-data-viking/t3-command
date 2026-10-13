@@ -238,6 +238,7 @@ code {
 .spend-menu[open] > summary { border-color: var(--done); }
 /* "2/8": only part of the fleet reports quotas, so the headline isn't the whole picture. */
 .res-partial { margin-left: 4px; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--gauge-high); }
+.res-reset { margin-left: 4px; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--muted); }
 .spend-breakdown {
   position: fixed;
   top: var(--topbar-bottom, 62px);
