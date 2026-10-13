@@ -80,7 +80,49 @@ export function hudTokens(styleId: StyleId): Record<string, string> {
     "gauge-high": GAUGE.high,
     "gauge-critical": GAUGE.critical,
   };
-  return Object.fromEntries(Object.entries(colors).map(([name, color]) => [`--${name}`, css(color)]));
+  // On a light HUD the status and gauge hues are deepened until they read as text on its panels.
+  if (m.light) {
+    for (const name of [...Object.keys(STATUS), "gauge-ok", "gauge-high", "gauge-critical", "cyan", "amber", "hermes"]) {
+      colors[name] = deepen(colors[name], m.surface);
+    }
+  }
+  const tokens: Record<string, string> = Object.fromEntries(Object.entries(colors).map(([name, color]) => [`--${name}`, css(color)]));
+  const chrome = m.chrome ?? { corner: "round", radius: 7, width: 3 };
+  tokens["--frame-radius"] = `${chrome.radius}px`;
+  tokens["--frame-width"] = `${chrome.width}px`;
+  tokens["--corner-shape"] = chrome.corner === "bevel" ? "bevel" : "round";
+  return tokens;
+}
+
+/** Mix a colour toward black until it has at least 4.5:1 contrast with `surface`. */
+export function deepen(color: number, surface: number): number {
+  for (let k = 0; k <= 1; k += 0.05) {
+    const c = mixColor(color, 0x000000, k);
+    if (contrastRatio(c, surface) >= 4.5) return c;
+  }
+  return 0x000000;
+}
+
+function mixColor(a: number, b: number, k: number): number {
+  const ch = (x: number, s: number) => (x >> s) & 255;
+  const m = (s: number) => Math.round(ch(a, s) * (1 - k) + ch(b, s) * k);
+  return (m(16) << 16) | (m(8) << 8) | m(0);
+}
+
+/** WCAG contrast ratio between two colours. */
+export function contrastRatio(a: number, b: number): number {
+  const lum = (c: number) => {
+    const [r, g, bl] = [16, 8, 0].map((s) => ((c >> s) & 255) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/** Dark plating for map structures drawn in HUD materials (stays dark on light-HUD themes). */
+export function platingMaterials(styleId: StyleId): HudMaterials {
+  const m = hudMaterials(styleId);
+  return m.plating ? { ...m, ...m.plating } : m;
 }
 
 /** Point the stylesheet at a map style's HUD colors. */
@@ -88,6 +130,7 @@ export function applyHudTheme(styleId: StyleId): void {
   const root = document.documentElement;
   for (const [name, value] of Object.entries(hudTokens(styleId))) root.style.setProperty(name, value);
   root.dataset.art = styleId;
+  root.dataset.hud = hudMaterials(styleId).light ? "light" : "dark";
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", css(STYLES[styleId].space));
 }
 

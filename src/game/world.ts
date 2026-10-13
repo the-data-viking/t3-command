@@ -29,7 +29,7 @@ import { Backdrop } from "./backdrop";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
-import { HUD, STATUS, hudMaterials } from "./theme";
+import { HUD, STATUS, platingMaterials } from "./theme";
 import { crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
@@ -629,7 +629,7 @@ export class World {
     const hub=this.layout.hub;
     if(hub){
       // Operations hub: a stepped-corner plate in the theme's HUD materials.
-      const m = hudMaterials(useGame.getState().artStyle);
+      const m = platingMaterials(useGame.getState().artStyle);
       steppedPlate(g, hub.x - 2, hub.y - 2, hub.w + 4, hub.h + 4, 12, 4, m.edgeStrong);
       steppedPlate(g, hub.x, hub.y, hub.w, hub.h, 10, 4, m.surface);
       const title=label(12,0xc9e1e8);title.text='OPERATIONS';title.position.set(hub.x+18,hub.y+22);this.operations.addChild(title);

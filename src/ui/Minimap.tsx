@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
-import { css, HUD } from "../game/theme";
+import { css, hudMaterials } from "../game/theme";
+import { STYLES } from "../art/palettes";
+import { useGame } from "../store";
 import { worldRef } from "../game/world";
 import { HERMES_COLOR } from '../t3/bots';
 import { cells, STATUS_GLYPHS } from "../art/pixelfont";
@@ -39,8 +41,11 @@ export function Minimap() {
       const oy = pad + (H - pad * 2 - b.h * scale) / 2 - b.y * scale;
       mapping.current = { scale, ox, oy };
 
-      ctx.fillStyle = `${css(HUD.amber)}22`;
-      ctx.strokeStyle = `${css(HUD.amber)}66`;
+      // Stations in the theme's own hull colour; the view box in its frame colour.
+      const style = useGame.getState().artStyle;
+      const hull = css(STYLES[style].colors.H), frameColor = css(hudMaterials(style).frame);
+      ctx.fillStyle = `${hull}33`;
+      ctx.strokeStyle = `${hull}aa`;
       for (const r of data.hubs) {
         ctx.fillRect(ox + r.x * scale, oy + r.y * scale, Math.max(2, r.w * scale), Math.max(2, r.h * scale));
         ctx.strokeRect(ox + r.x * scale + 0.5, oy + r.y * scale + 0.5, Math.max(2, r.w * scale), Math.max(2, r.h * scale));
@@ -67,7 +72,7 @@ export function Minimap() {
         ctx.beginPath(); ctx.moveTo(x, y - ry); ctx.lineTo(x + rx, y); ctx.lineTo(x, y + ry); ctx.lineTo(x - rx, y); ctx.closePath(); ctx.fill(); ctx.stroke();
       }
       const v = data.view;
-      ctx.strokeStyle = css(HUD.amber);
+      ctx.strokeStyle = frameColor;
       ctx.lineWidth = 1;
       // Clamp the view box to the canvas, so all four sides show even when the view runs off the fleet.
       const cw = ctx.canvas.width, ch = ctx.canvas.height;

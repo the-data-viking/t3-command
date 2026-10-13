@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { STYLES } from "../art/palettes";
 import { css, hudMaterials } from "../game/theme";
 import { ART_STYLES, setArtStyle, useGame } from "../store";
-import { PixelIcon } from "./PixelArt";
+import { themeThumbnail } from "./theme-thumbnail";
 import { THEME_NAMES } from "./themes";
 
 /** Map and HUD theme: a menu of every live style, each with a swatch of its materials. */
@@ -24,7 +24,7 @@ export function ThemePicker() {
     <div className="theme-menu" ref={root}>
       <button className="icon-btn" aria-haspopup="menu" aria-expanded={open} aria-label={`Theme: ${THEME_NAMES[artStyle]}`}
         title={`Theme: ${THEME_NAMES[artStyle]}`} onClick={() => setOpen(!open)}>
-        <PixelIcon name={artStyle === "flightdeck" ? "sun" : "moon"} /><span className="phone-label">Theme · {THEME_NAMES[artStyle]}</span>
+        <img className="theme-icon" src={themeThumbnail(artStyle)} alt="" width={26} height={15} draggable={false} /><span className="phone-label">Theme · {THEME_NAMES[artStyle]}</span>
       </button>
       {open && (
         <div className="theme-list hud-frame" role="menu" aria-label="Theme">
@@ -34,10 +34,8 @@ export function ThemePicker() {
             return (
               <button key={id} role="menuitemradio" aria-checked={artStyle === id} className={`theme-option ${artStyle === id ? "active" : ""}`}
                 onClick={() => { setArtStyle(id); setOpen(false); }}>
-                <span className="theme-swatch" aria-hidden>
-                  {[style.space, m.frame, style.colors.H, style.colors.f].map((c, i) => <i key={i} style={{ background: css(c) }} />)}
-                </span>
-                <span>{THEME_NAMES[id]}</span>
+                <img className="theme-thumb" src={themeThumbnail(id)} alt="" width={104} height={60} draggable={false} style={{ outline: `2px solid ${css(m.frame)}` }} />
+                <span className="theme-option-text"><span>{THEME_NAMES[id]}</span><span className="muted small">{style.blurb}</span></span>
               </button>
             );
           })}
