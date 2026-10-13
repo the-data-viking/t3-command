@@ -6,7 +6,7 @@ import { telemetry } from "../t3/telemetry";
 import { contextLevel, modelTier, TIER_LABEL } from "../game/theme";
 import { envClient, logError } from "../t3/environment";
 import type { ApprovalDecision, Message, PendingRequest } from "../t3/types";
-import { modelName, providerName, STATE_LABELS, timeAgo } from "./util";
+import { modelName, providerName, stateLabel, timeAgo } from "./util";
 import { ThreadImage } from "./ThreadImage";
 
 import { MessageMarkdown } from "./MessageMarkdown";
@@ -106,7 +106,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         </div>
       ) : (
       <div className="status-row">
-        <span className={`pill state-${state}`}>{bot ? BOT_STATE_LABELS[state] : STATE_LABELS[state]}</span>
+        <span className={`pill state-${state}`}>{bot ? BOT_STATE_LABELS[state] : stateLabel(thread, state)}</span>
         {env.summary.kind !== 'hermes' && <span className="muted small">{thread.runtimeMode}</span>}
         <ThreadTiming thread={thread} detail={detail?.thread} />
         <span className="spacer" />

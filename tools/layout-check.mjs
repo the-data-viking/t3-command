@@ -54,6 +54,14 @@ async function run(base) {
     const vw = await page.evaluate(() => ({ w: innerWidth, h: innerHeight, scroll: document.documentElement.scrollWidth }));
     check(view.name, vw.scroll <= vw.w, `page is wider than the screen (${vw.scroll} > ${vw.w})`);
 
+    if (phone) {
+      // The dock's "waiting on you" and the top bar's ALERTS are the same number.
+      const counts = await page.evaluate(() => ({
+        alerts: Number(document.querySelector('.resource [data-short="ALERT"]')?.nextElementSibling?.textContent ?? NaN),
+        dock: Number(document.querySelector(".needs-count")?.textContent?.match(/\d+/)?.[0] ?? 0),
+      }));
+      check(view.name, counts.alerts === counts.dock, `dock says ${counts.dock} waiting, top bar says ${counts.alerts} alerts`);
+    }
     // A crew member's panel sits below the top bar, never over its controls.
     if (phone) { await page.tap(".roster-tab"); await page.waitForTimeout(300); }
     await page.locator(".crew-row:not(.operator-row)").first().click();

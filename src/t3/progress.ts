@@ -117,6 +117,14 @@ export function compactions(thread: OrchestrationThread): Compactions {
   return { count: done.length, last: last && Number.isFinite(before) && Number.isFinite(after) ? { beforeTokens: before, afterTokens: after, at: last.createdAt } : undefined };
 }
 
+/** The last time anything happened on a followed thread (an activity or a message update). */
+export function lastActivityAt(thread: OrchestrationThread): number | undefined {
+  let last = -Infinity;
+  for (const a of thread.activities) { const t = Date.parse(a.createdAt); if (t > last) last = t; }
+  for (const m of thread.messages) { const t = Date.parse(m.updatedAt); if (t > last) last = t; }
+  return Number.isFinite(last) ? last : undefined;
+}
+
 /** A running turn with nothing new from the agent for this long is called out. */
 export const QUIET_MS = 10 * 60_000;
 
