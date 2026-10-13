@@ -69,7 +69,11 @@ export function Minimap() {
       const v = data.view;
       ctx.strokeStyle = css(HUD.amber);
       ctx.lineWidth = 1;
-      ctx.strokeRect(ox + v.x * scale + 0.5, oy + v.y * scale + 0.5, v.w * scale, v.h * scale);
+      // Clamp the view box to the canvas, so all four sides show even when the view runs off the fleet.
+      const cw = ctx.canvas.width, ch = ctx.canvas.height;
+      const x0 = Math.max(0.5, ox + v.x * scale + 0.5), y0 = Math.max(0.5, oy + v.y * scale + 0.5);
+      const x1 = Math.min(cw - 0.5, ox + (v.x + v.w) * scale + 0.5), y1 = Math.min(ch - 0.5, oy + (v.y + v.h) * scale + 0.5);
+      if (x1 > x0 && y1 > y0) ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
     };
     let id: ReturnType<typeof setInterval> | undefined;
     const visibility = () => {

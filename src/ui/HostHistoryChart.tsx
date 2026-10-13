@@ -87,6 +87,9 @@ export function HostHistoryChart({ envId }: { envId: string }) {
       </div>
       {error && <p className="orange small">{error}</p>}
       {history && !points.length && <p className="muted small">No samples recorded for this range yet. The Command server samples every minute.</p>}
+      {history && points.length > 0 && points[0].at - history.from > (history.to - history.from) * 0.05 && (
+        <p className="muted small">Recorded since {new Date(points[0].at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}; nothing earlier is known.</p>
+      )}
       {history && points.length > 0 && (
         <div className="host-history-plot">
           <svg ref={svg} viewBox={`0 0 ${W} ${H}`} role="img" onPointerMove={onMove} onPointerLeave={() => setHover(undefined)}

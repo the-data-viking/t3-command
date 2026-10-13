@@ -5,6 +5,7 @@ import { diskLevel, tightestVolume, type DiskVolume, type StorageView } from "..
 import { useGame } from "../store";
 import { GAUGE } from "../game/theme";
 import { fetchJson } from "./environment";
+import { DEMO } from "../demo";
 
 export const STORAGE_REFRESH_MS = 60_000;
 /** Readings are taken every 5 minutes; three missed samples means the numbers can't be trusted. */
@@ -60,6 +61,7 @@ export function announceStorage(prev: Record<string, StorageView>, next: Storage
 let loaded = false;
 
 export async function refreshStorage(): Promise<void> {
+  if (DEMO) return; // The demo fleet's storage is fixed.
   const views = await fetchJson<StorageView[]>("/api/storage");
   announceStorage(useGame.getState().storage, views, !loaded);
   loaded = true;
