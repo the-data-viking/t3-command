@@ -108,3 +108,28 @@ test('idle wake and slow frames keep movement deltas bounded', () => {
   assert.ok(deltas[1] <= 1 / 30);
   assert.ok(deltas[2] <= 0.1);
 });
+
+test('an ambient draw keeps the loop alive at the low rate, and input cuts the wait short', () => {
+  const frames = new Map<number, FrameRequestCallback>();
+  const timers = new Map<number, () => void>();
+  let id = 0, timerId = 0, draws = 0;
+  const loop = new RenderLoop(() => { draws++; return 'ambient'; },
+    callback => { frames.set(++id, callback); return id; }, id => { frames.delete(id); }, 30, 8,
+    { set: (callback, ms) => { assert.equal(ms, 125); timers.set(++timerId, callback); return timerId; }, clear: (id) => { timers.delete(id as number); } });
+  const advance = (now: number) => { const pending = [...frames.values()]; frames.clear(); for (const callback of pending) callback(now); };
+  loop.invalidate();
+  advance(0);
+  assert.equal(draws, 1);
+  assert.equal(frames.size, 0, 'no full-rate frame is requested');
+  assert.equal(timers.size, 1, 'an ambient tick is scheduled');
+  [...timers.values()][0]();
+  timers.clear();
+  assert.equal(frames.size, 1, 'the ambient tick requests a frame');
+  advance(200);
+  assert.equal(draws, 2);
+  // Input arrives while an ambient tick is pending: draw on the next frame instead of waiting.
+  loop.invalidate();
+  assert.equal(timers.size, 0);
+  assert.equal(frames.size, 1);
+  loop.destroy();
+});

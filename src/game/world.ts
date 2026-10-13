@@ -24,7 +24,7 @@ import { endGesture, gesturing, holdTaps } from "./gesture";
 import { isPhone } from "../ui/phone";
 import { hudInsets } from "../ui/hud-insets";
 import { doorState } from "./crew-motion";
-import { RenderLoop } from "./render-loop";
+import { RenderLoop, type DrawResult } from "./render-loop";
 import { Backdrop } from "./backdrop";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
@@ -697,7 +697,7 @@ export class World {
 
   // ---- Frame ----
 
-  private tick(dt: number): boolean {
+  private tick(dt: number): DrawResult {
     this.time += dt;
     const state = useGame.getState();
     // Reduced motion freezes the animation clock: no blinking, pulsing, drifting or flowing
@@ -763,8 +763,11 @@ export class World {
       pixelFrame(this.edge, Math.round(b.x), Math.round(b.y), Math.round(b.w), Math.round(b.h), SELECTION, 0.9, 1);
     }
     if (still) return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || [...this.crew.values()].some((crew) => crew.animated);
-    return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
+    const moving = panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
+    // Nothing moving: the fleet still breathes at a low rate (deck lights and fins, sleepers' z's,
+    // glances at consoles, twinkling stars) instead of freezing until the next input.
+    return moving || "ambient";
   }
 
   /** Visible crew name labels never print over each other: later ones step down into free space. */

@@ -1,7 +1,7 @@
 // Flight Deck: compact suited crew and broad, inset ship-system workstations.
 // Original pixel geometry; provider, tier, team and activity remain independent.
 import * as S from './sprites';
-import { compose, type Arms, type Legs, type Silhouette, type Tier } from './render';
+import { compose, type Arms, type Head, type Legs, type Silhouette, type Tier } from './render';
 import { panel, type PixelBox } from './grid';
 import type { Grid } from './sprites';
 
@@ -121,7 +121,7 @@ export const ENGINEERING_SPOTS = {
 export const FLIGHT_KIT = { ...S, CONSOLE, TERMINAL, FILES, COMMS, CHAIR, ENGINEERING_DECK };
 
 /** Suit mass is in the torso; headgear is compact, shoulders carry the team patch. */
-export function flightCrew(silhouette: Silhouette, tier: Tier, legs: Legs = 'idle', arms: Arms = 'idle'): Grid {
+export function flightCrew(silhouette: Silhouette, tier: Tier, legs: Legs = 'idle', arms: Arms = 'idle', look: Head = ''): Grid {
   // Claude ('round'): a bubble helmet with a wide, curved visor. Codex ('angular'): a squared
   // helmet with a narrow visor slit and a crest. Readable apart at one screen pixel per art pixel.
   const head = silhouette === 'round'
@@ -130,7 +130,7 @@ export function flightCrew(silhouette: Silhouette, tier: Tier, legs: Legs = 'idl
       [6, 5, 7, 3, 'k'], [7, 5, 5, 1, 'V'], [7, 6, 5, 1, 'V'], [11, 5, 1, 1, 'v'], [8, 8, 4, 1, 's'], [11, 4, 1, 1, 's']])
     : panel(16, 22, [[7, 1, 3, 2, 'k'], [8, 1, 1, 1, 'T'], [3, 3, 10, 7, 'k'], [4, 4, 8, 5, 'W'], [4, 4, 8, 1, 'w'],
       [5, 6, 9, 2, 'k'], [6, 6, 7, 1, 'V'], [12, 6, 1, 1, 'v'], [9, 8, 3, 1, 's'], [11, 4, 1, 2, 's']]);
-  if (legs === 'behind') return flightCrewBehind(silhouette, tier, arms);
+  if (legs === 'behind') return flightCrewBehind(silhouette, tier, arms, look);
   // The torso is suit, not outline: one outline row under the helmet, a 6-px chest lit from the
   // upper left and shaded on the right, and a 1-px team stripe; the team colour's main home is
   // the shoulder patches.
@@ -148,29 +148,41 @@ export function flightCrew(silhouette: Silhouette, tier: Tier, legs: Legs = 'idl
 }
 
 /**
- * Seated at a console, seen from behind: the back of the helmet, shoulder patches, the pack, elbows
- * moving as they type, and the chair back. The console's screen stays in view above the head.
+ * Seated at a console, seen from behind: the back of the helmet, shoulder patches, the pack, the
+ * arms and the chair back. The console's screen stays in view above the head. Poses: elbows
+ * working as they type, a hand raised (waving) while they wait on you, leaning back with hands
+ * behind the head, and the head glancing left or right or bowed.
  */
-function flightCrewBehind(silhouette: Silhouette, tier: Tier, arms: Arms): Grid {
-  const head = silhouette === 'round'
-    ? panel(16, 22, [[6, 2, 4, 1, 'k'], [4, 3, 8, 1, 'k'], [3, 4, 10, 5, 'k'], [4, 9, 8, 1, 'k'],
-      [5, 3, 6, 1, 'W'], [4, 4, 8, 5, 'W'], [5, 3, 3, 1, 'w'], [4, 4, 1, 3, 'w'], [11, 4, 1, 5, 's'], [8, 8, 3, 1, 's']])
-    : panel(16, 22, [[7, 1, 3, 2, 'k'], [8, 1, 1, 1, 'T'], [3, 3, 10, 7, 'k'], [4, 4, 8, 5, 'W'], [4, 4, 8, 1, 'w'],
-      [4, 5, 1, 3, 'w'], [11, 4, 1, 5, 's'], [9, 8, 2, 1, 's']]);
-  const up = arms === 'typeB' ? 1 : 0; // elbows rise and fall as they type
+function flightCrewBehind(silhouette: Silhouette, tier: Tier, arms: Arms, head: Head): Grid {
+  const dx = head === 'left' ? -1 : head === 'right' ? 1 : 0;
+  const dy = head === 'down' ? 1 : 0;
+  const shift = (boxes: PixelBox[]): PixelBox[] => boxes.map(([x, y, w, h, c]) => [x + dx, y + dy, w, h, c]);
+  const helmet = silhouette === 'round'
+    ? panel(16, 22, shift([[6, 2, 4, 1, 'k'], [4, 3, 8, 1, 'k'], [3, 4, 10, 5, 'k'], [4, 9, 8, 1, 'k'],
+      [5, 3, 6, 1, 'W'], [4, 4, 8, 5, 'W'], [5, 3, 3, 1, 'w'], [4, 4, 1, 3, 'w'], [11, 4, 1, 5, 's'], [8, 8, 3, 1, 's']]))
+    : panel(16, 22, shift([[7, 1, 3, 2, 'k'], [8, 1, 1, 1, 'T'], [3, 3, 10, 7, 'k'], [4, 4, 8, 5, 'W'], [4, 4, 8, 1, 'w'],
+      [4, 5, 1, 3, 'w'], [11, 4, 1, 5, 's'], [9, 8, 2, 1, 's']]));
   const back = panel(16, 22, [
     [2, 10, 12, 5, 'k'], [3, 10, 10, 4, 'W'], [3, 10, 3, 1, 'w'], [12, 10, 1, 4, 's'],
     // Pack between the shoulder blades.
     [5, 10, 6, 4, 'k'], [6, 11, 4, 2, 'G'], [6, 11, 4, 1, 'g'],
-    // Elbows.
-    [1, 13 - up, 2, 2, 'k'], [13, 13 - (arms === 'typeA' ? 1 : 0), 2, 2, 'k'],
     // Chair back.
     [3, 15, 10, 5, 'k'], [4, 16, 8, 3, 'G'], [4, 16, 8, 1, 'g'],
   ]);
+  const limbs: PixelBox[] = arms === 'typeA' || arms === 'typeB'
+    // Typing: one elbow up while the other is down, swapping each beat.
+    ? [[0, arms === 'typeB' ? 11 : 13, 2, 2, 'k'], [1, arms === 'typeB' ? 11 : 13, 1, 1, 'W'], [14, arms === 'typeA' ? 11 : 13, 2, 2, 'k'], [14, arms === 'typeA' ? 11 : 13, 1, 1, 'W']]
+    : arms === 'raise' || arms === 'raiseB'
+      // A hand up beside the helmet, waving a pixel higher every other beat.
+      ? [[0, 13, 2, 2, 'k'], [13, arms === 'raiseB' ? 2 : 3, 3, 10, 'k'], [14, arms === 'raiseB' ? 3 : 4, 1, 8, 'W'], [14, arms === 'raiseB' ? 2 : 3, 1, 1, 'w']]
+      : arms === 'relax'
+        // Leaning back, hands behind the head: elbows out level with the helmet.
+        ? [[0, 6, 4, 2, 'k'], [1, 6, 2, 1, 'W'], [12, 6, 4, 2, 'k'], [13, 6, 2, 1, 'W']]
+        : [[0, 13, 2, 2, 'k'], [14, 13, 2, 2, 'k']];
   const patches = tier === 'heavy'
     ? panel(16, 22, [[0, 9, 4, 4, 'k'], [1, 10, 2, 2, 'T'], [12, 9, 4, 4, 'k'], [13, 10, 2, 2, 'T']])
     : tier === 'light'
       ? panel(16, 22, [[3, 11, 1, 1, 'T'], [12, 11, 1, 1, 'T']])
       : panel(16, 22, [[3, 11, 2, 2, 'T'], [11, 11, 2, 2, 'T']]);
-  return compose(back, patches, head, ...(tier === 'reviewer' ? [panel(16, 22, [[13, 7, 2, 3, 'k'], [13, 8, 1, 1, 'm']])] : []));
+  return compose(back, patches, helmet, panel(16, 22, limbs), ...(tier === 'reviewer' ? [panel(16, 22, shift([[13, 7, 2, 3, 'k'], [13, 8, 1, 1, 'm']]))] : []));
 }

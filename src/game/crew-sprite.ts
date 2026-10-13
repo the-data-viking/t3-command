@@ -14,7 +14,7 @@ import { CrewMotion } from "./crew-motion";
 import { quietness } from "../t3/progress";
 import { crewTex, PX, tex } from "./textures";
 import { contextLevel, DEFAULT_VISOR, GAUGE, HUD, hudMaterials, mapInk, modelTier, PROVIDER_VISOR, providerSilhouette, SELECTION, STATUS, type Silhouette, type Tier } from "./theme";
-import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale, pixelFrame, pixelOval, REPORT_MS } from "./map-common";
+import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale, pixelFrame, pixelOval, REPORT_MS, seatedPose } from "./map-common";
 
 /** Round a local coordinate to the art grid (PX world px), so effects sit on the sprite's pixels. */
 const snap = (v: number) => Math.round(v / PX) * PX;
@@ -249,8 +249,8 @@ export class CrewSprite extends Container {
       const legs: Legs = moving ? WALK[Math.floor(t * 8) % 4] : seated ? "behind" : "idle";
       this.figure.y = seated ? 14 : moving && legs === "walkB" ? -PX : 0;
       this.lift = seated ? 14 : 0;
-      const arms: Arms = working ? (frame % 2 ? "typeA" : "typeB") : "idle";
-      this.figure.texture = crewTex(this.silhouette, this.tier, legs, arms, this.team, visor);
+      const pose = seated ? seatedPose(this.state, frame, t, this.seed, this.offline) : { arms: (working ? (frame % 2 ? "typeA" : "typeB") : "idle") as Arms, head: "" as const };
+      this.figure.texture = crewTex(this.silhouette, this.tier, legs, pose.arms, this.team, visor, pose.head);
       this.figure.anchor.set(0.5, 1);
       // At a system they face its fixture, which stands to their left.
       this.figure.scale.set(PX * (seated ? 1 : this.atStation && !moving ? -1 : this.motion.facing), PX);

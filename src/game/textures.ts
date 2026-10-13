@@ -4,7 +4,7 @@
 
 import { Texture } from "pixi.js";
 import { STYLES, type Style } from "../art/palettes";
-import { rasterize, type Arms, type Fill, type Legs, type Silhouette, type Tier } from "../art/render";
+import { rasterize, type Arms, type Fill, type Head, type Legs, type Silhouette, type Tier } from "../art/render";
 import type { Grid } from "../art/sprites";
 import * as S from "../art/sprites";
 import { FLIGHT_KIT, flightCrew } from "../art/flightdeck";
@@ -41,12 +41,12 @@ export function tex(grid: Grid, fill: Fill = {}): Texture {
 
 const crewCache = new Map<string, Texture>();
 
-export function crewTex(silhouette: Silhouette, tier: Tier, legs: Legs, arms: Arms, team: number, visor: number): Texture {
+export function crewTex(silhouette: Silhouette, tier: Tier, legs: Legs, arms: Arms, team: number, visor: number, head: Head = ""): Texture {
   const style = currentStyle();
-  const key = `${style.id}|${silhouette}|${tier}|${legs}|${arms}|${team}|${visor}`;
+  const key = `${style.id}|${silhouette}|${tier}|${legs}|${arms}|${head}|${team}|${visor}`;
   let t = crewCache.get(key);
   if (!t) {
-    t = Texture.from(rasterize(flightCrew(silhouette, tier, legs, arms), style, { team, visor }));
+    t = Texture.from(rasterize(flightCrew(silhouette, tier, legs, arms, head), style, { team, visor }));
     t.source.scaleMode = "nearest";
     crewCache.set(key, t);
   }
