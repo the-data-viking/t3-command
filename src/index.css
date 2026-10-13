@@ -2103,3 +2103,10 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .pixel-meter i.high { background: var(--gauge-high); }
 .pixel-meter i.critical { background: var(--gauge-critical); }
 .pixel-meter i.neutral { background: var(--frame); }
+
+/* ---- Event safety: choices arm a moment after a request appears; arrivals under a keypress toast ---- */
+.event-choices.arming .event-choice:not(:last-child) { opacity: 0.55; }
+.event-choices .choice-num { transition: color 0.45s steps(3); }
+.event-choices.arming .choice-num { color: var(--muted); }
+.incoming-toast { position: absolute; top: var(--topbar-bottom, 64px); left: 50%; transform: translateX(-50%); z-index: var(--z-banner); display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); cursor: pointer; color: var(--text); max-width: min(520px, calc(100vw - 16px)); }
+.incoming-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

@@ -79,6 +79,8 @@ export interface GameState {
   notify: boolean;
   /** The crew member whose pending approval/question is shown as an event dialog. */
   event: { envId: string; threadId: string } | null;
+  /** A request that arrived just as you pressed a number key: announced, not popped up. */
+  incoming: { envId: string; threadId: string; at: number } | null;
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
@@ -195,6 +197,7 @@ export const useGame = create<GameState>()(() => ({
   showHistory: false,
   notify: loadNotify(),
   event: null,
+  incoming: null,
 }));
 
 /** Returning the same env from `fn` is a no-op: subscribers (the map, panels) are not notified. */
@@ -216,7 +219,7 @@ export function openHost(envId: string): void {
 }
 
 export function openEvent(event: GameState["event"]): void {
-  useGame.setState({ event });
+  useGame.setState(event ? { event, incoming: null } : { event });
 }
 
 function loadVolume(): number {
