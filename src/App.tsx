@@ -20,7 +20,7 @@ import { HostPanel } from "./ui/HostPanel";
 import { HermesControlCenter } from "./ui/HermesControlCenter";
 import { refreshHermesBots } from "./t3/hermes";
 import { refreshStorage, STORAGE_REFRESH_MS } from "./t3/storage";
-import { installTitleBadge, notifyAttention } from "./ui/attention";
+import { installQuietWatch, installTitleBadge, notifyAttention } from "./ui/attention";
 
 const ENV_REFRESH_MS = 30_000;
 
@@ -80,6 +80,7 @@ export default function App() {
     const offTransitions = announceTransitions();
     const offTitle = installTitleBadge();
     const offWatches = installActiveWatches();
+    const offQuiet = installQuietWatch();
     return () => {
       clearInterval(timer);
       clearInterval(storageTimer);
@@ -87,6 +88,7 @@ export default function App() {
       offTransitions();
       offTitle();
       offWatches();
+      offQuiet();
     };
   }, []);
 

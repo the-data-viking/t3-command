@@ -20,7 +20,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
 - **Truthful telemetry** (borrowed from [StarNet](https://starnetos.com/)): the map never shows
   activity T3 can't prove. Consoles light up only during a real turn; crew walk to the terminal,
   file archive or comms dish only for a real open tool call; drones orbit crew for each running
-  background task; a health bar shows how much context window is left. Rooms are lit only
+  background task; a health bar shows how much context window is left. While an agent works
+  through a plan, pips over its head and its roster row show the step it's on ("3/5 · Write
+  tests"), and the unit panel lists the whole plan. The unit panel also splits each turn into agent
+  time and time waiting on you, with tokens processed and context compactions. A running turn with
+  no activity for 10 minutes and nothing waiting on you shows three amber dots and "Quiet 14m",
+  and is announced once in the comms log (and as a desktop alert, if on). A long tool call or
+  background tasks are named instead. Rooms are lit only
   while in use: a bridge while its station has crew on duty, a system room while someone works
   there. Crew walk to quarters when their thread settles and back when it wakes, doors slide
   open as they pass, and a freshly recruited crew member beams in at their seat. Camera jumps

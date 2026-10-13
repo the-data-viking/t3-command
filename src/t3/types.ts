@@ -76,6 +76,8 @@ export interface ThreadShell {
    * In-memory on the T3 server, so it resets to null when that server restarts.
    */
   backgroundLiveness?: "working" | "monitoring" | null;
+  /** The agent's current plan step while a turn runs; cleared when it settles. */
+  planProgress?: { step: string; completedSteps: number; totalSteps: number } | null;
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;
