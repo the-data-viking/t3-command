@@ -73,7 +73,12 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
 - **Provider limits**: **LIMITS** shows the fullest quota window any provider reports (for example
   Codex's weekly window), with reset times. Machines signed in to the same account share a row.
   Providers that can't report quota, and health notes such as an outdated CLI, are listed. Updates
-  arrive live from T3's provider status stream.
+  arrive live from T3's provider status stream. When only part of the fleet reports (Claude doesn't
+  report quotas, and a provider's probe can fail), the chip adds how many provider sign-ins the
+  number covers (for example "1/6"), and the breakdown lists which are silent and which failed.
+- **Long turns**: the Command server notes in the comms log when a running turn passes 2, 6, 12
+  and 24 hours, so a runaway agent stands out with nobody watching. Per-turn cost isn't shown,
+  because T3 only prices usage per day and model.
 - **Mission telemetry**: the crew panel shows why a failed turn failed (also on hover in the
   roster) and the thread's linked pull requests with state, checks and review. A collapsible
   **Changes** list shows each recent turn's files and +/- counts, with a full-screen diff per turn.
