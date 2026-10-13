@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { HERMES_EDIT_PERMISSIONS, type HermesJobs } from '../../shared/hermes';
 import { worldRef } from '../game/world';
-import { css } from '../game/theme';
+import { css, hudAccent } from '../game/theme';
 import { setSelection, useGame } from '../store';
 import { botColor, botOperators, BOT_STATE_LABELS } from '../t3/bots';
 import { hermesRequest, refreshHermesBots } from '../t3/hermes';
@@ -18,12 +18,13 @@ export function HermesMark({ className = '' }: { className?: string }) {
   </svg></span>;
 }
 export function BotPortrait({ profile }: { profile: string }) {
-  return <span className="bot-portrait" style={{ '--bot': css(botColor(profile)) } as React.CSSProperties} aria-hidden="true">
+  return <span className="bot-portrait" style={{ '--bot': css(hudAccent(botColor(profile), useGame.getState().artStyle)) } as React.CSSProperties} aria-hidden="true">
     <span>{profile.slice(0, 2).toUpperCase()}</span>
   </span>;
 }
 
 export function HermesControlCenter({ envId, profile }: { envId: string; profile?: string }) {
+  useGame((s) => s.artStyle); // Re-render on theme change: team and bot colours deepen on light HUDs.
   const envs = useGame(s => s.envs);
   const catalog = useGame(s => s.hermesCatalog);
   const operators = botOperators({ envs, hermesCatalog: catalog });

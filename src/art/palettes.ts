@@ -14,6 +14,8 @@ export interface Style {
   wall: number;
   /** Materials for the HUD chrome around the map; styles without one use Night Shift's. */
   hud?: HudMaterials;
+  /** Map label text and lines (drawn over space or dark plating); defaults are the HUD's dark-theme text. */
+  mapInk?: { text: number; muted: number; line?: number };
 }
 
 /**
@@ -60,6 +62,7 @@ export interface HudMaterials {
 const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   flightdeck: {
     id: "flightdeck", name: "Kestrel",
+    mapInk: { text: 0xf1e6d0, muted: 0xb9a88c },
     blurb: "FTL's warm hull: ivory and stone plating with copper details, a brass-and-leather HUD, over warm space.",
     // Warm space: a brown-black void, so the ivory hull reads warm against it.
     space: 0x110d0b, wall: 0x1f1813,
@@ -137,6 +140,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   },
   pastel: {
     id: "pastel",
+    mapInk: { text: 0xf6efe4, muted: 0xc9b8d4 },
     name: "Pastel Ops",
     blurb: "A cozier, brighter take: cream decks, soft plum outlines, candy accents.",
     space: 0x2a2140,
@@ -153,7 +157,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
         alert: 0xb8263a, question: 0x7a5600, working: 0x0d6890, monitoring: 0x7046c0, error: 0xa0420c,
         done: 0x1a7240, idle: 0x5f6675, sleeping: 0x635a74,
         "gauge-ok": 0x1a7240, "gauge-high": 0x8a5600, "gauge-critical": 0xa8288f,
-        cyan: 0x0d6890, amber: 0x8e3f86, hermes: 0x7a5a2e,
+        hermes: 0x6e5a48,
       },
     },
     colors: {
@@ -183,6 +187,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   },
   highcontrast: {
     id: "highcontrast",
+    mapInk: { text: 0xffffff, muted: 0xc8ced6, line: 0xd0d0d0 },
     name: "High Contrast",
     blurb: "Black space and wells, white frames and text, light hulls with black outlines, dark floors so crew stand out.",
     space: 0x000000,
@@ -192,6 +197,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       edge: 0x8a8a8a, edgeStrong: 0xd0d0d0, control: 0x1a1a1a, meter: 0x4a4a4a, bright: 0xffffff,
       text: 0xffffff, muted: 0xc8ced6,
       chrome: { corner: "square", radius: 0, width: 2 },
+      // "Asleep" lifted to 5.7:1 on black (the shared slate is 2.7:1); a grey RAM line beside white CPU.
+      tokens: { sleeping: 0x7d8597, "chart-ram": 0x8a8a8a },
     },
     colors: {
       k: 0x000000, w: 0xffffff, W: 0xe8e8e8, s: 0xa8a8a8,

@@ -13,7 +13,7 @@ import { gesturing } from "./gesture";
 import { CrewMotion } from "./crew-motion";
 import { quietness } from "../t3/progress";
 import { crewTex, PX, tex } from "./textures";
-import { contextLevel, GAUGE, HUD, hudMaterials, modelTier, PROVIDER_VISOR, providerSilhouette, SELECTION, STATUS, type Silhouette, type Tier } from "./theme";
+import { contextLevel, DEFAULT_VISOR, GAUGE, HUD, hudMaterials, mapInk, modelTier, PROVIDER_VISOR, providerSilhouette, SELECTION, STATUS, type Silhouette, type Tier } from "./theme";
 import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale, pixelFrame, pixelOval, REPORT_MS } from "./map-common";
 
 /** Round a local coordinate to the art grid (PX world px), so effects sit on the sprite's pixels. */
@@ -226,9 +226,10 @@ export class CrewSprite extends Container {
     const boost = figureBoost(zoom, PX);
     this.scale.set(boost);
     // The name stays on whole screen pixels per font pixel too.
+    this.nameText.fill = mapInk(useGame.getState().artStyle).text;
     this.nameText.scale.set(crispScale(this.nameText.unit, labelZoom * figureBoost(labelZoom, PX)) * (figureBoost(labelZoom, PX) / boost));
 
-    const visor = PROVIDER_VISOR[this.thread.modelSelection.instanceId] ?? 0x9fb3d1;
+    const visor = PROVIDER_VISOR[this.thread.modelSelection.instanceId] ?? DEFAULT_VISOR;
     if (resting) {
       this.figure.texture = tex(A.BUNK_SLEEPER, { team: this.team, visor });
       this.figure.anchor.set(0.5, 0.5);
@@ -308,8 +309,8 @@ export class CrewSprite extends Container {
         this.quiet = quietness(this.thread, this.detail, now)?.kind === "quiet";
       }
       if (this.quiet) {
-        // Quiet turn: three steady amber dots where the busy pip spins.
-        for (const x of [8, 12, 16]) f.rect(x, -40, 2, 2).fill(GAUGE.high);
+        // Quiet turn: three steady grey dots where the busy pip spins (not a status or gauge colour).
+        for (const x of [8, 12, 16]) f.rect(x, -40, 2, 2).fill(mapInk(useGame.getState().artStyle).muted);
       } else {
         // Spinning pip: busy, no attention needed.
         const a = Math.floor(t * 8) % 4;

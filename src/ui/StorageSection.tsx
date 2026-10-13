@@ -49,7 +49,7 @@ export function StorageSection({ envId, now }: { envId: string; now: number }) {
         </div>
       );
     })}
-    {bars.length > 1 && <BarChart label="Peak disk use per 6 hours, last 7 days" ceiling={100} points={bars} color="var(--amber)" />}
+    {bars.length > 1 && <BarChart label="Peak disk use per 6 hours, last 7 days" ceiling={100} points={bars} color="var(--chart-neutral)" />}
     {worktrees && <>
       <div className="host-stat"><span>T3 worktrees</span><strong>{gb(worktrees.totalBytes)}</strong></div>
       {worktrees.entries.length === 0 && <p className="muted small">No T3 worktrees on this machine.</p>}

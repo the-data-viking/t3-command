@@ -64,8 +64,6 @@ export function hudTokens(styleId: StyleId): Record<string, string> {
   const m = hudMaterials(styleId);
   const colors: Record<string, number> = {
     space: style.space,
-    amber: style.colors.a ?? HUD.amber,
-    cyan: HUD.cyan,
     text: m.text ?? HUD.text,
     muted: m.muted ?? HUD.muted,
     hermes: HERMES_COLOR,
@@ -85,18 +83,22 @@ export function hudTokens(styleId: StyleId): Record<string, string> {
     "gauge-critical": GAUGE.critical,
     // Host charts plot in the theme's own materials, so a series never reads as a status.
     "chart-cpu": m.bright,
-    "chart-ram": m.frame,
+    "chart-ram": m.muted ?? HUD.muted,
     // The map's selection white, for legends that show it.
     selection: SELECTION,
   };
   // On a light HUD the status and gauge hues are deepened until they read as text on its panels;
   // a theme can hand-tune any of them instead.
   if (m.light) {
-    for (const name of [...Object.keys(STATUS), "gauge-ok", "gauge-high", "gauge-critical", "cyan", "amber", "hermes"]) {
+    for (const name of [...Object.keys(STATUS), "gauge-ok", "gauge-high", "gauge-critical", "hermes"]) {
       colors[name] = deepen(colors[name], m.surface);
     }
   }
   Object.assign(colors, m.tokens);
+  // Text on a status fill (pills, alert counts): whichever of the theme's ink or bright reads better.
+  for (const state of Object.keys(STATUS)) {
+    colors[`on-${state}`] = contrastRatio(m.ink, colors[state]) >= contrastRatio(m.bright, colors[state]) ? m.ink : m.bright;
+  }
   const tokens: Record<string, string> = Object.fromEntries(Object.entries(colors).map(([name, color]) => [`--${name}`, css(color)]));
   const chrome = m.chrome ?? { corner: "round", radius: 7, width: 3 };
   tokens["--frame-radius"] = `${chrome.radius}px`;
@@ -149,19 +151,40 @@ export function applyHudTheme(styleId: StyleId): void {
  * Distinct station colors, chosen to stay clear of the status and gauge colors above (no amber,
  * orange, red, magenta or violet; see theme.test.ts for the separation each keeps).
  */
-export const TEAM_COLORS = [0x3ec7b3, 0x5b7cff, 0xa8d65a, 0x2fa36b, 0x9c6b3c, 0x1f9fd6];
+export const TEAM_COLORS = [0x3ec7b3, 0x5b7cff, 0xa8d65a, 0x2fa36b, 0xb07f4a, 0x1f9fd6];
+
+/**
+ * A station or bot colour as the HUD should show it: as is on dark HUDs, deepened to readable
+ * text on light ones (lime on cream is 1.5:1).
+ */
+export function hudAccent(color: number, styleId: StyleId): number {
+  const m = hudMaterials(styleId);
+  return m.light ? deepen(color, m.surface) : color;
+}
+
+/** Text and line colours for labels drawn on the map (over space or dark plating), per style. */
+export function mapInk(styleId: StyleId): { text: number; muted: number; line: number } {
+  const ink = STYLES[styleId].mapInk;
+  return { text: ink?.text ?? HUD.text, muted: ink?.muted ?? HUD.muted, line: ink?.line ?? platingMaterials(styleId).edgeStrong };
+}
 
 export function teamColor(index: number): number {
   return TEAM_COLORS[index % TEAM_COLORS.length];
 }
 
+/**
+ * Visor glass by provider: low-saturation tints that never read as a status (Claude's orange and
+ * Codex's teal used to sit beside failed and working). Providers are told apart by helmet shape.
+ */
 export const PROVIDER_VISOR: Record<string, number> = {
-  claudeAgent: 0xe2884f,
-  codex: 0x46d6c2,
-  cursor: 0x8f8fe8,
-  grok: 0xd0d0d0,
-  opencode: 0xd8c25a,
+  claudeAgent: 0xc8b48c, // gold leaf
+  codex: 0xa9c4d4, // pale blue
+  cursor: 0x9a94b0, // smoke violet
+  grok: 0x56606c, // dark mirror
+  opencode: 0xb39c86, // copper
 };
+/** Visor glass for providers not listed above. */
+export const DEFAULT_VISOR = 0xb4bfcc;
 
 // ---- Crew classes ----------------------------------------------------------------------
 

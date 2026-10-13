@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
-import { css, teamColor } from "../game/theme";
+import { css, hudAccent, teamColor } from "../game/theme";
 import { worldRef } from "../game/world";
 import { openHost, setSelection, useGame, setNotify } from "../store";
 import { hostView } from "../t3/host";
@@ -20,6 +20,7 @@ import { SoundMenu } from "./SoundMenu";
 
 export function TopBar() {
   const bar = useRef<HTMLElement>(null);
+  const artStyle = useGame((s) => s.artStyle);
   const envs = useGame((s) => s.envs);
   const hosts = useGame((s) => s.hosts);
   const notify = useGame((s) => s.notify);
@@ -54,7 +55,7 @@ export function TopBar() {
       </div>
       <div className="resources">
         <button className="resource" title="Working now (W cycles)" onClick={() => jumpTo("working")}>
-          <span className="res-key" data-short="ACT">ACTIVE</span> <span className="res-val cyan">{totals.working}</span>
+          <span className="res-key" data-short="ACT">ACTIVE</span> <span className="res-val count-working">{totals.working}</span>
         </button>
         <button className="resource optional" title="Monitoring background work (M cycles)" onClick={() => jumpTo("monitoring")}>
           <span className="res-key">MONITORING</span> <span className="res-val violet">{totals.monitoring}</span>
@@ -96,7 +97,7 @@ export function TopBar() {
             <button
               key={env.summary.id}
               className={`station-chip conn-${env.connection} ${attention ? "hot" : ""}`}
-              style={{ ["--team" as string]: css(teamColor(i)) }}
+              style={{ ["--team" as string]: css(hudAccent(teamColor(i), artStyle)) }}
               title={description}
               aria-label={`${description}. Open engineering details`}
               onClick={() => {
@@ -108,7 +109,7 @@ export function TopBar() {
               <span className="chip-name">{env.summary.label}</span>
               {env.connection === "live" ? (
                 <span className="chip-counts">
-                  {working > 0 && <span className="cyan">{working}</span>}
+                  {working > 0 && <span className="count-working">{working}</span>}
                   {attention > 0 && <span className="red">!{attention}</span>}
                 </span>
               ) : (

@@ -43,7 +43,7 @@ export const PACK_STANDARD = rows(12, [
 ]);
 
 export const PACK_HEAVY = rows(4, [
-  ".a..............",
+  ".m..............",
   ".k..............",
   ".k..............",
   ".k..............",
@@ -57,12 +57,12 @@ export const PACK_HEAVY = rows(4, [
   "kkkk............",
 ]);
 
-export const PACK_LIGHT = rows(13, ["..kk............", "..kc............"]);
+export const PACK_LIGHT = rows(13, ["..kk............", "..km............"]);
 
 /** Inspector (review model) scanner, held up to the visor. */
 export const SCANNER = rows(9, [
   "..............kk",
-  ".............kak",
+  ".............kmk",
   "..............kk",
 ]);
 

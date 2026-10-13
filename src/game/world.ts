@@ -29,7 +29,7 @@ import { Backdrop } from "./backdrop";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
-import { HUD, SELECTION, STATUS, platingMaterials } from "./theme";
+import { HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
 import { FLEET_VIEW_ZOOM, pixelFrame, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
@@ -640,13 +640,14 @@ export class World {
       const m = platingMaterials(useGame.getState().artStyle);
       steppedPlate(g, hub.x - 2, hub.y - 2, hub.w + 4, hub.h + 4, 12, 4, m.edgeStrong);
       steppedPlate(g, hub.x, hub.y, hub.w, hub.h, 10, 4, m.surface);
-      const title=label(12,0xc9e1e8);title.text='OPERATIONS';title.position.set(hub.x+18,hub.y+22);this.operations.addChild(title);
-      const count=label(8,0x7eaaa8);count.text=`${this.layout.stations.size} PROJECT MODULES`;count.position.set(hub.x+18,hub.y+48);this.operations.addChild(count);
+      const ink = mapInk(useGame.getState().artStyle);
+      const title=label(12,ink.text);title.text='OPERATIONS';title.position.set(hub.x+18,hub.y+22);this.operations.addChild(title);
+      const count=label(8,ink.muted);count.text=`${this.layout.stations.size} PROJECT MODULES`;count.position.set(hub.x+18,hub.y+48);this.operations.addChild(count);
       this.opsLabels = { title, count };
       for(const station of this.layout.stations.values()){
         const left=station.port.x<hub.x, lane=left?hub.x-50:hub.x+hub.w+50;
         const targetY=hub.y+hub.h/2;
-        g.moveTo(station.port.x,station.port.y).lineTo(lane,station.port.y).lineTo(lane,targetY).lineTo(left?hub.x:hub.x+hub.w,targetY).stroke({color:0x547388,width:2,alpha:.6});
+        g.moveTo(station.port.x,station.port.y).lineTo(lane,station.port.y).lineTo(lane,targetY).lineTo(left?hub.x:hub.x+hub.w,targetY).stroke({color:ink.line,width:2,alpha:.6});
       }
     }
     const b = this.layout.bounds;
@@ -908,7 +909,9 @@ export class World {
         const room = s.rooms[kind];
         if (!room) continue;
         const on = !!u?.[kind];
-        const color = on ? (kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.done) : 0x59626c;
+        // In use: the same light as the room's screen (working, or monitoring on comms), not
+        // report-ready green.
+        const color = on ? (kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.working) : 0x59626c;
         const x = room.rect.x + room.rect.w - 16;
         const y = room.rect.y + 8;
         g.rect(x - 6, y - 2, 12, 12).fill(0x15191d).stroke({ color, width: 2 });

@@ -6,7 +6,7 @@ import { setSelection, useGame, type Selection } from '../store';
 import { botColor, BOT_STATE_LABELS, HERMES_COLOR, type BotOperator } from '../t3/bots';
 import type { UnitState } from '../t3/derive';
 import type { ControlCenterLayout, Rect } from './layout';
-import { HUD, platingMaterials, modelTier, providerSilhouette, STATUS } from './theme';
+import { GAUGE, mapInk, platingMaterials, modelTier, providerSilhouette, STATUS } from './theme';
 import { crewTex, currentStyle, PX, tex } from './textures';
 import { crispScale, figureBoost, fitLabel, pixelDiamond, steppedPlate } from './map-common';
 
@@ -48,6 +48,7 @@ export class ControlCenterSprite {
     // Dark plating in every theme (the HUD's own materials); Hermes tan is trim only, so the
     // hall never becomes the brightest thing on a light-themed map.
     const m = platingMaterials(useGame.getState().artStyle);
+    const ink = mapInk(useGame.getState().artStyle);
     const g = new Graphics();
     this.root.addChild(g);
     steppedPlate(g, h.x - 4, h.y - 4, h.w + 8, h.h + 8, 44, 8, c.k);
@@ -75,13 +76,13 @@ export class ControlCenterSprite {
     g.rect(ex + 8, ey - 12, 4, 24).fill(HERMES_COLOR);
     g.rect(ex - 12, ey - 2, 24, 4).fill(HERMES_COLOR);
     this.title = this.text('HERMES', h.x + 122, h.y + 28, 28, HERMES_COLOR);
-    this.text('DOCKED BRIDGE', h.x + 124, h.y + 63, 12, HUD.text);
-    this.text('PERSISTENT OPERATORS / SHARED ENGINEERING', h.x + 124, h.y + 88, 9, HUD.muted);
-    this.text(live ? 'CONNECTED' : 'OFFLINE', h.x + h.w - 155, h.y + 35, 10, live ? 0x9bc9c2 : HUD.muted);
-    this.text(`${center.operators.length} OPERATORS`, h.x + h.w - 155, h.y + 55, 9, HUD.muted);
-    this.text(`${endpointCount} BAYS ONLINE`, h.x + h.w - 155, h.y + 74, 9, HUD.muted);
+    this.text('DOCKED BRIDGE', h.x + 124, h.y + 63, 12, ink.text);
+    this.text('PERSISTENT OPERATORS / SHARED ENGINEERING', h.x + 124, h.y + 88, 9, ink.muted);
+    this.text(live ? 'CONNECTED' : 'OFFLINE', h.x + h.w - 155, h.y + 35, 10, live ? GAUGE.ok : ink.muted);
+    this.text(`${center.operators.length} OPERATORS`, h.x + h.w - 155, h.y + 55, 9, ink.muted);
+    this.text(`${endpointCount} BAYS ONLINE`, h.x + h.w - 155, h.y + 74, 9, ink.muted);
     g.rect(h.x + 30, h.y + 98, h.w - 60, 2).fill({ color: HERMES_COLOR, alpha: 0.35 });
-    if (!center.operators.length) this.text('OPEN CONTROL CENTER TO VIEW OPERATORS', h.x + 150, h.y + 136, 12, HUD.muted);
+    if (!center.operators.length) this.text('OPEN CONTROL CENTER TO VIEW OPERATORS', h.x + 150, h.y + 136, 12, ink.muted);
     for (const { bot, workstation: r } of center.operators) {
       const color = botColor(bot.name);
       const x = r.x + r.w / 2;
@@ -102,11 +103,11 @@ export class ControlCenterSprite {
       badge.position.set(x + 14, r.y + 22);
       this.root.addChild(figure, badge);
       this.operators.push({ bot, workstation: r, figure, console, badge });
-      const name = this.text(bot.title.length > 18 ? bot.title.slice(0, 17) + '…' : bot.title, x, r.y + 64, 12, HUD.text);
+      const name = this.text(bot.title.length > 18 ? bot.title.slice(0, 17) + '…' : bot.title, x, r.y + 64, 12, ink.text);
       name.anchor.set(0.5, 0);
       this.names.push({ label: name, full: bot.title, width: r.w - 12 });
       const status = this.text(bot.observed ? BOT_STATE_LABELS[bot.state].toUpperCase() : 'ON CALL · UNOBSERVED',
-        x, r.y + 82, 8, bot.observed ? STATUS[bot.state] : HUD.muted);
+        x, r.y + 82, 8, bot.observed ? STATUS[bot.state] : ink.muted);
       status.anchor.set(0.5, 0);
       const hit = new Container();
       hit.eventMode = 'static'; hit.cursor = 'pointer';

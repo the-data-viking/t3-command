@@ -79,8 +79,8 @@ gauge colors, into CSS variables. They are set on `<html>` before the first rend
 whenever the palette toggles. The stylesheet (`src/index.css`, one FTL chrome layer) derives
 only translucent variants with `color-mix()`.
 
-- Night Shift keeps its cool gray frames. Warm Flight Deck uses warm plating frames around
-  charcoal wells.
+- Night Shift keeps its cool gray frames. Kestrel has brass frames around oiled-leather panels
+  over warm space.
 - Materials change per style. Status colors, the one "done / healthy" green and the gauge ramp
   never change meaning. A light HUD (Pastel) hand-tunes darker versions in its `hud.tokens` so they
   read on cream; `theme.test.ts` holds each at 4.5:1 on every panel and apart from each other.
@@ -184,6 +184,9 @@ The rules every map change follows. `src/game/art-rules.test.ts` enforces the me
 7. **Lighting follows use.** Idle rooms are multiplied by the theme's own dim tone (`shadeColor`),
    so a warm deck dims warm instead of greying. Working fixtures spill dithered light (`lightSpill`).
 8. **Themes change materials, not meaning.** A theme supplies the sprite palette, the HUD materials
-   and its chrome (frame corners and weight). Status and gauge colours are identical in every theme.
+   and its chrome (frame corners and weight). Status and gauge colours keep their meaning in every
+   theme: identical on the map, and on a light HUD replaced by hand-tuned darker versions (`hud.tokens`).
+   The HUD's own accents are the theme's frame and bright colours, never a status colour; map labels
+   use the theme's `mapInk`, and visors are neutral glass.
 9. **Every effect is earned.** Motion means real activity. Anything that lingers (scorch, hazard
    stripes, turn-age pips) is static, so it never keeps the render loop running.

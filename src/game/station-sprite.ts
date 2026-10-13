@@ -8,6 +8,7 @@ import { QUARTERS_SHOWN, stationDrawKey, systemFixtureX, TILE, type StationLayou
 import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { currentStyle, PX, tex } from "./textures";
+import { mapInk } from "./theme";
 import { fitLabel, hash, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
 import { worldRef } from "./world-ref";
 
@@ -161,12 +162,13 @@ export class StationSprite {
 
     // Nameplate: the title grows upward from its baseline, away from the hull.
     const machines = new Set(s.members.map((m) => m.envId)).size;
-    const title = new PixelText(18, 0xf2f4f6);
+    const ink = mapInk(state.artStyle);
+    const title = new PixelText(18, ink.text);
     // Repository slugs read as words on the nameplate ("THE LIVING STONE").
     title.text = s.name.replace(/[-_]+/g, " ").trim().toUpperCase();
     title.anchor.set(0, 1);
     title.position.set(s.nameplate.x, s.nameplate.y + 16);
-    const sub = new PixelText(10, 0x9aa7bd);
+    const sub = new PixelText(10, ink.muted);
     sub.text = [machines > 1 ? `SHARED · ${machines} MACHINES` : state.envs[first?.envId ?? ""]?.summary.label.toUpperCase(), s.settledHidden ? `+${s.settledHidden} SETTLED` : ""]
       .filter(Boolean)
       .join(" · ");
