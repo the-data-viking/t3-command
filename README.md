@@ -26,7 +26,9 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   time and time waiting on you, with tokens processed and the latest context compaction. A running turn with
   no activity for 10 minutes and nothing waiting on you shows three amber dots and "Quiet 14m",
   and is announced once in the comms log (and as a desktop alert, if on). A long tool call or
-  background tasks are named instead. Damage is drawn from real state too. A failed turn throws
+  background tasks are named instead. Past 90% context the unit panel warns what happens next: the provider
+  will compact automatically soon, or (if it won't) turns may start failing and a fresh thread is
+  wiser. It's noted once in the comms log. Damage is drawn from real state too. A failed turn throws
   sparks for a minute, then leaves a scorch mark and a wisp of smoke until the thread moves on. An
   unreachable machine's deck shows snow on its screens and NO SIGNAL, with severed supply lines.
   A disk that's nearly full gets hazard stripes, and crew beam out when their thread is archived
@@ -80,7 +82,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   and asks for confirmation first. A module's panel shows the checkout's branch, ahead/behind,
   uncommitted files and the branch's pull request while it's open.
 - **Turn history**: **History** (or **H**) shows what the fleet got done over 7, 30 or 90 days.
-  It covers turns per day (done, failed, interrupted), typical and slowest turn times, failure rate
+  It covers turns per day (done, failed, interrupted), typical and slowest turn times, long-running
+  turns (running over an hour right now, and the longest finished ones by agent time), failure rate
   and the most common failures, busiest projects and models, recent turns, and daily spend. The
   Command server records every finished turn on every station around the clock, with no browser
   open, into owner-only files in `T3C_DATA_DIR`. Records are kept 90 days. Recording starts when

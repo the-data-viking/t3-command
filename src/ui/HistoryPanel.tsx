@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { HistorySummary } from "../../shared/history";
-import { useGame } from "../store";
+import { agentMs, type HistorySummary, type TurnRecord } from "../../shared/history";
+import { worldRef } from "../game/world";
+import { setSelection, useGame } from "../store";
 import { envClient, fetchJson } from "../t3/environment";
 import { fleetSpend, formatSpend, historyWindow, type UsageSummary } from "../t3/usage";
 import { BarChart } from "./BarChart";
 import { timeAgo } from "./util";
+import { useClock } from "./useClock";
 
 const RANGES = [7, 30, 90] as const;
 /** Spend history comes from each machine's own usage scan; longer ranges get expensive. */
@@ -114,6 +116,8 @@ export function HistoryPanel() {
             <ul className="history-list">{summary.gaps.map((g) => <li key={`${g.envId}${g.from}`}>{g.envLabel}: {new Date(g.from).toLocaleString()} → {new Date(g.to).toLocaleString()}</li>)}</ul>
           </>}
 
+          <LongTurns longest={summary.longest ?? []} />
+
           <h3>Recent turns</h3>
           {summary.recent.length === 0 && <p className="muted small">No turns recorded in this range yet.</p>}
           <ol className="history-list history-recent">
@@ -131,6 +135,52 @@ export function HistoryPanel() {
     document.body,
   );
 }
+
+/** Turns running over an hour right now (live), and the longest finished ones in the range. */
+function LongTurns({ longest }: { longest: TurnRecord[] }) {
+  const envs = useGame((s) => s.envs);
+  const now = useClock(true, 10000);
+  const running = Object.values(envs).flatMap((env) => Object.values(env.threads)
+    .filter((t) => t.latestTurn?.state === "running" && t.latestTurn.startedAt && now - Date.parse(t.latestTurn.startedAt) > LONG_MS)
+    .map((t) => ({ env, t, ms: now - Date.parse(t.latestTurn!.startedAt!) })))
+    .sort((a, b) => b.ms - a.ms);
+  const open = (envId: string, threadId: string) => {
+    const sel = { kind: "unit" as const, envId, threadId };
+    useGame.setState({ showHistory: false });
+    setSelection(sel);
+    worldRef.current?.focus(sel);
+  };
+  if (!running.length && !longest.length) return null;
+  return <>
+    <h3>Long-running turns</h3>
+    {running.length > 0 && <>
+      <p className="muted small">Running for over an hour now (wall time, including waits on you):</p>
+      <ol className="history-list history-recent">
+        {running.map(({ env, t, ms }) => (
+          <li key={`${env.summary.id}${t.id}`}>
+            <span className="pill state-working">Running</span>
+            <button className="history-title link-button" onClick={() => open(env.summary.id, t.id)}>{t.title || "Untitled"}</button>
+            <span className="muted small">{env.summary.label} · {formatDuration(ms)}</span>
+          </li>
+        ))}
+      </ol>
+    </>}
+    {longest.length > 0 && <>
+      <p className="muted small">Longest finished turns in this range, by agent time (waits on you excluded):</p>
+      <ol className="history-list history-recent">
+        {longest.map((r) => (
+          <li key={`${r.envId}${r.threadId}${r.turnId}`}>
+            <span className={`pill state-${r.outcome === "completed" ? "done" : r.outcome === "error" ? "error" : "idle"}`}>{OUTCOME_LABEL[r.outcome]}</span>
+            <span className="history-title" title={r.threadTitle}>{r.threadTitle}</span>
+            <span className="muted small">{r.envLabel} · {formatDuration(agentMs(r))}{r.waitMs ? ` + ${formatDuration(r.waitMs)} waiting` : ""}</span>
+          </li>
+        ))}
+      </ol>
+    </>}
+  </>;
+}
+
+const LONG_MS = 3_600_000;
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "done" | "error" }) {
   return <div className="history-stat"><span className="tele-key">{label}</span><strong className={tone ? `st-${tone}` : undefined}>{value}</strong></div>;

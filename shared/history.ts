@@ -51,6 +51,8 @@ export interface HistorySummary {
   /** Spans in the window when an environment the recorder knows was not being followed. */
   gaps: Array<{ envId: string; envLabel: string; from: string; to: string }>;
   recent: TurnRecord[];
+  /** The longest turns in the window by agent time (waits on you excluded), longest first. */
+  longest: TurnRecord[];
 }
 
 export const HISTORY_RETENTION_DAYS = 90;
@@ -166,5 +168,6 @@ export function summarizeHistory(records: TurnRecord[], coverage: CoverageSpan[]
     models: rank(inWindow, (r) => r.model),
     gaps: gaps.sort((a, b) => b.to.localeCompare(a.to)).slice(0, 10),
     recent: [...inWindow].sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, 25),
+    longest: [...inWindow].sort((a, b) => agentMs(b) - agentMs(a)).slice(0, 10),
   };
 }

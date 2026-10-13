@@ -26,6 +26,7 @@ import { stationColor } from "../game/layout";
 import { HermesPermissions } from './HermesPermissions';
 import { isPhone, usePhone } from './phone';
 import { TurnTelemetry } from './TurnTelemetry';
+import { contextWarning } from '../t3/progress';
 
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
   const panelWidth = usePanelWidth();
@@ -151,6 +152,12 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
                 />
               </span>
               <span className="tele-val">{Math.round((1 - info.context) * 100)}% left</span>
+            </div>
+          )}
+          {contextWarning(info.context, info.compactsAutomatically) && (
+            <div className="tele-row context-warning">
+              <span className="tele-key">WARNING</span>
+              <span className="tele-val" title={contextWarning(info.context, info.compactsAutomatically)}>{contextWarning(info.context, info.compactsAutomatically)}</span>
             </div>
           )}
           {info.tasks > 0 && (

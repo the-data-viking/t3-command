@@ -623,6 +623,7 @@ code {
 .plan-steps .plan-completed { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent); }
 .plan-steps .plan-inProgress { color: var(--working); }
 .quiet-row .tele-key, .quiet-row .tele-val { color: var(--gauge-high); }
+.context-warning .tele-key, .context-warning .tele-val { color: var(--gauge-critical); white-space: normal; }
 .crew-plan { display: flex; gap: 8px; font-size: 10px; margin-top: 2px; min-width: 0; white-space: nowrap; overflow: hidden; }
 .crew-plan > span { overflow: hidden; text-overflow: ellipsis; }
 
@@ -1881,6 +1882,7 @@ button.ftl-tab {
 .history-recent { list-style: none; padding: 0; }
 .history-recent li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; }
 .history-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-button { background: none; border: none; padding: 0; font: inherit; color: var(--cyan); text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 700px) { .history-columns { grid-template-columns: 1fr; } }
 .history-modal .tele-chart { max-height: 150px; }
 

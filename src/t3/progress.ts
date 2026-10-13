@@ -173,6 +173,18 @@ export function quietText(q: Quiet): string {
   return `No activity for ${elapsed(q.ms)}`;
 }
 
+/** Context this full gets a warning: what happens next depends on whether the provider compacts. */
+export const CONTEXT_WARN = 0.9;
+
+/** A warning about a nearly full context window, or undefined below the threshold. */
+export function contextWarning(context: number | undefined, compactsAutomatically: boolean | undefined): string | undefined {
+  if (context === undefined || context < CONTEXT_WARN) return undefined;
+  const left = Math.max(0, Math.round((1 - context) * 100));
+  if (compactsAutomatically === true) return `${left}% context left: it will compact automatically soon, summarizing earlier work`;
+  if (compactsAutomatically === false) return `${left}% context left and it won't compact automatically: turns may start failing; consider a fresh thread`;
+  return `${left}% context left: the window is nearly full`;
+}
+
 /** Compact token counts: 940, 12k, 3.4M. */
 export function tokenLabel(n: number): string {
   if (n < 1000) return String(n);

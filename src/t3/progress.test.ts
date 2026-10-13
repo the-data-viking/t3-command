@@ -87,3 +87,11 @@ test("a long-open tool call or background tasks are reported as such, not as a s
 test("token labels stay short", () => {
   assert.deepEqual([940, 12_400, 3_400_000, 20_171_499].map(tokenLabel), ["940", "12k", "3.4M", "20M"]);
 });
+
+test("a nearly full context warns, saying what happens next", async () => {
+  const { contextWarning } = await import("./progress");
+  assert.equal(contextWarning(0.85, true), undefined);
+  assert.match(contextWarning(0.95, true)!, /^5% context left: it will compact automatically soon/);
+  assert.match(contextWarning(0.97, false)!, /won't compact automatically: turns may start failing/);
+  assert.match(contextWarning(0.92, undefined)!, /nearly full/);
+});
