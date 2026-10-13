@@ -33,6 +33,8 @@ body,
   color: var(--text);
   font-family: var(--mono);
   font-size: 13px;
+  /* Ticking counts and timers keep their width, so neighbours don't shuffle as digits change. */
+  font-variant-numeric: tabular-nums;
 }
 
 button,
@@ -41,6 +43,12 @@ textarea,
 select {
   font: inherit;
   color: inherit;
+}
+
+/* Keyboard focus is always visible; specific controls may restyle it. */
+:where(button, a, summary, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
 }
 
 code {
@@ -447,9 +455,12 @@ code {
   margin-bottom: 4px;
 }
 
+/* A well of the map's own space, so pale stations and status glyphs read on light HUDs too. */
 .minimap canvas {
   display: block;
   cursor: crosshair;
+  background: var(--space);
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 /* ---- Side panel ---- */
@@ -536,9 +547,13 @@ code {
 
 .status-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
 }
+
+/* Pills, timers and buttons wrap as whole items; none breaks across two lines. */
+.status-row > * { white-space: nowrap; }
 
 .pill {
   font-family: var(--display);
@@ -1240,7 +1255,10 @@ select:focus {
 .operations-chip { display: inline-flex; align-items: center; gap: 8px; border-color: var(--hermes); color: var(--hermes); background: color-mix(in srgb, var(--hermes) 5%, transparent); }
 .operations-chip .hermes-mark { width: 20px; height: 20px; font-size: 17px; border: 0; background: none; }
 .operations-chip.hot { border-color: var(--alert); }
-.panel.hermes-control { width: min(510px, calc(100vw - 16px)); top: var(--topbar-bottom, 62px); border-color: color-mix(in srgb, var(--hermes) 44%, transparent); background: linear-gradient(150deg, #17252ff5, #080f16f5); }
+/* The generic button hover paints the frame colour; the chip keeps its Hermes identity and a readable count. */
+.operations-chip:hover:not(:disabled) { background: var(--hermes); color: var(--ink); }
+.operations-chip:hover:not(:disabled) .muted { color: inherit; }
+.panel.hermes-control { width: min(510px, calc(100vw - 16px)); top: var(--topbar-bottom, 62px); border-color: color-mix(in srgb, var(--hermes) 44%, transparent); background: linear-gradient(150deg, color-mix(in srgb, var(--hermes) 8%, var(--surface)), var(--deep)); }
 .hermes-control::before, .hermes-chat::before { border-color: var(--hermes); }
 .hermes-control::after, .hermes-chat::after { border-color: var(--hermes); }
 .ops-eyebrow { text-transform: uppercase; font-size: 10px; letter-spacing: 2px; color: var(--hermes); margin-bottom: 5px; }
@@ -1250,11 +1268,11 @@ select:focus {
 .ops-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .hermes-control h3, .hermes-roster-heading { color: var(--hermes); }
 .operator-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 16px; }
-.operator-card { display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 12px; background: #23354180; border: 1px solid color-mix(in srgb, var(--hermes) 15%, transparent); border-radius: 8px; cursor: pointer; min-width: 0; }
-.operator-card:hover, .operator-card.selected { border-color: var(--hermes); background: #2e424980; }
+.operator-card { display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 12px; background: color-mix(in srgb, var(--hermes) 9%, var(--slot)); border: 1px solid color-mix(in srgb, var(--hermes) 15%, transparent); border-radius: 8px; cursor: pointer; min-width: 0; }
+.operator-card:hover, .operator-card.selected { border-color: var(--hermes); background: color-mix(in srgb, var(--hermes) 16%, var(--slot)); }
 .operator-card > span:last-child { display: flex; flex-direction: column; gap: 7px; min-width: 0; overflow-wrap: anywhere; }
 .operator-card .small { font-size: 10px; line-height: 1.5; }
-.bot-portrait { --bot: var(--hermes); width: 38px; height: 42px; flex: none; display: grid; place-items: center; color: var(--bot); border: 1px solid var(--bot); border-radius: 12px 3px; background: color-mix(in srgb, var(--bot) 12%, #10212b); box-shadow: inset 0 0 0 4px #10212b; }
+.bot-portrait { --bot: var(--hermes); width: 38px; height: 42px; flex: none; display: grid; place-items: center; color: var(--bot); border: 1px solid var(--bot); border-radius: 12px 3px; background: color-mix(in srgb, var(--bot) 12%, var(--deep)); box-shadow: inset 0 0 0 4px var(--deep); }
 .bot-portrait span { font-family: var(--display); font-size: 14px; font-weight: 700; letter-spacing: 1px; }
 .operator-detail { border-block: 1px solid color-mix(in srgb, var(--hermes) 19%, transparent); padding: 6px 0 14px; margin-bottom: 16px; }
 .ops-sessions, .ops-endpoints { display: grid; gap: 6px; }
@@ -1306,8 +1324,12 @@ button.ftl-tab {
   color: var(--ink);
 }
 
+/* A filled badge reads on every tab colour, light or dark. */
 .ftl-tab .count.hot {
-  color: color-mix(in srgb, var(--alert) 70%, black);
+  padding: 0 4px;
+  border-radius: 2px;
+  background: var(--alert);
+  color: var(--bright);
 }
 
 /* Top bar */
@@ -1368,7 +1390,8 @@ button.ftl-tab {
   top: calc(var(--topbar-bottom, 74px) + 12px);
   left: 10px;
   width: 290px;
-  max-height: calc(100vh - var(--topbar-bottom, 74px) - 200px);
+  /* Ends 10px above the minimap (166px tall, 30px off the bottom). */
+  max-height: calc(100vh - var(--topbar-bottom, 74px) - 12px - 206px);
   display: flex;
   flex-direction: column;
   z-index: 1;
@@ -1421,8 +1444,10 @@ button.ftl-tab {
   border-color: var(--frame);
 }
 
+/* Selected is the frame colour, not a status colour: green already means "report ready". */
 .crew-row.active {
-  border-color: var(--done);
+  border-color: var(--bright);
+  box-shadow: inset 0 0 0 1px var(--bright);
 }
 
 .crew-row.row-alert {
@@ -1912,7 +1937,7 @@ button.ftl-tab {
 .squad-bar { position: absolute; left: 50%; bottom: 36px; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
 .squad-count strong { color: var(--working); font-family: var(--display); font-size: 16px; }
 .palette-backdrop { place-items: start center; padding-top: 12vh; }
-.palette { width: min(640px, 100%); display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.palette { position: relative; width: min(640px, 100%); display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .palette-input { font-size: 16px; padding: 14px 16px; border: none; border-bottom: 2px solid var(--edge-strong); background: var(--deep); color: var(--bright); outline: none; }
 .palette-list { list-style: none; margin: 0; padding: 6px; max-height: min(420px, 55vh); overflow-y: auto; }
 .palette-item { display: grid; grid-template-columns: 76px 1fr auto; gap: 10px; align-items: baseline; padding: 7px 10px; border-radius: 4px; cursor: pointer; }
@@ -1975,7 +2000,8 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px s
   /* One row: logo, the counters that matter, and a menu holding everything else. */
   .topbar { top: 0; left: 0; right: 0; flex-wrap: nowrap; gap: 6px; padding: max(6px, env(safe-area-inset-top)) 8px 6px; border-radius: 0; }
   .topbar .logo { flex: none; margin-right: 0; }
-  .topbar .resources { flex: 1; min-width: 0; gap: 4px; }
+  /* Counters that scroll off the right edge fade out, so it's clear there's more. */
+  .topbar .resources { flex: 1; min-width: 0; gap: 4px; mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent); }
   .topbar .resource { padding: 4px 6px; min-height: 36px; }
   .topbar .resource .res-key { font-size: 9px; letter-spacing: 1px; }
   .topbar .resource.optional { display: none; }
@@ -2021,7 +2047,7 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px s
   }
   .crew-roster.collapsed { height: auto; padding: 0 0 env(safe-area-inset-bottom); }
   /* The dock bar: a dark panel with a frame-coloured top edge and label, not a pale slab. */
-  .crew-roster .roster-tab { position: static; order: -1; width: 100%; min-height: 44px; border: none; border-top: 3px solid var(--frame); border-radius: 0; padding: 0 14px; justify-content: flex-start; background: var(--surface); color: var(--frame); }
+  .crew-roster .roster-tab { position: static; order: -1; width: 100%; min-height: 44px; border: none; border-top: 3px solid var(--frame); border-radius: 0; padding: 0 14px; justify-content: flex-start; background: var(--surface); color: var(--frame); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .crew-roster .roster-tab .count, .crew-roster .roster-tab .operator-count { color: var(--bright); }
   .crew-roster .roster-tab .needs-count.hot { color: var(--alert); }
   .crew-roster .roster-tab .needs-count { color: var(--ink); }
@@ -2043,9 +2069,9 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px s
   /* The dock would show through an open panel. */
   .game:has(.panel) .crew-roster { display: none; }
   /* Keep a unit's header short so its reports get the room. */
-  .unit-panel .status-row { flex-wrap: nowrap; gap: 8px; }
-  .unit-panel .status-row .pill { white-space: nowrap; }
-  .unit-panel .status-row .muted.small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  /* Actions drop to a second row rather than off the right edge on the narrowest phones. */
+  .unit-panel .status-row { gap: 6px 8px; }
+  .unit-panel .status-row .muted.small { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .unit-panel .pr-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; flex: none; }
   .unit-panel .pr-chips::-webkit-scrollbar { display: none; }
   .unit-panel .pr-chips > * { flex: none; }

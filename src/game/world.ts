@@ -72,6 +72,8 @@ export class World {
   private controlCenter?: ControlCenterSprite;
   private lastCatalog?: GameState["hermesCatalog"];
   private crew = new Map<string, CrewSprite>();
+  /** The row offset each crew name label last settled on (see separateLabels). */
+  private labelRows = new Map<string, number>();
   /** Continuous zoom the wheel/pinch is aiming for; the drawn zoom is its nearest crisp step. */
   private zoomGoal?: number;
   /** Screen-space rectangle of an in-progress shift-drag selection. */
@@ -610,6 +612,7 @@ export class World {
     for (const [key, sprite] of this.crew) {
       if (seenCrew.has(key)) continue;
       this.crew.delete(key);
+      this.labelRows.delete(key);
       // Archived or removed: beam out where they stand, then go.
       if (sprite.beamOut()) this.departing.add(sprite);
       else sprite.destroy({ children: true });
@@ -736,7 +739,7 @@ export class World {
       if (!lay || !s) continue;
       const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
       sprite.inSquad = squad.has(key);
-      sprite.tick(lay, s, t, dt, frame, selected, this.zoom);
+      sprite.tick(lay, s, t, dt, frame, selected, this.zoom, this.tween?.to.zoom ?? this.zoom);
     }
     for (const sprite of this.departing) {
       if (sprite.departTick(t, dt)) continue;
@@ -745,15 +748,18 @@ export class World {
     }
     this.separateLabels();
     this.drawLights(state, sel, t, frame);
-    if (this.layout.controlCenter) this.controlCenter?.update(this.layout.controlCenter, sel, this.zoom, frame);
-    for (const station of this.stations.values()) station.setZoom(this.zoom);
-    for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
+    // Labels are sized for the zoom the camera is settling on, not each in-between frame of a
+    // move; otherwise they jump between whole-pixel sizes and re-truncate as the camera eases.
+    const labelZoom = this.tween?.to.zoom ?? this.zoom;
+    if (this.layout.controlCenter) this.controlCenter?.update(this.layout.controlCenter, sel, labelZoom, frame);
+    for (const station of this.stations.values()) station.setZoom(labelZoom);
+    for (const node of this.environmentNodes.values()) node.setZoom(labelZoom);
     if (this.opsLabels && !this.opsLabels.title.destroyed) {
       this.opsLabels.title.scale.set(crispScale(this.opsLabels.title.unit, this.zoom));
       this.opsLabels.count.visible = this.opsLabels.count.unit * this.zoom >= 0.8;
     }
     this.drawEdgeIndicators(t);
-    for (const text of PixelText.live) text.snapToPixels();
+    for (const text of PixelText.live) { if (this.tween) text.unsnap(); else text.snapToPixels(); }
     if (this.selectBox) {
       const b = this.selectBox;
       this.edge.rect(b.x, b.y, b.w, b.h).fill({ color: STATUS.working, alpha: 0.08 }).stroke({ color: STATUS.working, width: 1, alpha: 0.9 });
@@ -766,13 +772,20 @@ export class World {
   /** Visible crew name labels never print over each other: later ones step down into free space. */
   private separateLabels(): void {
     const placed: Rect[] = [];
+    // A stable order (by crew, not by where they happen to be this frame) and a preference for
+    // the row each label already has, so labels don't hop between rows as crew walk.
     const labeled = [...this.crew.values()].map((sprite) => ({ sprite, box: sprite.labelBox() }))
       .filter((l): l is { sprite: CrewSprite; box: Rect } => !!l.box)
-      .sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
+      .sort((a, b) => a.sprite.key.localeCompare(b.sprite.key));
+    const hits = (r: Rect) => placed.some((p) => r.x < p.x + p.w && r.x + r.w > p.x && r.y < p.y + p.h && r.y + r.h > p.y);
     for (const { sprite, box } of labeled) {
-      let dy = 0;
-      const hits = (r: Rect) => placed.some((p) => r.x < p.x + p.w && r.x + r.w > p.x && r.y < p.y + p.h && r.y + r.h > p.y);
-      while (dy < box.h * 4 && hits({ ...box, y: box.y + dy })) dy += box.h + 1;
+      const step = box.h + 1;
+      let dy = this.labelRows.get(sprite.key) ?? 0;
+      if (hits({ ...box, y: box.y + dy })) {
+        dy = 0;
+        while (dy < step * 4 && hits({ ...box, y: box.y + dy })) dy += step;
+      } else if (dy > 0 && !hits({ ...box, y: box.y })) dy = 0; // Room opened up: go home.
+      this.labelRows.set(sprite.key, dy);
       sprite.setLabelOffset(dy);
       placed.push({ ...box, y: box.y + dy });
     }

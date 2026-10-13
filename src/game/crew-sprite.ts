@@ -179,9 +179,10 @@ export class CrewSprite extends Container {
   /** World-space box of the name label, when shown. */
   labelBox(): Rect | undefined {
     if (!this.nameText.visible) return undefined;
-    const k = this.scale.x;
+    // The label's real size: crew scale × its own crisp scale.
+    const k = this.scale.x * this.nameText.scale.x;
     const w = this.nameText.naturalWidth * k;
-    return { x: this.position.x - w / 2, y: this.position.y + 6 * k, w, h: 9 * k };
+    return { x: this.position.x - w / 2, y: this.position.y + 6 * this.scale.x, w, h: 9 * this.nameText.unit * k };
   }
 
   /** Push the name label down by `dy` world px to clear a neighbor's. */
@@ -189,7 +190,7 @@ export class CrewSprite extends Container {
     this.nameText.y = 6 + dy / this.scale.x;
   }
 
-  tick(layout: CrewLayout, s: StationLayout, t: number, dt: number, frame: number, selected: boolean, zoom: number): void {
+  tick(layout: CrewLayout, s: StationLayout, t: number, dt: number, frame: number, selected: boolean, zoom: number, labelZoom = zoom): void {
     const want = this.desired(layout, s);
     // Under reduced motion crew are placed at their destination instead of walking there.
     this.motion.step(layout, s, want, dt, reducedMotion() ? Infinity : WALK_SPEED);
@@ -205,7 +206,7 @@ export class CrewSprite extends Container {
     const boost = figureBoost(zoom, PX);
     this.scale.set(boost);
     // The name stays on whole screen pixels per font pixel too.
-    this.nameText.scale.set(crispScale(this.nameText.unit, zoom * boost));
+    this.nameText.scale.set(crispScale(this.nameText.unit, labelZoom * figureBoost(labelZoom, PX)) * (figureBoost(labelZoom, PX) / boost));
 
     const visor = PROVIDER_VISOR[this.thread.modelSelection.instanceId] ?? 0x9fb3d1;
     if (resting) {
