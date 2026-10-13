@@ -1,9 +1,11 @@
 import { useEffect } from "react";
 import { useGame } from "../store";
-import * as A from "../art/sprites";
+import type { Grid } from "../art/sprites";
 import { STYLES } from "../art/palettes";
 import { rasterize } from "../art/render";
+import { BADGES } from "../game/map-common";
 import { STATUS } from "../game/theme";
+import type { UnitState } from "../t3/derive";
 
 const KEYS: Array<[string, string]> = [
   ["Ctrl/⌘ K", "Command palette: find crew, stations, machines, actions"],
@@ -27,30 +29,31 @@ const LEGEND: Array<[string, string, string]> = [
   ["alert", "Pulsing ring + !", "Waiting for your approval"],
   ["question", "Pulsing ring + ?", "Waiting for your answer"],
   ["done", "✓ badge", "Report ready (finished, not yet sent to camp)"],
-  ["error", "Sparks, then scorch and smoke", "Last turn failed"],
+  ["error", "✕ badge · sparks, then scorch", "Last turn failed"],
   ["monitoring", "Drones orbiting", "Background tasks running"],
-  ["done", "Green ring", "Selected crew"],
-  ["working", "Wide cyan ring", "In the squad"],
+  ["selection", "White ring", "Selected crew (or station outline)"],
+  ["muted", "Wide dim ring", "In the squad"],
   ["muted", "Rack LEDs · coolant", "Whole-host CPU · RAM on each engineering deck"],
-  ["gauge-high", "Pips beside the head", "Turn running past 2, 6, 12, 24 hours (rose past 12)"],
+  ["gauge-high", "Pips beside the head", "Turn running past 2, 6, 12, 24 hours (magenta past 12)"],
   ["gauge-high", "DISK % · hazard stripes", "Fullest checkout disk; stripes when nearly full"],
   ["gauge-critical", "Snow · NO SIGNAL · dashed lines", "Machine unreachable (offline or needs pairing)"],
 ];
 
-/** Legend marks that are a sprite on the map, shown as that sprite. */
-const SPRITES: Record<string, A.Grid> = {
-  "Pulsing ring + !": A.BADGE_ALERT,
-  "Pulsing ring + ?": A.BADGE_QUESTION,
-  "✓ badge": A.BADGE_DONE,
-  "Sparks, then scorch and smoke": A.BADGE_ERROR,
-  "Drones orbiting": A.BADGE_MONITOR,
+/** Legend marks that are a status badge on the map, shown as that badge. */
+const SPRITES: Record<string, UnitState> = {
+  "Pulsing ring + !": "alert",
+  "Pulsing ring + ?": "question",
+  "✓ badge": "done",
+  "✕ badge · sparks, then scorch": "error",
+  "Drones orbiting": "monitoring",
 };
 
 function LegendMark({ color, mark }: { color: string; mark: string }) {
   const artStyle = useGame((s) => s.artStyle);
-  const grid = SPRITES[mark];
-  if (!grid) return <i className="help-chip" style={{ background: `var(--${color})` }} />;
-  const url = rasterize(grid, STYLES[artStyle], { visor: STATUS.monitoring }).toDataURL();
+  const state = SPRITES[mark];
+  const grid: Grid | undefined = state && BADGES[state];
+  if (!state || !grid) return <i className="help-chip" style={{ background: `var(--${color})` }} />;
+  const url = rasterize(grid, STYLES[artStyle], { visor: STATUS[state] }).toDataURL();
   return <img className="help-sprite" src={url} alt="" width={grid[0].length * 2} height={grid.length * 2} draggable={false} />;
 }
 

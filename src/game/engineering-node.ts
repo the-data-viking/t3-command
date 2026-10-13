@@ -201,7 +201,7 @@ export class EnvironmentNodeSprite {
     if (this.cpu > 0.05) {
       const fins = ENGINEERING_SPOTS.fins;
       const k = Math.floor(frame * (0.4 + this.cpu * 1.6)) % fins.count;
-      box({ x: fins.x, y: fins.y + k * fins.pitch, w: fins.w, h: fins.h }).fill({ color: this.cpu >= 0.85 ? GAUGE.high : STATUS.working, alpha: 0.75 });
+      box({ x: fins.x, y: fins.y + k * fins.pitch, w: fins.w, h: fins.h }).fill({ color: this.cpu >= 0.85 ? GAUGE.high : GAUGE.ok, alpha: 0.75 });
     }
     const working = states.filter((s) => s === "working").length;
     const monitoring = states.filter((s) => s === "monitoring").length;

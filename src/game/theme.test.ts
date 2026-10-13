@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { GAUGE, hudMaterials, hudTokens, STATUS } from "./theme";
+import { GAUGE, hudMaterials, hudTokens, STATUS, TEAM_COLORS } from "./theme";
+import { BADGES } from "./map-common";
 import { ART_STYLES } from "../store";
 
 const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -36,8 +37,16 @@ test("live styles change HUD materials but never the meaning of status or gauge 
     assert.notEqual(other["--surface"], night["--surface"], `${style} has its own surface`);
     // A light HUD deepens the same hues so they read on pale panels; dark HUDs share them exactly.
     if (hudMaterials(style).light) {
-      for (const name of [...Object.keys(STATUS).map((s) => `--${s}`), "--gauge-ok", "--gauge-high", "--gauge-critical"]) {
-        assert.ok(contrast(other[name], other["--surface"]) >= 4.5, `${style} ${name} readable on its panels`);
+      const statusTokens = [...Object.keys(STATUS).map((s) => `--${s}`), "--gauge-ok", "--gauge-high", "--gauge-critical"];
+      for (const name of statusTokens) {
+        for (const panel of ["--surface", "--deep", "--slot"]) {
+          assert.ok(contrast(other[name], other[panel]) >= 4.5, `${style} ${name} readable on ${panel}`);
+        }
+      }
+      // Still one colour per meaning: no two states blur together on cream.
+      const states = ["--alert", "--question", "--working", "--monitoring", "--error", "--done"];
+      for (const [i, a] of states.entries()) for (const b of states.slice(i + 1)) {
+        assert.ok(deltaE(hex(other[a]), hex(other[b])) >= 15, `${style} ${a} vs ${b}`);
       }
       continue;
     }
@@ -83,4 +92,38 @@ test("each theme sets its own frame chrome", () => {
   const corners = new Set(LIVE_STYLES.map((s) => `${hudTokens(s)["--corner-shape"]}/${hudTokens(s)["--frame-radius"]}/${hudTokens(s)["--frame-width"]}`));
   assert.equal(corners.size, LIVE_STYLES.length, "no two themes share the same frame");
   assert.equal(hudTokens("highcontrast")["--frame-radius"], "0px");
+});
+
+/** CIE76 colour difference: ~2 is just noticeable, 20+ reads as a different colour. */
+function deltaE(a: number, b: number): number {
+  const lab = (c: number) => {
+    const [r, g, bl] = [16, 8, 0].map((s) => ((c >> s) & 255) / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    const x = f((0.4124 * r + 0.3576 * g + 0.1805 * bl) / 0.95047), y = f(0.2126 * r + 0.7152 * g + 0.0722 * bl), z = f((0.0193 * r + 0.1192 * g + 0.9505 * bl) / 1.08883);
+    return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+  };
+  const [p, q] = [lab(a), lab(b)];
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+}
+const hex = (s: string) => parseInt(s.slice(1), 16);
+
+test("station colours stay clear of every status and gauge colour, and of each other", () => {
+  const meanings = { ...STATUS, "gauge-high": GAUGE.high, "gauge-critical": GAUGE.critical };
+  for (const team of TEAM_COLORS) {
+    for (const [name, color] of Object.entries(meanings)) {
+      if (name === "idle" || name === "sleeping") continue; // greys, not hues
+      assert.ok(deltaE(team, color) >= 20, `team #${team.toString(16)} vs ${name}`);
+    }
+  }
+  for (const [i, a] of TEAM_COLORS.entries()) for (const b of TEAM_COLORS.slice(i + 1)) assert.ok(deltaE(a, b) >= 20, `teams #${a.toString(16)} / #${b.toString(16)}`);
+  // The failing gauge is magenta, nowhere near the approval red.
+  assert.ok(deltaE(GAUGE.critical, STATUS.alert) >= 40);
+});
+
+test("status badges are drawn only in outline, white and their status colour (V)", () => {
+  for (const [state, grid] of Object.entries(BADGES)) {
+    const codes = new Set(grid!.join(""));
+    for (const code of codes) assert.ok(".kwV".includes(code), `${state} badge uses palette code ${code}`);
+    assert.ok(codes.has("V"), `${state} badge has a status fill`);
+  }
 });

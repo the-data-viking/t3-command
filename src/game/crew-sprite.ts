@@ -13,7 +13,7 @@ import { gesturing } from "./gesture";
 import { CrewMotion } from "./crew-motion";
 import { quietness } from "../t3/progress";
 import { crewTex, PX, tex } from "./textures";
-import { contextLevel, GAUGE, HUD, hudMaterials, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
+import { contextLevel, GAUGE, HUD, hudMaterials, modelTier, PROVIDER_VISOR, providerSilhouette, SELECTION, STATUS, type Silhouette, type Tier } from "./theme";
 import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale, pixelOval, REPORT_MS } from "./map-common";
 
 // ---- Crew ------------------------------------------------------------------------------
@@ -227,7 +227,8 @@ export class CrewSprite extends Container {
       const badge = BADGES[this.state];
       this.badge.visible = !!badge;
       if (badge) {
-        this.badge.texture = tex(badge, { visor: STATUS.monitoring });
+        // Badges are drawn in their status colour (the V cells), the same one the HUD uses.
+        this.badge.texture = tex(badge, { visor: STATUS[this.state] });
         const bob = this.state === "alert" || this.state === "question" ? (frame % 2) * PX : 0;
         this.badge.position.set(8, -40 - bob);
       }
@@ -295,7 +296,7 @@ export class CrewSprite extends Container {
 
   /**
    * How long the current turn has run, as pips beside the head: one each past 2, 6, 12 and 24
-   * hours, amber then rose. A runaway turn stands out from one that started a minute ago.
+   * hours, amber then magenta. A runaway turn stands out from one that started a minute ago.
    */
   private drawTurnAge(f: Graphics): void {
     const turn = this.thread?.latestTurn;
@@ -360,14 +361,15 @@ export class CrewSprite extends Container {
   private drawRing(selected: boolean, t: number, sleeping: boolean): void {
     const r = this.ring.clear();
     if (sleeping) {
-      if (selected) r.rect(-26, -10, 52, 20).stroke({ color: STATUS.done, width: 2 });
-      if (this.inSquad) r.rect(-29, -13, 58, 26).stroke({ color: STATUS.working, width: 2 });
+      if (selected) r.rect(-26, -10, 52, 20).stroke({ color: SELECTION, width: 2 });
+      if (this.inSquad) r.rect(-29, -13, 58, 26).stroke({ color: SELECTION, width: 2, alpha: 0.5 });
       return;
     }
-    // Rings are plotted in art-pixel cells. Squad members wear a second, wider cyan ring.
-    if (this.inSquad) pixelOval(r, 0, 0, 20, 8, STATUS.working);
+    // Rings are plotted in art-pixel cells, in white so they never read as a status. Squad
+    // members wear a second, wider and dimmer ring.
+    if (this.inSquad) pixelOval(r, 0, 0, 20, 8, SELECTION, 0.5);
     if (selected) {
-      pixelOval(r, 0, 0, 16, 6, STATUS.done);
+      pixelOval(r, 0, 0, 16, 6, SELECTION);
     } else if (this.state === "alert" || this.state === "question") {
       // The pulse grows in whole art-pixel steps rather than smoothly.
       const g = Math.floor(((t * 1.1 + this.seed) % 1) * 6) / 6;

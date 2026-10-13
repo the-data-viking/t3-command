@@ -13,7 +13,6 @@ const SKY: Record<StyleId, { nebula: number[]; planets: Array<[number, number, n
   nightshift: { nebula: [0x1a1033, 0x0b1f2e, 0x2a1220], planets: [[0x6f8fa8, 0x3d566b, 0x1c2733], [0xb08a6a, 0x6e5240, 0x2d2119]], nebulaAlpha: 0.05 },
   flightdeck: { nebula: [0x2b1a10, 0x1b1f2e, 0x2e1c12], planets: [[0xd0a070, 0x8a6040, 0x3a2818], [0x8fa6b8, 0x56697a, 0x232c35]], nebulaAlpha: 0.06 },
   signal: { nebula: [0x0e2a40, 0x14233f, 0x0a3038], planets: [[0x7fc4d6, 0x3f7f92, 0x163440], [0xd9b98f, 0x957552, 0x3b2c1d]], nebulaAlpha: 0.07 },
-  kestrel: { nebula: [0x1a1d24, 0x141a26, 0x201c1c], planets: [[0x9aa3ad, 0x5c646e, 0x272c32], [0xa89a86, 0x6a5f50, 0x2c2721]], nebulaAlpha: 0.05 },
   pastel: { nebula: [0x3a1f4a, 0x23305a, 0x4a2140], planets: [[0xffc6d9, 0xc58aa8, 0x5a3a5a], [0xa8d8ff, 0x6f9ccc, 0x33466a]], nebulaAlpha: 0.08 },
   highcontrast: { nebula: [], planets: [], nebulaAlpha: 0 },
 };

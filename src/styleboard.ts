@@ -4,6 +4,7 @@
 import { STYLES, type Style } from "./art/palettes";
 import { crewGrid, rasterize, type Arms, type Legs, type Silhouette, type Tier } from "./art/render";
 import * as S from "./art/sprites";
+import { STATUS } from "./game/theme";
 import { SIGNAL_KIT, signalCrew } from "./art/signal";
 import { FLIGHT_KIT, flightCrew } from "./art/flightdeck";
 
@@ -18,7 +19,12 @@ const H = 262;
 
 const TEAM = { amber: 0xf0a33a, violet: 0x9b7bff, teal: 0x3ec7b3, pink: 0xe45fbf, blue: 0x5b8cff, lime: 0xa8d65a };
 const VISOR = { claude: 0xe2884f, codex: 0x46d6c2 };
-const SCREEN = { working: 0x59e1ff, alert: 0xff4655, done: 0x5dff9a, monitoring: 0xb48cff };
+const SCREEN = { working: STATUS.working, alert: STATUS.alert, done: STATUS.done, monitoring: STATUS.monitoring };
+/** Each status badge is filled with its status colour, as on the map. */
+const BADGE_COLOR = new Map<S.Grid, number>([
+  [S.BADGE_ALERT, STATUS.alert], [S.BADGE_QUESTION, STATUS.question], [S.BADGE_DONE, STATUS.done],
+  [S.BADGE_ERROR, STATUS.error], [S.BADGE_MONITOR, STATUS.monitoring],
+]);
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -135,7 +141,7 @@ function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
     blit(ctx, rasterize(kit.CHAIR, style), cx - 5, cy + 26);
     if (c.crew) drawCrew(ctx, style, { ...c.crew, x: cx, y: cy + (style.id.startsWith("flightdeck") ? 27 : 30) });
     // Badge floats beside the helmet, clear of the console.
-    if (c.badge) blit(ctx, rasterize(c.badge, style, { visor: SCREEN.monitoring }), cx + 9, cy + 6 - (c.badge === S.BADGE_ALERT ? frame % 2 : 0));
+    if (c.badge) blit(ctx, rasterize(c.badge, style, { visor: BADGE_COLOR.get(c.badge) }), cx + 9, cy + 6 - (c.badge === S.BADGE_ALERT ? frame % 2 : 0));
   }
   // Someone walking through quarters toward the door.
   const walkX = ox + 7 * T + ((t * 14) % (3 * T));
@@ -168,7 +174,7 @@ function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
   variants.forEach(([sil, tier], i) => drawCrew(ctx, style, { silhouette: sil, tier, team: teams[i % teams.length], x: 30 + i * 22, y: lineY }));
   // Badges.
   [S.BADGE_ALERT, S.BADGE_QUESTION, S.BADGE_DONE, S.BADGE_ERROR, S.BADGE_MONITOR].forEach((b, i) =>
-    blit(ctx, rasterize(b, style, { visor: SCREEN.monitoring }), 30 + 8 * 22 + 6 + i * 13, lineY - 14),
+    blit(ctx, rasterize(b, style, { visor: BADGE_COLOR.get(b) }), 30 + 8 * 22 + 6 + i * 13, lineY - 14),
   );
 }
 
@@ -217,7 +223,7 @@ for (const style of Object.values(STYLES)) {
   for (const [name, grid] of assets) {
     const figure = document.createElement("figure");
     const asset = document.createElement("canvas");
-    const source = rasterize(grid, style, { team: TEAM.amber, screen: SCREEN.working, visor: name.startsWith("Claude") ? VISOR.claude : name.startsWith("Codex") ? VISOR.codex : SCREEN.monitoring });
+    const source = rasterize(grid, style, { team: TEAM.amber, screen: SCREEN.working, visor: BADGE_COLOR.get(grid) ?? (name.startsWith("Claude") ? VISOR.claude : name.startsWith("Codex") ? VISOR.codex : SCREEN.monitoring) });
     asset.width = source.width;
     asset.height = source.height;
     asset.getContext("2d")!.drawImage(source, 0, 0);

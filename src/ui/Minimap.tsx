@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { PixelLabel } from "./PixelArt";
-import { css, hudMaterials } from "../game/theme";
+import { css, hudMaterials, platingMaterials } from "../game/theme";
 import { STYLES } from "../art/palettes";
 import { useGame } from "../store";
 import { worldRef } from "../game/world";
@@ -44,7 +44,7 @@ export function Minimap() {
 
       // Stations in the theme's own hull colour; the view box in its frame colour.
       const style = useGame.getState().artStyle;
-      const hull = css(STYLES[style].colors.H), frameColor = css(hudMaterials(style).frame);
+      const hull = css(STYLES[style].colors.H), frameColor = css(hudMaterials(style).frame), offline = css(platingMaterials(style).edgeStrong);
       ctx.fillStyle = `${hull}33`;
       ctx.strokeStyle = `${hull}aa`;
       for (const r of data.hubs) {
@@ -52,8 +52,8 @@ export function Minimap() {
         ctx.strokeRect(ox + r.x * scale + 0.5, oy + r.y * scale + 0.5, Math.max(2, r.w * scale), Math.max(2, r.h * scale));
       }
       for (const s of data.stations) {
-        ctx.fillStyle = s.live ? `${css(s.color)}33` : "#3a425022";
-        ctx.strokeStyle = s.live ? css(s.color) : "#3a4250";
+        ctx.fillStyle = s.live ? `${css(s.color)}33` : `${offline}22`;
+        ctx.strokeStyle = s.live ? css(s.color) : offline;
         ctx.lineWidth = 1;
         ctx.fillRect(ox + s.rect.x * scale, oy + s.rect.y * scale, s.rect.w * scale, s.rect.h * scale);
         ctx.strokeRect(ox + s.rect.x * scale + 0.5, oy + s.rect.y * scale + 0.5, s.rect.w * scale, s.rect.h * scale);

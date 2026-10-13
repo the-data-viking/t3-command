@@ -305,10 +305,10 @@ export const FLOOR_QUARTERS: Grid = Array.from({ length: 16 }, (_, y) =>
   y % 8 === 0 ? "Q".repeat(16) : (y < 8 ? "Q" + "q".repeat(15) : "q".repeat(8) + "Q" + "q".repeat(7)),
 );
 
-export const DOOR_H: Grid = ["kkkkkkkkkkkkkkkk", "kaaaaaaakaaaaaak", "kDDDDDDDkDDDDDDk", "kkkkkkkkkkkkkkkk"];
+export const DOOR_H: Grid = ["kkkkkkkkkkkkkkkk", "kmmmmmmmkmmmmmmk", "kDDDDDDDkDDDDDDk", "kkkkkkkkkkkkkkkk"];
 /** The same door with its panels sliding into the jambs as crew approach. */
-export const DOOR_H_HALF: Grid = ["kkkkkffffffkkkkk", "kaaakffffffkaaak", "kDDDkffffffkDDDk", "kkkkkffffffkkkkk"];
-export const DOOR_H_OPEN: Grid = ["kkffffffffffffkk", "kaffffffffffffak", "kDffffffffffffDk", "kkffffffffffffkk"];
+export const DOOR_H_HALF: Grid = ["kkkkkffffffkkkkk", "kmmmkffffffkmmmk", "kDDDkffffffkDDDk", "kkkkkffffffkkkkk"];
+export const DOOR_H_OPEN: Grid = ["kkffffffffffffkk", "kmffffffffffffmk", "kDffffffffffffDk", "kkffffffffffffkk"];
 
 /** One environment's ship: engine left, bow right, team stripe along the hull. */
 export const SHIP: Grid = [
@@ -329,52 +329,55 @@ export const SHIP: Grid = [
 ];
 
 // ---- Status badges (9×9) ---------------------------------------------------------------
+// Drawn in V, filled with the crew member's status colour (STATUS) when rasterized, so a badge is
+// always the same colour as the HUD's pill for that state. Glyphs are solid white (or ink on yellow).
 
 export const BADGE_ALERT: Grid = [
   "....k....",
-  "...krk...",
-  "..krwrk..",
-  ".krrwrrk.",
-  "krrrwrrrk",
-  ".krrrrrk.",
-  "..krwrk..",
-  "...krk...",
+  "...kVk...",
+  "..kVwVk..",
+  ".kVVwVVk.",
+  "kVVVwVVVk",
+  ".kVVVVVk.",
+  "..kVwVk..",
+  "...kVk...",
   "....k....",
 ];
 
 export const BADGE_QUESTION: Grid = [
   "..kkkkk..",
-  ".kaaaaak.",
-  "kaakkkaak",
-  "kaaaakaak",
-  "kaaakaaak",
-  "kaaakaaak",
-  "kaaaaaaak",
-  ".kaakaak.",
+  ".kVVVVVk.",
+  "kVVkkkVVk",
+  "kVVVVkVVk",
+  "kVVVkVVVk",
+  "kVVVkVVVk",
+  "kVVVVVVVk",
+  ".kVVkVVk.",
   "..kkkkk..",
 ];
 
 export const BADGE_DONE: Grid = [
   "..kkkkk..",
-  ".knnnnnk.",
-  "knnnnnkkk",
-  "knnnnkwkk",
-  "kkknkwknk",
-  "kkwkwknnk",
-  "knkwknnnk",
-  ".knnnnnk.",
+  ".kVVVVVk.",
+  "kVVVVVVwk",
+  "kVVVVVwwk",
+  "kVwVVwwVk",
+  "kVwwwwVVk",
+  "kVVwwVVVk",
+  ".kVVVVVk.",
   "..kkkkk..",
 ];
 
+/** Failed: an octagon with a solid ✕ (orange, not the approval red diamond). */
 export const BADGE_ERROR: Grid = [
   "..kkkkk..",
-  ".krrrrrk.",
-  "krwkrkwrk",
-  "krkwkwkrk",
-  "krrkwkrrk",
-  "krkwkwkrk",
-  "krwkrkwrk",
-  ".krrrrrk.",
+  ".kVVVVVk.",
+  "kVwVVVwVk",
+  "kVVwVwVVk",
+  "kVVVwVVVk",
+  "kVVwVwVVk",
+  "kVwVVVwVk",
+  ".kVVVVVk.",
   "..kkkkk..",
 ];
 

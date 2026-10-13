@@ -29,7 +29,7 @@ import { Backdrop } from "./backdrop";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
-import { HUD, STATUS, platingMaterials } from "./theme";
+import { HUD, SELECTION, STATUS, platingMaterials } from "./theme";
 import { crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
@@ -651,8 +651,8 @@ export class World {
     const y0 = Math.floor((b.y - pad) / step) * step;
     for (let x = x0; x < b.x + b.w + pad; x += step) {
       for (let y = y0; y < b.y + b.h + pad; y += step) {
-        g.rect(x - 3, y, 7, 1).fill({ color: HUD.cyan, alpha: 0.14 });
-        g.rect(x, y - 3, 1, 7).fill({ color: HUD.cyan, alpha: 0.14 });
+        g.rect(x - 3, y, 7, 1).fill({ color: HUD.muted, alpha: 0.14 });
+        g.rect(x, y - 3, 1, 7).fill({ color: HUD.muted, alpha: 0.14 });
       }
     }
   }
@@ -762,7 +762,7 @@ export class World {
     for (const text of PixelText.live) { if (this.tween) text.unsnap(); else text.snapToPixels(); }
     if (this.selectBox) {
       const b = this.selectBox;
-      this.edge.rect(b.x, b.y, b.w, b.h).fill({ color: STATUS.working, alpha: 0.08 }).stroke({ color: STATUS.working, width: 1, alpha: 0.9 });
+      this.edge.rect(b.x, b.y, b.w, b.h).fill({ color: SELECTION, alpha: 0.08 }).stroke({ color: SELECTION, width: 1, alpha: 0.9 });
     }
     if (still) return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || [...this.crew.values()].some((crew) => crew.animated);
     return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
@@ -936,7 +936,7 @@ export class World {
     // Selected project: outline its station.
     if (sel && sel.kind === "building") {
       const s = this.stationFor(sel.envId, sel.projectId);
-      if (s) o.poly(s.hull).stroke({ color: STATUS.done, width: 4 });
+      if (s) o.poly(s.hull).stroke({ color: SELECTION, width: 4 });
     }
   }
 

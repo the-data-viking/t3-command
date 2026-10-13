@@ -1,7 +1,7 @@
 // Candidate art styles. Each is a palette for the shared sprite codes (see sprites.ts) plus a few
 // scene colors. Team (T/t), visor (V/v) and screen (S/x) colors are filled in per sprite.
 
-export type StyleId = "kestrel" | "nightshift" | "pastel" | "signal" | "flightdeck" | "flightdeck-nightshift" | "highcontrast";
+export type StyleId = "nightshift" | "pastel" | "signal" | "flightdeck" | "flightdeck-nightshift" | "highcontrast";
 
 export interface Style {
   id: StyleId;
@@ -50,6 +50,11 @@ export interface HudMaterials {
   chrome?: { corner: "bevel" | "round" | "square"; radius: number; width: number };
   /** Dark plating for map structures drawn from HUD materials (Hermes hall, operations hub). */
   plating?: { surface: number; slot: number; edge: number; edgeStrong: number; control: number };
+  /**
+   * Hand-tuned HUD colours (status, gauges, accents) by token name, replacing the computed ones.
+   * Light HUDs set these so status reads as itself on cream, not as a muddied version.
+   */
+  tokens?: Record<string, number>;
 }
 
 const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
@@ -86,45 +91,9 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     colors: {
       k: 0x101c2a, w: 0xf9edcd, W: 0xe1d5b9, s: 0x9daba9,
       G: 0x33485b, g: 0x627d8b, h: 0xf0dfb9, H: 0xc3bfa7, D: 0x788c92,
-      m: 0xd4a07a, M: 0x956e59, f: 0x647985, F: 0x526573,
+      m: 0xd4a07a, M: 0x956e59, f: 0x3a4b5a, F: 0x2f3e4b,
       p: 0x2d4659, P: 0x23384a, q: 0x958474, Q: 0x7b6a5f,
       a: 0xf0a33a, r: 0xff4655, n: 0x5dff9a, c: 0x59e1ff, b: 0x486986,
-    },
-  },
-  kestrel: {
-    id: "kestrel",
-    name: "Kestrel",
-    blurb: "Closest to FTL: warm gray hulls, beige deck plating, chunky dark outlines.",
-    space: 0x07090e,
-    wall: 0x1a1c20,
-    // Gunmetal frames around charcoal wells.
-    hud: {
-      frame: 0xb3bbc2, ink: 0x16181b, surface: 0x1c1f23, deep: 0x0e1013, slot: 0x15171a,
-      edge: 0x33383e, edgeStrong: 0x454b52, control: 0x262a2f, meter: 0x30353b, bright: 0xf4f6f8,
-    },
-    colors: {
-      k: 0x16181b,
-      w: 0xf4f6f8,
-      W: 0xd9dee4,
-      s: 0xa3acb6,
-      G: 0x4d5560,
-      g: 0x6f7984,
-      h: 0xb3bbc2,
-      H: 0x86909a,
-      D: 0x58616b,
-      m: 0xa3acb5,
-      M: 0x606a75,
-      f: 0xcbc5b5,
-      F: 0xaba592,
-      p: 0x9daab2,
-      P: 0x82929c,
-      q: 0xd3c3a5,
-      Q: 0xb8a88a,
-      a: 0xf0a33a,
-      r: 0xe8473f,
-      n: 0x5fe06a,
-      c: 0x7fd8f0,
-      b: 0x4a78a8,
     },
   },
   nightshift: {
@@ -168,7 +137,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     id: "pastel",
     name: "Pastel Ops",
     blurb: "A cozier, brighter take: cream decks, soft plum outlines, candy accents.",
-    space: 0x1b1530,
+    space: 0x2a2140,
     wall: 0x4a3a52,
     // A light HUD to match the cream decks: plum frames around cream panels, plum ink.
     hud: {
@@ -176,7 +145,14 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       edge: 0xd9c9b8, edgeStrong: 0xb7a392, control: 0xefe3d4, meter: 0xe2d4c4, bright: 0x2b2034,
       text: 0x3a2e3f, muted: 0x6b5d73, light: true,
       chrome: { corner: "round", radius: 14, width: 3 },
-      plating: { surface: 0x2a2236, slot: 0x221a2e, edge: 0x43365a, edgeStrong: 0x56466f, control: 0x2e2445 },
+      plating: { surface: 0x3a2a48, slot: 0x2f2240, edge: 0x5a4470, edgeStrong: 0x6e5788, control: 0x44325a },
+      // Status on cream, each at least 4.5:1 on every panel; a plum accent instead of a muddied amber.
+      tokens: {
+        alert: 0xb8263a, question: 0x7a5600, working: 0x0d6890, monitoring: 0x7046c0, error: 0xa0420c,
+        done: 0x1a7240, idle: 0x5f6675, sleeping: 0x635a74,
+        "gauge-ok": 0x1a7240, "gauge-high": 0x8a5600, "gauge-critical": 0xa8288f,
+        cyan: 0x0d6890, amber: 0x8e3f86, hermes: 0x7a5a2e,
+      },
     },
     colors: {
       k: 0x3a2e3f,
