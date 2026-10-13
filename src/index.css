@@ -18,9 +18,9 @@
   --line-strong: color-mix(in srgb, var(--amber) 60%, transparent);
   --display: "Chakra Petch", "IBM Plex Mono", ui-monospace, monospace;
   --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
-  --hairline: var(--hairline);
-  --hairline-strong: var(--hairline-strong);
-  --wash: var(--wash);
+  --hairline: #ffffff14;
+  --hairline-strong: #ffffff30;
+  --wash: #ffffff08;
   --shade: rgba(0, 0, 0, 0.42);
   color-scheme: dark;
 }
