@@ -2,6 +2,7 @@
 // failed turns, and archive shelves that fill with finished work. Drawn from real history only.
 
 import type { GameState } from "../store";
+import type { ThreadPullRequest } from "../t3/types";
 import type { StationLayout } from "./layout";
 
 export interface StationMemory {
@@ -30,3 +31,29 @@ export function stationMemory(state: GameState, s: StationLayout): StationMemory
 export const JOBS_PER_SHELF = 5;
 /** At most this many patch plates; past it the hull is patched all over already. */
 export const MAX_PATCHES = 8;
+
+/** An open PR docked at its station as a cargo pod. */
+export interface DockedPr {
+  number: number;
+  url: string;
+  title: string;
+  checks: "passing" | "failing" | "pending" | "draft";
+}
+
+/** The station's open PRs, newest first, each once (several threads can link the same PR). */
+export function dockedPrs(state: GameState, s: StationLayout): DockedPr[] {
+  const prs = new Map<string, ThreadPullRequest>();
+  for (const { envId, projectId } of s.members) {
+    for (const t of Object.values(state.envs[envId]?.threads ?? {})) {
+      if (t.projectId !== projectId) continue;
+      for (const pr of t.pullRequests ?? []) if (pr.snapshot?.state === "open") prs.set(`${pr.repository}#${pr.number}`, pr);
+    }
+  }
+  return [...prs.values()].sort((a, b) => b.number - a.number).map((pr) => ({
+    number: pr.number, url: pr.url, title: pr.snapshot?.title ?? "",
+    checks: pr.snapshot?.isDraft ? "draft" : pr.snapshot?.checksState === "failing" ? "failing" : pr.snapshot?.checksState === "passing" ? "passing" : "pending",
+  }));
+}
+
+/** Pods shown under a hull; more fold into a "+N". */
+export const MAX_PODS = 4;

@@ -135,6 +135,9 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   server's 90-day history a riveted patch plate with soot beside it (up to eight), and the archive's
   shelves fill with books as the station finishes work (one shelf per five clean turns; bare slots
   until then). `GET /api/memory` serves the per-project counts.
+- **Cargo pods**: each open PR hangs under its station's hull as a cargo pod, newest outermost
+  (up to four, then "+N"), with a light for its checks: green passing, red failing, white pending,
+  dim for a draft. Close up each shows its number; tapping one opens the PR.
 - **Hazard telegraphs**: warnings before something runs out, not after. A disk filling up (a
   least-squares line over the last six hours of readings) shows **FULL IN 8H** on its engineering
   deck and in the station panel, turns amber under two days and critical (with hazard stripes)

@@ -79,7 +79,12 @@ function fleet(): Record<string, EnvWorld> {
       { ...thread("a5", "stone", "Imported: first pass at the canyon", "sleeping", 9000), latestTurn: null, session: null, latestUserMessageAt: null } as ThreadShell,
     ]),
     agent1: env("agent1", "tls-agent-01", [stone], [
-      thread("b1", "stone", "I'm considering a 2D top down reimagining of Aurvanga", "working", 130, "gpt-6", "codex"),
+      // Open PRs dock at the Living Stone as cargo pods: one passing, one failing, one draft.
+      { ...thread("b1", "stone", "I'm considering a 2D top down reimagining of Aurvanga", "working", 130, "gpt-6", "codex"), pullRequests: [
+        { host: "github.com", repository: "demo/stone", number: 61, url: "https://github.com/demo/stone/pull/61", snapshot: { state: "open", title: "Top-down tile renderer", headBranch: "t3/b61", baseBranch: "main", isDraft: false, checksState: "passing" } },
+        { host: "github.com", repository: "demo/stone", number: 62, url: "https://github.com/demo/stone/pull/62", snapshot: { state: "open", title: "Aurvanga map import", headBranch: "t3/b62", baseBranch: "main", isDraft: false, checksState: "failing" } },
+        { host: "github.com", repository: "demo/stone", number: 63, url: "https://github.com/demo/stone/pull/63", snapshot: { state: "open", title: "Sketch: lighting pass", headBranch: "t3/b63", baseBranch: "main", isDraft: true, checksState: null } },
+      ] } as ThreadShell,
       thread("b2", "stone", "Diagnose Hollow Vein client visuals", "question", 15),
       thread("b3", "stone", "Watch the nightly build", "monitoring", 200),
     ]),
