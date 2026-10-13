@@ -2124,3 +2124,5 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .away-link.tone-alert { color: var(--alert); }
 .away-link.tone-bad { color: var(--error); }
 .away-link.tone-good { color: var(--done); }
+
+.palette-prompt { padding: var(--space-2) var(--space-4); }
