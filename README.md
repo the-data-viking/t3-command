@@ -32,7 +32,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   sparks for a minute, then leaves a scorch mark and a wisp of smoke until the thread moves on. An
   unreachable machine's deck shows snow on its screens and NO SIGNAL, with severed supply lines.
   A disk that's nearly full gets hazard stripes, and crew beam out when their thread is archived
-  or removed. All of it is static after the first minute, so it never keeps the map redrawing. Rooms are lit only
+  or removed. All of it is static after the first minute, so it never keeps the map redrawing.
+  Zoomed out, each engineering deck shows its machine's callsign in large type on a dark band, and
+  Hermes operators keep their names. A crew member whose turn has run past 2, 6, 12 and 24 hours
+  gets a pip for each beside the head (amber, then rose past 12 hours). Rooms are lit only
   while in use: a bridge while its station has crew on duty, a system room while someone works
   there. Crew walk to quarters when their thread settles and back when it wakes, doors slide
   open as they pass, and a freshly recruited crew member beams in at their seat. Camera jumps

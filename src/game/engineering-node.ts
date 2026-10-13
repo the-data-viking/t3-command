@@ -13,7 +13,7 @@ import { freeLabel, storageSummary } from "../t3/storage";
 import type { StorageView } from "../../shared/storage";
 import { currentStyle, PX, tex } from "./textures";
 import { GAUGE, HUD, STATUS } from "./theme";
-import { label, truncate, sprite, hash, ROOM_SHADOW } from "./map-common";
+import { label, fitLabel, truncate, sprite, hash, ROOM_SHADOW } from "./map-common";
 import { worldRef } from "./world-ref";
 
 // ---- Environment service nodes -----------------------------------------------------------------------------
@@ -43,6 +43,10 @@ export class EnvironmentNodeSprite {
   private diskCritical = false;
   private hull?: Rect;
   private drawn?: string;
+  /** The machine's name in large type over the deck when zoomed out (the deck text is too small). */
+  private callsign?: PixelText;
+  private callsignBack?: Graphics;
+  private callsignText = "";
 
   constructor(envId: string) {
     this.envId = envId;
@@ -81,7 +85,12 @@ export class EnvironmentNodeSprite {
     this.overflowText = label(7, HUD.text);
     this.overflowText.text = hidden ? `+${hidden}` : "";
     this.overflowText.position.copyFrom(at(ENGINEERING_SPOTS.bayCount));
-    this.root.addChild(this.meters, this.cells, this.damage, this.name, this.cpuText, this.memoryText, this.caption, this.diskText, this.overflowText);
+    this.callsignText = (state.envs[node.envId]?.summary.label ?? "?").toUpperCase();
+    this.callsignBack = new Graphics();
+    this.callsign = label(18, node.color);
+    this.callsign.anchor.set(0.5, 0.5);
+    this.callsign.position.set(h.x + h.w / 2, h.y + 26);
+    this.root.addChild(this.meters, this.cells, this.damage, this.name, this.cpuText, this.memoryText, this.caption, this.diskText, this.overflowText, this.callsignBack, this.callsign);
     this.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
     this.updateStorage(state.storage[node.envId]);
     this.root.eventMode = 'static';
@@ -199,6 +208,16 @@ export class EnvironmentNodeSprite {
   setZoom(zoom: number): void {
     const legible = zoom >= 0.8;
     for (const text of [this.name, this.cpuText, this.memoryText, this.caption, this.diskText, this.overflowText]) if (text) text.visible = legible;
+    // Zoomed out, the callsign takes over on a dark band so five decks aren't told apart by color alone.
+    if (this.callsign && this.callsignBack && this.hull) {
+      this.callsign.visible = !legible;
+      const g = this.callsignBack.clear();
+      if (!legible) {
+        fitLabel(this.callsign, this.callsignText, this.hull.w - 24, zoom);
+        const w = this.callsign.width, hh = this.callsign.height;
+        g.rect(this.callsign.x - w / 2 - 6 / zoom, this.callsign.y - hh / 2 - 4 / zoom, w + 12 / zoom, hh + 8 / zoom).fill({ color: 0x05080c, alpha: 0.82 });
+      }
+    }
   }
 
   destroy(): void {
