@@ -2229,3 +2229,31 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
   .event-choice { min-height: var(--touch-target); }
   .queue-clear { top: auto; bottom: calc(64px + env(safe-area-inset-bottom)); }
 }
+
+/* ---- Mission board ---- */
+.board-modal { width: min(1320px, 100%); }
+.board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); align-items: start; }
+.board-col { display: flex; flex-direction: column; gap: var(--space-1h); min-width: 0; padding: var(--space-1h); background: var(--wash); border: 1px solid var(--hairline); border-radius: var(--radius-control); }
+.board-col-head { margin: 0; display: flex; align-items: center; gap: var(--space-1h); font-size: var(--fs-2xs); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+.board-count { padding: 0 var(--space-1); border: 1px solid var(--hairline-strong); border-radius: 2px; color: var(--text); }
+.col-needs-you .board-count { border-color: var(--alert); color: var(--alert); }
+.board-cards { display: flex; flex-direction: column; gap: var(--space-1h); max-height: 62vh; overflow-y: auto; }
+.board-empty { margin: var(--space-1) 0; }
+.board-card { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-1h); background: var(--slot); border: 1px solid var(--edge); border-left: 3px solid var(--edge-strong); border-radius: var(--radius-control); }
+.board-card.st-border-alert { border-left-color: var(--alert); }
+.board-card.st-border-question { border-left-color: var(--question); }
+.board-card.st-border-error { border-left-color: var(--error); }
+.board-card.st-border-working { border-left-color: var(--working); }
+.board-card.st-border-monitoring { border-left-color: var(--monitoring); }
+.board-card.st-border-done { border-left-color: var(--done); }
+.board-card-main { display: flex; flex-direction: column; gap: 2px; padding: 0; background: none; border: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.board-card-main:hover .board-card-title, .board-card-main:focus-visible .board-card-title { color: var(--bright); text-decoration: underline; }
+.board-card-state { font-size: var(--fs-2xs); letter-spacing: 0.5px; text-transform: uppercase; }
+.board-card-title { font-size: var(--fs-md); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.board-card-ask { font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.board-card .pr-chips { gap: var(--space-1); }
+.board-card-act { align-self: flex-start; }
+@media (max-width: 900px) {
+  .board { grid-template-columns: 1fr; }
+  .board-cards { max-height: none; }
+}

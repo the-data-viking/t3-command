@@ -95,6 +95,7 @@ export function installHotkeys(): () => void {
       l: () => useGame.setState((s) => ({ showLog: !s.showLog })),
       h: () => useGame.setState((s) => ({ showHistory: !s.showHistory })),
       t: () => useGame.setState((s) => ({ showTimeline: !s.showTimeline })),
+      b: () => useGame.setState((s) => ({ showBoard: !s.showBoard })),
       p: () => useGame.setState((s) => ({ photo: !s.photo })),
       q: () => startQueue(),
     };
