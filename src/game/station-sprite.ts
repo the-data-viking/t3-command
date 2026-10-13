@@ -8,7 +8,7 @@ import { QUARTERS_SHOWN, stationDrawKey, TILE, type StationLayout, type SystemRo
 import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { currentStyle, PX, tex } from "./textures";
-import { fitLabel, sprite, SCREEN_OFF } from "./map-common";
+import { fitLabel, hash, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
 import { worldRef } from "./world-ref";
 
 // ---- Stations --------------------------------------------------------------------------
@@ -49,8 +49,13 @@ export class StationSprite {
     const g = new Graphics();
     this.root.addChild(g);
 
-    // Hull plating: outline, fill, a highlight along the top, shadow along the bottom.
-    g.poly(s.hull).fill(c.H).stroke({ color: c.k, width: 4 });
+    // Hull plating with stepped (pixel) chamfers: outline, fill, a highlight along the top,
+    // shadow along the bottom.
+    const xs = s.hull.filter((_, k) => k % 2 === 0), ys = s.hull.filter((_, k) => k % 2 === 1);
+    const hx = Math.min(...xs), hy = Math.min(...ys), hw = Math.max(...xs) - hx, hh = Math.max(...ys) - hy;
+    const cut = Math.max(8, s.hull[0] - hx);
+    steppedPlate(g, hx - 4, hy - 4, hw + 8, hh + 8, cut + 4, 4, c.k);
+    steppedPlate(g, hx, hy, hw, hh, cut, 4, c.H);
     const i = s.interior;
     const hullTop = s.hull[1];
     const hullBottom = s.hull[11];
@@ -64,6 +69,7 @@ export class StationSprite {
     g.rect(i.x + i.w - 42, hullTop - 28, 4, 28).fill(c.k);
     g.rect(i.x + i.w - 44, hullTop - 32, 8, 6).fill(c.a);
     g.rect(s.port.x - 5, s.port.y - 18, 10, 36).fill(c.D).stroke({ color: c.k, width: 2 });
+    this.drawExterior(g, s, { x: hx, y: hy, w: hw, h: hh }, hullTop, i);
 
     // Deck plating.
     const floor = new TilingSprite({ texture: tex(A.FLOOR), width: i.w, height: i.h });
@@ -106,7 +112,8 @@ export class StationSprite {
     // Archive shelves.
     const ar = s.rooms.archive?.rect;
     if (ar) {
-      const teams = [0x3f6a8f, 0xf0a33a, 0x3ec7b3, 0x9b7bff];
+      // Book spines in the theme's own materials (team colours mean machines, not decor).
+      const teams = [c.b, c.m, c.q, c.M];
       let k = 0;
       for (let y = ar.y + 8; y + 18 <= ar.y + ar.h - 4; y += 26) {
         for (let x = ar.x + 4; x + 28 <= ar.x + ar.w - 2; x += 30) fixtures.addChild(sprite(tex(A.SHELF, { team: teams[k++ % teams.length] }), x, y));
@@ -148,7 +155,8 @@ export class StationSprite {
     // Nameplate: the title grows upward from its baseline, away from the hull.
     const machines = new Set(s.members.map((m) => m.envId)).size;
     const title = new PixelText(18, 0xf2f4f6);
-    title.text = s.name.toUpperCase();
+    // Repository slugs read as words on the nameplate ("THE LIVING STONE").
+    title.text = s.name.replace(/[-_]+/g, " ").trim().toUpperCase();
     title.anchor.set(0, 1);
     title.position.set(s.nameplate.x, s.nameplate.y + 16);
     const sub = new PixelText(10, 0x9aa7bd);
@@ -174,6 +182,47 @@ export class StationSprite {
     if (this.sub) {
       this.sub.visible = zoom >= 0.45;
       if (this.sub.visible) fitLabel(this.sub, this.subText, this.fitWidth, zoom);
+    }
+  }
+
+  /**
+   * Exterior detail, varied per station (seeded by its key) so no two hulls are identical:
+   * viewports along the top band, an engine block on the far side from the port, and a dish
+   * or a second mast on the roof.
+   */
+  private drawExterior(g: Graphics, s: StationLayout, h: { x: number; y: number; w: number; h: number }, hullTop: number, i: { x: number; y: number; w: number; h: number }): void {
+    const c = currentStyle().colors;
+    const seed = hash(s.key);
+    const band = i.y - hullTop;
+    // Viewports: small dark windows with a lit pixel, in the hull band above the interior.
+    if (band >= 14) {
+      const spacing = seed > 0.5 ? 40 : 56;
+      const wy = hullTop + Math.round((band - 6) / 2 / 2) * 2;
+      for (let x = i.x + 72 + Math.round(seed * 8) * 2; x < i.x + i.w - 72; x += spacing) {
+        g.rect(x, wy, 10, 6).fill(c.k);
+        g.rect(x + 2, wy + 2, 6, 2).fill(c.b);
+        if (hash(`${s.key}${x}`) > 0.45) g.rect(x + 2, wy + 2, 2, 2).fill({ color: c.c, alpha: 0.85 });
+      }
+    }
+    // Engine block on the side away from the network port, with three exhaust vents.
+    const right = s.port.x < h.x + h.w / 2;
+    const ex = right ? h.x + h.w + 2 : h.x - 18;
+    const eh = 28 + Math.round(seed * 4) * 4;
+    const ey = h.y + h.h / 2 - eh / 2;
+    g.rect(ex - 2, ey - 2, 20, eh + 4).fill(c.k);
+    g.rect(ex, ey, 16, eh).fill(c.D);
+    g.rect(right ? ex : ex + 12, ey, 4, eh).fill(c.H);
+    for (let k = 0; k < 3; k++) g.rect(right ? ex + 10 : ex + 2, ey + 6 + k * Math.floor((eh - 12) / 3), 4, 4).fill(c.a);
+    // Roof: a dish on half the stations, a second mast on the rest.
+    const rx = i.x + 40 + Math.round(seed * 10) * 4;
+    if (seed > 0.5) {
+      g.rect(rx + 6, hullTop - 10, 4, 10).fill(c.k);
+      for (let row = 0; row < 4; row++) g.rect(rx + row * 2, hullTop - 14 - row * 2, 16 - row * 4, 2).fill(row === 0 ? c.k : c.m);
+      g.rect(rx + 7, hullTop - 22, 2, 4).fill(c.a);
+    } else {
+      g.rect(rx, hullTop - 18, 4, 18).fill(c.k);
+      g.rect(rx - 4, hullTop - 14, 12, 2).fill(c.k);
+      g.rect(rx, hullTop - 22, 4, 4).fill(c.c);
     }
   }
 

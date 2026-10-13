@@ -6,7 +6,7 @@ import type { Grid } from "./sprites";
 
 export type Silhouette = "round" | "angular";
 export type Tier = "light" | "standard" | "heavy" | "reviewer";
-export type Legs = "idle" | "walkA" | "walkB";
+export type Legs = "idle" | "walkA" | "walkB" | "sit";
 export type Arms = "idle" | "typeA" | "typeB";
 
 export interface Fill {

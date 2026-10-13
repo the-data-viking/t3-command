@@ -117,17 +117,23 @@ export const FLIGHT_KIT = { ...S, CONSOLE, TERMINAL, FILES, COMMS, CHAIR, ENGINE
 
 /** Suit mass is in the torso; headgear is compact, shoulders carry the team patch. */
 export function flightCrew(silhouette: Silhouette, tier: Tier, legs: Legs = 'idle', arms: Arms = 'idle'): Grid {
+  // Claude ('round'): a bubble helmet with a wide, curved visor. Codex ('angular'): a squared
+  // helmet with a narrow visor slit and a crest. Readable apart at one screen pixel per art pixel.
   const head = silhouette === 'round'
-    ? panel(16, 22, [[5, 3, 6, 1, 'k'], [4, 4, 8, 6, 'k'], [5, 4, 6, 5, 'W'], [5, 4, 6, 1, 'w'], [7, 6, 6, 3, 'k'], [8, 7, 4, 1, 'V'], [11, 7, 1, 1, 'v'], [6, 10, 5, 1, 'k']])
-    : panel(16, 22, [[4, 3, 8, 7, 'k'], [5, 4, 6, 5, 'W'], [5, 4, 6, 1, 'w'], [6, 6, 8, 3, 'k'], [7, 7, 6, 1, 'V'], [11, 7, 1, 1, 'v'], [6, 10, 5, 1, 'k']]);
-  const body = panel(16, 22, [[3, 11, 10, 6, 'k'], [4, 12, 8, 4, 'W'], [4, 12, 2, 3, 'w'], [10, 12, 2, 4, 's'], [6, 14, 4, 2, 'G'], [6, 14, 4, 1, 'g'], [4, 12, 2, 1, 'T']]);
+    ? panel(16, 22, [[6, 2, 4, 1, 'k'], [4, 3, 8, 1, 'k'], [3, 4, 10, 5, 'k'], [4, 9, 8, 1, 'k'],
+      [5, 3, 6, 1, 'W'], [4, 4, 8, 5, 'W'], [5, 3, 3, 1, 'w'], [4, 4, 1, 2, 'w'],
+      [6, 5, 7, 3, 'k'], [7, 5, 5, 1, 'V'], [7, 6, 6, 1, 'V'], [11, 5, 1, 1, 'v'], [6, 10, 5, 1, 'k']])
+    : panel(16, 22, [[7, 1, 3, 2, 'k'], [8, 1, 1, 1, 'T'], [3, 3, 10, 7, 'k'], [4, 4, 8, 5, 'W'], [4, 4, 8, 1, 'w'],
+      [5, 6, 9, 2, 'k'], [6, 6, 7, 1, 'V'], [12, 6, 1, 1, 'v'], [4, 8, 1, 1, 's'], [6, 10, 5, 1, 'k']]);
+  // The chest plate carries the team colour, so the machine reads from the front, not only the shoulders.
+  const body = panel(16, 22, [[3, 11, 10, 6, 'k'], [4, 12, 8, 4, 'W'], [4, 12, 2, 3, 'w'], [10, 12, 2, 4, 's'], [6, 13, 4, 3, 'T'], [6, 15, 4, 1, 't'], [4, 12, 2, 1, 'T']]);
   const shoulders = tier === 'heavy'
     ? panel(16, 22, [[1, 10, 5, 4, 'k'], [2, 11, 3, 2, 'T'], [10, 10, 5, 4, 'k'], [11, 11, 3, 2, 'T']])
     : tier === 'light'
       ? panel(16, 22, [[3, 11, 2, 4, 'k'], [11, 11, 2, 4, 'k'], [5, 12, 2, 1, 'T']])
       : panel(16, 22, [[3, 11, 3, 2, 'T'], [10, 11, 3, 2, 't']]);
   const pack = tier === 'heavy' ? S.PACK_HEAVY : tier === 'light' ? S.PACK_LIGHT : S.PACK_STANDARD;
-  const feet = legs === 'walkA' ? S.LEGS_WALK_A : legs === 'walkB' ? S.LEGS_WALK_B : S.LEGS_IDLE;
+  const feet = legs === 'walkA' ? S.LEGS_WALK_A : legs === 'walkB' ? S.LEGS_WALK_B : legs === 'sit' ? S.LEGS_SIT : S.LEGS_IDLE;
   const hands = arms === 'typeA' ? S.ARMS_TYPE_A : arms === 'typeB' ? S.ARMS_TYPE_B : S.ARMS_IDLE;
   return compose(pack, feet, body, shoulders, head, hands, ...(tier === 'reviewer' ? [S.SCANNER] : []));
 }

@@ -207,7 +207,10 @@ export class CrewSprite extends Container {
       this.badge.visible = false;
     } else {
       const working = this.state === "working" && (this.atConsole || this.atStation);
-      const legs: Legs = moving ? (frame % 2 ? "walkA" : "walkB") : "idle";
+      // At a console the crew member sits in the chair, below the screen, instead of standing in front of it.
+      const seated = this.atConsole && !moving;
+      const legs: Legs = moving ? (frame % 2 ? "walkA" : "walkB") : seated ? "sit" : "idle";
+      this.figure.y = seated ? 14 : 0;
       const arms: Arms = working ? (frame % 2 ? "typeA" : "typeB") : "idle";
       this.figure.texture = crewTex(this.silhouette, this.tier, legs, arms, this.team, visor);
       this.figure.anchor.set(0.5, 1);

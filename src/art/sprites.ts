@@ -124,6 +124,13 @@ export const LEGS_IDLE = rows(17, [
   "....kkkk.kkkk...",
 ]);
 
+/** Seated at a console: thighs forward, shins down to the chair's footrest. */
+export const LEGS_SIT = rows(17, [
+  "....kssssssk....",
+  "....kkkkkssk....",
+  ".........kkk....",
+]);
+
 export const LEGS_WALK_A = rows(17, [
   "...kssk...kssk..",
   "..kssk.....kssk.",
