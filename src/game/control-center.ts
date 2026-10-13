@@ -88,26 +88,27 @@ export class ControlCenterSprite {
       const x = r.x + r.w / 2;
       // Each operator's bay: a well with an edge, a deck plate and the bot's colour stripe, and the
       // operator seated at their console the way bridge crew are.
-      g.rect(r.x + 8, r.y + 2, r.w - 16, 60).fill(m.edge);
-      g.rect(r.x + 10, r.y + 4, r.w - 20, 56).fill(m.surface);
-      g.rect(r.x + 10, r.y + 46, r.w - 20, 14).fill(c.P);
-      g.rect(r.x + 12, r.y + 56, 12, 4).fill(color);
+      // Seated below the console the way bridge crew are, so its screen stays in view above them.
+      g.rect(r.x + 8, r.y + 2, r.w - 16, 86).fill(m.edge);
+      g.rect(r.x + 10, r.y + 4, r.w - 20, 82).fill(m.surface);
+      g.rect(r.x + 10, r.y + 72, r.w - 20, 14).fill(c.P);
+      g.rect(r.x + 12, r.y + 82, 12, 4).fill(color);
       const console = this.fixture(A.CONSOLE, x, r.y + 6, 0.5, 0);
-      this.fixture(A.CHAIR, x, r.y + 54, 0.5, 1);
+      this.fixture(A.CHAIR, x, r.y + 84, 0.5, 1);
       const figure = new Sprite();
       figure.anchor.set(0.5, 1);
-      figure.position.set(x, r.y + 46);
+      figure.position.set(x, r.y + 76);
       const badge = new Sprite();
       badge.anchor.set(0, 1);
       badge.scale.set(PX);
-      badge.position.set(x + 14, r.y + 22);
+      badge.position.set(x + 14, r.y + 52);
       this.root.addChild(figure, badge);
       this.operators.push({ bot, workstation: r, figure, console, badge });
-      const name = this.text(bot.title.length > 18 ? bot.title.slice(0, 17) + '…' : bot.title, x, r.y + 64, 12, ink.text);
+      const name = this.text(bot.title.length > 18 ? bot.title.slice(0, 17) + '…' : bot.title, x, r.y + 90, 12, ink.text);
       name.anchor.set(0.5, 0);
       this.names.push({ label: name, full: bot.title, width: r.w - 12 });
       const status = this.text(bot.observed ? BOT_STATE_LABELS[bot.state].toUpperCase() : 'ON CALL · UNOBSERVED',
-        x, r.y + 82, 8, bot.observed ? STATUS[bot.state] : ink.muted);
+        x, r.y + 106, 8, bot.observed ? STATUS[bot.state] : ink.muted);
       status.anchor.set(0.5, 0);
       const hit = new Container();
       hit.eventMode = 'static'; hit.cursor = 'pointer';
@@ -178,7 +179,7 @@ export class ControlCenterSprite {
         // Status-filled, like crew badges on the map and pills in the HUD.
         badge.texture = tex(grid, { visor: STATUS[bot.state] });
         const bob = bot.state === 'alert' || bot.state === 'question' ? (frame % 2) * PX : 0;
-        badge.y = workstation.y + 22 - bob;
+        badge.y = workstation.y + 52 - bob;
       }
     }
     const g = this.selection.clear();

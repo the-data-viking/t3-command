@@ -26,11 +26,11 @@ const KEYS: Array<[string, string]> = [
 const LEGEND: Array<[string, string, string]> = [
   ["working", "Spinning pip", "Turn running; pips over the head show plan steps done / current / left"],
   ["muted", "Three grey dots", "Running turn with no activity for 10+ minutes (quiet)"],
-  ["alert", "Pulsing ring + !", "Waiting for your approval"],
-  ["question", "Pulsing ring + ?", "Waiting for your answer"],
-  ["done", "✓ badge", "Report ready (finished, not yet sent to camp)"],
+  ["alert", "▲ badge · console pulses", "Waiting for your approval"],
+  ["question", "◆ badge · console pulses", "Waiting for your answer"],
+  ["done", "Round ✓ badge", "Report ready (finished, not yet sent to camp)"],
   ["error", "✕ badge · sparks, then scorch", "Last turn failed"],
-  ["monitoring", "Drones orbiting", "Background tasks running"],
+  ["monitoring", "○ badge · drones orbiting", "Background tasks running"],
   ["selection", "White ring", "Selected crew (or station outline)"],
   ["muted", "Wide dim ring", "In the squad"],
   ["muted", "Rack LEDs · coolant", "Whole-host CPU · RAM on each engineering deck"],
@@ -42,11 +42,11 @@ const LEGEND: Array<[string, string, string]> = [
 
 /** Legend marks that are a status badge on the map, shown as that badge. */
 const SPRITES: Record<string, UnitState> = {
-  "Pulsing ring + !": "alert",
-  "Pulsing ring + ?": "question",
-  "✓ badge": "done",
+  "▲ badge · console pulses": "alert",
+  "◆ badge · console pulses": "question",
+  "Round ✓ badge": "done",
   "✕ badge · sparks, then scorch": "error",
-  "Drones orbiting": "monitoring",
+  "○ badge · drones orbiting": "monitoring",
 };
 
 function LegendMark({ color, mark }: { color: string; mark: string }) {
