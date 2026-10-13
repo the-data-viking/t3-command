@@ -5,6 +5,7 @@
 import { summarizeHistory, type TurnRecord } from "../shared/history";
 import type { HostHistory } from "../shared/host";
 import type { StorageView } from "../shared/storage";
+import { DEFAULT_PLAYBOOKS } from "../shared/playbooks";
 import type { EnvWorld, GameState } from "./store";
 import { useGame } from "./store";
 import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
@@ -131,6 +132,7 @@ export function demoFetch(path: string): unknown {
   }
   if (url.pathname === "/api/hosts/history") return hostHistory(url.searchParams.get("envId") ?? "", Number(url.searchParams.get("hours") ?? 24));
   if (url.pathname === "/api/update") return { enabled: false, phase: "idle", reason: "Demo fleet" };
+  if (url.pathname === "/api/playbooks") return DEFAULT_PLAYBOOKS;
   return undefined;
 }
 

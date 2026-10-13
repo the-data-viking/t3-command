@@ -13,7 +13,9 @@ import { AwayDigest } from "./ui/AwayDigest";
 import { IncomingToast } from "./ui/IncomingToast";
 import { DebriefCard } from "./ui/DebriefCard";
 import { PhotoMode } from "./ui/PhotoMode";
+import { PlaybooksDialog } from "./ui/PlaybooksDialog";
 import { registerServiceWorker } from "./t3/push";
+import { loadPlaybooks } from "./t3/playbooks";
 import { mayAutoOpen, noteKey } from "./ui/event-guard";
 import { CommandPalette } from "./ui/CommandPalette";
 import { HelpOverlay } from "./ui/HelpOverlay";
@@ -71,6 +73,7 @@ export default function App() {
   const photo = useGame((s) => s.photo);
   const showPalette = useGame((s) => s.showPalette);
   const showHelp = useGame((s) => s.showHelp);
+  const showPlaybooks = useGame((s) => s.showPlaybooks);
   const [fatal, setFatal] = useState<string>();
 
   useEffect(() => {
@@ -95,6 +98,7 @@ export default function App() {
     })();
     const offHotkeys = installHotkeys();
     registerServiceWorker();
+    void loadPlaybooks();
     window.addEventListener("keydown", noteKey, true);
     const offTransitions = announceTransitions();
     const offTitle = installTitleBadge();
@@ -149,6 +153,7 @@ export default function App() {
       <DebriefCard />
       {showPalette && <CommandPalette />}
       {showHelp && <HelpOverlay />}
+      {showPlaybooks && <PlaybooksDialog />}
       {hostPanel && <HostPanel envId={hostPanel} />}
       {selection?.kind === "hermes" && <HermesControlCenter key={selection.envId} envId={selection.envId} profile={selection.profile} />}
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
