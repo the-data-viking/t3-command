@@ -169,3 +169,11 @@ test("failures group by kind, not exact text", () => {
   ], [], {}, { days: 1, timeZone: "UTC", now: Date.parse("2026-10-12T12:00:00Z") });
   assert.deepEqual(s.topErrors.map((e) => e.count), [2, 2, 1]);
 });
+
+test("the longest turns rank by agent time, so a long wait on you doesn't make a turn look slow", () => {
+  const rec = (threadId: string, durationMs: number, waitMs = 0) => ({ envId: "e", envLabel: "E", projectId: "p", projectTitle: "p", threadId, threadTitle: threadId, turnId: threadId,
+    provider: "c", model: "m", startedAt: "2026-10-12T10:00:00Z", completedAt: "2026-10-12T11:00:00Z", durationMs, waitMs, outcome: "completed" as const });
+  const s = summarizeHistory([rec("waited", 5 * 3_600_000, 4.5 * 3_600_000), rec("worked", 2 * 3_600_000), rec("quick", 60_000)], [], {},
+    { days: 1, timeZone: "UTC", now: Date.parse("2026-10-12T12:00:00Z") });
+  assert.deepEqual(s.longest.map((r) => r.threadId), ["worked", "waited", "quick"]);
+});

@@ -12,6 +12,8 @@ export interface Telemetry {
   doing?: string;
   /** Context window used, 0..1, from the latest context-window report. */
   context?: number;
+  /** Whether the provider says it will compact the context by itself when it fills. */
+  compactsAutomatically?: boolean;
   /** Background tasks (subagents, shells) currently running. */
   tasks: number;
 }
@@ -37,6 +39,7 @@ export function telemetry(thread: OrchestrationThread): Telemetry {
   const openTools = new Map<string, { item: string; doing?: string }>();
   const openTasks = new Set<string>();
   let context: number | undefined;
+  let compactsAutomatically: boolean | undefined;
 
   for (const a of thread.activities) {
     const p = a.payload ?? {};
@@ -44,6 +47,7 @@ export function telemetry(thread: OrchestrationThread): Telemetry {
       const used = Number(p.usedTokens);
       const max = Number(p.maxTokens);
       if (max > 0 && Number.isFinite(used)) context = Math.min(1, used / max);
+      if (typeof p.compactsAutomatically === "boolean") compactsAutomatically = p.compactsAutomatically;
       continue;
     }
     if (a.kind.startsWith("task.")) {
@@ -65,6 +69,7 @@ export function telemetry(thread: OrchestrationThread): Telemetry {
     workstation: current ? (WORKSTATION_BY_ITEM[current.item] ?? "comms") : "console",
     doing: current?.doing,
     context,
+    compactsAutomatically,
     // A task.started whose completion was missed (restart, interrupt, outside the turn window)
     // must not orbit forever: drones need a running turn or T3's own background liveness.
     tasks: thread.latestTurn?.state === "running" || thread.backgroundLiveness === "working" || thread.backgroundLiveness === "monitoring" ? openTasks.size : 0,
