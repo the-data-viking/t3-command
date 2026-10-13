@@ -14,6 +14,8 @@ export interface Style {
   wall: number;
   /** Materials for the HUD chrome around the map; styles without one use Night Shift's. */
   hud?: HudMaterials;
+  /** The world's lamp colour: ceiling strips and their bloom in lit rooms. */
+  light?: number;
   /** Map label text and lines (drawn over space or dark plating); defaults are the HUD's dark-theme text. */
   mapInk?: { text: number; muted: number; line?: number };
 }
@@ -62,6 +64,8 @@ export interface HudMaterials {
 const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   flightdeck: {
     id: "flightdeck", name: "Kestrel",
+    // Warm sodium lamps.
+    light: 0xffd49a,
     mapInk: { text: 0xf1e6d0, muted: 0xb9a88c },
     blurb: "FTL's warm hull over an amber desert world: ivory plating, walnut decks, a ringed giant overhead.",
     // Warm space: a brown-black void, so the ivory hull reads warm against it.
@@ -86,6 +90,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   signal: {
     id: "signal",
     name: "Day Shift",
+    // Daylight through the ports: warm white.
+    light: 0xfff4dc,
     blurb: "Night Shift by day: the same station in sunlight, porcelain hulls under a cool slate-and-white HUD.",
     space: 0x0b1423,
     wall: 0x101c2a,
@@ -115,6 +121,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   nightshift: {
     id: "nightshift",
     name: "Night Shift",
+    // Cold fluorescent tubes for the graveyard shift.
+    light: 0xcfe2f0,
     blurb: "Dark industrial decks with amber and cyan light, in the spirit of StarNet.",
     space: 0x040508,
     wall: 0x08090c,
@@ -151,6 +159,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   },
   pastel: {
     id: "pastel",
+    // Candy-pink lamps at dusk.
+    light: 0xffdcec,
     mapInk: { text: 0xf6efe4, muted: 0xc9b8d4 },
     name: "Pastel Ops",
     blurb: "Cozy candy ops at dusk: a cream HUD, soft plum outlines, a big pale moon.",
@@ -198,6 +208,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   },
   highcontrast: {
     id: "highcontrast",
+    light: 0xffffff,
     mapInk: { text: 0xffffff, muted: 0xc8ced6, line: 0xd0d0d0 },
     name: "High Contrast",
     blurb: "Maximum legibility: black wells, white frames and text, light hulls on the darkest decks.",
