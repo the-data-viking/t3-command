@@ -138,6 +138,10 @@ light hulls on dark floors. It is chosen automatically if your system asks for m
 you haven't picked a theme yet. Switching crossfades the map, except under reduced motion. Earlier
 saved preferences (warm or Night Shift) carry over.
 
+Behind the fleet, the sky is layered for depth when you pan: dim far stars and nebulae, distant
+pixel-art planets, nearer stars, and a few bright stars that twinkle while the map is animating
+anyway. Each theme has its own nebula and planet colors, and High Contrast keeps a plain black sky.
+
 The pixel-art map renders at one backing pixel per CSS pixel and at most 30 FPS. It stops
 redrawing when the fleet is idle and pauses while the page is hidden; live connections and
 thread updates continue. Camera controls and incoming updates wake it automatically. The
