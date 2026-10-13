@@ -88,9 +88,14 @@ export function truncate(s: string, n: number): string {
 }
 
 /** Fixed supply-line geometry is independent of the animated packets travelling along it. */
-export function linkPoint(from: Point, to: Point, k: number, via?: Point[]): Point {
+/** The corners of a supply line: from, its route (or a mid-way elbow), to. Every leg is axis-aligned. */
+export function linkPath(from: Point, to: Point, via?: Point[]): Point[] {
   const midX = (from.x + to.x) / 2;
-  const points = [from, ...(via ?? [{ x: midX, y: from.y }, { x: midX, y: to.y }]), to];
+  return [from, ...(via ?? [{ x: midX, y: from.y }, { x: midX, y: to.y }]), to];
+}
+
+export function linkPoint(from: Point, to: Point, k: number, via?: Point[]): Point {
+  const points = linkPath(from, to, via);
   const progress = k * (points.length - 1);
   const i = Math.min(points.length - 2, Math.floor(progress));
   const a = points[i], b = points[i + 1], t = progress - i;
@@ -221,6 +226,56 @@ export function chamferOutline(g: Graphics, x: number, y: number, w: number, h: 
     g.rect(x + c - k, y + h - k - width, width, width).fill(color);
     g.rect(x + w - c + k - width, y + h - k - width, width, width).fill(color);
   }
+}
+
+/**
+ * An orthogonal path drawn as runs of `width`-thick cells on the art grid (no centred hairline
+ * strokes). With `dash`, only every other `dash`-long stretch is drawn: a severed line.
+ */
+export function pixelPath(g: Graphics, points: Point[], width: number, color: number, alpha = 1, dash = 0): void {
+  const snap = (v: number) => Math.round(v / PX) * PX;
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = { x: snap(points[i].x), y: snap(points[i].y) }, b = { x: snap(points[i + 1].x), y: snap(points[i + 1].y) };
+    // A diagonal leg (not expected on supply routes) becomes an elbow.
+    const legs = a.x !== b.x && a.y !== b.y ? [[a, { x: b.x, y: a.y }], [{ x: b.x, y: a.y }, b]] : [[a, b]];
+    for (const [p, q] of legs) {
+      const horizontal = p.y === q.y;
+      const start = horizontal ? Math.min(p.x, q.x) : Math.min(p.y, q.y);
+      const length = horizontal ? Math.abs(q.x - p.x) : Math.abs(q.y - p.y);
+      const step = dash || length + width;
+      for (let d = 0; d < length + width; d += dash ? 2 * dash : step) {
+        const run = Math.min(dash || length + width, length + width - d);
+        if (horizontal) g.rect(start + d, p.y, run, width).fill({ color, alpha });
+        else g.rect(p.x, start + d, width, run).fill({ color, alpha });
+      }
+    }
+  }
+}
+
+/** Arrowheads pointing right (dir 0) and up-right (dir 7), in 3-px cells; other directions rotate these. */
+const ARROW_STRAIGHT = ["#....", "###..", "#####", "###..", "#...."];
+const ARROW_DIAGONAL = ["#####", ".####", "..###", "...##", "....#"];
+
+/**
+ * An outlined pixel arrowhead centred on (cx, cy), pointing in one of eight directions (0 = right,
+ * counting clockwise in 45° steps, so 2 = down, 6 = up), drawn in 3-px screen cells.
+ */
+export function pixelArrow(g: Graphics, cx: number, cy: number, dir: number, color: number, cell = 3): void {
+  let grid = dir % 2 === 0 ? ARROW_STRAIGHT : ARROW_DIAGONAL;
+  // Rotate clockwise 90° per quarter turn past the base direction (0 for straight, 7 for diagonal).
+  const turns = dir % 2 === 0 ? dir / 2 : ((dir + 1) / 2) % 4;
+  for (let k = 0; k < turns; k++) grid = grid[0].split("").map((_, x) => grid.map((row) => row[x]).reverse().join(""));
+  const x0 = cx - 2.5 * cell, y0 = cy - 2.5 * cell;
+  const filled: Array<[number, number]> = [];
+  grid.forEach((row, y) => [...row].forEach((c, x) => { if (c === "#") filled.push([x, y]); }));
+  for (const [x, y] of filled) g.rect(x0 + (x - 1) * cell, y0 + (y - 1) * cell, 3 * cell, 3 * cell).fill(0x000000);
+  for (const [x, y] of filled) g.rect(x0 + x * cell, y0 + y * cell, cell, cell).fill(color);
+}
+
+/** A filled box with a `width`-thick outline inside its edge (instead of a centred stroke). */
+export function pixelBox(g: Graphics, x: number, y: number, w: number, h: number, fill: number, outline: number, width = PX): void {
+  g.rect(x, y, w, h).fill(outline);
+  g.rect(x + width, y + width, w - 2 * width, h - 2 * width).fill(fill);
 }
 
 /** A pixel diamond (centre, half-size), drawn in `cell` rows. */

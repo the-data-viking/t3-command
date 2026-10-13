@@ -9,7 +9,7 @@ import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { currentStyle, PX, tex } from "./textures";
 import { mapInk } from "./theme";
-import { fitLabel, hash, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
+import { fitLabel, hash, pixelFrame, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
 import { worldRef } from "./world-ref";
 
 // ---- Stations --------------------------------------------------------------------------
@@ -131,9 +131,10 @@ export class StationSprite {
     // Walls, then doors on top of them.
     const walls = new Graphics();
     for (const room of Object.values(s.rooms)) {
-      if (room) walls.rect(room.rect.x, room.rect.y, room.rect.w, room.rect.h).stroke({ color: style.wall, width: 4, alignment: 0.5 });
+      // 4 px walls centred on each room edge, as cells (no centred strokes).
+      if (room) pixelFrame(walls, room.rect.x - 2, room.rect.y - 2, room.rect.w + 4, room.rect.h + 4, style.wall, 1, 4);
     }
-    walls.rect(i.x - 2, i.y - 2, i.w + 4, i.h + 4).stroke({ color: style.wall, width: 4 });
+    pixelFrame(walls, i.x - 4, i.y - 4, i.w + 8, i.h + 8, style.wall, 1, 4);
     this.root.addChild(walls);
     for (const d of s.doors) {
       const door = sprite(tex(A.DOOR_H), d.x, d.y, 0.5, 0.5);

@@ -12,7 +12,9 @@ test("map code draws on the art grid: no smooth vector shapes (art bible rule 1)
   const offenders: string[] = [];
   for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !EXEMPT.has(f))) {
     fs.readFileSync(path.join(dir, file), "utf8").split("\n").forEach((line, i) => {
-      if (/\.(ellipse|circle|roundRect|arc|arcTo|bezierCurveTo|quadraticCurveTo)\(/.test(line)) offenders.push(`${file}:${i + 1}: ${line.trim()}`);
+      // Centred strokes and free polygons land between pixels too: lines are runs of cells (pixelPath),
+      // outlines are cells inside the edge (pixelFrame, pixelBox).
+      if (/\.(ellipse|circle|roundRect|arc|arcTo|bezierCurveTo|quadraticCurveTo|stroke|poly|lineTo)\(/.test(line)) offenders.push(`${file}:${i + 1}: ${line.trim()}`);
     });
   }
   assert.deepEqual(offenders, []);

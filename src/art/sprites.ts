@@ -203,26 +203,38 @@ export const COMMS: Grid = [
 ];
 
 export const BUNK_EMPTY: Grid = [
-  "kkkkkkkkkkkkkkkkkkkkkkkk",
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+  "kkkk....................",
+  "kMMk....................",
+  "kMMkkkkkkkkkkkkkkkkkkkkk",
+  "kMMkwwwkmmmmmmmmmmmmmmmk",
+  "kMMkkkkkkkkkkkkkkkkkkkkk",
   "kMMMMMMMMMMMMMMMMMMMMMMk",
-  "kMkkkkkkkkkkkkkkkkkkkkMk",
-  "kMkwwwwkmmmmmmmmmmmmmkMk",
-  "kMkwwwwkmmmmmmmmmmmmmkMk",
-  "kMkkkkkkkkkkkkkkkkkkkkMk",
-  "kMMMMMMMMMMMMMMMMMMMMMMk",
   "kkkkkkkkkkkkkkkkkkkkkkkk",
+  ".kk..................kk.",
+  "........................",
 ];
 
-/** A settled crew member asleep: helmet on the pillow, team-colored blanket. */
+/** A settled crew member asleep, side on: helmet on the pillow, a team-coloured blanket over them. */
 export const BUNK_SLEEPER: Grid = [
-  "kkkkkkkkkkkkkkkkkkkkkkkk",
+  "........................",
+  "........................",
+  "....kkkk................",
+  "...kwWWWk...............",
+  "...kwWVVk.....kkkkkk....",
+  "kkkkWWVVkkkkkkTTTTTTkk..",
+  "kMMkkWWkTTTTTTTTtTTTTTk.",
+  "kMMkkkkkTtTtTtTtTtTtTtTk",
+  "kMMkwwwkTTTTTTTTTTTTTTTk",
+  "kMMkkkkkkkkkkkkkkkkkkkkk",
   "kMMMMMMMMMMMMMMMMMMMMMMk",
-  "kMkkkkkkkkkkkkkkkkkkkkMk",
-  "kMkwkwwkkTTTTTTTTTTTTkMk",
-  "kMkwkVVkkTtTtTtTtTtTtkMk",
-  "kMkkkkkkkkkkkkkkkkkkkkMk",
-  "kMMMMMMMMMMMMMMMMMMMMMMk",
   "kkkkkkkkkkkkkkkkkkkkkkkk",
+  ".kk..................kk.",
+  "........................",
 ];
 
 export const SHELF: Grid = [

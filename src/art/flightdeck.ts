@@ -29,13 +29,12 @@ const FILES = panel(24, 20, [
   [6, 6, 2, 1, 'S'], [6, 10, 2, 1, 'S'], [6, 14, 2, 1, 'S'],
   [15, 6, 2, 1, 'S'], [15, 10, 2, 1, 'S'], [15, 14, 2, 1, 'S'],
 ]);
-const COMMS = panel(24, 20, [
-  [3, 0, 18, 14, 'k'], [4, 1, 16, 12, 'H'], [4, 1, 16, 2, 'h'],
-  [19, 3, 1, 10, 'D'], [4, 12, 16, 1, 'D'],
-  [6, 4, 12, 8, 'k'], [7, 5, 10, 6, 'S'], [11, 5, 1, 6, 'x'], [7, 8, 10, 1, 'x'],
-  [9, 6, 6, 1, 'x'], [9, 10, 6, 1, 'x'],
-  [0, 11, 7, 9, 'k'], [1, 12, 5, 7, 'H'], [2, 14, 3, 1, 'M'],
-  [17, 11, 7, 9, 'k'], [18, 12, 5, 7, 'H'], [19, 14, 3, 1, 'M'],
+// The comms console carries a dish on a short mast, so the room reads apart from the terminal
+// even with its screen dark.
+const COMMS = panel(24, 28, [
+  [5, 0, 14, 1, 'k'], [6, 1, 12, 1, 'k'], [7, 1, 10, 1, 'h'], [8, 2, 8, 1, 'k'], [9, 2, 6, 1, 'm'], [10, 3, 4, 1, 'k'],
+  [11, 4, 2, 4, 'k'], [12, 4, 1, 4, 'M'],
+  [3, 8, 18, 14, 'k'], [4, 9, 16, 12, 'H'], [4, 9, 16, 2, 'h'], [19, 11, 1, 10, 'D'], [4, 20, 16, 1, 'D'], [6, 12, 12, 8, 'k'], [7, 13, 10, 6, 'S'], [11, 13, 1, 6, 'x'], [7, 16, 10, 1, 'x'], [9, 14, 6, 1, 'x'], [9, 18, 6, 1, 'x'], [0, 19, 7, 9, 'k'], [1, 20, 5, 7, 'H'], [2, 22, 3, 1, 'M'], [17, 19, 7, 9, 'k'], [18, 20, 5, 7, 'H'], [19, 22, 3, 1, 'M'],
 ]);
 const CHAIR = panel(10, 8, [[1, 0, 8, 7, 'k'], [2, 1, 6, 5, 'G'], [2, 1, 6, 1, 'g'], [0, 3, 2, 4, 'k'], [8, 3, 2, 4, 'k']]);
 
@@ -116,7 +115,7 @@ export const ENGINEERING_SPOTS = {
   /** Cooling fins beside the coolant tank (lit in turn, faster with CPU load). */
   fins: { x: 99, y: 19, w: 7, h: 2, pitch: 4, count: 7 },
   /** Plating strip above the status plate; hazard-striped when the disk is nearly full. */
-  hazard: { x: 5, y: 60, w: 134, h: 2 },
+  hazard: { x: 5, y: 60, w: 134, h: 3 },
 };
 
 export const FLIGHT_KIT = { ...S, CONSOLE, TERMINAL, FILES, COMMS, CHAIR, ENGINEERING_DECK };

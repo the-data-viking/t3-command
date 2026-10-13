@@ -30,7 +30,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
-import { FLEET_VIEW_ZOOM, pixelFrame, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval } from "./map-common";
+import { FLEET_VIEW_ZOOM, linkPath, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { StationSprite } from "./station-sprite";
@@ -647,7 +647,7 @@ export class World {
       for(const station of this.layout.stations.values()){
         const left=station.port.x<hub.x, lane=left?hub.x-50:hub.x+hub.w+50;
         const targetY=hub.y+hub.h/2;
-        g.moveTo(station.port.x,station.port.y).lineTo(lane,station.port.y).lineTo(lane,targetY).lineTo(left?hub.x:hub.x+hub.w,targetY).stroke({color:ink.line,width:2,alpha:.6});
+        pixelPath(g, [station.port, { x: lane, y: station.port.y }, { x: lane, y: targetY }, { x: left ? hub.x : hub.x + hub.w, y: targetY }], 2, ink.line, 0.6);
       }
     }
     const b = this.layout.bounds;
@@ -670,27 +670,16 @@ export class World {
       const online = state.envs[link.envId]?.connection === 'live';
       const lane = link.laneX;
       // Physical docking collars fit the engineering nodes' existing top hatches.
-      g.rect(lane - 20, link.from.y, 40, link.to.y - link.from.y).fill(c.D).stroke({ color: c.k, width: 2 });
-      g.moveTo(lane - 12, link.from.y).lineTo(lane - 12, link.to.y)
-        .moveTo(lane + 12, link.from.y).lineTo(lane + 12, link.to.y)
-        .stroke({ color: HERMES_COLOR, width: 2, alpha: online ? 0.55 : 0.15 });
+      pixelBox(g, lane - 20, link.from.y, 40, link.to.y - link.from.y, c.D, c.k);
+      for (const x of [lane - 12, lane + 12]) pixelPath(g, [{ x, y: link.from.y }, { x, y: link.to.y }], 2, HERMES_COLOR, online ? 0.55 : 0.15);
     }
     for (const node of this.layout.environmentNodes.values()) {
       const live = state.envs[node.envId]?.connection === "live";
       for (const link of node.links) {
-        const points: number[] = [];
-        for (let k = 0; k <= 24; k++) {
-          const p = linkPoint(link.from, link.to, k / 24, link.via);
-          points.push(p.x, p.y);
-        }
-        if (live || state.envs[node.envId]?.connection === "connecting" || state.envs[node.envId]?.connection === "reconnecting") {
-          g.poly(points, false).stroke({ color: node.color, width: 5, alpha: live ? 0.1 : 0.04 });
-          g.poly(points, false).stroke({ color: node.color, width: 2, alpha: live ? 0.6 : 0.15 });
-          continue;
-        }
-        // Unreachable machine: the supply line is severed, drawn as broken dashes.
-        for (let k = 0; k + 2 < points.length / 2; k += 3) g.moveTo(points[k * 2], points[k * 2 + 1]).lineTo(points[k * 2 + 2], points[k * 2 + 3]);
-        g.stroke({ color: node.color, width: 2, alpha: 0.25 });
+        // A run of art-pixel cells along the route; an unreachable machine's line is severed (dashed).
+        const path = linkPath(link.from, link.to, link.via);
+        const reaching = live || state.envs[node.envId]?.connection === "connecting" || state.envs[node.envId]?.connection === "reconnecting";
+        pixelPath(g, path, 2, node.color, live ? 0.6 : reaching ? 0.2 : 0.25, reaching ? 0 : 8);
       }
     }
   }
@@ -770,7 +759,8 @@ export class World {
     for (const text of PixelText.live) { if (this.tween) text.unsnap(); else text.snapToPixels(); }
     if (this.selectBox) {
       const b = this.selectBox;
-      this.edge.rect(b.x, b.y, b.w, b.h).fill({ color: SELECTION, alpha: 0.08 }).stroke({ color: SELECTION, width: 1, alpha: 0.9 });
+      this.edge.rect(b.x, b.y, b.w, b.h).fill({ color: SELECTION, alpha: 0.08 });
+      pixelFrame(this.edge, Math.round(b.x), Math.round(b.y), Math.round(b.w), Math.round(b.h), SELECTION, 0.9, 1);
     }
     if (still) return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || [...this.crew.values()].some((crew) => crew.animated);
     return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
@@ -914,7 +904,7 @@ export class World {
         const color = on ? (kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.working) : 0x59626c;
         const x = room.rect.x + room.rect.w - 16;
         const y = room.rect.y + 8;
-        g.rect(x - 6, y - 2, 12, 12).fill(0x15191d).stroke({ color, width: 2 });
+        pixelBox(g, x - 6, y - 2, 12, 12, 0x15191d, color);
         g.rect(x - 2, y + 2, 4, 4).fill({ color, alpha: on && frame % 2 ? 1 : 0.6 });
       }
     }
@@ -954,7 +944,8 @@ export class World {
       const bayStates = [...this.crew.values()].filter((c) => this.layout.crew.get(c.key)?.stationKey === node.scratch?.stationKey).map((c) => c.state);
       const deck = this.environmentNodes.get(node.key);
       if (deck) {
-        deck.root.alpha = live ? 1 : 0.45;
+        // Unreachable: dimmed with an opaque grey tint, not made see-through.
+        deck.root.tint = live ? 0xffffff : 0x6a6f76;
         deck.setActivity(states, live, frame, [...bayStates, ...overflow]);
       }
       const p = node.plate;
@@ -1063,24 +1054,31 @@ export class World {
     const seen = new Set<string>();
     const { width, height } = this.app.screen;
     const margin = 26;
-    const top = 64;
+    // The visible map: inside the roster, any open panel and the top bar, so arrows never hide under
+    // the HUD. Measured only when some crew member needing you is off screen.
+    let view: { left: number; right: number; top: number; bottom: number } | undefined;
     for (const sprite of this.crew.values()) {
       if (sprite.state !== "alert" && sprite.state !== "question") continue;
       const sx = this.camera.x + sprite.pos.x * this.zoom;
       const sy = this.camera.y + sprite.pos.y * this.zoom;
-      if (sx > margin && sx < width - margin && sy > top && sy < height - margin) continue;
-      const cx = width / 2;
-      const cy = (height + top) / 2;
+      if (!view) {
+        const inset = hudInsets();
+        view = { left: inset.left + margin, right: width - inset.right - margin, top: inset.top + margin, bottom: height - inset.bottom - margin };
+      }
+      if (sx > view.left && sx < view.right && sy > view.top && sy < view.bottom) continue;
+      const cx = (view.left + view.right) / 2;
+      const cy = (view.top + view.bottom) / 2;
       const dx = sx - cx;
       const dy = sy - cy;
-      const scale = Math.min((width / 2 - margin) / Math.abs(dx || 1e-6), ((height - top) / 2 - margin) / Math.abs(dy || 1e-6));
+      const scale = Math.min((view.right - view.left) / 2 / Math.abs(dx || 1e-6), (view.bottom - view.top) / 2 / Math.abs(dy || 1e-6));
       const ex = cx + dx * scale;
       const ey = cy + dy * scale;
       const a = Math.atan2(dy, dx);
       const color = STATUS[sprite.state];
-      const pulse = 1 + Math.sin(t * 6) * 0.15;
-      const tip = (r: number, da: number) => [ex + Math.cos(a + da) * r, ey + Math.sin(a + da) * r];
-      g.poly([...tip(14 * pulse, 0), ...tip(10, 2.5), ...tip(10, -2.5)]).fill(color).stroke({ color: 0x000000, width: 1.5 });
+      // A pixel arrow in one of eight directions, outlined, nudging outward a cell as it pulses.
+      const dir = ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8;
+      const nudge = reducedMotion() || Math.sin(t * 6) < 0 ? 0 : 3;
+      pixelArrow(g, Math.round(ex + Math.cos(a) * (4 + nudge)), Math.round(ey + Math.sin(a) * (4 + nudge)), dir, color);
       g.rect(Math.round(ex - Math.cos(a) * 6) - 3, Math.round(ey - Math.sin(a) * 6) - 3, 6, 6).fill(sprite.team);
       seen.add(sprite.key);
       let hit = this.edgeTargets.get(sprite.key);

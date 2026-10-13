@@ -123,13 +123,14 @@ export class Backdrop {
       this.layers.push({ sprite, parallax, twinkle: tw });
     };
     add(far, 0.06);
-    // Distant: planets sit back in the haze (mixed toward space) rather than competing with the stations.
-    add(planets, 0.1);
     add(near, 0.2);
     if (sky.planets.length) {
       add(twinkle("ta"), 0.2, 0);
       add(twinkle("tb"), 0.2, Math.PI / 2);
     }
+    // Planets go over the star layers (no star shows through a planet's face), hazed toward space
+    // so they sit back rather than competing with the stations.
+    add(planets, 0.1);
   }
 
   /** Follow the camera at each layer's depth; twinkle with the animation clock. */
