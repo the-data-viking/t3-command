@@ -10,6 +10,8 @@ import { CommsLog, EventLog } from "./ui/EventLog";
 import { HistoryPanel } from "./ui/HistoryPanel";
 import { SquadBar } from "./ui/SquadBar";
 import { AwayDigest } from "./ui/AwayDigest";
+import { IncomingToast } from "./ui/IncomingToast";
+import { mayAutoOpen, noteKey } from "./ui/event-guard";
 import { CommandPalette } from "./ui/CommandPalette";
 import { HelpOverlay } from "./ui/HelpOverlay";
 import { LibraryPanel } from "./ui/LibraryPanel";
@@ -41,9 +43,14 @@ function announceTransitions(): () => void {
     if (to === "alert" || to === "question") {
       if (to === "alert") sfx.alert(); else sfx.question();
       notifyAttention(envId, thread, to);
-      // FTL-style: pop the event, unless you're busy typing or already looking at one.
+      // FTL-style: pop the event, unless you're busy typing or already looking at one. If you just
+      // pressed a number key (a control group, say), announce it instead: popping the card under
+      // that keypress could turn it into "Approve".
       const active = document.activeElement?.tagName;
-      if (!useGame.getState().event && active !== "TEXTAREA" && active !== "INPUT") openEvent(at);
+      if (!useGame.getState().event && active !== "TEXTAREA" && active !== "INPUT") {
+        if (mayAutoOpen()) openEvent(at);
+        else useGame.setState({ incoming: { ...at, at: Date.now() } });
+      }
     } else if (to === "error") {
       sfx.error();
     } else if (to === "done" && (from === "working" || from === "monitoring")) {
@@ -83,6 +90,7 @@ export default function App() {
       }
     })();
     const offHotkeys = installHotkeys();
+    window.addEventListener("keydown", noteKey, true);
     const offTransitions = announceTransitions();
     const offTitle = installTitleBadge();
     const offWatches = installActiveWatches();
@@ -93,6 +101,7 @@ export default function App() {
       clearInterval(timer);
       clearInterval(storageTimer);
       offHotkeys();
+      window.removeEventListener("keydown", noteKey, true);
       offTransitions();
       offTitle();
       offWatches();
@@ -122,6 +131,7 @@ export default function App() {
       {showHistory && <HistoryPanel />}
       <SquadBar />
       <AwayDigest />
+      <IncomingToast />
       {showPalette && <CommandPalette />}
       {showHelp && <HelpOverlay />}
       {hostPanel && <HostPanel envId={hostPanel} />}

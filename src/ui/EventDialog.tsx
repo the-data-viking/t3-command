@@ -6,6 +6,7 @@ import { openEvent, setSelection, unitKey, useGame } from "../store";
 import { pendingRequests } from "../t3/derive";
 import { envClient, logError } from "../t3/environment";
 import { QuestionForm } from "./QuestionForm";
+import { ARM_MS } from "./event-guard";
 import type { ApprovalDecision, PendingRequest } from "../t3/types";
 
 const DEFAULT_OPTIONS: Array<{ decision: ApprovalDecision; label: string }> = [
@@ -45,6 +46,17 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
 
   const pending = detail ? pendingRequests(detail.thread) : [];
   const request: PendingRequest | undefined = pending[0];
+
+  // Each request's choices arm only after it has been on screen for a moment, so a key or click
+  // meant for something else (a control group, the map) can't land on "Approve".
+  const requestId = request?.requestId;
+  const [armedFor, setArmedFor] = useState<string>();
+  useEffect(() => {
+    if (!requestId) return;
+    const timer = setTimeout(() => setArmedFor(requestId), ARM_MS);
+    return () => clearTimeout(timer);
+  }, [requestId]);
+  const armed = !!requestId && armedFor === requestId;
 
   // Nothing (left) to decide: close.
   useEffect(() => {
@@ -96,6 +108,8 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable]")) return;
       const n = Number(e.key);
+      // Not armed yet: the keypress wasn't meant for this card, so leave it to its own handler.
+      if (!armed) return;
       if (Number.isInteger(n) && n >= 1 && n <= choices.length) {
         e.preventDefault();
         e.stopPropagation();
@@ -139,10 +153,10 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
           )}
           {request?.kind === "user-input" ? (
             <button className="btn" onClick={openLog}>Open the crew log</button>
-          ) : <ol className="event-choices">
+          ) : <ol className={`event-choices ${armed ? "" : "arming"}`}>
             {choices.map((c, i) => (
               <li key={i}>
-                <button className={`event-choice ${c.tone ?? ""}`} disabled={busy || (!request && i < choices.length - 1)} onClick={() => void choose(c)}>
+                <button className={`event-choice ${c.tone ?? ""}`} disabled={busy || (i < choices.length - 1 && !armed)} onClick={() => void choose(c)}>
                   <span className="choice-num">{i + 1}.</span> {c.label}
                 </button>
               </li>
