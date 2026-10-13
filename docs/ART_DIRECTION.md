@@ -74,16 +74,20 @@ supports pointer and keyboard width adjustment with a saved per-browser width.
 ## HUD theme tokens
 
 The HUD follows the map style. `src/game/theme.ts` is the single source of HUD colors.
-`hudTokens()` turns the active style's `hud` materials, plus the shared status, accent and
-gauge colors, into CSS variables. They are set on `<html>` before the first render and again
+`hudTokens()` turns the active style's `hud` materials, plus the shared status and gauge
+colors and generated `--on-<state>` pill inks, into CSS variables. They are set on `<html>` before the first render and again
 whenever the palette toggles. The stylesheet (`src/index.css`, one FTL chrome layer) derives
 only translucent variants with `color-mix()`.
 
-- Night Shift keeps its cool gray frames. Kestrel has brass frames around oiled-leather panels
-  over warm space.
+- Each theme is its own place (`theme.test.ts` keeps every pair apart on HUD and map materials):
+  - **Night Shift**, the default: a graveyard-shift engineering bay, graphite decks, cool grey frames.
+  - **Kestrel**: FTL's warm hull, ivory plating on walnut decks under a bronze-and-leather HUD.
+  - **Signal**: a daylight ops room, the cool light HUD (slate on pale panels) over porcelain hulls.
+  - **Pastel Ops**: cozy candy ops, the warm light HUD (plum on cream) over dusk space.
+  - **High Contrast**: maximum legibility, black wells, white frames, the darkest decks.
 - Materials change per style. Status colors, the one "done / healthy" green and the gauge ramp
-  never change meaning. A light HUD (Pastel) hand-tunes darker versions in its `hud.tokens` so they
-  read on cream; `theme.test.ts` holds each at 4.5:1 on every panel and apart from each other.
+  never change meaning. Light HUDs (Signal, Pastel) hand-tune darker versions in `hud.tokens` so
+  they read on pale panels; `theme.test.ts` holds each at 4.5:1 on every panel and apart from each other.
 - Selection is white on the map (crew ring, station outline, box select) and the bright frame
   colour in the HUD. It never borrows a status colour: green already means "report ready".
 - Context-left bars and host CPU/RAM meters use their own gauge ramp (green → amber → magenta).
