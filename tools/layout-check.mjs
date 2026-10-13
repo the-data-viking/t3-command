@@ -68,6 +68,12 @@ async function run(base) {
     await page.waitForTimeout(800);
     const bar = await rect(page, ".topbar"), panel = await rect(page, ".panel");
     check(view.name, panel && bar && panel.top >= bar.bottom - 1, `crew panel overlaps the top bar (panel top ${panel?.top}, bar bottom ${bar?.bottom})`);
+    // Every control in the panel's header row stays inside the panel.
+    const spill = await page.evaluate(() => {
+      const panel = document.querySelector(".panel")?.getBoundingClientRect();
+      return [...document.querySelectorAll(".panel .status-row > *")].map((el) => el.getBoundingClientRect()).filter((r) => panel && r.width && r.right > panel.right + 1).length;
+    });
+    check(view.name, spill === 0, `${spill} crew panel header controls run off the panel's right edge`);
     await shot("crew");
     await page.keyboard.press("Escape");
 
@@ -83,6 +89,16 @@ async function run(base) {
     await page.evaluate(async () => { const { useGame } = await import("/src/store.ts"); useGame.setState({ showHistory: false, selection: null }); });
 
     if (!phone) {
+      // The roster stops above the minimap instead of running under it.
+      check(view.name, !overlap(await rect(page, ".crew-roster"), await rect(page, ".minimap")), "crew roster runs under the minimap");
+      // The command palette opens fully on screen, below its backdrop's top edge.
+      await page.keyboard.press("Control+k");
+      await page.waitForTimeout(300);
+      const palette = await rect(page, ".palette");
+      check(view.name, palette && palette.top > 0 && palette.bottom <= vw.h, `command palette is off screen (${JSON.stringify(palette)})`);
+      await shot("palette");
+      await page.keyboard.press("Escape");
+
       // The comms log opens beside the roster, not on top of it.
       await page.evaluate(async () => { const { useGame } = await import("/src/store.ts"); useGame.setState({ showLog: true }); });
       await page.waitForTimeout(300);

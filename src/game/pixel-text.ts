@@ -67,10 +67,18 @@ export class PixelText extends Container {
    */
   snapToPixels(): void {
     if (!this.parent || !this.visible) return;
-    const g = this.toGlobal({ x: this.basePivot.x, y: this.basePivot.y });
-    const s = this.worldTransform.a;
+    // Where the anchor lands with no correction: the label's position in its parent. (Measuring
+    // through the label's own transform would include last frame's correction, which then cancels
+    // itself out and the label flips between snapped and unsnapped every frame.)
+    const g = this.parent.toGlobal(this.position);
+    const s = this.parent.worldTransform.a * this.scale.x;
     if (!s) return;
     this.pivot.set(this.basePivot.x - (Math.round(g.x) - g.x) / s, this.basePivot.y - (Math.round(g.y) - g.y) / s);
+  }
+
+  /** Drop any pixel correction (while the camera is mid-move, labels ride the zoom smoothly). */
+  unsnap(): void {
+    this.pivot.set(this.basePivot.x, this.basePivot.y);
   }
 
   get text(): string { return this.value; }

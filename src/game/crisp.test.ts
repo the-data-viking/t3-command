@@ -16,9 +16,15 @@ test("the camera settles on zoom steps where art pixels cover whole screen pixel
   }
   assert.equal(snapZoom(0.9), 1);
   assert.equal(snapZoom(0.55), 0.5);
-  assert.equal(snapZoom(0.62), 0.75);
+  assert.equal(snapZoom(1.3), 1);
   assert.equal(floorZoom(0.49), 1 / 3, "framing never zooms past what fits");
   assert.equal(floorZoom(5), 3);
+});
+
+test("at every zoom step from 1 up, art pixels and font pixels (1–3 world px) land on whole screen pixels", () => {
+  for (const z of ZOOM_STEPS.filter((s) => s >= 1)) {
+    for (const unit of [1, 2, 3, 2 /* PX */]) assert.ok(Number.isInteger(unit * z), `unit ${unit} at zoom ${z}`);
+  }
 });
 
 test("small figures stay at one screen pixel per art pixel when zoomed out, and no bigger", () => {

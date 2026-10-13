@@ -36,11 +36,14 @@ export function fitLabel(label: PixelText, full: string, width: number, zoom: nu
 }
 
 /**
- * Zoom levels the camera settles on. Art is drawn at PX=2 world px per art pixel, so at these
- * steps every art pixel covers whole screen pixels (or, zoomed far out, drops on a regular
- * pattern). 0.75 and 1/3 are kept as in-betweens so fitting the fleet isn't too coarse.
+ * Zoom levels the camera settles on. Art is drawn at PX=2 world px per art pixel, and map text
+ * at 1–3 world px per font pixel; at these steps both land on whole screen pixels (zoomed far
+ * out, art drops on a regular pattern and labels hold a crisp minimum). In-between steps
+ * (0.75, 1.5, 2.5) made text swell, shrink back and re-truncate relative to its plate as you
+ * zoomed, which read as jitter. 1/3 stays as the one far-out in-between until the fleet view
+ * gets its own art.
  */
-export const ZOOM_STEPS = [0.125, 1 / 6, 0.25, 1 / 3, 0.5, 0.75, 1, 1.5, 2, 2.5, 3];
+export const ZOOM_STEPS = [0.125, 1 / 6, 0.25, 1 / 3, 0.5, 1, 2, 3];
 
 /** The nearest zoom step (in log space, so in and out feel the same). */
 export function snapZoom(z: number): number {
