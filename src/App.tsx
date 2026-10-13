@@ -15,6 +15,7 @@ import { DebriefCard } from "./ui/DebriefCard";
 import { PhotoMode } from "./ui/PhotoMode";
 import { PlaybooksDialog } from "./ui/PlaybooksDialog";
 import { TimelinePanel } from "./ui/TimelinePanel";
+import { MissionBoard } from "./ui/MissionBoard";
 import { QueueClear } from "./ui/QueueButton";
 import { registerServiceWorker } from "./t3/push";
 import { loadPlaybooks } from "./t3/playbooks";
@@ -78,6 +79,7 @@ export default function App() {
   const showHelp = useGame((s) => s.showHelp);
   const showPlaybooks = useGame((s) => s.showPlaybooks);
   const showTimeline = useGame((s) => s.showTimeline);
+  const showBoard = useGame((s) => s.showBoard);
   const [fatal, setFatal] = useState<string>();
 
   useEffect(() => {
@@ -155,6 +157,7 @@ export default function App() {
       {showLog && <CommsLog />}
       {showHistory && <HistoryPanel />}
       {showTimeline && <TimelinePanel />}
+      {showBoard && <MissionBoard />}
       <SquadBar />
       <AwayDigest />
       <IncomingToast />

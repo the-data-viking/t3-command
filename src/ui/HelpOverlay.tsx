@@ -14,7 +14,7 @@ const KEYS: Array<[string, string]> = [
   [".", "Next report, as a debrief card: what was done, what changed, accept or follow up"],
   ["W / M", "Next working / monitoring crew"],
   ["F", "Fit the whole fleet"],
-  ["L / H / T", "Comms log / turn history / fleet timeline"],
+  ["L / H / T / B", "Comms log / turn history / fleet timeline / mission board"],
   ["1–9", "Recall a control group (press again to frame it)"],
   ["Ctrl or Alt 1–9", "Save the squad (or selected crew) as a control group"],
   ["Shift-click", "Add or remove crew from the squad (map or roster)"],

@@ -150,6 +150,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   oldest first — ending on a **Queue clear** card with how many you handled. Esc (or tapping
   outside on a phone) stops the run and leaves the rest as it was. On a phone the cards are bottom
   sheets with full-size choices, so a whole queue clears with one thumb.
+- **Mission board** (**B**, or the palette): every mission in flight as a card in the column for
+  what it needs next: **Needs you** (approvals, questions, failed turns), **Planning** (plan mode),
+  **Building**, **Report ready**, and **In review** (report read, PR still open). Cards show the
+  state with its shape, how long it's waited or run, the station, machine and model, what an
+  approval or question asks, the last error, and PR chips; **Decide**, **Answer** and **Read
+  report** act from the card, and clicking one goes to its crew member. Missions at camp or idle
+  are off the board.
 - **Fleet timeline** (**T**, or the command palette): every crew member's turns over the last 6
   hours, 24 hours or 3 days, one lane each, grouped by project. Bars are coloured and named by
   outcome (done, failed, interrupted), and the right edge is live: what's running, or waiting on
