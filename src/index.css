@@ -595,6 +595,16 @@ code {
   height: 100%;
 }
 
+/* Turn telemetry: plan, time split, tokens, quiet turns. */
+.plan-toggle { background: none; border: none; padding: 0; color: var(--text); font: inherit; cursor: pointer; text-align: left; }
+.plan-toggle:hover, .plan-toggle:focus-visible { color: var(--cyan); }
+.plan-steps { margin: 2px 0 4px 66px; padding: 0; list-style: none; font-size: 11px; display: flex; flex-direction: column; gap: 2px; max-height: 180px; overflow-y: auto; }
+.plan-steps .plan-completed { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent); }
+.plan-steps .plan-inProgress { color: var(--working); }
+.quiet-row .tele-key, .quiet-row .tele-val { color: var(--gauge-high); }
+.crew-plan { display: flex; gap: 8px; font-size: 10px; margin-top: 2px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.crew-plan > span { overflow: hidden; text-overflow: ellipsis; }
+
 /* ---- Transcript ---- */
 
 .update-menu { position: relative; }

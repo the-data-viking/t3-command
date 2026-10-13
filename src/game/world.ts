@@ -20,7 +20,7 @@ import type { Arms, Legs } from "../art/render";
 import { openHost, setSelection, unitKey, useGame, type GameState, type Selection } from "../store";
 import { isHistory, unitState, type UnitState } from "../t3/derive";
 import { telemetry, type Telemetry } from "../t3/telemetry";
-import type { ThreadShell } from "../t3/types";
+import type { OrchestrationThread, ThreadShell } from "../t3/types";
 import { computeFleetLayout, fingerprint, nodeDrawKey, QUARTERS_SHOWN, stationDrawKey, TILE, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type EnvironmentNodeLayout, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
 import { endGesture, gesturing, holdTaps } from "./gesture";
@@ -30,6 +30,7 @@ import { RenderLoop } from "./render-loop";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { hostView, type HostState } from "../t3/host";
+import { quietness } from "../t3/progress";
 import { freeLabel, storageSummary } from "../t3/storage";
 import type { StorageView } from "../../shared/storage";
 import { crewTex, currentStyle, PX, tex } from "./textures";
@@ -153,6 +154,10 @@ class CrewSprite extends Container {
   state: UnitState = "idle";
   thread!: ThreadShell;
   info?: Telemetry;
+  /** Followed thread detail, for spotting a turn that has gone quiet. */
+  private detail?: OrchestrationThread;
+  private quiet = false;
+  private quietCheckedAt = 0;
   tier: Tier = "standard";
   silhouette: Silhouette = "round";
   team = 0xffffff;
@@ -204,8 +209,9 @@ class CrewSprite extends Container {
     });
   }
 
-  update(thread: ThreadShell, info: Telemetry | undefined, team: number): void {
+  update(thread: ThreadShell, info: Telemetry | undefined, team: number, detail?: OrchestrationThread): void {
     this.thread = thread;
+    if (detail !== this.detail) { this.detail = detail; this.quietCheckedAt = 0; }
     this.state = unitState(thread);
     if (info && !this.hasTelemetry) {
       this.hasTelemetry = true;
@@ -321,10 +327,32 @@ class CrewSprite extends Container {
       return;
     }
     if (this.state === "working") {
-      // Spinning pip: busy, no attention needed.
-      const a = Math.floor(t * 8) % 4;
-      const pts = [[0, -6], [6, 0], [0, 6], [-6, 0]];
-      pts.forEach(([x, y], i) => f.rect(12 + x / 2, -40 + y / 2, 3, 3).fill({ color: i === a ? STATUS.working : 0x1d4a57 }));
+      // Re-checked every few seconds rather than per frame: it scans the turn's activity.
+      const now = Date.now();
+      if (this.detail && now - this.quietCheckedAt > 5000) {
+        this.quietCheckedAt = now;
+        this.quiet = quietness(this.thread, this.detail, now)?.kind === "quiet";
+      }
+      if (this.quiet) {
+        // Quiet turn: three steady amber dots where the busy pip spins.
+        for (const x of [8, 12, 16]) f.rect(x, -40, 3, 3).fill(GAUGE.high);
+      } else {
+        // Spinning pip: busy, no attention needed.
+        const a = Math.floor(t * 8) % 4;
+        const pts = [[0, -6], [6, 0], [0, 6], [-6, 0]];
+        pts.forEach(([x, y], i) => f.rect(12 + x / 2, -40 + y / 2, 3, 3).fill({ color: i === a ? STATUS.working : 0x1d4a57 }));
+      }
+      // Plan pips over the head: done, current (blinking), still to do.
+      const plan = this.thread.planProgress;
+      if (plan && plan.totalSteps > 0) {
+        const n = Math.min(plan.totalSteps, 10);
+        const done = Math.round((plan.completedSteps / plan.totalSteps) * n);
+        const x0 = -Math.round((n * 4 - 1) / 2);
+        for (let i = 0; i < n; i++) {
+          const color = i < done ? STATUS.done : i === done ? (Math.floor(t * 2) % 2 ? STATUS.working : 0x1d4a57) : hudMaterials(useGame.getState().artStyle).meter;
+          f.rect(x0 + i * 4, -50, 3, 2).fill(color);
+        }
+      }
     }
     const tasks = Math.min(4, this.info?.tasks ?? 0);
     for (let i = 0; i < tasks; i++) {
@@ -1174,7 +1202,7 @@ export class World {
           if (this.seeded.has(env.summary.id) && Date.now() - Date.parse(thread.createdAt) < RECRUIT_WINDOW_MS) sprite.beamIn();
         }
         const detail = state.details[key];
-        sprite.update(thread, detail ? telemetry(detail.thread) : undefined, lay.color);
+        sprite.update(thread, detail ? telemetry(detail.thread) : undefined, lay.color, detail?.thread);
       }
       if (env.synced) this.seeded.add(env.summary.id);
     }

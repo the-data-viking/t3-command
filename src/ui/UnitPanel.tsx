@@ -25,6 +25,7 @@ import { CrewPortrait, PixelIcon } from "./PixelArt";
 import { stationColor } from "../game/layout";
 import { HermesPermissions } from './HermesPermissions';
 import { isPhone, usePhone } from './phone';
+import { TurnTelemetry } from './TurnTelemetry';
 
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
   const panelWidth = usePanelWidth();
@@ -161,6 +162,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         </div>
       )}
 
+      {!archived && detail && <TurnTelemetry shell={thread} detail={detail.thread} />}
       {!archived && <FailureNote thread={thread} />}
       {!archived && <PullRequestChips thread={thread} />}
       {!archived && detail && !bot && <TurnChanges env={env} thread={thread} detail={detail.thread} state={state} />}

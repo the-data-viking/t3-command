@@ -8,6 +8,7 @@ import type { UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { allUnits, STATE_LABELS, type UnitRef } from "./util";
 import { ThreadTiming } from "./ThreadTiming";
+import { PlanLine } from "./TurnTelemetry";
 import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
 import { BotPortrait } from './HermesControlCenter';
 import { CrewPortrait } from "./PixelArt";
@@ -71,6 +72,7 @@ export function CrewRoster() {
               <span className="muted"> · {envs[u.envId]?.summary.label}</span>
             </span>
             <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
+            <PlanLine thread={u.thread} detail={detail?.thread} />
             {ctx !== undefined && (
               <span className="crew-hp" title={`${Math.round((1 - ctx) * 100)}% context left`}>
                 {Array.from({ length: 10 }, (_, i) => (
