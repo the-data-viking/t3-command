@@ -16,13 +16,51 @@ export function label(size: number, fill: number): PixelText {
 }
 
 /**
- * Size a label for the zoom: world-scaled when that's at least one screen pixel per font pixel,
- * otherwise held at exactly one (crisp, not sub-pixel mush), shortened to fit `width` world px.
+ * Scale for a pixel-font label so each font pixel covers a whole number of screen pixels (at
+ * least one). Nearest-neighbour sampling at in-between scales drops whole glyph columns ("CPU"
+ * reading "CPJ"); whole numbers keep every letter.
+ */
+export function crispScale(unit: number, zoom: number): number {
+  const screen = unit * zoom;
+  return Math.max(1, Math.round(screen)) / screen;
+}
+
+/**
+ * Size a label for the zoom at a whole number of screen pixels per font pixel (crisp, never
+ * sub-pixel mush), shortened to fit `width` world px.
  */
 export function fitLabel(label: PixelText, full: string, width: number, zoom: number): void {
-  const screen = label.unit * zoom;
-  label.scale.set(screen < 1 ? 1 / screen : 1);
-  label.text = fitText(full, width * zoom, Math.max(1, screen));
+  const k = crispScale(label.unit, zoom);
+  label.scale.set(k);
+  label.text = fitText(full, width * zoom, label.unit * zoom * k);
+}
+
+/**
+ * Zoom levels the camera settles on. Art is drawn at PX=2 world px per art pixel, so at these
+ * steps every art pixel covers whole screen pixels (or, zoomed far out, drops on a regular
+ * pattern). 0.75 and 1/3 are kept as in-betweens so fitting the fleet isn't too coarse.
+ */
+export const ZOOM_STEPS = [0.125, 1 / 6, 0.25, 1 / 3, 0.5, 0.75, 1, 1.5, 2, 2.5, 3];
+
+/** The nearest zoom step (in log space, so in and out feel the same). */
+export function snapZoom(z: number): number {
+  let best = ZOOM_STEPS[0];
+  for (const s of ZOOM_STEPS) if (Math.abs(Math.log(s / z)) < Math.abs(Math.log(best / z))) best = s;
+  return best;
+}
+
+/** The largest zoom step that's no more than `z` (for framing: never crop what should fit). */
+export function floorZoom(z: number): number {
+  return [...ZOOM_STEPS].reverse().find((s) => s <= z + 1e-6) ?? ZOOM_STEPS[0];
+}
+
+/**
+ * Extra scale for small figures (crew, operators) zoomed out: held at one screen pixel per art
+ * pixel rather than shrinking into mush, but never larger than that.
+ */
+export function figureBoost(zoom: number, px: number): number {
+  const screen = px * zoom;
+  return screen >= 1 ? 1 : 1 / screen;
 }
 
 export function hash(s: string): number {
@@ -58,8 +96,6 @@ export function sprite(texture: ReturnType<typeof tex>, x: number, y: number, ax
   return s;
 }
 
-/** Zoom below which crew are drawn larger and labels hold a minimum on-screen size. */
-export const STRATEGIC_ZOOM = 0.55;
 export const WALK_SPEED = 75; // px per second, constant like FTL crew
 /** Side-by-side spacing for crew sharing one system room. */
 export const CREW_SPACING = 34;

@@ -35,7 +35,11 @@ export function fontScale(size: number): number {
 }
 
 export class PixelText extends Container {
+  /** Every live label, so the map can snap them to whole screen pixels each frame. */
+  static readonly live = new Set<PixelText>();
   private value = "";
+  /** Anchor pivot in local units; `snapToPixels` nudges the real pivot from it. */
+  private basePivot = { x: 0, y: 0 };
   private color: number;
   /** World pixels per font pixel at scale 1. */
   readonly unit: number;
@@ -48,6 +52,25 @@ export class PixelText extends Container {
     super();
     this.unit = fontScale(size);
     this.color = color;
+    PixelText.live.add(this);
+  }
+
+  override destroy(options?: Parameters<Container["destroy"]>[0]): void {
+    PixelText.live.delete(this);
+    super.destroy(options);
+  }
+
+  /**
+   * Put the label's origin on a whole screen pixel. A half-pixel origin makes pixel rounding
+   * drop or double a row or column of the font ("E" losing its bar). Call once per frame after
+   * the camera has moved.
+   */
+  snapToPixels(): void {
+    if (!this.parent || !this.visible) return;
+    const g = this.toGlobal({ x: this.basePivot.x, y: this.basePivot.y });
+    const s = this.worldTransform.a;
+    if (!s) return;
+    this.pivot.set(this.basePivot.x - (Math.round(g.x) - g.x) / s, this.basePivot.y - (Math.round(g.y) - g.y) / s);
   }
 
   get text(): string { return this.value; }
@@ -76,6 +99,8 @@ export class PixelText extends Container {
   get naturalWidth(): number { return Math.max(0, [...this.value].length * ADVANCE - 1) * this.unit; }
 
   private layout(): void {
-    this.pivot.set(Math.round(this.naturalWidth * this.ax), Math.round(GLYPH_H * this.unit * this.ay));
+    // Whole font pixels, so centred text doesn't start halfway through a font pixel.
+    this.basePivot = { x: Math.round((this.naturalWidth * this.ax) / this.unit) * this.unit, y: Math.round(GLYPH_H * this.ay) * this.unit };
+    this.pivot.set(this.basePivot.x, this.basePivot.y);
   }
 }

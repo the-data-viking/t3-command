@@ -8,6 +8,7 @@ import type { UnitState } from '../t3/derive';
 import type { ControlCenterLayout, Rect } from './layout';
 import { HUD, modelTier, providerSilhouette, STATUS } from './theme';
 import { crewTex, currentStyle, PX, tex } from './textures';
+import { crispScale, figureBoost } from './map-common';
 
 const badges: Partial<Record<UnitState, A.Grid>> = {
   alert: A.BADGE_ALERT, question: A.BADGE_QUESTION, done: A.BADGE_DONE,
@@ -135,14 +136,14 @@ export class ControlCenterSprite {
   update(center: ControlCenterLayout, selection: Selection, zoom: number, frame: number): void {
     // Small bridge text hides once it would turn sub-pixel; the title holds a crisp minimum size.
     for (const label of this.labels) label.visible = label === this.title || this.names.includes(label) || label.unit * zoom >= 0.8;
-    if (this.title) this.title.scale.set(Math.max(1, 1 / (this.title.unit * zoom)));
-    for (const name of this.names) name.scale.set(Math.max(1, 1 / (name.unit * zoom)));
+    if (this.title) this.title.scale.set(crispScale(this.title.unit, zoom));
+    for (const name of this.names) name.scale.set(crispScale(name.unit, zoom));
     for (const { bot, figure, console, badge, workstation } of this.operators) {
       const active = bot.observed && bot.state === 'working';
       const color = botColor(bot.name);
       figure.texture = crewTex(providerSilhouette(bot.provider ?? 'hermes'), modelTier(bot.model ?? ''),
         'idle', active ? (frame % 2 ? 'typeA' : 'typeB') : 'idle', color, HERMES_COLOR);
-      figure.scale.set(PX * Math.min(1.8, Math.max(1, 0.55 / zoom)));
+      figure.scale.set(PX * figureBoost(zoom, PX));
       const screen = bot.observed && bot.state !== 'idle' ? STATUS[bot.state] : 0x1c2228;
       console.texture = tex(A.CONSOLE, { screen });
       const grid = bot.observed ? badges[bot.state] : undefined;

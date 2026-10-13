@@ -19,7 +19,7 @@ import { isHistory, unitState, type UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { computeFleetLayout, fingerprint, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
-import type { PixelText } from "./pixel-text";
+import { PixelText } from "./pixel-text";
 import { endGesture, gesturing, holdTaps } from "./gesture";
 import { isPhone } from "../ui/phone";
 import { hudInsets } from "../ui/hud-insets";
@@ -30,7 +30,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { HUD, STATUS } from "./theme";
-import { label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, ROOM_SHADOW, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor } from "./map-common";
+import { crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, ROOM_SHADOW, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { StationSprite } from "./station-sprite";
@@ -70,6 +70,8 @@ export class World {
   private controlCenter?: ControlCenterSprite;
   private lastCatalog?: GameState["hermesCatalog"];
   private crew = new Map<string, CrewSprite>();
+  /** Continuous zoom the wheel/pinch is aiming for; the drawn zoom is its nearest crisp step. */
+  private zoomGoal?: number;
   /** Screen-space rectangle of an in-progress shift-drag selection. */
   private selectBox?: Rect;
   /** The operations hub's labels: the title held crisp when zoomed out, the count hidden. */
@@ -115,7 +117,7 @@ export class World {
 
   private async init(host: HTMLElement): Promise<void> {
     // Pixel art needs one backing pixel per CSS pixel, not a Retina-sized framebuffer.
-    await this.app.init({ width: host.clientWidth, height: host.clientHeight, background: currentStyle().space, antialias: false, autoDensity: true, resolution: 1, autoStart: false, powerPreference: "low-power" });
+    await this.app.init({ width: host.clientWidth, height: host.clientHeight, background: currentStyle().space, antialias: false, autoDensity: true, resolution: 1, roundPixels: true, autoStart: false, powerPreference: "low-power" });
     try {
       await Promise.all([document.fonts.load("600 10px 'Chakra Petch'"), document.fonts.load("10px 'IBM Plex Mono'")]);
     } catch {
@@ -218,12 +220,13 @@ export class World {
       const dx = e.global.x - drag.x;
       const dy = e.global.y - drag.y;
       if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+      if (drag.moved && !drag.box) this.zoomGoal = undefined;
       if (drag.moved && drag.box) {
         this.selectBox = { x: Math.min(drag.x, e.global.x), y: Math.min(drag.y, e.global.y), w: Math.abs(dx), h: Math.abs(dy) };
         this.invalidate();
       } else if (drag.moved) {
         this.userMoved = true;
-        this.camera.position.set(drag.camX + dx, drag.camY + dy);
+        this.camera.position.set(Math.round(drag.camX + dx), Math.round(drag.camY + dy));
         this.invalidate();
       }
     });
@@ -262,6 +265,11 @@ export class World {
     this.camera.scale.set(this.zoom);
   }
 
+  /** Whole screen pixels for the camera offset, so art pixels don't straddle screen pixels. */
+  private snapCamera(): void {
+    this.camera.position.set(Math.round(this.camera.x), Math.round(this.camera.y));
+  }
+
   private view(): CameraView {
     const { width, height } = this.app.screen;
     return { cx: (width / 2 - this.camera.x) / this.zoom, cy: (height / 2 - this.camera.y) / this.zoom, zoom: this.zoom };
@@ -271,12 +279,15 @@ export class World {
     const { width, height } = this.app.screen;
     this.setZoom(v.zoom);
     this.camera.position.set(width / 2 - v.cx * this.zoom, height / 2 - v.cy * this.zoom);
+    this.snapCamera();
   }
 
   /** Put the camera at (x, y) and `zoom`, easing there unless motion is reduced. */
   private moveCamera(x: number, y: number, zoom: number, animate = true): void {
     const { width, height } = this.app.screen;
-    const z = clampZoom(zoom);
+    // Moves always settle on a crisp zoom step (the tween may pass through others on the way).
+    const z = snapZoom(clampZoom(zoom));
+    this.zoomGoal = undefined;
     const to = { cx: (width / 2 - x) / z, cy: (height / 2 - y) / z, zoom: z };
     if (!animate || reducedMotion()) { this.tween = undefined; this.applyView(to); }
     else this.tween = { from: this.view(), to, elapsed: 0 };
@@ -297,11 +308,17 @@ export class World {
     return !!this.tween;
   }
 
+  /**
+   * Wheel and pinch accumulate a continuous goal, but the map is drawn at the nearest crisp step,
+   * so zooming clicks between sharp levels instead of passing through blurry ones.
+   */
   private zoomAt(sx: number, sy: number, factor: number): void {
     const wx = (sx - this.camera.x) / this.zoom;
     const wy = (sy - this.camera.y) / this.zoom;
-    this.setZoom(this.zoom * factor);
+    this.zoomGoal = clampZoom((this.zoomGoal ?? this.zoom) * factor);
+    this.setZoom(snapZoom(this.zoomGoal));
     this.camera.position.set(sx - wx * this.zoom, sy - wy * this.zoom);
+    this.snapCamera();
     this.invalidate();
   }
 
@@ -322,7 +339,7 @@ export class World {
       if (this.destroyed) return;
       const area = this.visibleArea();
       const margin = isPhone() ? 40 : 80;
-      const z = clampZoom(Math.min(maxZoom, Math.min(area.w / (rect.w + margin), area.h / (rect.h + margin))));
+      const z = floorZoom(clampZoom(Math.min(maxZoom, Math.min(area.w / (rect.w + margin), area.h / (rect.h + margin)))));
       this.moveCamera(area.x + area.w / 2 - (rect.x + rect.w / 2) * z, area.y + area.h / 2 - (rect.y + rect.h / 2) * z, z, this.framed);
       this.framed = true;
     });
@@ -727,10 +744,11 @@ export class World {
     for (const station of this.stations.values()) station.setZoom(this.zoom);
     for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
     if (this.opsLabels && !this.opsLabels.title.destroyed) {
-      this.opsLabels.title.scale.set(Math.max(1, 1 / (this.opsLabels.title.unit * this.zoom)));
+      this.opsLabels.title.scale.set(crispScale(this.opsLabels.title.unit, this.zoom));
       this.opsLabels.count.visible = this.opsLabels.count.unit * this.zoom >= 0.8;
     }
     this.drawEdgeIndicators(t);
+    for (const text of PixelText.live) text.snapToPixels();
     if (this.selectBox) {
       const b = this.selectBox;
       this.edge.rect(b.x, b.y, b.w, b.h).fill({ color: STATUS.working, alpha: 0.08 }).stroke({ color: STATUS.working, width: 1, alpha: 0.9 });
