@@ -39,10 +39,14 @@ const RANK: Record<string, number> = { open: 0, draft: 1, merged: 2, closed: 3, 
  * Open and draft PRs first, then the two most recent of the rest; everything else folds into
  * "+N more" so a long-running thread's history doesn't bury the PR that needs attention.
  */
-export function orderPullRequests(prs: ThreadPullRequest[], settledShown = 2): { shown: ThreadPullRequest[]; hidden: ThreadPullRequest[] } {
+export function orderPullRequests(prs: ThreadPullRequest[], settledShown = 2, branch?: string | null): { shown: ThreadPullRequest[]; hidden: ThreadPullRequest[] } {
   const unique = [...new Map(prs.map((pr) => [`${pr.repository}#${pr.number}`, pr])).values()];
-  const sorted = unique.sort((a, b) => (RANK[prState(a)] ?? 5) - (RANK[prState(b)] ?? 5) || b.number - a.number);
-  const active = sorted.filter((pr) => RANK[prState(pr)] <= 1);
-  const rest = sorted.filter((pr) => RANK[prState(pr)] > 1);
-  return { shown: [...active, ...rest.slice(0, settledShown)], hidden: rest.slice(settledShown) };
+  // The PR for the thread's current branch leads; then open, drafts, and newest first.
+  const current = (pr: ThreadPullRequest) => (branch && pr.snapshot?.headBranch === branch ? 0 : 1);
+  const sorted = unique.sort((a, b) => current(a) - current(b) || (RANK[prState(a)] ?? 5) - (RANK[prState(b)] ?? 5) || b.number - a.number);
+  const lead = sorted.filter((pr) => current(pr) === 0);
+  const others = sorted.filter((pr) => current(pr) !== 0);
+  const active = others.filter((pr) => RANK[prState(pr)] <= 1);
+  const rest = others.filter((pr) => RANK[prState(pr)] > 1);
+  return { shown: [...lead, ...active, ...rest.slice(0, settledShown)], hidden: rest.slice(settledShown) };
 }

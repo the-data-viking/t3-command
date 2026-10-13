@@ -1931,6 +1931,10 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border: 1px s
 .sound-row input[type=range] { flex: 1; accent-color: var(--cyan); }
 .sound-value { width: 36px; text-align: right; font-family: var(--mono); }
 
+.away-digest { position: absolute; top: var(--topbar-bottom, 64px); left: 50%; transform: translateX(-50%); z-index: 4; width: min(460px, calc(100vw - 16px)); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.away-counts { margin: 0; color: var(--bright); font-family: var(--display); letter-spacing: 1px; }
+.away-actions { display: flex; justify-content: flex-end; }
+
 /* Theme picker */
 .theme-menu { position: relative; }
 .theme-list { position: absolute; right: 0; top: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; gap: 2px; padding: 6px; min-width: 220px; }

@@ -43,7 +43,8 @@ export function TopBar() {
     return () => { observer.disconnect(); document.documentElement.style.removeProperty("--topbar-bottom"); };
   }, []);
 
-  const counts = useMemo(() => fleetCounts(envs), [envs]);
+  const readReports = useGame((s) => s.readReports);
+  const counts = useMemo(() => fleetCounts(envs, readReports), [envs, readReports]);
   const totals = { working: counts.working + counts.background, monitoring: counts.monitoring, attention: counts.waiting, done: counts.reports, hurt: counts.failed, crew: counts.crew, awake: counts.awake };
 
   return (

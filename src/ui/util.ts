@@ -65,8 +65,14 @@ export function stateLabel(thread: ThreadShell, state: UnitState): string {
 
 export interface FleetCounts { working: number; background: number; monitoring: number; waiting: number; reports: number; failed: number; crew: number; awake: number }
 
+/** A finished turn's report that's been marked read in this browser (until the next turn). */
+export function reportRead(readReports: Record<string, string>, envId: string, thread: ThreadShell): boolean {
+  const turn = thread.latestTurn?.turnId;
+  return !!turn && readReports[`${envId}:${thread.id}`] === turn;
+}
+
 /** One count for the top bar, the phone dock and the tab title: Hermes sessions included. */
-export function fleetCounts(envs: Record<string, EnvWorld>): FleetCounts {
+export function fleetCounts(envs: Record<string, EnvWorld>, readReports: Record<string, string> = {}): FleetCounts {
   const c: FleetCounts = { working: 0, background: 0, monitoring: 0, waiting: 0, reports: 0, failed: 0, crew: 0, awake: 0 };
   for (const u of allUnits(envs)) {
     if (envs[u.envId]?.summary.kind !== "hermes") {
@@ -76,7 +82,7 @@ export function fleetCounts(envs: Record<string, EnvWorld>): FleetCounts {
     if (u.state === "working") { if (isBackground(u.thread, u.state)) c.background++; else c.working++; }
     else if (u.state === "monitoring") c.monitoring++;
     else if (u.state === "alert" || u.state === "question") c.waiting++;
-    else if (u.state === "done") c.reports++;
+    else if (u.state === "done") { if (!reportRead(readReports, u.envId, u.thread)) c.reports++; }
     else if (u.state === "error") c.failed++;
   }
   return c;

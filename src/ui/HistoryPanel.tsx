@@ -125,7 +125,7 @@ export function HistoryPanel() {
               <li key={`${r.envId}${r.threadId}${r.turnId}`}>
                 <span className={`pill state-${r.outcome === "completed" ? "done" : r.outcome === "error" ? "error" : "idle"}`}>{OUTCOME_LABEL[r.outcome]}</span>
                 <span className="history-title" title={r.error ?? r.threadTitle}>{r.threadTitle}</span>
-                <span className="muted small">{r.envLabel} · {formatDuration(r.durationMs)} · {timeAgo(r.completedAt)}</span>
+                <span className="muted small">{r.envLabel} · started {startTime(r.startedAt)} · {formatDuration(r.durationMs)} · {timeAgo(r.completedAt)}</span>
               </li>
             ))}
           </ol>
@@ -172,7 +172,7 @@ function LongTurns({ longest }: { longest: TurnRecord[] }) {
           <li key={`${r.envId}${r.threadId}${r.turnId}`}>
             <span className={`pill state-${r.outcome === "completed" ? "done" : r.outcome === "error" ? "error" : "idle"}`}>{OUTCOME_LABEL[r.outcome]}</span>
             <span className="history-title" title={r.threadTitle}>{r.threadTitle}</span>
-            <span className="muted small">{r.envLabel} · {formatDuration(agentMs(r))}{r.waitMs ? ` + ${formatDuration(r.waitMs)} waiting` : ""}</span>
+            <span className="muted small">{r.envLabel} · started {startTime(r.startedAt)} · {formatDuration(agentMs(r))}{r.waitMs ? ` + ${formatDuration(r.waitMs)} waiting` : ""}</span>
           </li>
         ))}
       </ol>
@@ -181,6 +181,11 @@ function LongTurns({ longest }: { longest: TurnRecord[] }) {
 }
 
 const LONG_MS = 3_600_000;
+
+/** When a turn started, so several turns of the same thread read apart: "Mon 14:02". */
+function startTime(iso: string): string {
+  return new Date(iso).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+}
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "done" | "error" }) {
   return <div className="history-stat"><span className="tele-key">{label}</span><strong className={tone ? `st-${tone}` : undefined}>{value}</strong></div>;

@@ -7,7 +7,7 @@ import { openEvent, setSelection, toggleSquad, unitKey, useGame } from "../store
 import { squadKeys } from "./squad";
 import type { UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
-import { allUnits, fleetCounts, isBackground, stateLabel, type UnitRef } from "./util";
+import { allUnits, fleetCounts, isBackground, reportRead, stateLabel, type UnitRef } from "./util";
 import { ThreadTiming } from "./ThreadTiming";
 import { PlanLine } from "./TurnTelemetry";
 import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
@@ -57,8 +57,11 @@ export function CrewRoster() {
     return () => clearTimeout(timer);
   }, [crew]);
   const waiting = fleetCounts(envs).waiting;
-  const needsYou = crew.filter((u) => NEEDS_YOU.includes(u.state));
-  const onDuty = crew.filter((u) => ON_DUTY.includes(u.state));
+  const readReports = useGame((s) => s.readReports);
+  // A report marked read waits with the crew on duty until its thread's next turn.
+  const read = (u: UnitRef) => u.state === "done" && reportRead(readReports, u.envId, u.thread);
+  const needsYou = crew.filter((u) => NEEDS_YOU.includes(u.state) && !read(u));
+  const onDuty = crew.filter((u) => ON_DUTY.includes(u.state) || read(u));
   const urgent = crew.filter((u) => u.state === "alert" || u.state === "question").length
     + operators.filter(b => b.state === 'alert' || b.state === 'question').length;
 
@@ -93,7 +96,7 @@ export function CrewRoster() {
           <span className="crew-text">
             <span className="crew-name">{u.thread.title || "Untitled"}</span>
             <span className="crew-sub">
-              <span className={`crew-state st-${isBackground(u.thread, u.state) ? "background" : u.state}`}>{stateLabel(u.thread, u.state)}</span>
+              <span className={`crew-state st-${read(u) ? "idle" : isBackground(u.thread, u.state) ? "background" : u.state}`}>{read(u) ? "Report read" : stateLabel(u.thread, u.state)}</span>
               <span className="muted"> · {envs[u.envId]?.summary.label}</span>
             </span>
             <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
