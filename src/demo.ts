@@ -157,6 +157,23 @@ function demoDetails(envs: Record<string, EnvWorld>): GameState["details"] {
   ]);
 }
 
+/** A morning's comms: what the away briefing and the comms log show. */
+function demoLog(): GameState["log"] {
+  const at = (min: number) => NOW - min * 60_000;
+  const e = (id: number, min: number, tone: GameState["log"][number]["tone"], kind: NonNullable<GameState["log"][number]["kind"]>, text: string, envId?: string, threadId?: string) =>
+    ({ id: `s${id}`, at: at(min), tone, kind, text, envId, threadId });
+  return [
+    e(1, 95, "info", "started", "\"Clear out stale worktrees\" started work", "mini", "a3"),
+    e(2, 70, "good", "done", "\"Clear out stale worktrees\" finished", "mini", "a3"),
+    e(3, 65, "good", "merged", "\"Clear out stale worktrees\": PR #72 merged (Remove stale worktrees)", "mini", "a3"),
+    e(4, 60, "bad", "failed", "\"Update Althing and Synthbench repos\" failed: Command failed: npm test exited 1", "wes", "c1"),
+    e(5, 50, "info", "started", "\"Profile the nightly import\" started work", "lab", "d1"),
+    e(6, 45, "bad", "offline", "Lost contact with lab-runner", "lab"),
+    e(7, 22, "alert", "approval", "\"Restore Glassrun Gorge Canyon\" needs your approval", "mini", "a2"),
+    e(8, 9, "alert", "question", "\"Diagnose Hollow Vein client visuals\" has a question", "agent1", "b2"),
+  ];
+}
+
 export function loadDemoFleet(): void {
   const envs = fleet();
   useGame.setState({
@@ -168,6 +185,7 @@ export function loadDemoFleet(): void {
     ] },
     storage: storage(),
     details: demoDetails(envs),
+    log: demoLog(),
     hosts: Object.fromEntries(Object.keys(envs).map((id, i) => [id, { history: [], snapshot: { sampledAt: Date.now(), cpuUtilization: 0.2 + i * 0.25, cpuCount: 8, availableMemoryBytes: 8 * GB, totalMemoryBytes: 24 * GB } }])),
   });
 }

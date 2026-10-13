@@ -24,9 +24,9 @@ test("the first snapshot after connecting is a baseline; later changes are logge
   assert.equal(log.since().length, 0);
   log.observe("e", [running("1", { hasPendingApprovals: true }), running("2")]);
   log.observe("e", [thread("1"), running("2")]);
-  assert.deepEqual(log.since().map((e) => [e.tone, e.text, e.threadId]), [
-    ["alert", `"T 1" needs your approval`, "1"],
-    ["info", `"T 2" got to work`, "2"],
+  assert.deepEqual(log.since().map((e) => [e.tone, e.kind, e.text, e.threadId]), [
+    ["alert", "approval", `"T 1" needs your approval`, "1"],
+    ["info", "started", `"T 2" started work`, "2"],
   ]);
   await log.flush();
   const saved = (await fs.readFile(path.join(dir, "comms-log.jsonl"), "utf8")).trim().split("\n");
@@ -36,6 +36,27 @@ test("the first snapshot after connecting is a baseline; later changes are logge
   await reloaded.load();
   assert.equal(reloaded.add({ tone: "info", text: "x" }).id, 3, "ids continue after a restart");
   assert.deepEqual(reloaded.since(1).map((e) => e.id), [2, 3]);
+});
+
+test("log lines are plain and typed: a failure says why, a finished job says finished", async () => {
+  const { log } = await tempLog();
+  log.observe("e", [running("1"), running("2")]);
+  const failed = thread("1", { session: { status: "error", lastError: "npm test exited 1\nstack…" },
+    latestTurn: { turnId: "b", state: "error", requestedAt: "", startedAt: "", completedAt: "", assistantMessageId: null } } as Partial<ThreadShell>);
+  log.observe("e", [failed, thread("2")]);
+  assert.deepEqual(log.since().map((e) => [e.kind, e.text]), [
+    ["failed", `"T 1" failed: npm test exited 1`],
+    ["done", `"T 2" finished`],
+  ]);
+});
+
+test("a PR that T3 newly reports merged is logged as landed, once; ones merged before connecting aren't", async () => {
+  const { log } = await tempLog();
+  const pr = (number: number, state: string) => ({ host: "github.com", repository: "o/r", number, url: "", snapshot: { state, title: `Fix ${number}`, headBranch: "h", baseBranch: "main", isDraft: false } });
+  log.observe("e", [thread("1", { pullRequests: [pr(7, "merged"), pr(8, "open")] } as Partial<ThreadShell>)]);
+  log.observe("e", [thread("1", { pullRequests: [pr(7, "merged"), pr(8, "merged")] } as Partial<ThreadShell>)]);
+  log.observe("e", [thread("1", { pullRequests: [pr(7, "merged"), pr(8, "merged")] } as Partial<ThreadShell>)]);
+  assert.deepEqual(log.since().map((e) => [e.kind, e.text]), [["merged", `"T 1": PR #8 merged (Fix 8)`]]);
 });
 
 test("a reconnect resets the baseline, so states missed while away aren't replayed", async () => {

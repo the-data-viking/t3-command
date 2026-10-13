@@ -139,7 +139,7 @@ export class StorageMonitor {
     const level = diskLevel(next);
     if (rank[level] <= rank[diskLevel(prev)]) return;
     const machine = this.registry.get(envId)?.label ?? "A machine";
-    this.comms.add({ tone: "alert", envId, text: `${machine} disk ${level === "critical" ? "nearly full" : "running low"}: ${gb(next.availableBytes)} free on ${next.mount}` });
+    this.comms.add({ tone: "alert", kind: "disk", envId, text: `${machine} disk ${level === "critical" ? "nearly full" : "running low"}: ${gb(next.availableBytes)} free on ${next.mount}` });
   }
 
   private async save(): Promise<void> {

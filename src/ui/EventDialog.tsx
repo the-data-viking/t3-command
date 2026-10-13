@@ -152,7 +152,7 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
         </div>
         <div className="event-body">
           {!request ? (
-            <p className="event-text muted">Receiving transmission…</p>
+            <p className="event-text muted">Loading the request…</p>
           ) : request.kind === "approval" ? (
             <>
               <p className="event-text">

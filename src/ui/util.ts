@@ -7,7 +7,7 @@ export const STATE_LABELS: Record<UnitState, string> = {
   question: "Has a question",
   working: "Working",
   monitoring: "Monitoring",
-  error: "Hurt",
+  error: "Failed",
   done: "Report ready",
   idle: "Idle",
   sleeping: "In camp",

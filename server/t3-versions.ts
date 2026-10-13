@@ -59,7 +59,7 @@ export class T3Versions {
       if (!summary?.serverVersion) continue; // Unreachable: nothing to compare.
       const now = { serverVersion: summary.serverVersion, protocolVersion: summary.protocolVersion ?? 1 };
       const line = versionChange(env.label, this.seen[id], now);
-      if (line) this.comms.add({ ...line, envId: id });
+      if (line) this.comms.add({ ...line, kind: "update", envId: id });
       if (this.seen[id]?.serverVersion !== now.serverVersion || this.seen[id]?.protocolVersion !== now.protocolVersion) {
         this.seen[id] = now;
         changed = true;
