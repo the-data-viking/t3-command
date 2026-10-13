@@ -32,7 +32,7 @@ export function TurnTelemetry({ shell, detail }: { shell: ThreadShell; detail: O
   const turn = turnBreakdown(detail, now);
   const compacted = compactions(detail);
   const quiet = quietness(shell, detail, now);
-  if (!plan && !turn && !compacted.count) return null;
+  if (!plan && !turn && !compacted.last) return null;
   const showPlan = plan && (plan.current || !running);
   return (
     <div className="telemetry turn-telemetry">
@@ -73,11 +73,12 @@ export function TurnTelemetry({ shell, detail }: { shell: ThreadShell; detail: O
           </span>
         </div>
       )}
-      {compacted.count > 0 && (
+      {/* T3's thread snapshot doesn't keep a stable compaction history, so only the latest is shown. */}
+      {compacted.last && (
         <div className="tele-row">
           <span className="tele-key">COMPACTED</span>
-          <span className="tele-val">
-            {compacted.count}×{compacted.last && <span className="muted"> · last {tokenLabel(compacted.last.beforeTokens)} → {tokenLabel(compacted.last.afterTokens)}</span>}
+          <span className="tele-val" title={new Date(compacted.last.at).toLocaleString()}>
+            {tokenLabel(compacted.last.beforeTokens)} → {tokenLabel(compacted.last.afterTokens)} <span className="muted">· {elapsed(Math.max(0, now - Date.parse(compacted.last.at)))} ago</span>
           </span>
         </div>
       )}

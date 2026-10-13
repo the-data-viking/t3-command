@@ -23,7 +23,7 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   background task; a health bar shows how much context window is left. While an agent works
   through a plan, pips over its head and its roster row show the step it's on ("3/5 · Write
   tests"), and the unit panel lists the whole plan. The unit panel also splits each turn into agent
-  time and time waiting on you, with tokens processed and context compactions. A running turn with
+  time and time waiting on you, with tokens processed and the latest context compaction. A running turn with
   no activity for 10 minutes and nothing waiting on you shows three amber dots and "Quiet 14m",
   and is announced once in the comms log (and as a desktop alert, if on). A long tool call or
   background tasks are named instead. Rooms are lit only
