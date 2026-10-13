@@ -11,7 +11,7 @@
 // icons light up only for real work, crew walk only for real tool calls, and supply lines carry
 // packets only while crew are working. Engineering gauges show measured whole-host load.
 
-import { Application, Container, Graphics, Rectangle, TilingSprite, type FederatedPointerEvent } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Sprite, TilingSprite, type FederatedPointerEvent } from "pixi.js";
 import { cells, STATUS_GLYPHS } from "../art/pixelfont";
 import * as A from "../art/sprites";
 import { setSelection, unitKey, useGame, type GameState, type Selection } from "../store";
@@ -27,7 +27,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { HUD, STATUS } from "./theme";
-import { label, hash, linkPoint, CAMERA_SECONDS, ROOM_SHADOW, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor } from "./map-common";
+import { label, hash, linkPoint, CAMERA_SECONDS, FADE_SECONDS, ROOM_SHADOW, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { StationSprite } from "./station-sprite";
@@ -87,6 +87,8 @@ export class World {
   private lastHosts?: GameState["hosts"];
   private lastStorage?: GameState["storage"];
   private lastStyle?: GameState["artStyle"];
+  /** The previous theme's last frame, fading out over the new one. */
+  private fade?: Sprite;
   private drawnCenter?: string;
   private drawnGrid?: string;
   private drawnLinks?: string;
@@ -467,6 +469,7 @@ export class World {
     this.lastStyle = state.artStyle;
 
     if (styleChanged && this.initialized && this.sky) {
+      this.crossfade();
       this.app.renderer.background.color = currentStyle().space;
       const previous = this.sky.texture;
       this.sky.texture = this.makeStarTexture();
@@ -632,6 +635,17 @@ export class World {
     }
   }
 
+  /** Snapshot the map as it looks now, to fade out over the restyled one (no hard cut). */
+  private crossfade(): void {
+    if (reducedMotion()) return;
+    this.fade?.destroy({ texture: true });
+    const { width, height } = this.app.screen;
+    const texture = this.app.renderer.generateTexture({ target: this.app.stage, frame: new Rectangle(0, 0, width, height) });
+    this.fade = new Sprite(texture);
+    this.fade.eventMode = "none";
+    this.app.stage.addChild(this.fade);
+  }
+
   // ---- Frame ----
 
   private tick(dt: number): boolean {
@@ -644,6 +658,10 @@ export class World {
     const frame = still ? 0 : Math.floor(t * 5); // sprite animation rate
     const sel = state.selection;
     const panning = this.stepCamera(dt);
+    if (this.fade) {
+      this.fade.alpha -= dt / FADE_SECONDS;
+      if (this.fade.alpha <= 0) { this.fade.destroy({ texture: true }); this.fade = undefined; }
+    }
 
     if (this.sky) {
       this.sky.width = this.app.screen.width;
@@ -682,8 +700,8 @@ export class World {
     for (const station of this.stations.values()) station.setZoom(this.zoom);
     for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
     this.drawEdgeIndicators(t);
-    if (still) return panning || this.doorsOpen || this.departing.size > 0 || [...this.crew.values()].some((crew) => crew.animated);
-    return panning || this.doorsOpen || this.departing.size > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
+    if (still) return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || [...this.crew.values()].some((crew) => crew.animated);
+    return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
   }
 

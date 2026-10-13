@@ -1884,6 +1884,15 @@ button.ftl-tab {
 @media (max-width: 700px) { .history-columns { grid-template-columns: 1fr; } }
 .history-modal .tele-chart { max-height: 150px; }
 
+/* Theme picker */
+.theme-menu { position: relative; }
+.theme-list { position: absolute; right: 0; top: calc(100% + 8px); z-index: 5; display: flex; flex-direction: column; gap: 2px; padding: 6px; min-width: 220px; }
+.theme-option { display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: none; border: 2px solid transparent; border-radius: 4px; color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.theme-option:hover, .theme-option:focus-visible { border-color: var(--edge-strong); }
+.theme-option.active { border-color: var(--frame); color: var(--bright); }
+.theme-swatch { display: inline-flex; border: 1px solid var(--edge-strong); }
+.theme-swatch i { width: 10px; height: 16px; }
+
 /* ---- Phone layout (src/ui/phone.ts); kept last so it wins the cascade ---- */
 
 /* Off phones the menu wrapper is invisible to layout and the phone-only bits are hidden. */
@@ -1917,6 +1926,10 @@ button.ftl-tab {
   .topbar-more > .icon-btn { flex: 1 1 40%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 2px solid var(--edge-strong); border-radius: 4px; color: var(--text); }
   .phone-label { display: inline; font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
   .update-panel { position: fixed; left: 8px; right: 8px; top: var(--topbar-bottom, 64px); width: auto; }
+  .topbar-more > .theme-menu { flex: 1 1 40%; }
+  .topbar-more > .theme-menu > .icon-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 2px solid var(--edge-strong); border-radius: 4px; color: var(--text); }
+  .theme-list { position: fixed; left: 8px; right: 8px; top: auto; bottom: max(8px, env(safe-area-inset-bottom)); max-height: 70dvh; overflow-y: auto; }
+  .theme-option { min-height: 44px; }
 
   /* Crew dock along the bottom edge; opens upward over the map. */
   .crew-roster {

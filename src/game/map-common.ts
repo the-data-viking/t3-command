@@ -68,6 +68,8 @@ export const BEAM_SECONDS = 0.9;
 /** How long sparks fly after a failed turn before it settles into a scorch mark. */
 export const SPARK_MS = 60_000;
 export const CAMERA_SECONDS = 0.35;
+/** Theme changes crossfade from the old look over this long. */
+export const FADE_SECONDS = 0.45;
 /** Rooms nobody is using sit in this much shadow; crew and lit rooms stay bright. */
 export const ROOM_SHADOW = 0.32;
 /** A crew member this new appearing on an already-loaded station was just recruited. */

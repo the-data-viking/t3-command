@@ -3,7 +3,7 @@ import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { css, teamColor } from "../game/theme";
 import { worldRef } from "../game/world";
-import { openHost, setSelection, setArtStyle, setMuted, useGame, setNotify } from "../store";
+import { openHost, setSelection, setMuted, useGame, setNotify } from "../store";
 import { hostView } from "../t3/host";
 import { isHistory, unitState } from "../t3/derive";
 import { jumpTo } from "./hotkeys";
@@ -15,6 +15,7 @@ import { HermesMark } from './HermesControlCenter';
 import { botOperators } from '../t3/bots';
 import { PixelIcon } from "./PixelArt";
 import { usePhone } from "./phone";
+import { ThemePicker } from "./ThemePicker";
 
 export function TopBar() {
   const bar = useRef<HTMLElement>(null);
@@ -23,7 +24,6 @@ export function TopBar() {
   const muted = useGame((s) => s.muted);
   const notify = useGame((s) => s.notify);
   const showLog = useGame((s) => s.showLog);
-  const artStyle = useGame((s) => s.artStyle);
   const hermesCatalog = useGame(s => s.hermesCatalog);
   const hermes = Object.values(envs).filter(e => e.summary.kind === 'hermes');
   const operators = botOperators({ envs, hermesCatalog });
@@ -148,14 +148,7 @@ export function TopBar() {
       <button className="icon-btn menu-closes" title="Fit fleet (F)" aria-label="Fit fleet" onClick={() => worldRef.current?.fitAll()}>
         <PixelIcon name="fit" /><span className="phone-label">Fit fleet</span>
       </button>
-      <button
-        className="icon-btn style-toggle"
-        title={artStyle === "flightdeck" ? "Flight Deck (warm). Switch to Night Shift" : "Flight Deck · Night Shift. Switch to warm plating"}
-        aria-label="Switch map style"
-        onClick={() => setArtStyle(artStyle === "flightdeck" ? "flightdeck-nightshift" : "flightdeck")}
-      >
-        <PixelIcon name={artStyle === "flightdeck" ? "sun" : "moon"} /><span className="phone-label">{artStyle === "flightdeck" ? "Warm" : "Night shift"}</span>
-      </button>
+      <ThemePicker />
       {typeof Notification !== "undefined" && (
         <button className="icon-btn" aria-pressed={notify} onClick={() => void setNotify(!notify)}
           title={notify ? "Desktop alerts on: approvals and questions notify you while this tab isn't in view" : "Turn on desktop alerts for approvals and questions"}

@@ -120,9 +120,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   rows with a failure count. Turn errors and approval requests stay visible.
 - Synthesized sound effects (mutable) and a comms feed of events.
 
-The map uses compact suited crew and wraparound system consoles. Switch between Night Shift
-and warm Flight Deck plating with the style button. Existing Kestrel/Night Shift browser
-preferences carry forward to the corresponding Flight Deck palette.
+The map uses compact suited crew and wraparound system consoles. The theme button opens a picker
+with Night Shift (the default), warm Flight Deck plating, Signal Workshop, Kestrel, Pastel Ops and
+High Contrast. Each theme recolors the map and the HUD's frames and wells. Status and gauge colors
+never change meaning between themes. High Contrast uses black space, white frames and text, and
+light hulls on dark floors. It is chosen automatically if your system asks for more contrast and
+you haven't picked a theme yet. Switching crossfades the map, except under reduced motion. Earlier
+saved preferences (warm or Night Shift) carry over.
 
 The pixel-art map renders at one backing pixel per CSS pixel and at most 30 FPS. It stops
 redrawing when the fleet is idle and pauses while the page is hidden; live connections and
