@@ -7,7 +7,13 @@ export type Silhouette = "round" | "angular";
 export type Tier = "light" | "standard" | "heavy" | "reviewer";
 /** Walk frames: stride (A), passing (B), the other stride (C), passing (B); "behind" is seated at a console, seen from behind. */
 export type Legs = "idle" | "walkA" | "walkB" | "walkC" | "sit" | "behind";
-export type Arms = "idle" | "typeA" | "typeB";
+/**
+ * Arm poses. Typing alternates A and B; seated crew can also raise a hand (waving between
+ * raise and raiseB) or lean back with hands behind the head (relax).
+ */
+export type Arms = "idle" | "typeA" | "typeB" | "raise" | "raiseB" | "relax";
+/** Where a seated crew member's head is: glancing left or right, or bowed down. */
+export type Head = "" | "left" | "right" | "down";
 
 export interface Fill {
   team?: number;

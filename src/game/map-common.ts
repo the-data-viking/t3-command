@@ -5,6 +5,7 @@ import { PixelText } from "./pixel-text";
 import { fitText } from "../art/pixelfont";
 import * as A from "../art/sprites";
 import type { UnitState } from "../t3/derive";
+import type { Arms, Head } from "../art/render";
 import type { Point } from "./layout";
 import { PX, tex } from "./textures";
 import { STATUS } from "./theme";
@@ -161,6 +162,22 @@ export function screenColor(state: UnitState, frame: number, atConsole: boolean)
     default:
       return SCREEN_OFF;
   }
+}
+
+/**
+ * How someone seated at a console sits, from their state: typing while working, a hand up and
+ * waving while they wait on you, leaning back with a report ready, head bowed after a failure.
+ * Otherwise they now and then glance left or right (seeded, so neighbours don't move in step).
+ * Offline crew hold still.
+ */
+export function seatedPose(state: UnitState, frame: number, t: number, seed: number, offline = false): { arms: Arms; head: Head } {
+  if (offline) return { arms: "idle", head: "" };
+  if (state === "working") return { arms: frame % 2 ? "typeA" : "typeB", head: Math.floor(t * 1.5 + seed * 20) % 9 === 0 ? "down" : "" };
+  if (state === "alert" || state === "question") return { arms: frame % 4 < 2 ? "raise" : "raiseB", head: "" };
+  if (state === "done") return { arms: "relax", head: "" };
+  if (state === "error") return { arms: "idle", head: "down" };
+  const glance = Math.sin(t * 0.7 + seed * 40);
+  return { arms: "idle", head: glance > 0.85 ? "right" : glance < -0.85 ? "left" : "" };
 }
 
 export const BADGES: Partial<Record<UnitState, A.Grid>> = {

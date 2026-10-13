@@ -8,7 +8,7 @@ import type { UnitState } from '../t3/derive';
 import type { ControlCenterLayout, Rect } from './layout';
 import { GAUGE, mapInk, platingMaterials, modelTier, providerSilhouette, STATUS } from './theme';
 import { crewTex, currentStyle, PX, tex } from './textures';
-import { crispScale, figureBoost, fitLabel, pixelDiamond, steppedPlate } from './map-common';
+import { crispScale, figureBoost, fitLabel, hash, pixelDiamond, seatedPose, steppedPlate } from './map-common';
 
 const badges: Partial<Record<UnitState, A.Grid>> = {
   alert: A.BADGE_ALERT, question: A.BADGE_QUESTION, done: A.BADGE_DONE,
@@ -175,10 +175,11 @@ export class ControlCenterSprite {
     // Names fit their own bay at any zoom, so neighbours never run together ("DEFAULMONEY GUY").
     for (const name of this.names) fitLabel(name.label, name.full, name.width, zoom);
     for (const { bot, figure, console, badge, workstation } of this.operators) {
-      const active = bot.observed && bot.state === 'working';
       const color = botColor(bot.name);
+      // Operators sit like bridge crew: typing, a hand up when they need you, leaning back with a report.
+      const pose = seatedPose(bot.observed ? bot.state : 'idle', frame, frame / 5, hash(bot.name));
       figure.texture = crewTex(providerSilhouette(bot.provider ?? 'hermes'), modelTier(bot.model ?? ''),
-        'behind', active ? (frame % 2 ? 'typeA' : 'typeB') : 'idle', color, HERMES_COLOR);
+        'behind', pose.arms, color, HERMES_COLOR, pose.head);
       figure.scale.set(PX * figureBoost(zoom, PX));
       const screen = bot.observed && bot.state !== 'idle' ? STATUS[bot.state] : 0x1c2228;
       console.texture = tex(A.CONSOLE, { screen });
