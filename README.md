@@ -33,6 +33,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   unreachable machine's deck shows snow on its screens and NO SIGNAL, with severed supply lines.
   A disk that's nearly full gets hazard stripes, and crew beam out when their thread is archived
   or removed. All of it is static after the first minute, so it never keeps the map redrawing.
+  Each station hull is stepped pixel plating with its own exterior: viewports, an engine block and
+  a dish or mast, varied per project. Claude crew wear a round bubble helmet and Codex crew an
+  angular helmet with a visor slit and crest; the chest plate carries the machine's team colour, and
+  crew sit at their consoles instead of standing in front of them.
   Zoomed out, each engineering deck shows its machine's callsign in large type on a dark band, and
   Hermes operators keep their names. A crew member whose turn has run past 2, 6, 12 and 24 hours
   gets a pip for each beside the head (amber, then rose past 12 hours). Rooms are lit only
