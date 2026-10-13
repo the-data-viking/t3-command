@@ -145,6 +145,8 @@ export function TopBar() {
         History
       </button>
       <UpdatePanel />
+      {phone && <button className="btn menu-closes" onClick={() => useGame.setState({ showPalette: true })}>Search</button>}
+      {phone && <button className="btn menu-closes" onClick={() => useGame.setState({ showHelp: true })}>Help</button>}
       <button className="icon-btn menu-closes" title="Fit fleet (F)" aria-label="Fit fleet" onClick={() => worldRef.current?.fitAll()}>
         <PixelIcon name="fit" /><span className="phone-label">Fit fleet</span>
       </button>

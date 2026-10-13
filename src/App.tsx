@@ -8,6 +8,9 @@ import { BuildingPanel } from "./ui/BuildingPanel";
 import { EnvManager } from "./ui/EnvManager";
 import { CommsLog, EventLog } from "./ui/EventLog";
 import { HistoryPanel } from "./ui/HistoryPanel";
+import { SquadBar } from "./ui/SquadBar";
+import { CommandPalette } from "./ui/CommandPalette";
+import { HelpOverlay } from "./ui/HelpOverlay";
 import { LibraryPanel } from "./ui/LibraryPanel";
 import { installHotkeys } from "./ui/hotkeys";
 import { MapView } from "./ui/MapView";
@@ -52,6 +55,8 @@ export default function App() {
   const showEnvManager = useGame((s) => s.showEnvManager);
   const showLog = useGame((s) => s.showLog);
   const showHistory = useGame((s) => s.showHistory);
+  const showPalette = useGame((s) => s.showPalette);
+  const showHelp = useGame((s) => s.showHelp);
   const [fatal, setFatal] = useState<string>();
 
   useEffect(() => {
@@ -108,12 +113,15 @@ export default function App() {
       <EventLog />
       {showLog && <CommsLog />}
       {showHistory && <HistoryPanel />}
+      <SquadBar />
+      {showPalette && <CommandPalette />}
+      {showHelp && <HelpOverlay />}
       {hostPanel && <HostPanel envId={hostPanel} />}
       {selection?.kind === "hermes" && <HermesControlCenter key={selection.envId} envId={selection.envId} profile={selection.profile} />}
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
       {selection?.kind === "library" && <LibraryPanel key={`lib:${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
       {selection?.kind === "building" && <BuildingPanel key={`${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
-      <div className="hint">DRAG pan · SCROLL zoom · SPACE next alert · . next report · W next active · M next monitoring · F fit fleet · L log · H history</div>
+      <div className="hint">CTRL-K command · ? help · DRAG pan · SCROLL zoom · SHIFT pick squad · SPACE next alert · . next report · W next active · F fit fleet · L log · H history</div>
       <EventDialog />
       {showEnvManager && <EnvManager />}
     </div>

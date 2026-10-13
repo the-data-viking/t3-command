@@ -103,6 +103,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   Waiting badges use the oldest unanswered request timestamp when available; crew show running
   turn duration, and the thread panel also shows the last completed turn's duration. Live timers
   tick every second while visible.
+- **Command palette and squads**: **Ctrl/⌘-K** finds any crew member, station, machine or panel.
+  It can also switch themes, sound or alerts, and send the selected crew to camp or wake them.
+  Shift-click crew (on the map or roster) or shift-drag a box on the map to pick a squad, then send
+  them all to camp or wake them from the squad bar. **Ctrl or Alt + 1–9** saves the squad (or the
+  selected crew member) as a control group. **1–9** recalls it, and pressing again frames it on the
+  map. Alt works where the browser keeps Ctrl+digit for switching tabs. **?** lists every key and
+  explains what the map's lights and effects mean.
 - **Navigation**: sector minimap, station chips in the top bar that jump to their station, and
   project banners that stay readable when zoomed out. Environment chips frame all of that environment’s
   project modules and attached engineering nodes.

@@ -3,7 +3,8 @@ import { stationColor } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { contextLevel, css, modelTier, TIER_LABEL } from "../game/theme";
 import { worldRef } from "../game/world";
-import { openEvent, setSelection, unitKey, useGame } from "../store";
+import { openEvent, setSelection, toggleSquad, unitKey, useGame } from "../store";
+import { squadKeys } from "./squad";
 import type { UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { allUnits, STATE_LABELS, type UnitRef } from "./util";
@@ -42,7 +43,12 @@ export function CrewRoster() {
   const urgent = crew.filter((u) => u.state === "alert" || u.state === "question").length
     + operators.filter(b => b.state === 'alert' || b.state === 'question').length;
 
-  const open = (u: UnitRef) => {
+  const squad = useGame((s) => s.squad);
+  const picked = squadKeys(squad);
+
+  const open = (u: UnitRef, e?: React.MouseEvent) => {
+    // Shift-click builds a squad for batch actions instead of opening one crew member.
+    if (e?.shiftKey) { sfx.select(); toggleSquad({ envId: u.envId, threadId: u.thread.id }); return; }
     pick();
     sfx.select();
     const sel = { kind: "unit" as const, envId: u.envId, threadId: u.thread.id };
@@ -60,7 +66,7 @@ export function CrewRoster() {
     const active = selection?.kind === "unit" && selection.envId === u.envId && selection.threadId === u.thread.id;
     return (
       <li key={key}>
-        <button className={`crew-row ${active ? "active" : ""} row-${u.state}`} onClick={() => open(u)}
+        <button className={`crew-row ${active ? "active" : ""} ${picked.has(key) ? "in-squad" : ""} row-${u.state}`} aria-pressed={picked.has(key) || undefined} onClick={(e) => open(u, e)}
           title={u.state === "error" && u.thread.session?.lastError ? `Turn failed: ${u.thread.session.lastError}` : undefined}>
           <span className="mini-portrait sprite" style={{ ["--team" as string]: team }} title={TIER_LABEL[tier]}>
             <CrewPortrait instanceId={u.thread.modelSelection.instanceId} model={u.thread.modelSelection.model} team={stationColor(useGame.getState(), u.envId)} scale={1} />

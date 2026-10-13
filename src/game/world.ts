@@ -14,7 +14,7 @@
 import { Application, Container, Graphics, Rectangle, Sprite, TilingSprite, type FederatedPointerEvent } from "pixi.js";
 import { cells, STATUS_GLYPHS } from "../art/pixelfont";
 import * as A from "../art/sprites";
-import { setSelection, unitKey, useGame, type GameState, type Selection } from "../store";
+import { setSelection, setSquad, unitKey, useGame, type GameState, type Selection, type SquadMember } from "../store";
 import { isHistory, unitState, type UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { computeFleetLayout, fingerprint, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type StationLayout, type SystemRoom } from "./layout";
@@ -67,6 +67,8 @@ export class World {
   private controlCenter?: ControlCenterSprite;
   private lastCatalog?: GameState["hermesCatalog"];
   private crew = new Map<string, CrewSprite>();
+  /** Screen-space rectangle of an in-progress shift-drag selection. */
+  private selectBox?: Rect;
   /** Crew beaming out after their thread was archived or removed. */
   private departing = new Set<CrewSprite>();
   private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
@@ -134,7 +136,7 @@ export class World {
       return animated;
     });
     this.unsubscribe = useGame.subscribe((s, prev) => {
-      if (s.envs !== prev.envs || s.details !== prev.details || s.hosts !== prev.hosts || s.selection !== prev.selection || s.hermesCatalog !== prev.hermesCatalog || s.artStyle !== prev.artStyle) this.invalidate();
+      if (s.envs !== prev.envs || s.details !== prev.details || s.hosts !== prev.hosts || s.selection !== prev.selection || s.squad !== prev.squad || s.hermesCatalog !== prev.hermesCatalog || s.artStyle !== prev.artStyle) this.invalidate();
     });
     this.resizeObserver = new ResizeObserver(() => {
       if (this.destroyed) return;
@@ -195,7 +197,8 @@ export class World {
     stage.on("pointermove", this.invalidate);
     stage.on("pointerover", this.invalidate);
     stage.on("pointerout", this.invalidate);
-    let drag: { x: number; y: number; camX: number; camY: number; moved: boolean } | null = null;
+    // Shift-drag draws a selection box instead of panning.
+    let drag: { x: number; y: number; camX: number; camY: number; moved: boolean; box: boolean } | null = null;
     // Two fingers down: pinch to zoom about their midpoint, and pan as the midpoint moves.
     const touches = new Map<number, { x: number; y: number }>();
     let pinch: { distance: number; x: number; y: number } | null = null;
@@ -218,7 +221,7 @@ export class World {
         drag = null;
         return;
       }
-      drag = { x: e.global.x, y: e.global.y, camX: this.camera.x, camY: this.camera.y, moved: false };
+      drag = { x: e.global.x, y: e.global.y, camX: this.camera.x, camY: this.camera.y, moved: false, box: e.shiftKey && e.pointerType !== "touch" };
     });
     stage.on("globalpointermove", (e: FederatedPointerEvent) => {
       if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.global.x, y: e.global.y });
@@ -234,13 +237,21 @@ export class World {
       const dx = e.global.x - drag.x;
       const dy = e.global.y - drag.y;
       if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
-      if (drag.moved) {
+      if (drag.moved && drag.box) {
+        this.selectBox = { x: Math.min(drag.x, e.global.x), y: Math.min(drag.y, e.global.y), w: Math.abs(dx), h: Math.abs(dy) };
+        this.invalidate();
+      } else if (drag.moved) {
         this.userMoved = true;
         this.camera.position.set(drag.camX + dx, drag.camY + dy);
         this.invalidate();
       }
     });
     stage.on("pointerup", (e: FederatedPointerEvent) => {
+      if (drag?.box && drag.moved && this.selectBox) {
+        this.boxSelect(this.selectBox);
+        this.selectBox = undefined;
+        this.invalidate();
+      }
       if (drag && !drag.moved && e.target === stage && !gesturing() && !(e.pointerType === "touch" && this.tapNearbyCrew(e.global.x, e.global.y))) setSelection(null);
       // A pan that ends over a crew member or module isn't a tap on it (taps fire after this).
       if (drag?.moved) holdTaps(50);
@@ -248,6 +259,7 @@ export class World {
       lift(e);
     });
     stage.on("pointerupoutside", (e: FederatedPointerEvent) => {
+      if (this.selectBox) { this.selectBox = undefined; this.invalidate(); }
       drag = null;
       lift(e);
     });
@@ -389,6 +401,31 @@ export class World {
   /** Where a crew member is aboard: a project station or an engineering bay. */
   private crewStation(lay: CrewLayout): StationLayout | undefined {
     return this.layout.stations.get(lay.stationKey) ?? this.layout.bays.get(lay.stationKey);
+  }
+
+  /** Add every crew member inside a screen rectangle to the squad. */
+  private boxSelect(box: Rect): void {
+    const inside: SquadMember[] = [];
+    for (const sprite of this.crew.values()) {
+      if (!sprite.visible) continue;
+      const c = sprite.toGlobal({ x: 0, y: -20 });
+      if (c.x >= box.x && c.x <= box.x + box.w && c.y >= box.y && c.y <= box.y + box.h) inside.push({ envId: sprite.envId, threadId: sprite.threadId });
+    }
+    if (!inside.length) return;
+    sfx.select();
+    const { squad } = useGame.getState();
+    const have = new Set(squad.map((m) => unitKey(m.envId, m.threadId)));
+    setSquad([...squad, ...inside.filter((m) => !have.has(unitKey(m.envId, m.threadId)))]);
+  }
+
+  /** Frame a set of crew (a recalled control group). */
+  frameCrew(members: SquadMember[]): void {
+    const keys = new Set(members.map((m) => unitKey(m.envId, m.threadId)));
+    const points = [...this.crew.entries()].filter(([key]) => keys.has(key)).map(([, sprite]) => sprite.pos);
+    if (!points.length) return;
+    const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
+    const x = Math.min(...xs) - 40, y = Math.min(...ys) - 60;
+    this.focusRect({ x, y, w: Math.max(...xs) + 40 - x, h: Math.max(...ys) + 20 - y });
   }
 
   /** The station holding a given environment's project. */
@@ -657,6 +694,7 @@ export class World {
     const t = still ? 0 : this.time;
     const frame = still ? 0 : Math.floor(t * 5); // sprite animation rate
     const sel = state.selection;
+    const squad = new Set(state.squad.map((m) => unitKey(m.envId, m.threadId)));
     const panning = this.stepCamera(dt);
     if (this.fade) {
       this.fade.alpha -= dt / FADE_SECONDS;
@@ -687,6 +725,7 @@ export class World {
       const s = lay && this.crewStation(lay);
       if (!lay || !s) continue;
       const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
+      sprite.inSquad = squad.has(key);
       sprite.tick(lay, s, t, dt, frame, selected, this.zoom);
     }
     for (const sprite of this.departing) {
@@ -700,6 +739,10 @@ export class World {
     for (const station of this.stations.values()) station.setZoom(this.zoom);
     for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
     this.drawEdgeIndicators(t);
+    if (this.selectBox) {
+      const b = this.selectBox;
+      this.edge.rect(b.x, b.y, b.w, b.h).fill({ color: STATUS.working, alpha: 0.08 }).stroke({ color: STATUS.working, width: 1, alpha: 0.9 });
+    }
     if (still) return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || [...this.crew.values()].some((crew) => crew.animated);
     return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
