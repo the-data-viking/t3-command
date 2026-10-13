@@ -153,7 +153,8 @@ export class ControlCenterSprite {
     this.root.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation(); if (gesturing()) return; setSelection({ kind: 'hermes', envId: center.envId });
     });
-    this.root.alpha = live ? 1 : 0.55;
+    // Offline: an opaque grey tint, not a see-through hall.
+    this.root.tint = live ? 0xffffff : 0x6a6f76;
   }
 
   private fixture(grid: A.Grid, x: number, y: number, ax: number, ay: number): Sprite {

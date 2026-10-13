@@ -13,7 +13,7 @@ import { freeLabel, storageSummary } from "../t3/storage";
 import type { StorageView } from "../../shared/storage";
 import { currentStyle, PX, tex } from "./textures";
 import { GAUGE, mapInk, STATUS } from "./theme";
-import { label, fitLabel, truncate, sprite, hash, ROOM_SHADOW } from "./map-common";
+import { label, fitLabel, truncate, sprite, hash, pixelBox, ROOM_SHADOW } from "./map-common";
 import { worldRef } from "./world-ref";
 
 // ---- Environment service nodes -----------------------------------------------------------------------------
@@ -67,7 +67,8 @@ export class EnvironmentNodeSprite {
     const h = node.hull, c = currentStyle().colors;
     this.hull = h;
     // Docking hatch above the deck, where bridge collars and conduits attach.
-    const hatch = new Graphics().rect(h.x+h.w/2-18,h.y-4,36,8).fill(c.D).stroke({color:c.k,width:2});
+    const hatch = new Graphics();
+    pixelBox(hatch, h.x + h.w / 2 - 20, h.y - 6, 40, 12, c.D, c.k);
     this.root.addChild(hatch, sprite(tex(FLIGHT_KIT.ENGINEERING_DECK, { team: node.color }), h.x, h.y));
     this.meters = new Graphics();
     this.cells = new Graphics();
@@ -177,10 +178,10 @@ export class EnvironmentNodeSprite {
       }
     }
     if (this.diskCritical) {
-      // Amber-and-black hazard stripes, stepped one pixel per row so they read as diagonal.
+      // Amber-and-black hazard tape, stepped one pixel per row so the stripes run at 45°.
       const r = ENGINEERING_SPOTS.hazard;
       for (let y = 0; y < r.h; y++) {
-        for (let x = 0; x < r.w; x++) px(r.x + x, r.y + y, (x + y) % 6 < 3 ? GAUGE.high : 0x14110d);
+        for (let x = 0; x < r.w; x++) px(r.x + x, r.y + y, (x + y) % 4 < 2 ? GAUGE.high : 0x14110d);
       }
     }
   }

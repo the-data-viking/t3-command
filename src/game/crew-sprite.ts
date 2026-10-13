@@ -264,12 +264,12 @@ export class CrewSprite extends Container {
         const bob = this.state === "alert" || this.state === "question" ? (frame % 2) * PX : 0;
         // Beside the head: seated, it moves right and down with it, off the console screen.
         this.badge.position.set(this.lift ? 14 : 8, -40 + this.lift - bob);
-        this.badge.alpha = this.offline ? 0.5 : 1;
+        this.badge.tint = this.offline ? 0x8a919a : 0xffffff;
       }
     }
 
     this.arriving = Math.max(0, this.arriving - dt);
-    this.figure.alpha = this.offline ? 0.7 : 1;
+    this.figure.alpha = 1; // Offline crew are greyed by tint, never see-through.
     this.drawReveal(this.arriving ? 1 - this.arriving / BEAM_SECONDS : 1);
     this.drawFx(t, selected, zoom, resting);
     this.drawRing(selected, t, resting);
@@ -295,7 +295,11 @@ export class CrewSprite extends Container {
     if (this.arriving) this.drawBeam(f, this.arriving / BEAM_SECONDS, t);
     if (sleeping) {
       const drift = (t * 0.5 + this.seed) % 1;
-      f.rect(snap(10 + drift * 8), snap(-12 - drift * 14), 4, 2).fill({ color: 0xffffff, alpha: 1 - drift });
+      // A pixel "z" drifting up from the pillow, gone before it fades (no translucency).
+      if (drift < 0.85) {
+        const zx = snap(10 + drift * 8), zy = snap(-14 - drift * 14);
+        f.rect(zx, zy, 6, 2).fill(0xffffff).rect(zx + 2, zy + 2, 2, 2).fill(0xffffff).rect(zx, zy + 4, 6, 2).fill(0xffffff);
+      }
       return;
     }
     if (this.offline) {
@@ -380,7 +384,9 @@ export class CrewSprite extends Container {
       const rise = (k * (40 + lane * 24)) | 0;
       const y = Math.round((-30 - rise + Math.sin(k * 8 + j) * 3) / 2) * 2;
       if ((j + Math.floor(k * 12)) % 3 === 0) continue; // Twinkle.
-      f.rect(x, y, 2, 2).fill({ color: colors[j % 3], alpha: 1 - k });
+      // A 2-px "+" spark per piece, opaque; pieces wink out near the end instead of fading.
+      if (k > 0.85 && j % 2) continue;
+      f.rect(x - 2, y, 6, 2).fill(colors[j % 3]).rect(x, y - 2, 2, 6).fill(colors[j % 3]);
     }
   }
 
@@ -404,12 +410,18 @@ export class CrewSprite extends Container {
 
   /** A teleporter column in the crew member's team color at strength `fade` (0–1). */
   private drawBeam(f: Graphics, fade: number, t: number): void {
-    f.rect(-12, -56, 24, 58).fill({ color: this.team, alpha: 0.18 * fade });
+    // The column is a sparse dither of team-coloured cells that thins out as the beam fades,
+    // rather than a see-through box.
+    for (let y = -56; y < 2; y += 4) {
+      for (let x = -12; x < 12; x += 4) {
+        if ((BAYER[(y / 4) & 3][(x / 4) & 3] + 0.5) / 16 < fade * 0.3) f.rect(x, y, 2, 2).fill(this.team);
+      }
+    }
     for (const x of [-10, -4, 2, 8]) {
       const y = -56 + ((t * 90 + x * 7 + this.seed * 50) % 52);
-      f.rect(x, snap(y), 2, 4).fill({ color: 0xffffff, alpha: 0.8 * fade });
+      if (fade > 0.2) f.rect(x, snap(y), 2, 4).fill(0xffffff);
     }
-    f.rect(-14, -2, 28, 4).fill({ color: this.team, alpha: 0.6 * fade });
+    if (fade > 0.3) f.rect(-14, -2, 28, 4).fill(this.team);
   }
 
   /**
@@ -417,23 +429,27 @@ export class CrewSprite extends Container {
    * wisp of smoke stay until the thread moves on. Under reduced motion only the scorch and smoke.
    */
   private drawDamage(f: Graphics, t: number): void {
-    f.rect(-12, -2, 24, 3).fill({ color: 0x0b0d0f, alpha: 0.5 });
+    // Scorch: two rows of dark cells, the outer ones broken up.
+    f.rect(-10, -2, 20, 2).fill(0x16191c).rect(-12, 0, 24, 2).fill(0x16191c);
     const still = reducedMotion() || !this.sparking();
     for (let i = 0; i < 3; i++) {
       const drift = still ? i / 3 : (t * 0.35 + i / 3 + this.seed) % 1;
       const x = snap(-8 + Math.sin(drift * 6 + i) * 3);
-      f.rect(x, snap(-48 - drift * 18), 4, 4).fill({ color: 0x8a939c, alpha: (1 - drift) * 0.55 });
+      // Smoke steps from light to dark grey as it rises, and is gone near the top: no see-through puffs.
+      if (drift > 0.8) continue;
+      f.rect(x, snap(-48 - drift * 18), 4, 4).fill(drift < 0.3 ? 0x8a939c : drift < 0.55 ? 0x6a7078 : 0x4c5157);
     }
     if (still) return;
     const cycle = (t * 0.9 + this.seed) % 1;
     if (cycle > 0.4) return;
     const k = cycle / 0.4;
-    f.rect(6, -34, 8, 8).fill({ color: 0xffd166, alpha: (1 - k) * 0.5 }); // the flash
+    // The flash: a 5-cell pixel star for the first half of the burst.
+    if (k < 0.5) f.rect(8, -34, 2, 6).fill(0xffd166).rect(6, -32, 6, 2).fill(0xffd166);
     for (let j = 0; j < 8; j++) {
       const a = (j / 8) * Math.PI * 2 + this.seed * 6;
       const r = 4 + k * 16;
-      f.rect(snap(10 + Math.cos(a) * r), snap(-30 + Math.sin(a) * r * 0.7 + k * k * 10), 2, 2)
-        .fill({ color: j % 2 ? 0xffd166 : 0xffffff, alpha: 1 - k * 0.6 });
+      if (k > 0.8 && j % 2) continue;
+      f.rect(snap(10 + Math.cos(a) * r), snap(-30 + Math.sin(a) * r * 0.7 + k * k * 10), 2, 2).fill(j % 2 ? 0xffd166 : 0xffffff);
     }
   }
 
