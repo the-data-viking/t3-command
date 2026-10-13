@@ -30,7 +30,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { HUD, SELECTION, STATUS, platingMaterials } from "./theme";
-import { crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval } from "./map-common";
+import { FLEET_VIEW_ZOOM, pixelFrame, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { StationSprite } from "./station-sprite";
@@ -58,6 +58,8 @@ export class World {
   private operations = new Container();
   private links = new Graphics();
   private packets = new Graphics();
+  /** The fleet view's room blocks and crew glyphs, drawn only when zoomed far out. */
+  private fleetView = new Graphics();
   private stationLayer = new Container();
   private environmentLayer = new Container();
   private lights = new Graphics();
@@ -139,7 +141,7 @@ export class World {
     this.backdrop = new Backdrop(this.app.renderer);
     this.backdrop.build(useGame.getState().artStyle, this.app.screen.width, this.app.screen.height);
     this.crewLayer.sortableChildren = true;
-    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.shade, this.lights, this.crewLayer, this.crewLabels, this.overlay);
+    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.shade, this.lights, this.fleetView, this.crewLayer, this.crewLabels, this.overlay);
     this.app.stage.addChild(this.backdrop.root, this.camera, this.edge, this.edgeHits);
     this.setupCamera();
 
@@ -752,6 +754,7 @@ export class World {
     }
     this.separateLabels();
     this.drawLights(state, sel, t, frame);
+    this.drawFleetView(state, sel);
     // Labels are sized for the zoom the camera is settling on, not each in-between frame of a
     // move; otherwise they jump between whole-pixel sizes and re-truncate as the camera eases.
     const labelZoom = this.tween?.to.zoom ?? this.zoom;
@@ -966,6 +969,50 @@ export class World {
       const s = this.stationFor(sel.envId, sel.projectId);
       // The hull is a chamfered box: [x+c, y, …, x, y+c]. Outline it in pixel steps.
       if (s) { const h = s.hull; chamferOutline(o, h[12], h[1], h[4] - h[12], h[9] - h[1], h[0] - h[12], SELECTION); }
+    }
+  }
+
+  /**
+   * Zoomed far out, stations become flat blocks of their rooms and each awake crew member a
+   * status glyph laid out inside, most urgent first: the sprites would pile up and the station
+   * art break apart at that scale. Glyph cells are two screen pixels at every far zoom.
+   */
+  private drawFleetView(state: GameState, sel: Selection): void {
+    const g = this.fleetView.clear();
+    const far = this.zoom < FLEET_VIEW_ZOOM;
+    this.crewLayer.visible = !far;
+    this.crewLabels.visible = !far;
+    if (!far) return;
+    const c = currentStyle().colors;
+    const plating = platingMaterials(state.artStyle);
+    const cell = Math.round(2 / this.zoom);
+    const tone: Record<RoomKind, number> = { bridge: c.f, terminal: c.p, files: c.p, comms: c.p, quarters: c.q, archive: c.F };
+    const urgency: UnitState[] = ["alert", "question", "error", "done", "working", "monitoring", "idle", "sleeping"];
+    const byStation = new Map<string, CrewSprite[]>();
+    for (const sprite of this.crew.values()) {
+      const lay = this.layout.crew.get(sprite.key);
+      if (!lay || lay.sleeping) continue;
+      byStation.set(lay.stationKey, [...(byStation.get(lay.stationKey) ?? []), sprite]);
+    }
+    for (const s of this.layout.stations.values()) {
+      const i = s.interior;
+      g.rect(i.x, i.y, i.w, i.h).fill(plating.slot);
+      for (const [kind, room] of Object.entries(s.rooms) as Array<[RoomKind, StationLayout["rooms"][RoomKind]]>) {
+        if (room) g.rect(room.rect.x + cell, room.rect.y + cell, room.rect.w - 2 * cell, room.rect.h - 2 * cell).fill(tone[kind]);
+      }
+      const crew = (byStation.get(s.key) ?? []).sort((a, b) => urgency.indexOf(a.state) - urgency.indexOf(b.state) || a.key.localeCompare(b.key));
+      const pitch = 7 * cell;
+      const cols = Math.max(1, Math.floor((i.w - 2 * cell) / pitch));
+      const rows = Math.max(1, Math.floor((i.h - 2 * cell) / pitch));
+      crew.slice(0, cols * rows).forEach((sprite, k) => {
+        const x = i.x + 2 * cell + (k % cols) * pitch, y = i.y + 2 * cell + Math.floor(k / cols) * pitch;
+        const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
+        // A dark tile under each glyph, so it reads on light floors too; white-framed when selected.
+        g.rect(x - cell, y - cell, 7 * cell, 7 * cell).fill({ color: 0x0b0d10, alpha: 0.8 });
+        if (selected) pixelFrame(g, x - cell, y - cell, 7 * cell, 7 * cell, SELECTION, 1, cell);
+        const color = sprite.offline ? 0x59626c : STATUS[sprite.state];
+        for (const [cx, cy] of cells(STATUS_GLYPHS[sprite.state])) g.rect(x + cx * cell, y + cy * cell, cell, cell).fill(color);
+      });
     }
   }
 
