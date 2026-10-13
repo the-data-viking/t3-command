@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { CommsKind } from "../shared/comms";
 import type { FollowUpsView } from "../shared/followups";
+import { DEFAULT_PLAYBOOKS, type Playbook } from "../shared/playbooks";
 import type { EnvSummary, MeResponse } from "../shared/api";
 import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
 import type { UsageState } from "./t3/usage";
@@ -91,6 +92,9 @@ export interface GameState {
   photo: boolean;
   /** Orders the Command server will send when a busy crew member's turn ends (every device's). */
   followUps: FollowUpsView;
+  /** Saved orders, typed as /name in any order box (from the Command server). */
+  playbooks: Playbook[];
+  showPlaybooks: boolean;
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
@@ -232,6 +236,8 @@ export const useGame = create<GameState>()(() => ({
   debrief: null,
   photo: false,
   followUps: { paused: false, queued: [] },
+  playbooks: DEFAULT_PLAYBOOKS,
+  showPlaybooks: false,
 }));
 
 /** Returning the same env from `fn` is a no-op: subscribers (the map, panels) are not notified. */

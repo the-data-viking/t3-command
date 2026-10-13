@@ -134,7 +134,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
 - **Command palette and squads**: **Ctrl/⌘-K** finds any crew member, station, machine or panel.
   It can also switch themes, sound or alerts, and send the selected crew to camp or wake them.
   Shift-click crew (on the map or roster) or shift-drag a box on the map to pick a squad, then send
-  them all to camp or wake them from the squad bar. **Ctrl or Alt + 1–9** saves the squad (or the
+  them all to camp or wake them from the squad bar, or give them all one order (it names how many
+  it goes to; busy crew can get it as a follow-up when their turn ends). **Ctrl or Alt + 1–9** saves the squad (or the
   selected crew member) as a control group. **1–9** recalls it, and pressing again frames it on the
   map. Alt works where the browser keeps Ctrl+digit for switching tabs. **?** lists every key and
   explains what the map's lights and effects mean.
@@ -534,3 +535,12 @@ without a browser open. A follow-up is dropped (and the comms log says why) if t
 is interrupted, if another order starts a new turn first, or after 12 hours. There's at most one
 per crew member; it shows in their panel and roster row and can be cancelled, every send is logged
 as "sent by follow-up", and the command palette can pause them all.
+
+## Saved orders
+
+Type **/** at the start of any order box (a crew member's, the squad bar's, or the command
+palette's) to pick a saved order: arrows move, Tab or Enter picks. `/status`, `/wrapup`, `/rebase`,
+`/explain` and `/tests` come built in. Sending `/name` with text after it sends the saved order
+followed by your text. **Edit saved orders…** (under the list, or in the command palette) adds,
+changes and removes them; they live on the Command server (`playbooks.json`, owner-only), so every
+device has the same ones.

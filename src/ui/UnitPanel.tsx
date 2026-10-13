@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cancelFollowUp, followUpFor, queueFollowUp } from "../t3/followups";
+import { expandPlaybook } from "../../shared/playbooks";
 import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
 import { isHistory, pendingRequests, unitState } from "../t3/derive";
@@ -293,6 +294,12 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
   const [sending, setSending] = useState(false);
   const followUps = useGame((s) => s.followUps);
   const queued = followUpFor(followUps, envId, threadId);
+  // Saved orders: "/" at the start lists them; picking one puts its text in the box to edit or send.
+  const playbooks = useGame((s) => s.playbooks);
+  const slash = /^\/([a-z0-9-]*)$/.exec(text.trim());
+  const matches = slash ? playbooks.filter((p) => p.name.startsWith(slash[1])).slice(0, 6) : [];
+  const [pick, setPick] = useState(0);
+  const applyPlaybook = (i: number) => { const book = matches[i]; if (book) { setText(book.text); setPick(0); } };
   const input = useRef<HTMLTextAreaElement>(null);
   // Phone keyboards have no Shift+Enter: Return adds a line and the Send button sends.
   const phone = usePhone();
@@ -304,7 +311,7 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
   }, [envId, threadId]);
 
   const send = async () => {
-    const order = text.trim();
+    const order = expandPlaybook(text.trim(), playbooks);
     if (!order || sending) return;
     setSending(true);
     try {
@@ -321,7 +328,7 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
 
   // Busy: hold the order on the Command server and send it when this turn ends (Alt+Enter).
   const queue = async () => {
-    const order = text.trim();
+    const order = expandPlaybook(text.trim(), playbooks);
     if (!order || sending) return;
     setSending(true);
     try {
@@ -344,6 +351,16 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
         <button className="btn small" onClick={() => void cancelFollowUp(queued.id).catch((err) => logError("Couldn't cancel", err))}>Cancel</button>
       </div>
     )}
+    {matches.length > 0 && (
+      <ul className="playbook-list" role="listbox" aria-label="Saved orders">
+        {matches.map((p, i) => (
+          <li key={p.name} role="option" aria-selected={i === pick} className={i === pick ? "active" : ""} onPointerDown={(e) => { e.preventDefault(); applyPlaybook(i); }}>
+            <strong>/{p.name}</strong> <span className="muted">{p.text}</span>
+          </li>
+        ))}
+        <li className="playbook-edit"><button className="link-button" onPointerDown={(e) => { e.preventDefault(); useGame.setState({ showPlaybooks: true }); }}>Edit saved orders…</button></li>
+      </ul>
+    )}
     <div className="order-box">
       <textarea
         ref={input}
@@ -351,8 +368,18 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
         placeholder={working ? "Unit is busy — new orders will start a new turn when sent…" : phone ? "Give orders…" : "Give orders… (Enter to send, Shift+Enter for newline)"}
         disabled={disabled || sending}
         rows={3}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => { setText(e.target.value); setPick(0); }}
         onKeyDown={(e) => {
+          if (matches.length && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+            e.preventDefault();
+            setPick((p) => (p + (e.key === "ArrowDown" ? 1 : matches.length - 1)) % matches.length);
+            return;
+          }
+          if (matches.length && (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey && !e.altKey))) {
+            e.preventDefault();
+            applyPlaybook(pick);
+            return;
+          }
           if (e.key === "Enter" && e.altKey && busy) {
             e.preventDefault();
             void queue();

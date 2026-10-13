@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { expandPlaybook } from "../../shared/playbooks";
 import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
@@ -68,6 +69,7 @@ function buildItems(state: GameState): Item[] {
     { id: "go:log", group: "Go to", label: "Comms log", detail: "L", run: () => useGame.setState({ showLog: true }) },
     { id: "go:history", group: "Go to", label: "Turn history", detail: "H", run: () => useGame.setState({ showHistory: true }) },
     { id: "go:stations", group: "Go to", label: "Stations (manage machines)", run: () => useGame.setState({ showEnvManager: true }) },
+    { id: "go:playbooks", group: "Go to", label: "Saved orders (/name shortcuts)", run: () => useGame.setState({ showPlaybooks: true }) },
     { id: "go:help", group: "Go to", label: "Keyboard and map help", detail: "?", run: () => useGame.setState({ showHelp: true }) },
     { id: "act:fit", group: "Action", label: "Fit fleet", detail: "F", run: () => worldRef.current?.fitAll() },
     { id: "act:alert", group: "Action", label: "Next crew waiting on you", detail: "Space", run: () => jumpTo("attention") },
@@ -107,11 +109,11 @@ function buildItems(state: GameState): Item[] {
     if (u.state !== "sleeping" && env?.connection === "live" && env.summary.kind !== "hermes") {
       const title = u.thread.title || "Untitled";
       items.push({ id: `order:${u.envId}:${u.thread.id}`, group: "Order", label: `Order "${title}"…`, detail: STATE_LABELS[u.state], run: () => {},
-        prompt: { label: `Orders for "${title}"${u.state === "working" ? " · busy: this starts a new turn" : ""}`, placeholder: "Type the order…",
+        prompt: { label: `Orders for "${title}"${u.state === "working" ? " · busy: this starts a new turn" : ""}`, placeholder: "Type the order… (or /saved)",
           submit: async (text) => {
             const client = envClient(u.envId);
             if (!client) throw new Error("This station is not connected.");
-            await client.order(u.thread.id, text);
+            await client.order(u.thread.id, expandPlaybook(text, useGame.getState().playbooks));
             sfx.order();
             const sel = { kind: "unit" as const, envId: u.envId, threadId: u.thread.id };
             setSelection(sel);

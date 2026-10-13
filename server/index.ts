@@ -20,6 +20,7 @@ import { CommsLog } from "./comms.ts";
 import { ReadState } from "./read-state.ts";
 import { PushNotifier } from "./push.ts";
 import { FollowUps } from "./followups.ts";
+import { Playbooks } from "./playbooks.ts";
 import { randomUUID } from "node:crypto";
 import { HostHistoryRecorder } from "./host-history.ts";
 import { t3SocketUrl } from "./t3-socket.ts";
@@ -66,6 +67,8 @@ const followUps = new FollowUps(config.dataDir, comms, async (envId, thread, tex
   });
 }, (envId) => registry.get(envId)?.label);
 await followUps.load();
+const playbooks = new Playbooks(config.dataDir);
+await playbooks.load();
 recorder.listen({
   observe: (envId, threads) => { comms.observe(envId, threads); followUps.observe(envId, threads); },
   connected: (envId, label) => comms.connected(envId, label),
@@ -231,6 +234,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       const offFollowUps = followUps.subscribe((view) => send("followups", view));
       return () => { offRead(); offFollowUps(); };
     });
+  }
+  if (pathname === "/api/playbooks" && method === "GET") return sendJson(res, 200, playbooks.all());
+  if (pathname === "/api/playbooks" && method === "PUT") {
+    try { return sendJson(res, 200, await playbooks.set((await readJson<{ playbooks?: unknown }>(req))?.playbooks)); }
+    catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
   }
   if (pathname === "/api/followups" && method === "GET") return sendJson(res, 200, followUps.view());
   if (pathname === "/api/followups" && method === "POST") {
