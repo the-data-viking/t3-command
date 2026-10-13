@@ -60,6 +60,8 @@ export function isBackground(thread: ThreadShell, state: UnitState): boolean {
 
 /** A crew member's state as shown in lists (adds Background to the map's states). */
 export function stateLabel(thread: ThreadShell, state: UnitState): string {
+  // A plan-mode crew member's finished turn is a plan waiting for approval, not a report.
+  if (state === "done" && thread.interactionMode === "plan") return "Plan ready";
   return isBackground(thread, state) ? "Background" : STATE_LABELS[state];
 }
 

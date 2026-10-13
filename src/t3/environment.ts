@@ -449,8 +449,8 @@ export class EnvironmentClient {
     }
   }
 
-  /** Send a follow-up message to an existing thread, keeping its model and modes. */
-  order(threadId: string, text: string): Promise<unknown> {
+  /** Send a follow-up message to an existing thread, keeping its model and modes (unless overridden). */
+  order(threadId: string, text: string, modes: { interactionMode?: InteractionMode } = {}): Promise<unknown> {
     const t = this.thread(threadId);
     return this.dispatch({
       type: "thread.turn.start",
@@ -458,9 +458,14 @@ export class EnvironmentClient {
       message: { messageId: uuid(), role: "user", text, attachments: [] },
       modelSelection: t.modelSelection,
       runtimeMode: t.runtimeMode,
-      interactionMode: t.interactionMode,
+      interactionMode: modes.interactionMode ?? t.interactionMode,
       createdAt: new Date().toISOString(),
     });
+  }
+
+  /** Plan mode (the agent proposes before it acts) or default. */
+  setInteractionMode(threadId: string, interactionMode: InteractionMode): Promise<unknown> {
+    return this.dispatch({ type: "thread.interaction-mode.set", threadId, interactionMode, createdAt: new Date().toISOString() });
   }
 
   setRuntimeMode(threadId: string, runtimeMode: RuntimeMode): Promise<unknown> {

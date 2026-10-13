@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { RUNTIME_MODES } from "./posture";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
 import { groupFor, stationColor } from "../game/layout";
@@ -16,17 +17,13 @@ import { GitStatus } from "./GitStatus";
 import { PixelIcon } from "./PixelArt";
 import { isScratch } from "../t3/scratch";
 
-const RUNTIME_MODES: Array<{ id: RuntimeMode; label: string }> = [
-  { id: "full-access", label: "Full access" },
-  { id: "auto", label: "Auto" },
-  { id: "auto-accept-edits", label: "Auto-accept edits" },
-  { id: "approval-required", label: "Ask before acting" },
-];
 
 interface RecruitPrefs {
   modelSelection?: ModelSelection;
   runtimeMode?: RuntimeMode;
   hermesProfile?: string;
+  /** Recruits start in plan mode: they propose a plan, and build only once you approve it. */
+  planFirst?: boolean;
 }
 
 function loadPrefs(envId: string): RecruitPrefs {
@@ -152,6 +149,8 @@ export function RecruitForm({ envId, projectId }: { envId: string; projectId: st
     defaultSelection(providers, [prefs.modelSelection, project?.defaultModelSelection]),
   );
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>(prefs.runtimeMode ?? "full-access");
+  const [planFirst, setPlanFirst] = useState(!!prefs.planFirst);
+  const canPlan = env?.summary.kind !== "hermes";
   const [sending, setSending] = useState(false);
   const [workspace, setWorkspace] = useState<RecruitWorkspace>(() => ({
     mode: env?.summary.kind !== "hermes" && project?.defaultThreadEnvMode === "worktree" ? "worktree" : "local",
@@ -181,8 +180,8 @@ export function RecruitForm({ envId, projectId }: { envId: string; projectId: st
     try {
       // Scratch isn't a repository: T3 gives the thread its own folder inside it instead.
       const threadId = await envClient(envId)!.recruit({ projectId, text: task, modelSelection: current, runtimeMode: currentRuntimeMode,
-        workspace: isScratch(project) ? undefined : workspace, hermesProfile });
-      savePrefs(envId, { modelSelection: current, runtimeMode: currentRuntimeMode, hermesProfile });
+        interactionMode: canPlan && planFirst ? "plan" : "default", workspace: isScratch(project) ? undefined : workspace, hermesProfile });
+      savePrefs(envId, { modelSelection: current, runtimeMode: currentRuntimeMode, hermesProfile, planFirst });
       sfx.recruit();
       addLog({ tone: "good", text: `New worker recruited at ${project?.title ?? "base"}`, envId, threadId });
       setText("");
@@ -263,6 +262,11 @@ export function RecruitForm({ envId, projectId }: { envId: string; projectId: st
           ))}
         </select>
       </div>
+      {canPlan && (
+        <label className="plan-first small" title="The recruit proposes a plan first; it builds only after you approve the plan in its panel.">
+          <input type="checkbox" checked={planFirst} onChange={(e) => setPlanFirst(e.target.checked)} /> Plan first: propose before building
+        </label>
+      )}
       <WorkspacePicker envId={envId} projectId={projectId} value={workspace} onChange={setWorkspace} disabled={sending} />
       {recruitError && <p className="small" role="alert">{recruitError}</p>}
       <button className="btn primary wide" disabled={sending || !text.trim() || !current || env?.connection !== "live"} onClick={() => void recruit()}>
