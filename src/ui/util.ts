@@ -49,3 +49,35 @@ export function timeAgo(iso: string | null | undefined): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
+
+/**
+ * "Working" without a running turn: the session or background agents are still going after the
+ * turn ended. Shown as Background so it doesn't read as a turn that's also "Last turn 28s".
+ */
+export function isBackground(thread: ThreadShell, state: UnitState): boolean {
+  return state === "working" && thread.latestTurn?.state !== "running";
+}
+
+/** A crew member's state as shown in lists (adds Background to the map's states). */
+export function stateLabel(thread: ThreadShell, state: UnitState): string {
+  return isBackground(thread, state) ? "Background" : STATE_LABELS[state];
+}
+
+export interface FleetCounts { working: number; background: number; monitoring: number; waiting: number; reports: number; failed: number; crew: number; awake: number }
+
+/** One count for the top bar, the phone dock and the tab title: Hermes sessions included. */
+export function fleetCounts(envs: Record<string, EnvWorld>): FleetCounts {
+  const c: FleetCounts = { working: 0, background: 0, monitoring: 0, waiting: 0, reports: 0, failed: 0, crew: 0, awake: 0 };
+  for (const u of allUnits(envs)) {
+    if (envs[u.envId]?.summary.kind !== "hermes") {
+      c.crew++;
+      if (u.state !== "sleeping") c.awake++;
+    }
+    if (u.state === "working") { if (isBackground(u.thread, u.state)) c.background++; else c.working++; }
+    else if (u.state === "monitoring") c.monitoring++;
+    else if (u.state === "alert" || u.state === "question") c.waiting++;
+    else if (u.state === "done") c.reports++;
+    else if (u.state === "error") c.failed++;
+  }
+  return c;
+}

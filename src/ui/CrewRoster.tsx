@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { stationColor } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { contextLevel, css, modelTier, TIER_LABEL } from "../game/theme";
@@ -7,7 +7,7 @@ import { openEvent, setSelection, toggleSquad, unitKey, useGame } from "../store
 import { squadKeys } from "./squad";
 import type { UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
-import { allUnits, STATE_LABELS, type UnitRef } from "./util";
+import { allUnits, fleetCounts, isBackground, stateLabel, type UnitRef } from "./util";
 import { ThreadTiming } from "./ThreadTiming";
 import { PlanLine } from "./TurnTelemetry";
 import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
@@ -35,9 +35,28 @@ export function CrewRoster() {
     () =>
       allUnits(envs)
         .filter((u) => u.state !== "sleeping" && envs[u.envId]?.summary.kind !== 'hermes')
-        .sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || b.thread.updatedAt.localeCompare(a.thread.updatedAt)),
+        // Stable within each group (newest recruit first), so rows don't shuffle under the cursor
+        // as crew report activity; a row only moves when its state group changes.
+        .sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || b.thread.createdAt.localeCompare(a.thread.createdAt) || a.thread.id.localeCompare(b.thread.id)),
     [envs],
   );
+  // Rows that just changed group flash briefly, so the move is noticed rather than surprising.
+  const groups = useRef(new Map<string, UnitState>());
+  const [moved, setMoved] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const changed: string[] = [];
+    for (const u of crew) {
+      const key = unitKey(u.envId, u.thread.id);
+      const before = groups.current.get(key);
+      if (before !== undefined && before !== u.state) changed.push(key);
+      groups.current.set(key, u.state);
+    }
+    if (!changed.length) return;
+    setMoved((m) => new Set([...m, ...changed]));
+    const timer = setTimeout(() => setMoved((m) => new Set([...m].filter((k) => !changed.includes(k)))), 1600);
+    return () => clearTimeout(timer);
+  }, [crew]);
+  const waiting = fleetCounts(envs).waiting;
   const needsYou = crew.filter((u) => NEEDS_YOU.includes(u.state));
   const onDuty = crew.filter((u) => ON_DUTY.includes(u.state));
   const urgent = crew.filter((u) => u.state === "alert" || u.state === "question").length
@@ -66,7 +85,7 @@ export function CrewRoster() {
     const active = selection?.kind === "unit" && selection.envId === u.envId && selection.threadId === u.thread.id;
     return (
       <li key={key}>
-        <button className={`crew-row ${active ? "active" : ""} ${picked.has(key) ? "in-squad" : ""} row-${u.state}`} aria-pressed={picked.has(key) || undefined} onClick={(e) => open(u, e)}
+        <button className={`crew-row ${active ? "active" : ""} ${picked.has(key) ? "in-squad" : ""} ${moved.has(key) ? "moved" : ""} row-${u.state}`} aria-pressed={picked.has(key) || undefined} onClick={(e) => open(u, e)}
           title={u.state === "error" && u.thread.session?.lastError ? `Turn failed: ${u.thread.session.lastError}` : undefined}>
           <span className="mini-portrait sprite" style={{ ["--team" as string]: team }} title={TIER_LABEL[tier]}>
             <CrewPortrait instanceId={u.thread.modelSelection.instanceId} model={u.thread.modelSelection.model} team={stationColor(useGame.getState(), u.envId)} scale={1} />
@@ -74,7 +93,7 @@ export function CrewRoster() {
           <span className="crew-text">
             <span className="crew-name">{u.thread.title || "Untitled"}</span>
             <span className="crew-sub">
-              <span className={`crew-state st-${u.state}`}>{STATE_LABELS[u.state]}</span>
+              <span className={`crew-state st-${isBackground(u.thread, u.state) ? "background" : u.state}`}>{stateLabel(u.thread, u.state)}</span>
               <span className="muted"> · {envs[u.envId]?.summary.label}</span>
             </span>
             <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
@@ -96,7 +115,7 @@ export function CrewRoster() {
     <aside className={`crew-roster ftl-frame ${collapsed ? "collapsed" : ""}`}>
       <button className="ftl-tab roster-tab" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
         CREW <span className={urgent ? "count hot" : "count"}>{crew.length}</span>{operators.length > 0 && <span className="operator-count"> · {operators.length} operators</span>}
-        {phone && needsYou.length > 0 && <span className={urgent ? "needs-count hot" : "needs-count"}> · {needsYou.length} need you</span>} {phone ? (collapsed ? "▴" : "▾") : collapsed ? "▸" : "▾"}
+        {phone && waiting > 0 && <span className="needs-count hot"> · {waiting} waiting on you</span>} {phone ? (collapsed ? "▴" : "▾") : collapsed ? "▸" : "▾"}
       </button>
       {!collapsed && (
         <div className="roster-body">

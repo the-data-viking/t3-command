@@ -7,7 +7,7 @@ import { openHost, setSelection, useGame, setNotify } from "../store";
 import { hostView } from "../t3/host";
 import { isHistory, unitState } from "../t3/derive";
 import { jumpTo } from "./hotkeys";
-import { allUnits } from "./util";
+import { fleetCounts } from "./util";
 import { SpendTelemetry } from "./SpendTelemetry";
 import { LimitsTelemetry } from "./LimitsTelemetry";
 import { UpdatePanel } from "./UpdatePanel";
@@ -43,21 +43,8 @@ export function TopBar() {
     return () => { observer.disconnect(); document.documentElement.style.removeProperty("--topbar-bottom"); };
   }, []);
 
-  const totals = useMemo(() => {
-    const c = { working: 0, monitoring: 0, attention: 0, done: 0, hurt: 0, crew: 0, awake: 0 };
-    for (const u of allUnits(envs)) {
-      if (envs[u.envId]?.summary.kind !== 'hermes') {
-        c.crew++;
-        if (u.state !== "sleeping") c.awake++;
-      }
-      if (u.state === "working") c.working++;
-      else if (u.state === "monitoring") c.monitoring++;
-      else if (u.state === "alert" || u.state === "question") c.attention++;
-      else if (u.state === "done") c.done++;
-      else if (u.state === "error") c.hurt++;
-    }
-    return c;
-  }, [envs]);
+  const counts = useMemo(() => fleetCounts(envs), [envs]);
+  const totals = { working: counts.working + counts.background, monitoring: counts.monitoring, attention: counts.waiting, done: counts.reports, hurt: counts.failed, crew: counts.crew, awake: counts.awake };
 
   return (
     <header ref={bar} className={`topbar hud-frame ${menuOpen ? "menu-open" : ""}`}>
