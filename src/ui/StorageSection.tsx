@@ -1,4 +1,4 @@
-import { diskLevel, gb, type StorageView } from "../../shared/storage";
+import { diskLevel, etaLabel, gb, type StorageView } from "../../shared/storage";
 import { useGame } from "../store";
 import { storageSummary } from "../t3/storage";
 import { BarChart } from "./BarChart";
@@ -39,6 +39,9 @@ export function StorageSection({ envId, now }: { envId: string; now: number }) {
     {!latest && <p className="muted small">Measured by the Command server every 5 minutes; the first reading arrives shortly after it starts.</p>}
     {summary.stale && <p className="orange small">Last reading {new Date(latest!.sampledAt).toLocaleString()} · stale</p>}
     {latest?.error && <p className="orange small">{latest.error}</p>}
+    {summary.eta !== undefined && (
+      <p className="small" style={{ color: `var(--gauge-${summary.level})` }}><strong>Filling up:</strong> at the rate of the last few hours, the disk at {summary.volume?.mount ?? "?"} is full in about {etaLabel(summary.eta)}.</p>
+    )}
     {latest?.volumes.map((v) => {
       const used = v.totalBytes > 0 ? (v.totalBytes - v.availableBytes) / v.totalBytes : 0;
       const level = diskLevel(v);

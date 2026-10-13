@@ -54,11 +54,11 @@ function hermesEnv(): EnvWorld {
   return { ...e, summary: { ...e.summary, kind: "hermes", url: "/work/hermes" }, providers: [] };
 }
 
-/** Codex reports a weekly quota on one machine and fails on another; Claude reports none. */
+/** Codex reports a weekly and a 5-hour quota on one machine and fails on another; Claude reports none. */
 function providers(envId: string): Provider[] {
   const base = { enabled: true, installed: true, status: "ready", models: [] };
   const codex = envId === "mini"
-    ? { ...base, instanceId: "codex", driver: "codex", displayName: "Codex", usageLimits: { checkedAt: ago(1), windows: [{ id: "w", kind: "weekly", label: "Weekly", usedPercent: 28, resetsAt: new Date(NOW + 3 * 86_400_000).toISOString() }] } }
+    ? { ...base, instanceId: "codex", driver: "codex", displayName: "Codex", usageLimits: { checkedAt: ago(1), windows: [{ id: "w", kind: "weekly", label: "Weekly", usedPercent: 28, resetsAt: new Date(NOW + 3 * 86_400_000).toISOString() }, { id: "s", kind: "session", label: "5-hour", usedPercent: 82, resetsAt: new Date(NOW + 72 * 60_000).toISOString() }] } }
     : { ...base, instanceId: "codex", driver: "codex", displayName: "Codex", usageLimits: { checkedAt: ago(1), windows: [], unavailable: { reason: "probeFailed", message: "JSON-RPC -32600" } } };
   const claude = { ...base, instanceId: "claudeAgent", driver: "claudeAgent", displayName: "Claude", usageLimits: { checkedAt: ago(1), windows: [], unavailable: { reason: "unsupported" } } };
   return [codex, claude] as unknown as Provider[];
@@ -107,7 +107,9 @@ function records(): TurnRecord[] {
 
 function storage(): Record<string, StorageView> {
   const view = (envId: string, freeGb: number): StorageView => ({ envId, trend: [], latest: { sampledAt: NOW, volumes: [{ mount: "/", totalBytes: 115 * GB, usedBytes: (115 - freeGb) * GB, availableBytes: freeGb * GB }] } });
-  return { mini: view("mini", 60), agent1: view("agent1", 2), wes: view("wes", 14) };
+  // Wesley-Desktop's disk is filling (a build cache growing): about 1.5% an hour, so full in ~8h.
+  const filling = Array.from({ length: 73 }, (_, i) => ({ at: NOW - (72 - i) * 300_000, usedFraction: (115 - 14) / 115 - 0.015 * ((72 - i) / 12) }));
+  return { mini: view("mini", 60), agent1: view("agent1", 2), wes: { ...view("wes", 14), trend: filling } };
 }
 
 function hostHistory(envId: string, hours: number): HostHistory {

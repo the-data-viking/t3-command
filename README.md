@@ -123,6 +123,12 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   in an owner-only file. Messages about what this browser did (recruits, errors, quiet turns it
   noticed) stay in this browser. **Clear** hides the log in this browser only. Click an entry to
   jump to its crew member.
+- **Hazard telegraphs**: warnings before something runs out, not after. A disk filling up (a
+  least-squares line over the last six hours of readings) shows **FULL IN 8H** on its engineering
+  deck and in the station panel, turns amber under two days and critical (with hazard stripes)
+  under six hours, and the Command server posts a comms warning (and a push) once it's under 12
+  hours. When the fullest provider quota is 75% or more, the top bar's **LIMITS** chip shows when
+  it resets (↺1h12m).
 - **Risk lens**: an approval whose command or files look dangerous is marked ⚠ in the roster, the
   event card and the crew panel, with the reasons ("deletes files recursively", "force-pushes",
   "drops or empties database data", "reads secrets or keys", "runs a script straight from the

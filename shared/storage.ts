@@ -135,3 +135,37 @@ export function parseStorageOutput(raw: string, now: number, withWorktrees: bool
 }
 
 export const gb = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(bytes < 10 * 1024 ** 3 ? 1 : 0)} GB`;
+
+/** The window a disk-full estimate looks back over, and the least it needs to say anything. */
+const ETA_WINDOW_MS = 6 * 3_600_000;
+const ETA_MIN_SPAN_MS = 30 * 60_000;
+const ETA_MIN_POINTS = 4;
+
+/**
+ * At the rate the fullest disk has been filling over the last six hours (a least-squares line, so
+ * one big download doesn't dominate), how long until it's full; undefined when it isn't filling
+ * or there's too little history to say.
+ */
+export function diskEta(trend: Array<{ at: number; usedFraction: number }>, now = Date.now()): number | undefined {
+  const points = trend.filter((p) => p.at >= now - ETA_WINDOW_MS && p.at <= now);
+  if (points.length < ETA_MIN_POINTS || points[points.length - 1].at - points[0].at < ETA_MIN_SPAN_MS) return undefined;
+  const mx = points.reduce((s, p) => s + p.at, 0) / points.length;
+  const my = points.reduce((s, p) => s + p.usedFraction, 0) / points.length;
+  let num = 0, den = 0;
+  for (const p of points) { num += (p.at - mx) * (p.usedFraction - my); den += (p.at - mx) ** 2; }
+  const slope = den > 0 ? num / den : 0;
+  // Less than 0.1% a day is noise (logs, caches), not a disk filling up.
+  if (slope <= 0.001 / 86_400_000) return undefined;
+  const last = points[points.length - 1];
+  return Math.max(0, (1 - last.usedFraction) / slope - (now - last.at));
+}
+
+/** "40m", "5h", "3d": an estimate, so whole units only. */
+export function etaLabel(ms: number): string {
+  const h = ms / 3_600_000;
+  return h < 1 ? `${Math.max(1, Math.round(ms / 60_000))}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`;
+}
+
+/** Disk-full estimates closer than this are telegraphed (deck plate, storage panel); closer than the alert, announced. */
+export const ETA_SHOW_MS = 48 * 3_600_000;
+export const ETA_ALERT_MS = 12 * 3_600_000;

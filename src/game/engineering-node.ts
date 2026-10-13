@@ -10,6 +10,7 @@ import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { hostView, type HostState } from "../t3/host";
 import { freeLabel, storageSummary } from "../t3/storage";
+import { etaLabel } from "../../shared/storage";
 import type { StorageView } from "../../shared/storage";
 import { currentStyle, PX, tex } from "./textures";
 import { GAUGE, mapInk, STATUS } from "./theme";
@@ -153,6 +154,8 @@ export class EnvironmentNodeSprite {
     const caption = this.caption!.text;
     const short = !!caption || this.crowded;
     this.diskText!.text = disk.usedFraction === undefined ? (view?.latest?.error ? "DISK —" : "")
+      // Filling up: when it'll be full matters more than the percentage, so it wins a crowded plate.
+      : disk.eta !== undefined ? `${short ? "DISK" : `DISK ${Math.round(disk.usedFraction * 100)}% ·`} FULL IN ${etaLabel(disk.eta).toUpperCase()}`
       : `DISK ${Math.round(disk.usedFraction * 100)}%${short ? "" : ` · ${freeLabel(disk.volume!.availableBytes)} FREE`}`;
     this.diskText!.fill = disk.color;
     this.diskText!.x = this.caption!.x + (caption ? this.caption!.width + 8 : 0);
