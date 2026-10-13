@@ -27,6 +27,7 @@ import { waitingSince } from "../ui/queue";
 import { doorState } from "./crew-motion";
 import { RenderLoop, type DrawResult } from "./render-loop";
 import { Backdrop } from "./backdrop";
+import { consoleScreen, terminalScreen } from "./screens";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
@@ -855,7 +856,9 @@ export class World {
         const con = this.stations.get(lay.stationKey)?.consoles.get(`${lay.console.x},${lay.console.y}`);
         if (con) {
           const live = state.envs[sprite.envId]?.connection === "live";
-          con.texture = tex(A.CONSOLE, { screen: live ? screenColor(sprite.state, frame, sprite.atConsole) : SCREEN_OFF });
+          const grid = live ? consoleScreen(sprite.state, frame, sprite.atConsole) : A.CONSOLE;
+          const next = tex(grid, { screen: live ? screenColor(sprite.state, frame, sprite.atConsole) : SCREEN_OFF });
+          if (con.texture !== next) con.texture = next;
           // A team-colored tab on each console shows whose desk it is.
           g.rect(lay.console.x - 26, lay.console.y - 26, 4, 12).fill(sprite.team);
         }
@@ -885,7 +888,7 @@ export class World {
       for (const [kind, fixture] of this.stations.get(s.key)?.systems ?? []) {
         const on = !!u?.[kind];
         const screen = !on ? SCREEN_OFF : kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : frame % 2 ? STATUS.working : 0x9ff0ff;
-        const next = tex(fixture.grid, { screen });
+        const next = tex(on && kind === "terminal" ? terminalScreen(frame) : fixture.grid, { screen });
         if (fixture.sprite.texture !== next) fixture.sprite.texture = next;
       }
       if (bridge && u?.attention) {
