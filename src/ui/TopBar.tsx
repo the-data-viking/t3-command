@@ -51,7 +51,7 @@ export function TopBar() {
   return (
     <header ref={bar} className={`topbar hud-frame ${menuOpen ? "menu-open" : ""}`}>
       <div className="logo">
-        T3<span className="logo-slash">//</span>{phone ? "C" : "COMMAND"}
+        T3<span className="logo-slash">//</span>{phone ? "" : "COMMAND"}
       </div>
       <div className="resources">
         <button className="resource" title="Working now (W cycles)" onClick={() => jumpTo("working")}>

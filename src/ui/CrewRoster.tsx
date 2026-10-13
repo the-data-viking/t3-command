@@ -12,7 +12,7 @@ import { ThreadTiming } from "./ThreadTiming";
 import { PlanLine } from "./TurnTelemetry";
 import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
 import { BotPortrait } from './HermesControlCenter';
-import { CrewPortrait } from "./PixelArt";
+import { CrewPortrait, PixelLabel } from "./PixelArt";
 import { isPhone, usePhone } from "./phone";
 
 const NEEDS_YOU: UnitState[] = ["alert", "question", "error", "done"];
@@ -118,8 +118,11 @@ export function CrewRoster() {
   return (
     <aside className={`crew-roster ftl-frame ${collapsed ? "collapsed" : ""}`}>
       <button className="ftl-tab roster-tab" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
-        CREW <span className={urgent ? "count hot" : "count"}>{crew.length}</span>{operators.length > 0 && <span className="operator-count"> · {operators.length} operators</span>}
-        {phone && waiting > 0 && <span className="needs-count hot"> · {waiting} waiting on you</span>} {phone ? (collapsed ? "▴" : "▾") : collapsed ? "▸" : "▾"}
+        {/* On the phone dock what needs you comes first, so it's never the part cut off. */}
+        {phone && waiting > 0 && <span className="needs-count hot">{waiting} waiting · </span>}
+        {/* The tab's name in the map's pixel font, like every other frame tab. */}
+        <PixelLabel text="Crew" /> <span className={urgent ? "count hot" : "count"}>{crew.length}</span>{operators.length > 0 && <span className="operator-count"> · {operators.length} operators</span>}
+        {" "}{phone ? (collapsed ? "▴" : "▾") : collapsed ? "▸" : "▾"}
       </button>
       {!collapsed && (
         <div className="roster-body">

@@ -24,7 +24,7 @@ export function ThemePicker() {
     <div className="theme-menu" ref={root}>
       <button className="icon-btn" aria-haspopup="menu" aria-expanded={open} aria-label={`Theme: ${THEME_NAMES[artStyle]}`}
         title={`Theme: ${THEME_NAMES[artStyle]}`} onClick={() => setOpen(!open)}>
-        <img className="theme-icon" src={themeThumbnail(artStyle)} alt="" width={26} height={15} draggable={false} /><span className="phone-label">Theme · {THEME_NAMES[artStyle]}</span>
+        <img className="theme-icon" src={themeThumbnail(artStyle)} alt="" width={26} height={15} draggable={false} /><span className="phone-label">{THEME_NAMES[artStyle]}</span>
       </button>
       {open && (
         <div className="theme-list hud-frame" role="menu" aria-label="Theme">
