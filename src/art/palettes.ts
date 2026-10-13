@@ -1,7 +1,7 @@
 // Candidate art styles. Each is a palette for the shared sprite codes (see sprites.ts) plus a few
 // scene colors. Team (T/t), visor (V/v) and screen (S/x) colors are filled in per sprite.
 
-export type StyleId = "kestrel" | "nightshift" | "pastel" | "signal" | "flightdeck" | "flightdeck-nightshift";
+export type StyleId = "kestrel" | "nightshift" | "pastel" | "signal" | "flightdeck" | "flightdeck-nightshift" | "highcontrast";
 
 export interface Style {
   id: StyleId;
@@ -41,6 +41,9 @@ export interface HudMaterials {
   meter: number;
   /** Brightest text: button labels, logo, selected tabs. */
   bright: number;
+  /** Body and secondary text, where a style needs more contrast than the shared defaults. */
+  text?: number;
+  muted?: number;
 }
 
 const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
@@ -67,6 +70,11 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     blurb: "An orbital repair atelier: ceramic pods, copper service spines, ink-blue decks and goggled technicians. New silhouettes and fixtures, not just a palette swap.",
     space: 0x0b1423,
     wall: 0x101c2a,
+    // Ceramic frames around ink-blue wells.
+    hud: {
+      frame: 0xe1d5b9, ink: 0x101c2a, surface: 0x112032, deep: 0x0a1422, slot: 0x0e1a2a,
+      edge: 0x2a3d52, edgeStrong: 0x3a5068, control: 0x1a2b3f, meter: 0x2a3a4c, bright: 0xf9edcd,
+    },
     colors: {
       k: 0x101c2a, w: 0xf9edcd, W: 0xe1d5b9, s: 0x9daba9,
       G: 0x33485b, g: 0x627d8b, h: 0xf0dfb9, H: 0xc3bfa7, D: 0x788c92,
@@ -81,6 +89,11 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     blurb: "Closest to FTL: warm gray hulls, beige deck plating, chunky dark outlines.",
     space: 0x07090e,
     wall: 0x1a1c20,
+    // Gunmetal frames around charcoal wells.
+    hud: {
+      frame: 0xb3bbc2, ink: 0x16181b, surface: 0x1c1f23, deep: 0x0e1013, slot: 0x15171a,
+      edge: 0x33383e, edgeStrong: 0x454b52, control: 0x262a2f, meter: 0x30353b, bright: 0xf4f6f8,
+    },
     colors: {
       k: 0x16181b,
       w: 0xf4f6f8,
@@ -148,6 +161,11 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     blurb: "A cozier, brighter take: cream decks, soft plum outlines, candy accents.",
     space: 0x1b1530,
     wall: 0x4a3a52,
+    // Cream frames around plum wells.
+    hud: {
+      frame: 0xe8d4c1, ink: 0x3a2e3f, surface: 0x241c38, deep: 0x150f24, slot: 0x1d1630,
+      edge: 0x43365a, edgeStrong: 0x56466f, control: 0x2e2445, meter: 0x3a2f52, bright: 0xffffff,
+    },
     colors: {
       k: 0x3a2e3f,
       w: 0xffffff,
@@ -171,6 +189,25 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       n: 0x7ee0a1,
       c: 0x8fe6ff,
       b: 0x7d8fd9,
+    },
+  },
+  highcontrast: {
+    id: "highcontrast",
+    name: "High Contrast",
+    blurb: "Black space and wells, white frames and text, light hulls with black outlines, dark floors so crew stand out.",
+    space: 0x000000,
+    wall: 0x000000,
+    hud: {
+      frame: 0xffffff, ink: 0x000000, surface: 0x000000, deep: 0x000000, slot: 0x0a0a0a,
+      edge: 0x8a8a8a, edgeStrong: 0xd0d0d0, control: 0x1a1a1a, meter: 0x4a4a4a, bright: 0xffffff,
+      text: 0xffffff, muted: 0xc8ced6,
+    },
+    colors: {
+      k: 0x000000, w: 0xffffff, W: 0xe8e8e8, s: 0xa8a8a8,
+      G: 0x3c3c3c, g: 0x9a9a9a, h: 0xf0f0f0, H: 0xc8c8c8, D: 0x6a6a6a,
+      m: 0xd8d8d8, M: 0x7a7a7a, f: 0x262a30, F: 0x101317,
+      p: 0x1e2a36, P: 0x0e151c, q: 0x2e2620, Q: 0x16110d,
+      a: 0xffb000, r: 0xff3b4d, n: 0x3dff8a, c: 0x40e0ff, b: 0x3f8fff,
     },
   },
 };

@@ -74,22 +74,28 @@ export interface GameState {
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
 
-export type ArtStyle = "flightdeck" | "flightdeck-nightshift";
+/** Map styles offered in the theme picker, in menu order. */
+export const ART_STYLES = ["flightdeck-nightshift", "flightdeck", "signal", "kestrel", "pastel", "highcontrast"] as const;
+export type ArtStyle = (typeof ART_STYLES)[number];
 
 function loadArtStyle(): ArtStyle {
   try {
-    const saved = localStorage.getItem("t3c:art-style");
-    if (saved === "flightdeck" || saved === "flightdeck-nightshift") return saved;
-    if (saved === "kestrel") return "flightdeck";
+    const saved = localStorage.getItem("t3c:theme");
+    if ((ART_STYLES as readonly string[]).includes(saved ?? "")) return saved as ArtStyle;
+    // Before the picker: two styles, where a saved "kestrel" meant the warm Flight Deck.
+    const legacy = localStorage.getItem("t3c:art-style");
+    if (legacy === "flightdeck" || legacy === "kestrel") return "flightdeck";
+    if (legacy === "flightdeck-nightshift" || legacy === "nightshift") return "flightdeck-nightshift";
   } catch {
     // Per-browser convenience only.
   }
-  return "flightdeck-nightshift";
+  // No choice yet: follow an OS request for more contrast.
+  return typeof matchMedia === "function" && matchMedia("(prefers-contrast: more)").matches ? "highcontrast" : "flightdeck-nightshift";
 }
 
 export function setArtStyle(artStyle: ArtStyle): void {
   try {
-    localStorage.setItem("t3c:art-style", artStyle);
+    localStorage.setItem("t3c:theme", artStyle);
   } catch {
     // Per-browser convenience only.
   }
