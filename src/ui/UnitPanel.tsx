@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cancelFollowUp, followUpFor, queueFollowUp } from "../t3/followups";
 import { expandPlaybook } from "../../shared/playbooks";
 import { RiskBanner } from "./RiskBanner";
+import { PlanReady, PostureControl } from "./PostureControl";
 import { allowedDecisions, assessRisk } from "./risk";
 import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
@@ -112,7 +113,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
       ) : (
       <div className="status-row">
         <span className={`pill state-${state}`}>{bot ? BOT_STATE_LABELS[state] : stateLabel(thread, state)}</span>
-        {env.summary.kind !== 'hermes' && <span className="muted small">{thread.runtimeMode}</span>}
+        {env.summary.kind !== 'hermes' && <PostureControl envId={envId} thread={thread} />}
         <ThreadTiming thread={thread} detail={detail?.thread} />
         <span className="spacer" />
         {!bot && state === "done" && thread.latestTurn && !reportRead(readReports, envId, thread) && (
@@ -208,6 +209,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         ))}
       </div>
 
+      {!archived && env.summary.kind !== "hermes" && thread.interactionMode === "plan" && state === "done" && env.connection === "live" && <PlanReady envId={envId} thread={thread} />}
       {!archived && <OrderBox envId={envId} threadId={threadId} disabled={env.connection !== "live"} working={state === "working"} busy={state === "working" || state === "alert" || state === "question"} />}
     </aside>
   );

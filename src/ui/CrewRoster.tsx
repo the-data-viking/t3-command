@@ -111,6 +111,7 @@ export function CrewRoster() {
             <span className="crew-name">{u.thread.title || "Untitled"}</span>
             <span className="crew-sub">
               <span className={`crew-state st-${read(u) ? "idle" : isBackground(u.thread, u.state) ? "background" : u.state}`}>{read(u) ? "Report read" : stateLabel(u.thread, u.state)}</span>
+              {u.thread.interactionMode === "plan" && <span className="plan-tag" title="Plan mode: proposes a plan before building">PLAN</span>}
               <span className="muted"> · {envs[u.envId]?.summary.label}</span>
             </span>
             {(u.state === "alert" || u.state === "question") && detail && (

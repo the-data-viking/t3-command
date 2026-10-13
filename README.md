@@ -144,6 +144,12 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   under six hours, and the Command server posts a comms warning (and a push) once it's under 12
   hours. When the fullest provider quota is 75% or more, the top bar's **LIMITS** chip shows when
   it resets (↺1h12m).
+- **Posture and plan-first**: the crew panel shows what a crew member may do without asking (Ask
+  before acting, Auto-accept edits, Auto, Full access; raising it to full access asks first) and a
+  **Plan first** toggle (T3's plan mode). Recruits can start in plan mode ("Plan first: propose
+  before building" in the recruit form). A plan-mode crew member whose turn finishes reads
+  **Plan ready** (and **PLAN** in the roster); **Approve plan and build** switches it to building
+  and tells it to go ahead, or reply with changes to revise the plan.
 - **Risk lens**: an approval whose command or files look dangerous is marked ⚠ in the roster, the
   event card and the crew panel, with the reasons ("deletes files recursively", "force-pushes",
   "drops or empties database data", "reads secrets or keys", "runs a script straight from the
