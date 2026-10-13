@@ -112,12 +112,33 @@ function loadReadReports(): Record<string, string> {
   }
 }
 
+/** Where read marks go besides this browser: the Command server (set by the comms connection). */
+let readSink: ((marks: Record<string, string>) => void) | undefined;
+export function setReadSink(sink: typeof readSink): void {
+  readSink = sink;
+}
+
+function saveReadReports(readReports: Record<string, string>): void {
+  try { localStorage.setItem(READ_KEY, JSON.stringify(readReports)); } catch { /* A cache; the server holds the marks. */ }
+}
+
 /** Mark crew members' current reports read; a later turn's report shows up again. */
 export function markReportsRead(members: Array<{ envId: string; threadId: string; turnId: string }>): void {
+  const marks = Object.fromEntries(members.map((m) => [unitKey(m.envId, m.threadId), m.turnId]));
   useGame.setState((s) => {
-    const readReports = { ...s.readReports };
-    for (const m of members) readReports[unitKey(m.envId, m.threadId)] = m.turnId;
-    try { localStorage.setItem(READ_KEY, JSON.stringify(readReports)); } catch { /* Per-browser convenience only. */ }
+    const readReports = { ...s.readReports, ...marks };
+    saveReadReports(readReports);
+    return { readReports };
+  });
+  readSink?.(marks);
+}
+
+/** Read marks from the server (every device's): merged in, so reading on the phone clears it here too. */
+export function mergeReadMarks(marks: Record<string, string>): void {
+  useGame.setState((s) => {
+    if (Object.entries(marks).every(([k, v]) => s.readReports[k] === v)) return {};
+    const readReports = { ...s.readReports, ...marks };
+    saveReadReports(readReports);
     return { readReports };
   });
 }
