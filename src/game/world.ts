@@ -564,8 +564,10 @@ class EnvironmentNodeSprite {
   private name?: PixelText;
   /** Measured host load: rack LEDs (CPU) and the coolant level (RAM). Redrawn per sample. */
   private meters?: Graphics;
-  /** Observed crew activity in the core cells. Redrawn every frame. */
+  /** Observed crew activity in the core cells, and the bay's light. Redrawn every frame. */
   private cells?: Graphics;
+  /** "+N" on the bay wall for scratch crew beyond its standing room. */
+  private overflowText?: PixelText;
   private cpuText?: PixelText;
   private memoryText?: PixelText;
   private caption?: PixelText;
@@ -607,7 +609,11 @@ class EnvironmentNodeSprite {
     const plate = at(ENGINEERING_SPOTS.plate);
     this.caption = label(7,0xa7bdcb); this.caption.position.set(plate.x + 8, plate.y + 6);
     this.diskText = label(7, GAUGE.unknown); this.diskText.position.set(plate.x + 8, plate.y + 6);
-    this.root.addChild(this.meters, this.cells, this.name, this.cpuText, this.memoryText, this.caption, this.diskText);
+    const hidden = node.scratch?.overflow.length ?? 0;
+    this.overflowText = label(7, HUD.text);
+    this.overflowText.text = hidden ? `+${hidden}` : "";
+    this.overflowText.position.copyFrom(at(ENGINEERING_SPOTS.bayCount));
+    this.root.addChild(this.meters, this.cells, this.name, this.cpuText, this.memoryText, this.caption, this.diskText, this.overflowText);
     this.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
     this.updateStorage(state.storage[node.envId]);
     this.root.eventMode = 'static';
@@ -662,12 +668,21 @@ class EnvironmentNodeSprite {
     this.diskText!.x = this.caption!.x + (caption ? this.caption!.width + 8 : 0);
   }
 
-  /** Core cells: one per working crew member (pulsing), then monitoring crew (steady). */
-  setActivity(states: UnitState[], live: boolean, frame: number): void {
+  /**
+   * Core cells: one per working crew member (pulsing), then monitoring crew (steady). The bay sits
+   * in shadow until scratch crew are aboard; its wall terminal glows while one of them works.
+   */
+  setActivity(states: UnitState[], live: boolean, frame: number, bay: UnitState[]): void {
     const crowded = states.length > 5;
     if (crowded !== this.crowded) { this.crowded = crowded; this.updateStorage(this.storage); }
     const g = this.cells?.clear();
-    if (!g || !this.hull || !live) return;
+    if (!g || !this.hull) return;
+    const h = this.hull;
+    const box = (s: { x: number; y: number; w: number; h: number }) => g.rect(h.x + s.x * PX, h.y + s.y * PX, s.w * PX, s.h * PX);
+    if (!live || !bay.length) box(ENGINEERING_SPOTS.bay).fill({ color: 0x000000, alpha: ROOM_SHADOW });
+    if (!live) return;
+    const screen = bay.includes("working") ? STATUS.working : bay.includes("monitoring") ? STATUS.monitoring : undefined;
+    if (screen !== undefined) box(ENGINEERING_SPOTS.bayScreen).fill({ color: screen, alpha: screen === STATUS.working && frame % 2 ? 0.55 : 0.9 });
     const working = states.filter((s) => s === "working").length;
     const monitoring = states.filter((s) => s === "monitoring").length;
     ENGINEERING_SPOTS.cells.forEach((cell, i) => {
@@ -681,7 +696,7 @@ class EnvironmentNodeSprite {
   /** Deck text can't grow past its sprite, so it hides once it would turn sub-pixel. */
   setZoom(zoom: number): void {
     const legible = zoom >= 0.8;
-    for (const text of [this.name, this.cpuText, this.memoryText, this.caption, this.diskText]) if (text) text.visible = legible;
+    for (const text of [this.name, this.cpuText, this.memoryText, this.caption, this.diskText, this.overflowText]) if (text) text.visible = legible;
   }
 
   destroy(): void {
@@ -723,7 +738,7 @@ export class World {
   private controlCenter?: ControlCenterSprite;
   private lastCatalog?: GameState["hermesCatalog"];
   private crew = new Map<string, CrewSprite>();
-  private layout: FleetLayout = { stations: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
+  private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
   private zoom = 1;
   private time = 0;
   /** Set once the user pans, zooms or jumps somewhere; until then the view keeps fitting the fleet. */
@@ -1038,6 +1053,11 @@ export class World {
     return true;
   }
 
+  /** Where a crew member is aboard: a project station or an engineering bay. */
+  private crewStation(lay: CrewLayout): StationLayout | undefined {
+    return this.layout.stations.get(lay.stationKey) ?? this.layout.bays.get(lay.stationKey);
+  }
+
   /** The station holding a given environment's project. */
   stationFor(envId: string, projectId: string): StationLayout | undefined {
     for (const s of this.layout.stations.values()) if (s.members.some((m) => m.envId === envId && m.projectId === projectId)) return s;
@@ -1296,7 +1316,7 @@ export class World {
     const sharing = new Map<string, CrewSprite[]>();
     for (const [key, sprite] of this.crew) {
       const lay = this.layout.crew.get(key);
-      const s = lay && this.layout.stations.get(lay.stationKey);
+      const s = lay && this.crewStation(lay);
       const system = lay && s ? sprite.systemRoom(lay, s) : undefined;
       if (!system) { sprite.slot = { index: 0, count: 1 }; continue; }
       const group = `${lay!.stationKey}|${system}`;
@@ -1307,7 +1327,7 @@ export class World {
     }
     for (const [key, sprite] of this.crew) {
       const lay = this.layout.crew.get(key);
-      const s = lay && this.layout.stations.get(lay.stationKey);
+      const s = lay && this.crewStation(lay);
       if (!lay || !s) continue;
       const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
       sprite.tick(lay, s, t, dt, frame, selected, this.zoom);
@@ -1447,11 +1467,14 @@ export class World {
     for (const node of this.layout.environmentNodes.values()) {
       const env = state.envs[node.envId];
       const live = env?.connection === "live";
-      const states = environmentStates.get(node.envId) ?? [];
+      // Scratch crew past the bay's standing room still count as this machine's crew.
+      const overflow = (node.scratch?.overflow ?? []).flatMap((id) => env?.threads[id] ? [unitState(env.threads[id])] : []);
+      const states = [...(environmentStates.get(node.envId) ?? []), ...overflow];
+      const bayStates = [...this.crew.values()].filter((c) => this.layout.crew.get(c.key)?.stationKey === node.scratch?.stationKey).map((c) => c.state);
       const deck = this.environmentNodes.get(node.key);
       if (deck) {
         deck.root.alpha = live ? 1 : 0.45;
-        deck.setActivity(states, live, frame);
+        deck.setActivity(states, live, frame, [...bayStates, ...overflow]);
       }
       const p = node.plate;
       const lightColor = live ? STATUS.done : env?.connection === "reconnecting" || env?.connection === "connecting" ? STATUS.question : 0x59626c;

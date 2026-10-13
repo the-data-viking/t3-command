@@ -66,6 +66,7 @@ export function StorageSection({ envId, now }: { envId: string; now: number }) {
         })}
       </ul>
       {worktrees.entries.length > SHOWN && <p className="muted small">+{worktrees.entries.length - SHOWN} smaller worktrees</p>}
+      {worktrees.scratchBytes !== undefined && <div className="host-stat"><span title="~/.t3/scratch">Scratch folder</span><strong>{gb(worktrees.scratchBytes)}</strong></div>}
       <p className="muted small">Measured {new Date(worktrees.measuredAt).toLocaleTimeString()} · every 15 minutes. “No thread” means no current T3 thread on this machine uses that worktree.</p>
     </>}
   </>;

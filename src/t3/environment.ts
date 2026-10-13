@@ -11,6 +11,7 @@ import type { QuestionAnswers } from "./questions";
 import { supportedUsage, historyWindow, type UsageSummary } from "./usage";
 import type { HostResources } from "./host";
 import { defaultBranch, latestWorktree, type ProjectRefs, type RecruitWorkspace } from "./workspace";
+import { SCRATCH_ROOT, SCRATCH_TITLE } from "./scratch";
 import type {
   AssetUrl,
   ImageResource,
@@ -427,6 +428,24 @@ export class EnvironmentClient {
     const thread = useGame.getState().envs[this.id]?.threads[threadId];
     if (!thread) throw new Error("Unknown thread");
     return thread;
+  }
+
+  /**
+   * Make sure this machine has T3's "No project" scratch project (idempotent). T3 servers without
+   * projects.ensureScratch get the same project created directly; they won't give threads their
+   * own folders inside it.
+   */
+  async ensureScratch(): Promise<string> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    try {
+      return (await this.rpc.request<{ projectId: string }>("projects.ensureScratch", {})).projectId;
+    } catch (err) {
+      if (!(err instanceof Error) || !/Unknown request tag/.test(err.message)) throw err;
+      const projectId = uuid();
+      await this.dispatch({ type: "project.create", projectId, title: SCRATCH_TITLE, workspaceRoot: SCRATCH_ROOT,
+        createWorkspaceRootIfMissing: true, defaultModelSelection: null, createdAt: new Date().toISOString() });
+      return projectId;
+    }
   }
 
   /** Send a follow-up message to an existing thread, keeping its model and modes. */

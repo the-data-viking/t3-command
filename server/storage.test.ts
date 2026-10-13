@@ -34,6 +34,20 @@ test("PowerShell output parses drives and worktree folders", () => {
   assert.deepEqual(r.worktrees!.entries, [{ path: "C:\\Users\\w\\.t3\\worktrees\\the-living-stone\\t3code-77", project: "the-living-stone", bytes: 3 * GB }]);
 });
 
+test("the scratch folder is measured on its own, not as a worktree", () => {
+  const posix = parseStorageOutput(["__T3C_BEGIN__", "__T3C_WT__", "2048\t/home/agent/.t3/worktrees/p/scratch", "4096\t/home/agent/.t3/scratch", "__T3C_END__"].join("\n"), 1, true)!;
+  assert.equal(posix.worktrees!.scratchBytes, 4096 * 1024);
+  assert.deepEqual(posix.worktrees!.entries.map((e) => e.project), ["p"]);
+  assert.equal(posix.worktrees!.totalBytes, 2048 * 1024);
+  const ps = parseStorageOutput(["__T3C_BEGIN__", "__T3C_WT__", `WT ${GB} C:\\Users\\w\\.t3\\scratch`, "__T3C_END__"].join("\r\n"), 1, true)!;
+  assert.equal(ps.worktrees!.scratchBytes, GB);
+  assert.equal(ps.worktrees!.entries.length, 0);
+  // No scratch folder on the machine: nothing reported, rather than zero.
+  assert.equal(parseStorageOutput("__T3C_BEGIN__\n__T3C_WT__\n__T3C_END__", 1, true)!.worktrees!.scratchBytes, undefined);
+  assert.match(storageCommand(["/x"], true, false), /"\$HOME"\/\.t3\/scratch/);
+  assert.match(storageCommand(["C:\\x"], true, true), /USERPROFILE\\\.t3\\scratch/);
+});
+
 test("incomplete output (command still running or failed) yields nothing rather than zeros", () => {
   assert.equal(parseStorageOutput("__T3C_BEGIN__\nFilesystem ...\n", 1, false), undefined);
   assert.equal(parseStorageOutput("printf: command not found", 1, false), undefined);

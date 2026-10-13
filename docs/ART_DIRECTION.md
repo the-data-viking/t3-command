@@ -117,6 +117,11 @@ footprint, docking hatch and status plate, so layout and routing are unchanged.
 - **Engine bay:** a core with four cell windows, a coolant tank and cooling fins. Cells light
   for the environment's observed crew: pulsing cyan per working crew member, then steady
   violet per monitoring one. The coolant column fills with measured RAM used.
+- **Engineering bay:** standing room on the right of the deck, with a wall terminal and tool
+  board, for the machine's scratch crew (threads in T3's "No project"). Up to two awake scratch
+  crew stand there; more show as "+N" above the tool board and still count in the core cells and
+  plate pips. The bay sits in shadow until crewed; its terminal glows cyan while one works and
+  violet while they only monitor. Settled scratch threads stay off the map (host panel roster).
 - **Readouts and caption:** CPU and RAM readouts sit on dark strips that stay legible on both
   decks. The plate keeps the connection light and crew-state pips. A caption appears only
   when samples are stale or unavailable.

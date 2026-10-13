@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ENGINEERING_SPOTS, FLIGHT_KIT } from '../art/flightdeck';
-import { computeFleetLayout, ENV_NODE_H, ENV_NODE_W } from './layout';
+import { computeFleetLayout, ENV_BAY, ENV_NODE_H, ENV_NODE_W } from './layout';
 import type { GameState } from '../store';
 
 const PX = 2; // textures.ts; importing it would pull in Pixi.
@@ -17,7 +17,7 @@ test('the engineering deck fills its node footprint exactly', () => {
 
 test('every light sits on a dark socket, so lit and unlit states read on both palettes', () => {
   const sockets = new Set(['k', 'D']);
-  for (const spot of [...ENGINEERING_SPOTS.leds, ...ENGINEERING_SPOTS.cells, ENGINEERING_SPOTS.coolant]) {
+  for (const spot of [...ENGINEERING_SPOTS.leds, ...ENGINEERING_SPOTS.cells, ENGINEERING_SPOTS.coolant, ENGINEERING_SPOTS.bayScreen]) {
     assert.ok(cells(spot).every((code) => sockets.has(code!)), `light at ${spot.x},${spot.y} is not on a socket`);
   }
   // Ten LEDs make a 10% CPU scale, filling bottom-up across both racks.
@@ -37,4 +37,10 @@ test('the status plate matches the layout plate the map draws pips into', () => 
   const node = computeFleetLayout(state).environmentNodes.get('a')!;
   const p = ENGINEERING_SPOTS.plate;
   assert.deepEqual(node.plate, { x: node.hull.x + p.x * PX, y: node.hull.y + p.y * PX, w: p.w * PX, h: p.h * PX });
+});
+
+test('the bay crew stand in matches the sprite bay, inside the hull and above the plate', () => {
+  const b = ENGINEERING_SPOTS.bay;
+  assert.deepEqual(ENV_BAY, { x: b.x * PX, y: b.y * PX, w: b.w * PX, h: b.h * PX });
+  assert.ok(b.y + b.h <= ENGINEERING_SPOTS.plate.y && b.x + b.w < deck[0].length);
 });

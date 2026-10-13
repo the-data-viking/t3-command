@@ -1,10 +1,12 @@
 // Orbital project campus: shared project modules around an operations hub.
 // Each participating environment gets its own engine/compute node directly attached
-// to the project it serves. Crew remain inside connected, door-routed project rooms.
+// to the project it serves. Crew remain inside connected, door-routed project rooms;
+// scratch crew (work not tied to a project) stand in their machine's engineering bay.
 
 import type { EnvWorld, GameState } from "../store";
 import { unitKey } from "../store";
 import { isHistory, unitState } from "../t3/derive";
+import { isScratch, scratchProject } from "../t3/scratch";
 import type { ProjectShell, ThreadShell } from "../t3/types";
 import { teamColor } from "./theme";
 import { botOperators, type BotOperator } from '../t3/bots';
@@ -72,6 +74,16 @@ export interface EnvironmentNodeLayout {
   plate: Rect;
   /** Direct physical connections to every project served by this environment. */
   links: Array<{ stationKey: string; from: Point; to: Point; via?: Point[] }>;
+  /** Standing room for this machine's scratch crew; always drawn, lit only while crewed. */
+  bay: Rect;
+  /** The machine's scratch project, once it has one. */
+  scratch?: {
+    projectId: string;
+    /** Key of the bay's one-room station in `FleetLayout.bays`. */
+    stationKey: string;
+    /** Awake scratch threads beyond the bay's standing room, not drawn on the map. */
+    overflow: string[];
+  };
 }
 
 export interface CrewLayout {
@@ -90,6 +102,8 @@ export interface CrewLayout {
 export interface FleetLayout {
   controlCenter?: ControlCenterLayout;
   stations: Map<string, StationLayout>;
+  /** Engineering bays as one-room stations, so their crew place and move like everyone else. */
+  bays: Map<string, StationLayout>;
   environmentNodes: Map<string, EnvironmentNodeLayout>;
   crew: Map<string, CrewLayout>;
   bounds: Rect;
@@ -110,10 +124,14 @@ export const TILE = 32;
 /** How many settled crew each station keeps aboard, most recently settled first. */
 export const QUARTERS_SHOWN = 3;
 const HULL_PAD = 22;
-export const ENV_NODE_W = 224;
+export const ENV_NODE_W = 288;
 export const ENV_NODE_H = 152;
+/** The engineering bay inside a node (relative to its hull); matches the deck sprite's bay. */
+export const ENV_BAY = { x: 222, y: 30, w: 56, h: 88 };
+/** Scratch crew standing in a bay at once; the rest are counted on the bay wall. */
+export const BAY_SHOWN = 2;
 const NODE_GAP = 24;
-const CAMPUS_GAP = 360;
+const CAMPUS_GAP = 400;
 const STATION_GAP_Y = 180;
 
 export function sortedEnvs(state: GameState): EnvWorld[] {
@@ -156,6 +174,8 @@ export function groupProjects(envs: EnvWorld[]): ProjectGroup[] {
     // Hermes owns persistent operators, never a repository-defined project module.
     if (env.summary.kind === 'hermes') return;
     for (const project of Object.values(env.projects)) {
+      // Scratch work belongs to the machine, so it lives in the engineering bay instead.
+      if (isScratch(project)) continue;
       const id = project.repositoryIdentity;
       if (!id?.canonicalKey) {
         unidentified.push({ env, index, project });
@@ -360,6 +380,32 @@ export function route(s: StationLayout, from: RoomKind, to: RoomKind, target: Po
   return points;
 }
 
+// ---- Engineering bays ----------------------------------------------------------------
+
+/** A bay as a one-room station: no doors or system rooms, so its crew simply stand in place. */
+function layoutBay(env: EnvWorld, index: number, projectId: string, rect: Rect, crew: CrewLayout[]): { station: StationLayout; overflow: string[] } {
+  const envId = env.summary.id;
+  const key = `bay:${envId}`;
+  const awake = Object.values(env.threads)
+    .filter((t) => t.projectId === projectId && !isHistory(t) && unitState(t) !== "sleeping")
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const shown = awake.slice(0, BAY_SHOWN);
+  const feet = rect.y + rect.h - 6;
+  shown.forEach((thread, k) => {
+    const home = { x: rect.x + rect.w * (shown.length === 1 ? 0.5 : k === 0 ? 0.26 : 0.76), y: feet };
+    crew.push({ key: unitKey(envId, thread.id), envId, threadId: thread.id, stationKey: key, color: teamColor(index),
+      home, homeRoom: "bridge", sleeping: false });
+  });
+  const center = { x: rect.x + rect.w / 2, y: feet };
+  const station: StationLayout = {
+    key, name: "Scratch", members: [{ envId, projectId }], interior: rect, hull: [],
+    rooms: { bridge: { kind: "bridge", rect } }, doors: [], consoles: [],
+    workstations: { terminal: center, files: center, comms: center },
+    archived: 0, settledHidden: 0, port: center, nameplate: { x: rect.x, y: rect.y }, bounds: rect,
+  };
+  return { station, overflow: awake.slice(BAY_SHOWN).map((t) => t.id) };
+}
+
 // ---- Fleet ----------------------------------------------------------------------------
 
 /**
@@ -384,7 +430,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   const hermes = envs.filter(env => env.summary.kind === 'hermes');
   const engineering = envs.filter(env => env.summary.kind !== 'hermes');
   const operators = hermes.length ? botOperators(state) : [];
-  const fleet: FleetLayout = { stations: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
+  const fleet: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
   const groups = groupProjects(envs);
   if (envs.length === 0) return fleet;
 
@@ -437,9 +483,18 @@ export function computeFleetLayout(state: GameState): FleetLayout {
         ] } : {}),
       };
     });
+    const bay = { x: x + ENV_BAY.x, y: nodeY + ENV_BAY.y, w: ENV_BAY.w, h: ENV_BAY.h };
+    const scratch = scratchProject(env);
+    let bayCrew: EnvironmentNodeLayout["scratch"];
+    if (scratch) {
+      const { station, overflow } = layoutBay(env, envs.indexOf(env), scratch.id, bay, crew);
+      fleet.bays.set(station.key, station);
+      bayCrew = { projectId: scratch.id, stationKey: station.key, overflow };
+    }
     fleet.environmentNodes.set(key, { key, envId: key, color: stationColor(state, key),
       hull: { x, y: nodeY, w: ENV_NODE_W, h: ENV_NODE_H },
-      plate: { x: x + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links });
+      plate: { x: x + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links, bay,
+      ...(bayCrew ? { scratch: bayCrew } : {}) });
   });
   if (hermes.length) {
     const hull = bridge;

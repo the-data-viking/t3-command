@@ -14,6 +14,7 @@ import type { RecruitWorkspace } from "../t3/workspace";
 import { WorkspacePicker } from "./WorkspacePicker";
 import { GitStatus } from "./GitStatus";
 import { PixelIcon } from "./PixelArt";
+import { isScratch } from "../t3/scratch";
 
 const RUNTIME_MODES: Array<{ id: RuntimeMode; label: string }> = [
   { id: "full-access", label: "Full access" },
@@ -138,7 +139,7 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
   );
 }
 
-function RecruitForm({ envId, projectId }: { envId: string; projectId: string }) {
+export function RecruitForm({ envId, projectId }: { envId: string; projectId: string }) {
   const env = useGame((s) => s.envs[envId]);
   const project = env?.projects[projectId];
   const providers = usable(env?.providers ?? []);
@@ -177,7 +178,9 @@ function RecruitForm({ envId, projectId }: { envId: string; projectId: string })
     setSending(true);
     setRecruitError(undefined);
     try {
-      const threadId = await envClient(envId)!.recruit({ projectId, text: task, modelSelection: current, runtimeMode: currentRuntimeMode, workspace, hermesProfile });
+      // Scratch isn't a repository: T3 gives the thread its own folder inside it instead.
+      const threadId = await envClient(envId)!.recruit({ projectId, text: task, modelSelection: current, runtimeMode: currentRuntimeMode,
+        workspace: isScratch(project) ? undefined : workspace, hermesProfile });
       savePrefs(envId, { modelSelection: current, runtimeMode: currentRuntimeMode, hermesProfile });
       sfx.recruit();
       addLog({ tone: "good", text: `New worker recruited at ${project?.title ?? "base"}`, envId, threadId });

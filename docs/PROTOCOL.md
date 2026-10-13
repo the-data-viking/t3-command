@@ -654,6 +654,16 @@ median/p90/longest, top errors, project and model rankings, coverage gaps over 5
 most recent turns. Spend history is not recorded: the UI asks each T3 for `server.getUsageSummary`
 over the range when the panel opens.
 
+### Scratch work ("No project")
+
+T3 keeps threads that belong to no project in a built-in project titled "No project" at
+`<T3 home>/scratch` (`~/.t3/scratch`). `projects.ensureScratch {}` → `{projectId}` creates it
+idempotently; a `thread.turn.start` bootstrap into it with `worktreePath: null` gets a dated folder
+of its own inside it. t3-command recognises the project by that path (or the title), keeps it out
+of project stations and seats its crew in the machine's engineering bay. The host panel's
+**Set up scratch bay** calls `projects.ensureScratch`; servers without it get a plain
+`project.create` at `~/.t3/scratch` with `createWorkspaceRootIfMissing`.
+
 ### Disk usage (Command server)
 
 T3 has no disk-usage RPC, so `server/storage.ts` collects it. Every 5 minutes it checks each machine.
@@ -664,7 +674,7 @@ Others get a short-lived terminal: `terminal.open {threadId: "t3-command-storage
 `terminal.close {deleteHistory: true}` in all cases. The connection uses `clientAppVersion=t3-command-storage`
 and needs the `terminal:operate` scope, which linked desktop connections have. Output is bracketed by
 `__T3C_BEGIN__`/`__T3C_WT__`/`__T3C_END__` marker lines, so prompts, the echoed command and ANSI codes
-are ignored. Every third sample also runs `nice -n 19 du -sk ~/.t3/worktrees/*/*`. Windows paths
+are ignored. Every third sample also runs `nice -n 19 du -sk ~/.t3/worktrees/*/* ~/.t3/scratch`. Windows paths
 (`C:\…`) get the PowerShell equivalent, using `PSDrive` used/free and recursive `Get-ChildItem` sums.
 The latest reading and a 7-day trend of the fullest disk are kept in `storage-state.json` (`0600`).
 

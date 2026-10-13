@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useGame } from "../store";
 import { envClient } from "../t3/environment";
+import { isScratch } from "../t3/scratch";
 import { defaultBranch, latestWorktree, type ProjectRefs, type RecruitWorkspace } from "../t3/workspace";
 
 export function WorkspacePicker({ envId, projectId, value, onChange, disabled }: {
@@ -16,10 +17,11 @@ export function WorkspacePicker({ envId, projectId, value, onChange, disabled }:
   const [error, setError] = useState<string>();
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
+  const scratch = isScratch(project);
   const hermes = env?.summary.kind === "hermes";
 
   useEffect(() => {
-    if (hermes || env?.connection !== "live") return;
+    if (hermes || scratch || env?.connection !== "live") return;
     let active = true;
     setLoading(true);
     setError(undefined);
@@ -31,10 +33,11 @@ export function WorkspacePicker({ envId, projectId, value, onChange, disabled }:
       if (active) { setData(undefined); setError(err instanceof Error ? err.message : String(err)); }
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [envId, projectId, env?.connection, hermes, refresh]);
+  }, [envId, projectId, env?.connection, hermes, scratch, refresh]);
 
   if (!project || !env) return null;
   if (hermes) return <div className="muted small">Workspace: current checkout · {project.workspaceRoot}</div>;
+  if (scratch) return <div className="muted small">Workspace: a new folder of its own in {project.workspaceRoot}</div>;
   const refs = data?.refs ?? [];
   const current = refs.find((r) => r.current);
   const latest = latestWorktree(Object.values(env.threads), projectId, project.workspaceRoot);

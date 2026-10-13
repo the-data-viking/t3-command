@@ -150,3 +150,30 @@ test('streamed thread churn keeps every facility drawing, while real layout chan
   const restyled = { ...state, artStyle: 'flightdeck' } as GameState;
   assert.ok(keys(restyled).stations.every((key, i) => key !== keys({ ...state, artStyle: 'flightdeck-nightshift' } as GameState).stations[i]));
 });
+
+test('scratch projects never become stations; their awake crew stand in the engineering bay', () => {
+  const state = fixture();
+  const scratch = (envId: string, root: string, threads: Array<[string, string, string?]>) => {
+    const env = state.envs[envId];
+    env.projects = { ...env.projects, [`${envId}-scratch`]: { id: `${envId}-scratch`, title: 'No project', workspaceRoot: root, repositoryIdentity: null, createdAt: '2026-01-01' } as never };
+    for (const [id, createdAt, settledAt] of threads) env.threads[id] = { ...env.threads['shared-0'], id, projectId: `${envId}-scratch`, createdAt,
+      session: { status: settledAt ? 'idle' : 'running' }, settledAt: settledAt ?? null } as never;
+  };
+  scratch('a', '/home/a/.t3/scratch', [['s1', '2026-01-01'], ['s2', '2026-01-02'], ['s3', '2026-01-03']]);
+  scratch('b', 'C:\\Users\\b\\.t3\\scratch\\', []);
+  const layout = computeFleetLayout(state);
+  assert.equal(layout.stations.size, 2, 'scratch folders on two machines never form a shared or local station');
+  assert.equal(layout.environmentNodes.get('empty')!.scratch, undefined);
+  const a = layout.environmentNodes.get('a')!;
+  assert.equal(a.links.length, 2, 'no conduit to a scratch project');
+  assert.deepEqual(a.scratch?.overflow, ['s3']);
+  assert.deepEqual(layout.environmentNodes.get('b')!.scratch?.overflow, []);
+  const bay = layout.bays.get(a.scratch!.stationKey)!;
+  for (const id of ['s1', 's2']) {
+    const crew = layout.crew.get(`a:${id}`)!;
+    assert.equal(crew.stationKey, bay.key);
+    assert.ok(crew.home.x > a.bay.x && crew.home.x < a.bay.x + a.bay.w && crew.home.y > a.bay.y && crew.home.y <= a.bay.y + a.bay.h);
+    assert.ok(crew.home.x > a.hull.x && crew.home.x < a.hull.x + a.hull.w);
+  }
+  assert.equal(layout.crew.has('a:s3'), false);
+});
