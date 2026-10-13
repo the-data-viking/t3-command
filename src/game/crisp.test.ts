@@ -27,8 +27,8 @@ test("at every zoom step from 1 up, art pixels and font pixels (1–3 world px) 
   }
 });
 
-test("in the fleet view every zoom step draws glyph cells two whole screen pixels wide", () => {
-  for (const z of ZOOM_STEPS.filter((s) => s < FLEET_VIEW_ZOOM)) assert.ok(Number.isInteger(2 / z), `zoom ${z}`);
+test("in the fleet view every zoom step draws glyph cells three whole screen pixels wide", () => {
+  for (const z of ZOOM_STEPS.filter((s) => s < FLEET_VIEW_ZOOM)) assert.ok(Number.isInteger(3 / z), `zoom ${z}`);
 });
 
 test("small figures stay at one screen pixel per art pixel when zoomed out, and no bigger", () => {

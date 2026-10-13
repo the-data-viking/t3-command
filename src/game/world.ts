@@ -975,7 +975,8 @@ export class World {
   /**
    * Zoomed far out, stations become flat blocks of their rooms and each awake crew member a
    * status glyph laid out inside, most urgent first: the sprites would pile up and the station
-   * art break apart at that scale. Glyph cells are two screen pixels at every far zoom.
+   * art break apart at that scale. Glyph cells are three screen pixels at every far zoom (a
+   * 15 px glyph), since this is the overview "fit" usually lands on.
    */
   private drawFleetView(state: GameState, sel: Selection): void {
     const g = this.fleetView.clear();
@@ -985,7 +986,7 @@ export class World {
     if (!far) return;
     const c = currentStyle().colors;
     const plating = platingMaterials(state.artStyle);
-    const cell = Math.round(2 / this.zoom);
+    const cell = Math.round(3 / this.zoom);
     const tone: Record<RoomKind, number> = { bridge: c.f, terminal: c.p, files: c.p, comms: c.p, quarters: c.q, archive: c.F };
     const urgency: UnitState[] = ["alert", "question", "error", "done", "working", "monitoring", "idle", "sleeping"];
     const byStation = new Map<string, CrewSprite[]>();
