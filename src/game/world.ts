@@ -28,6 +28,7 @@ import { doorState } from "./crew-motion";
 import { RenderLoop, type DrawResult } from "./render-loop";
 import { Backdrop } from "./backdrop";
 import { consoleScreen, terminalScreen } from "./screens";
+import { dockedPrs } from "./memory";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
@@ -1120,8 +1121,9 @@ export class World {
     const working = crew.filter((c) => c.state === "working").length;
     const waiting = crew.filter((c) => c.state === "alert" || c.state === "question");
     const oldest = waiting.length ? Math.max(...waiting.map((c) => now - waitingSince(c.thread, details[c.key]?.thread))) : 0;
-    const prs = crew.flatMap((c) => c.thread.pullRequests ?? []).filter((pr) => pr.snapshot?.state === "open");
-    const failing = prs.filter((pr) => pr.snapshot?.checksState === "failing").length;
+    // The same open PRs the station's cargo pods show: every thread's, each once.
+    const prs = dockedPrs(useGame.getState(), s);
+    const failing = prs.filter((pr) => pr.checks === "failing").length;
     const span = (ms: number) => ms >= 3_600_000 ? `${Math.floor(ms / 3_600_000)}H` : `${Math.max(1, Math.floor(ms / 60_000))}M`;
     const parts = [
       waiting.length ? `${waiting.length} WAITING ${span(oldest)}` : "",

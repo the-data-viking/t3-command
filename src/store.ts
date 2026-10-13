@@ -81,6 +81,7 @@ export interface GameState {
   showLog: boolean;
   /** Recorded turn and spend history. */
   showHistory: boolean;
+  showTimeline: boolean;
   /** Desktop notifications for approvals and questions while the tab isn't in view. */
   notify: boolean;
   /** The crew member whose pending approval/question is shown as an event dialog. */
@@ -243,6 +244,7 @@ export const useGame = create<GameState>()(() => ({
   showEnvManager: false,
   showLog: false,
   showHistory: false,
+  showTimeline: false,
   notify: loadNotify(),
   event: null,
   incoming: null,

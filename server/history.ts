@@ -11,7 +11,7 @@ import path from "node:path";
 import type { ProjectShell, ThreadShell } from "../src/t3/types.ts";
 import {
   GAP_THRESHOLD_MS, HISTORY_RETENTION_DAYS, summarizeHistory,
-  type CoverageSpan, type HistorySummary, type TurnOutcome, type TurnRecord,
+  type CoverageSpan, type HistorySummary, type TimelineView, type TurnOutcome, type TurnRecord,
 } from "../shared/history.ts";
 import { memoryOf, type FleetMemory } from "../shared/memory.ts";
 
@@ -148,6 +148,12 @@ export class TurnHistory {
     const coverage: CoverageSpan[] = Object.entries(this.state.envs).flatMap(([envId, env]) =>
       env.spans.map((s) => ({ envId, from: s.from, to: this.live.has(envId) && s === env.spans.at(-1) ? new Date(this.now()).toISOString() : s.to })));
     return summarizeHistory(this.records, coverage, this.labels, { days, timeZone, now: this.now() });
+  }
+
+  /** Every turn that finished in the last `hours`, oldest first, for the fleet timeline. */
+  timeline(hours: number): TimelineView {
+    const to = this.now(), from = to - hours * 3_600_000;
+    return { from, to, turns: this.records.filter((r) => Date.parse(r.completedAt) >= from).sort((a, b) => a.startedAt.localeCompare(b.startedAt)) };
   }
 
   /** Each project copy's finished and failed turns over the retention window, for station memory. */

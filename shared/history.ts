@@ -55,6 +55,10 @@ export interface HistorySummary {
   longest: TurnRecord[];
 }
 
+/** Finished turns over a recent window, for the fleet timeline. Times are epoch ms. */
+export interface TimelineView { from: number; to: number; turns: TurnRecord[] }
+export const TIMELINE_MAX_HOURS = 7 * 24;
+
 export const HISTORY_RETENTION_DAYS = 90;
 /** Shorter outages (a redeploy) aren't worth flagging; the snapshot afterwards recovers them. */
 export const GAP_THRESHOLD_MS = 5 * 60_000;
