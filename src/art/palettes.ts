@@ -63,7 +63,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   flightdeck: {
     id: "flightdeck", name: "Kestrel",
     mapInk: { text: 0xf1e6d0, muted: 0xb9a88c },
-    blurb: "FTL's warm hull: ivory plating on walnut decks, under a bronze-and-leather HUD.",
+    blurb: "FTL's warm hull over an amber desert world: ivory plating, walnut decks, a ringed giant overhead.",
     // Warm space: a brown-black void, so the ivory hull reads warm against it.
     space: 0x110d0b, wall: 0x1f1813,
     // Leather and bronze: bronze frames (well clear of Hermes tan), oiled-leather panels, cream text.
@@ -85,8 +85,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   },
   signal: {
     id: "signal",
-    name: "Signal",
-    blurb: "A daylight ops room: a cool slate-and-white HUD over porcelain hulls and ink-blue decks.",
+    name: "Day Shift",
+    blurb: "Night Shift by day: the same station in sunlight, porcelain hulls under a cool slate-and-white HUD.",
     space: 0x0b1423,
     wall: 0x101c2a,
     // The cool light HUD, counterpart to Pastel's warm one: slate frames on pale panels.
@@ -153,7 +153,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     id: "pastel",
     mapInk: { text: 0xf6efe4, muted: 0xc9b8d4 },
     name: "Pastel Ops",
-    blurb: "Cozy candy ops: a warm cream HUD and soft plum outlines over dusk space.",
+    blurb: "Cozy candy ops at dusk: a cream HUD, soft plum outlines, a big pale moon.",
     space: 0x2a2140,
     wall: 0x4a3a52,
     // A light HUD to match the cream decks: plum frames around cream panels, plum ink.
@@ -228,6 +228,6 @@ export const STYLES: Record<StyleId, Style> = {
     ...BASE_STYLES.nightshift,
     id: "flightdeck-nightshift",
     name: "Night Shift",
-    blurb: "The default: a graveyard-shift engineering bay, graphite decks under cool grey frames.",
+    blurb: "The default: a graveyard-shift engineering bay under a crescent moon, graphite decks, cool grey frames.",
   },
 };

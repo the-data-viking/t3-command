@@ -11,7 +11,7 @@ give it orders, watch it work, and respond to approval requests when they come u
 ## Status
 
 Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-command styling
-(hand-authored pixel sprites, with Flight Deck in Night Shift as the default):
+(hand-authored pixel sprites, with Night Shift as the default world):
 
 - **Stations**: shared project modules form an orbital campus around an operations hub. Terminal,
   files, comms, quarters, and archive chambers flank a central commons. Every participating
@@ -181,21 +181,30 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   instead of a pile of alarms. Plus a comms feed of events.
 
 The map uses compact suited crew and wraparound system consoles. The theme button (showing a tiny
-scene in the current theme) opens a picker with a rendered preview of each theme: Night Shift (the
-default, a graveyard-shift engineering bay), Kestrel (the warm FTL hull: walnut decks under a
-bronze-and-leather HUD), Signal (a daylight ops room: a cool slate-and-white HUD over porcelain
-hulls), Pastel Ops (a warm cream HUD over dusk space) and High Contrast. Hovering a theme previews
-its HUD. Each theme recolors the map and brings its own HUD chrome: bevelled corners for Night
-Shift and Kestrel, rounded for Signal and Pastel, square for High Contrast. Status and gauge colors
-keep their meaning everywhere; on the light HUDs (Signal, Pastel) they're hand-tuned darker so they
-stay readable. High Contrast uses black
-space, white frames and text, and light hulls on dark floors. It is chosen automatically if your
-system asks for more contrast and you haven't picked a theme yet. Switching crossfades the map,
-except under reduced motion. Earlier saved preferences carry over (a saved Kestrel becomes Kestrel).
+scene in the current theme) opens the **world** picker, each with a rendered preview:
 
-Behind the fleet, the sky is layered for depth when you pan: dim far stars and nebulae, distant
-pixel-art planets, nearer stars, and a few bright stars that twinkle while the map is animating
-anyway. Each theme has its own nebula and planet colors, and High Contrast keeps a plain black sky.
+- **Night Shift**, the default: a graveyard-shift engineering bay over a cold blue planet under a
+  crescent moon. **Day** is the same world in sunlight (formerly Signal): porcelain hulls, a cool
+  slate-and-white HUD, and a sun whose glare washes out all but the brightest stars.
+- **Kestrel**: the warm FTL hull over an amber desert world, walnut decks under a bronze-and-leather
+  HUD, with a ringed giant overhead and warm dust in the starlight.
+- **Pastel Ops**: candy dusk, a cream HUD over a pink planet, a big pale crescent moon, and pink and
+  mint stars.
+
+**High contrast** is a switch under the worlds, an accessibility mode rather than a world: black
+space and wells, white frames and text, light hulls on dark floors, a bare sky. Turning it off
+returns you to your last world. It is chosen automatically if your system asks for more contrast
+and you haven't picked a theme yet.
+
+Hovering previews the HUD. Each world recolors the map and brings its own HUD chrome: bevelled
+corners for Night Shift and Kestrel, rounded for Day and Pastel, square for High Contrast. Status
+and gauge colors keep their meaning everywhere; on the light HUDs (Day, Pastel) they're hand-tuned
+darker so they stay readable. Switching crossfades the map, except under reduced motion. Earlier
+saved preferences carry over.
+
+Behind the fleet, the sky is layered for depth when you pan: dim far stars, nearer stars, a few
+bright stars that twinkle, the world's light (a moon, the sun or the ringed giant) with a
+pixel-dithered glow, and its planet's horizon along the bottom of the frame.
 
 The pixel-art map renders at one backing pixel per CSS pixel and at most 30 FPS. It stops
 redrawing when the fleet is idle and pauses while the page is hidden; live connections and
