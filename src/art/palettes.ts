@@ -14,6 +14,11 @@ export interface Style {
   wall: number;
   /** Materials for the HUD chrome around the map; styles without one use Night Shift's. */
   hud?: HudMaterials;
+  /**
+   * The world's hull silhouette: an industrial chamfered box (default), an FTL ship (deep angular
+   * corners, a dorsal spine, twin nacelles), or soft (rounded hull, portholes, a glass dome).
+   */
+  hull?: "industrial" | "ftl" | "soft";
   /** The world's lamp colour: ceiling strips and their bloom in lit rooms. */
   light?: number;
   /** Map label text and lines (drawn over space or dark plating); defaults are the HUD's dark-theme text. */
@@ -66,6 +71,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     id: "flightdeck", name: "Kestrel",
     // Warm sodium lamps.
     light: 0xffd49a,
+    hull: "ftl",
     mapInk: { text: 0xf1e6d0, muted: 0xb9a88c },
     blurb: "FTL's warm hull over an amber desert world: ivory plating, walnut decks, a ringed giant overhead.",
     // Warm space: a brown-black void, so the ivory hull reads warm against it.
@@ -161,6 +167,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     id: "pastel",
     // Candy-pink lamps at dusk.
     light: 0xffdcec,
+    hull: "soft",
     mapInk: { text: 0xf6efe4, muted: 0xc9b8d4 },
     name: "Pastel Ops",
     blurb: "Cozy candy ops at dusk: a cream HUD, soft plum outlines, a big pale moon.",

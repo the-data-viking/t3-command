@@ -59,14 +59,22 @@ export class StationSprite {
     // shadow along the bottom.
     const xs = s.hull.filter((_, k) => k % 2 === 0), ys = s.hull.filter((_, k) => k % 2 === 1);
     const hx = Math.min(...xs), hy = Math.min(...ys), hw = Math.max(...xs) - hx, hh = Math.max(...ys) - hy;
-    const cut = Math.max(8, s.hull[0] - hx);
-    steppedPlate(g, hx - 4, hy - 4, hw + 8, hh + 8, cut + 4, 4, c.k);
-    steppedPlate(g, hx, hy, hw, hh, cut, 4, c.H);
+    // Each world's silhouette: deep angular corners for the FTL ship, a rounded hull for soft
+    // worlds, the layout's own chamfer otherwise. The interior always clears the corners.
+    const silhouette = style.hull ?? "industrial";
+    const cut = silhouette === "industrial" ? Math.max(8, s.hull[0] - hx) : 40;
+    if (silhouette === "soft") {
+      roundedPlate(g, hx - 4, hy - 4, hw + 8, hh + 8, cut + 4, c.k);
+      roundedPlate(g, hx, hy, hw, hh, cut, c.H);
+    } else {
+      steppedPlate(g, hx - 4, hy - 4, hw + 8, hh + 8, cut + 4, 4, c.k);
+      steppedPlate(g, hx, hy, hw, hh, cut, 4, c.H);
+    }
     const i = s.interior;
     const hullTop = s.hull[1];
     const hullBottom = s.hull[11];
-    g.rect(s.hull[0], hullTop + 2, s.hull[2] - s.hull[0], 4).fill(c.h);
-    g.rect(s.hull[10], hullBottom - 6, s.hull[8] - s.hull[10], 4).fill(c.D);
+    g.rect(hx + cut, hullTop + 2, hw - 2 * cut, 4).fill(c.h);
+    g.rect(hx + cut, hullBottom - 6, hw - 2 * cut, 4).fill(c.D);
     for (let x = i.x + 48; x < i.x + i.w; x += 96) {
       g.rect(x, hullTop + 10, 2, i.y - hullTop - 14).fill(c.D);
       g.rect(x, i.y + i.h + 4, 2, hullBottom - i.y - i.h - 12).fill(c.D);
@@ -213,7 +221,10 @@ export class StationSprite {
    * or a second mast on the roof.
    */
   private drawExterior(g: Graphics, s: StationLayout, h: { x: number; y: number; w: number; h: number }, hullTop: number, i: { x: number; y: number; w: number; h: number }): void {
-    const c = currentStyle().colors;
+    const style = currentStyle();
+    if (style.hull === "ftl") return this.drawFtlExterior(g, s, h, hullTop, i);
+    if (style.hull === "soft") return this.drawSoftExterior(g, s, h, hullTop, i);
+    const c = style.colors;
     const seed = hash(s.key);
     const band = i.y - hullTop;
     // Viewports: small dark windows with a lit pixel, in the hull band above the interior.
@@ -247,6 +258,90 @@ export class StationSprite {
       g.rect(rx - 4, hullTop - 14, 12, 2).fill(c.k);
       g.rect(rx, hullTop - 22, 4, 4).fill(c.w);
     }
+  }
+
+  /**
+   * Kestrel's FTL ship: long slot ports along the top band, a stepped dorsal spine on the roof
+   * (clear of the nameplate on the left and the antenna on the right), and twin engine nacelles
+   * on the side away from the network port, their exhausts glowing in the world's lamp colour.
+   */
+  private drawFtlExterior(g: Graphics, s: StationLayout, h: { x: number; y: number; w: number; h: number }, hullTop: number, i: { x: number; y: number; w: number; h: number }): void {
+    const style = currentStyle(), c = style.colors;
+    const lamp = style.light ?? c.w;
+    const band = i.y - hullTop;
+    if (band >= 14) {
+      const wy = hullTop + Math.round((band - 6) / 2 / 2) * 2;
+      for (let x = i.x + 64; x + 28 < i.x + i.w - 64; x += 40) {
+        g.rect(x, wy, 28, 6).fill(c.k);
+        g.rect(x + 2, wy + 2, 24, 2).fill(c.b);
+        g.rect(x + 2, wy + 2, 6, 2).fill(c.h);
+      }
+    }
+    // Dorsal spine: a stepped plate with ribs along it.
+    const sx = i.x + Math.round((i.w * 0.46) / 4) * 4, sw = Math.round((i.w * 0.36) / 4) * 4;
+    steppedPlate(g, sx - 2, hullTop - 12, sw + 4, 14, 6, 2, c.k);
+    steppedPlate(g, sx, hullTop - 10, sw, 12, 4, 2, c.H);
+    g.rect(sx + 4, hullTop - 10, sw - 8, 2).fill(c.h);
+    for (let x = sx + 12; x < sx + sw - 8; x += 16) g.rect(x, hullTop - 6, 2, 6).fill(c.D);
+    // Twin nacelles on struts, away from the port.
+    const right = s.port.x < h.x + h.w / 2;
+    const nw = 44, nh = 18;
+    for (const ny of [h.y + 18, h.y + h.h - 18 - nh]) {
+      const nx = right ? h.x + h.w + 8 : h.x - 8 - nw;
+      // A pylon in hull plating, outlined, from the hull to the nacelle.
+      g.rect(right ? h.x + h.w - 2 : nx + nw - 2, ny + 4, 12, 10).fill(c.k);
+      g.rect(right ? h.x + h.w - 2 : nx + nw, ny + 6, 12, 6).fill(c.H);
+      steppedPlate(g, nx - 2, ny - 2, nw + 4, nh + 4, 6, 2, c.k);
+      steppedPlate(g, nx, ny, nw, nh, 4, 2, c.W);
+      g.rect(nx + 4, ny + 2, nw - 8, 2).fill(c.w);
+      g.rect(nx + 4, ny + nh - 4, nw - 8, 2).fill(c.D);
+      g.rect(nx + 14, ny + 6, 16, 6).fill(c.q);
+      // Exhaust: the nozzle and a dithered glow trailing out behind it.
+      const ex = right ? nx + nw : nx - 4;
+      g.rect(ex, ny + 4, 4, nh - 8).fill(c.k);
+      for (let k = 0; k < 4; k++) {
+        for (let r = 0; r < nh - 8; r += 2) {
+          if ((k + r / 2) % 2 !== 0 && k > 0) continue;
+          g.rect(right ? ex + 4 + k * 2 : ex - 2 - k * 2, ny + 4 + r, 2, 2).fill({ color: lamp, alpha: 0.9 - k * 0.22 });
+        }
+      }
+    }
+  }
+
+  /**
+   * Pastel's soft hull: round portholes along the top band, a glass dome on the roof, a
+   * pastel stripe along the belly, and a rounded engine pod away from the port.
+   */
+  private drawSoftExterior(g: Graphics, s: StationLayout, h: { x: number; y: number; w: number; h: number }, hullTop: number, i: { x: number; y: number; w: number; h: number }): void {
+    const c = currentStyle().colors;
+    const seed = hash(s.key);
+    const band = i.y - hullTop;
+    if (band >= 14) {
+      const cy = hullTop + Math.round(band / 2 / 2) * 2;
+      for (let x = i.x + 72 + Math.round(seed * 4) * 2; x < i.x + i.w - 72; x += 36) {
+        pixelDisc(g, x, cy, 6, c.k);
+        pixelDisc(g, x, cy, 4, c.b);
+        g.rect(x - 2, cy - 2, 2, 2).fill(c.w);
+      }
+    }
+    // Belly stripe in the deck's warm tone, between the corners.
+    g.rect(h.x + 44, s.hull[11] - 12, h.w - 88, 4).fill(c.q);
+    // Glass dome on the roof, mid-right, clear of the nameplate and antenna.
+    const dx = i.x + Math.round((i.w * 0.62) / 2) * 2;
+    const R = 18;
+    const half = (row: number) => Math.round(Math.sqrt(R * R - (R - row - 1) ** 2) / 2) * 2;
+    // Outline first (one row up and one cell out), then the glass inside it.
+    for (let row = 0; row < R; row += 2) g.rect(dx - half(row) - 2, hullTop - R + row - 2, half(row) * 2 + 4, 4).fill(c.k);
+    for (let row = 2; row < R; row += 2) g.rect(dx - half(row) + 2, hullTop - R + row, half(row) * 2 - 4, 2).fill(row < 8 ? c.W : c.b);
+    // A glint on the glass.
+    g.rect(dx - 8, hullTop - R + 6, 4, 2).fill(c.w);
+    // A rounded engine pod away from the network port.
+    const right = s.port.x < h.x + h.w / 2;
+    const pw = 22, ph = 40 + Math.round(seed * 4) * 4;
+    const px = right ? h.x + h.w + 2 : h.x - 2 - pw, py = h.y + h.h / 2 - ph / 2;
+    roundedPlate(g, px - 2, py - 2, pw + 4, ph + 4, 10, c.k);
+    roundedPlate(g, px, py, pw, ph, 8, c.W);
+    for (let k = 0; k < 3; k++) pixelDisc(g, px + pw / 2, py + 10 + k * Math.floor((ph - 20) / 2), 3, c.q);
   }
 
   /**
@@ -346,5 +441,23 @@ export class StationSprite {
 
   destroy(): void {
     this.root.destroy({ children: true });
+  }
+}
+
+/** A plate with quarter-circle corners of radius `r`, drawn in 2-px rows (no smooth curves). */
+function roundedPlate(g: Graphics, x: number, y: number, w: number, h: number, r: number, color: number): void {
+  g.rect(x, y + r, w, h - 2 * r).fill(color);
+  for (let row = 0; row < r; row += 2) {
+    const inset = Math.round((r - Math.sqrt(r * r - (r - row - 1) ** 2)) / 2) * 2;
+    g.rect(x + inset, y + row, w - 2 * inset, 2).fill(color);
+    g.rect(x + inset, y + h - row - 2, w - 2 * inset, 2).fill(color);
+  }
+}
+
+/** A filled pixel disc of radius `r`, in 2-px rows. */
+function pixelDisc(g: Graphics, cx: number, cy: number, r: number, color: number): void {
+  for (let y = -r; y < r; y += 2) {
+    const half = Math.round(Math.sqrt(Math.max(0, r * r - (y + 1) ** 2)) / 2) * 2;
+    if (half > 0) g.rect(cx - half, cy + y, half * 2, 2).fill(color);
   }
 }

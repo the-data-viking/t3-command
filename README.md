@@ -219,9 +219,11 @@ scene in the current theme) opens the **world** picker, each with a rendered pre
   crescent moon. **Day** is the same world in sunlight (formerly Signal): porcelain hulls, a cool
   slate-and-white HUD, and a sun whose glare washes out all but the brightest stars.
 - **Kestrel**: the warm FTL hull over an amber desert world, walnut decks under a bronze-and-leather
-  HUD, with a ringed giant overhead and warm dust in the starlight.
+  HUD, with a ringed giant overhead and warm dust in the starlight. Its stations are ships: deep
+  angular corners, long slot ports, a dorsal spine and twin engine nacelles with a glowing exhaust.
 - **Pastel Ops**: candy dusk, a cream HUD over a pink planet, a big pale crescent moon, and pink and
-  mint stars.
+  mint stars. Its stations are soft: rounded hulls, round portholes, a glass dome on the roof and a
+  rounded engine pod.
 
 **High contrast** is a switch under the worlds, an accessibility mode rather than a world: black
 space and wells, white frames and text, light hulls on dark floors, a bare sky. Turning it off
