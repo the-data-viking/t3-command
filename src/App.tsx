@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { MeResponse } from "../shared/api";
 import { sfx } from "./game/sfx";
 import { installActiveWatches } from "./game/watch";
-import { addLog, openEvent, useGame } from "./store";
+import { openEvent, useGame } from "./store";
 import { fetchJson, onUnitTransition, refreshEnvironments } from "./t3/environment";
 import { BuildingPanel } from "./ui/BuildingPanel";
 import { EnvManager } from "./ui/EnvManager";
@@ -20,32 +20,28 @@ import { HostPanel } from "./ui/HostPanel";
 import { HermesControlCenter } from "./ui/HermesControlCenter";
 import { refreshHermesBots } from "./t3/hermes";
 import { refreshStorage, STORAGE_REFRESH_MS } from "./t3/storage";
+import { connectComms } from "./t3/comms";
 import { installQuietWatch, installTitleBadge, notifyAttention } from "./ui/attention";
 
 const ENV_REFRESH_MS = 30_000;
 
-/** Turn unit state changes into sound effects and event-log lines. */
+/**
+ * Unit state changes as sound effects, desktop notifications and event popups. The matching
+ * comms lines come from the Command server, so every device logs the same events.
+ */
 function announceTransitions(): () => void {
   return onUnitTransition(({ envId, thread, from, to }) => {
-    const name = `"${thread.title || "Untitled"}"`;
     const at = { envId, threadId: thread.id };
     if (to === "alert" || to === "question") {
       sfx.alert();
       notifyAttention(envId, thread, to);
-      addLog({ tone: "alert", text: to === "alert" ? `${name} needs your approval` : `${name} has a question`, ...at });
       // FTL-style: pop the event, unless you're busy typing or already looking at one.
       const active = document.activeElement?.tagName;
       if (!useGame.getState().event && active !== "TEXTAREA" && active !== "INPUT") openEvent(at);
     } else if (to === "error") {
       sfx.error();
-      addLog({ tone: "bad", text: `${name} was hurt — the turn failed`, ...at });
-    } else if (to === "monitoring" && from === "working") {
-      addLog({ tone: "info", text: `${name} is monitoring background work`, ...at });
     } else if (to === "done" && (from === "working" || from === "monitoring")) {
       sfx.done();
-      addLog({ tone: "good", text: `Job's done: ${name}`, ...at });
-    } else if (to === "working" && from !== "alert" && from !== "question") {
-      addLog({ tone: "info", text: `${name} got to work`, ...at });
     }
   });
 }
@@ -81,6 +77,7 @@ export default function App() {
     const offTitle = installTitleBadge();
     const offWatches = installActiveWatches();
     const offQuiet = installQuietWatch();
+    const offComms = connectComms();
     return () => {
       clearInterval(timer);
       clearInterval(storageTimer);
@@ -89,6 +86,7 @@ export default function App() {
       offTitle();
       offWatches();
       offQuiet();
+      offComms();
     };
   }, []);
 

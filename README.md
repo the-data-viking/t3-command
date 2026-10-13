@@ -44,9 +44,11 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   the keyboard.
 - **Host resources**: each environment's engineering deck shows whole-host CPU load as lit
   rack LEDs and RAM used as its coolant level, with green/amber/rose gauge thresholds; its
-  core cells light for that environment's working (pulsing) and monitoring crew. Click a deck to zoom in and open its readings and recent CPU history;
+  core cells light for that environment's working (pulsing) and monitoring crew. Click a deck to zoom in and open its readings;
   environment chips also open the host panel. Samples refresh every 10 seconds while visible,
-  with stale readings clearly marked. RAM used is total minus reported availability, not a measurement of memory pressure.
+  with stale readings clearly marked. The Command server also samples every T3 machine once a
+  minute and keeps 7 days. The host panel charts CPU and RAM over the last hour, day or week, with
+  each span's peak CPU shown as a band on longer ranges. RAM used is total minus reported availability, not a measurement of memory pressure.
 - **Storage**: each deck's status plate shows disk use for the fullest disk holding that machine's
   checkouts and worktrees (green, then amber under 15 GB or 10% free, rose under 5 GB or 3%). The host
   panel lists each disk, peak use per 6 hours over the last week, and the largest T3 worktrees
@@ -82,8 +84,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   recovered; outages over 5 minutes are listed because additional turns in them can be missing.
   Spend history comes from each machine's own T3 usage scan, asked for when the panel opens (up to
   30 days).
-- **Comms log**: **Log** (or **L**) opens a scrollable history of the comms feed, kept in this
-  browser (the last 200 events survive a reload). Click an entry to jump to its crew member.
+- **Comms log**: **Log** (or **L**) opens a scrollable history of the comms feed. The Command
+  server records fleet events around the clock, even with no browser open, and every device sees
+  the same log. Events include approvals, questions, failed turns, finished jobs, crew getting to
+  work, machines lost for more than 90 seconds and back online, and low disk. They are kept 30 days
+  in an owner-only file. Messages about what this browser did (recruits, errors, quiet turns it
+  noticed) stay in this browser. **Clear** hides the log in this browser only. Click an entry to
+  jump to its crew member.
 - **Attention**: an always-on **Inbox** of everything waiting on you (approvals, questions, failed
   turns, reports), edge-of-screen arrows for off-screen alerts, and RTS hotkeys: **Space** next
   alert, **.** next report, **W** next active crew, **F** fit the fleet, **L** comms log, **Esc** deselect.

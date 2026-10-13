@@ -36,7 +36,8 @@ export type Selection =
 export type LogTone = "info" | "good" | "alert" | "bad";
 
 export interface LogEntry {
-  id: number;
+  /** "s<n>" for the Command server's shared comms, "l<n>" for this browser's own messages. */
+  id: string;
   at: number;
   tone: LogTone;
   text: string;
@@ -170,32 +171,66 @@ export function setMuted(muted: boolean): void {
 }
 
 let logId = 0;
-/** Entries kept in memory for the comms log; the most recent are also kept in this browser. */
+/** Entries kept in memory for the comms log. */
 const LOG_LIMIT = 500;
+/** This browser's own messages (errors, recruits, quiet turns) are kept here; fleet events come from the server. */
 const LOG_SAVED = 200;
-const LOG_KEY = "t3c:comms-log";
+const LOG_KEY = "t3c:comms-log-local";
+const CLEARED_KEY = "t3c:comms-cleared-at";
 
 function loadLog(): LogEntry[] {
   try {
+    // Before the server kept the log, this browser kept all of it under the old key.
+    const legacy = localStorage.getItem("t3c:comms-log");
+    if (legacy !== null) {
+      const old = JSON.parse(legacy) as Array<Omit<LogEntry, "id"> & { id: number }>;
+      if (Array.isArray(old) && localStorage.getItem(LOG_KEY) === null) localStorage.setItem(LOG_KEY, JSON.stringify(old.map((e) => ({ ...e, id: `l${e.id}` }))));
+      localStorage.removeItem("t3c:comms-log");
+    }
     const saved = JSON.parse(localStorage.getItem(LOG_KEY) ?? "[]") as LogEntry[];
     if (!Array.isArray(saved)) return [];
-    logId = Math.max(0, ...saved.map((e) => e.id));
-    return saved;
+    logId = Math.max(0, ...saved.map((e) => Number(String(e.id).slice(1)) || 0));
+    return saved.filter((e) => e.at > clearedAt());
   } catch {
     return [];
   }
 }
 
-export function addLog(entry: Omit<LogEntry, "id" | "at">): void {
-  useGame.setState((s) => ({ log: [...s.log, { ...entry, id: ++logId, at: Date.now() }].slice(-LOG_LIMIT) }));
+function clearedAt(): number {
+  try { return Number(localStorage.getItem(CLEARED_KEY)) || 0; } catch { return 0; }
+}
+
+function saveLocal(log: LogEntry[]): void {
   try {
-    localStorage.setItem(LOG_KEY, JSON.stringify(useGame.getState().log.slice(-LOG_SAVED)));
+    localStorage.setItem(LOG_KEY, JSON.stringify(log.filter((e) => e.id.startsWith("l")).slice(-LOG_SAVED)));
   } catch {
     // Per-browser convenience only.
   }
 }
 
+const byTime = (a: LogEntry, b: LogEntry) => a.at - b.at || a.id.localeCompare(b.id);
+
+/** A message about something this browser did (not a fleet event). */
+export function addLog(entry: Omit<LogEntry, "id" | "at">): void {
+  useGame.setState((s) => ({ log: [...s.log, { ...entry, id: `l${++logId}`, at: Date.now() }].slice(-LOG_LIMIT) }));
+  saveLocal(useGame.getState().log);
+}
+
+/** Fleet events from the Command server's comms stream, merged in time order. */
+export function mergeServerLog(entries: Array<Omit<LogEntry, "id"> & { id: number }>): void {
+  const cleared = clearedAt();
+  useGame.setState((s) => {
+    const have = new Set(s.log.map((e) => e.id));
+    const fresh = entries.filter((e) => e.at > cleared && !have.has(`s${e.id}`)).map((e) => ({ ...e, id: `s${e.id}` }));
+    return fresh.length ? { log: [...s.log, ...fresh].sort(byTime).slice(-LOG_LIMIT) } : {};
+  });
+}
+
+/** Clearing hides everything up to now in this browser; the server keeps its copy. */
 export function clearLog(): void {
   useGame.setState({ log: [] });
-  try { localStorage.removeItem(LOG_KEY); } catch { /* Per-browser convenience only. */ }
+  try {
+    localStorage.setItem(CLEARED_KEY, String(Date.now()));
+    localStorage.removeItem(LOG_KEY);
+  } catch { /* Per-browser convenience only. */ }
 }

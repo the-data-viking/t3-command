@@ -5,7 +5,8 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { parseStorageOutput, storageCommand, storageDone, tightestVolume, type StorageReading, type StorageView } from "../shared/storage.ts";
+import { diskLevel, gb, parseStorageOutput, storageCommand, storageDone, tightestVolume, type StorageReading, type StorageView } from "../shared/storage.ts";
+import type { CommsLog } from "./comms.ts";
 import type { HistoryRecorder } from "./history-recorder.ts";
 import type { Registry, StoredEnv } from "./registry.ts";
 import { runInT3Terminal } from "./t3-terminal.ts";
@@ -31,10 +32,13 @@ export class StorageMonitor {
   private cycle = 0;
   private stopped = false;
 
-  constructor(dataDir: string, registry: Registry, recorder: HistoryRecorder) {
+  private readonly comms?: CommsLog;
+
+  constructor(dataDir: string, registry: Registry, recorder: HistoryRecorder, comms?: CommsLog) {
     this.file = path.join(dataDir, "storage-state.json");
     this.registry = registry;
     this.recorder = recorder;
+    this.comms = comms;
   }
 
   async load(): Promise<void> {
@@ -117,12 +121,25 @@ export class StorageMonitor {
       entry.latest = { ...entry.latest, error: reading.error };
       return;
     }
+    this.announce(envId, entry.latest, reading);
     // Worktree sizes are slower to measure; carry the last ones forward between measurements.
     entry.latest = reading.worktrees || !entry.latest?.worktrees ? reading : { ...reading, worktrees: entry.latest.worktrees };
     const tightest = tightestVolume(reading.volumes);
     if (tightest && tightest.totalBytes > 0) entry.trend.push({ at: reading.sampledAt, usedFraction: 1 - tightest.availableBytes / tightest.totalBytes });
     const cutoff = Date.now() - TREND_MS;
     entry.trend = entry.trend.filter((p) => p.at >= cutoff);
+  }
+
+  /** A comms warning when a machine's fullest disk crosses into low or critical. */
+  private announce(envId: string, before: StorageReading | undefined, after: StorageReading): void {
+    const prev = before && !before.error ? tightestVolume(before.volumes) : undefined;
+    const next = tightestVolume(after.volumes);
+    if (!this.comms || !prev || !next || next.totalBytes <= 0) return; // First reading only sets the baseline.
+    const rank = { ok: 0, high: 1, critical: 2 } as const;
+    const level = diskLevel(next);
+    if (rank[level] <= rank[diskLevel(prev)]) return;
+    const machine = this.registry.get(envId)?.label ?? "A machine";
+    this.comms.add({ tone: "alert", envId, text: `${machine} disk ${level === "critical" ? "nearly full" : "running low"}: ${gb(next.availableBytes)} free on ${next.mount}` });
   }
 
   private async save(): Promise<void> {

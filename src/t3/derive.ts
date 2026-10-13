@@ -1,4 +1,4 @@
-import type { OrchestrationThread, PendingRequest, ThreadShell } from "./types";
+import type { OrchestrationThread, PendingRequest, ThreadShell } from "./types.ts";
 
 /** What a worker unit is doing, in game terms. Ordered roughly by how urgently it wants your attention. */
 export type UnitState =

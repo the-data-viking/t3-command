@@ -207,6 +207,27 @@ code {
 .host-body meter, .spend-cache meter { display: block; width: 100%; height: 15px; accent-color: var(--done); }
 .host-body meter { accent-color: var(--cyan); }
 .host-cli { margin-bottom: 10px; }
+/* Host CPU/RAM history. Series colors validated for colorblind separation on both map styles. */
+:root { --chart-cpu: #00a4c0; --chart-ram: #824aca; }
+.host-history-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.chart-legend { display: flex; gap: 12px; font-size: 11px; color: var(--text); }
+.swatch { display: inline-block; width: 10px; height: 3px; vertical-align: middle; border-radius: 2px; }
+.swatch.cpu { background: var(--chart-cpu); }
+.swatch.ram { background: var(--chart-ram); }
+.history-ranges .btn.active { border-color: var(--cyan); color: var(--cyan); }
+.host-history-plot { position: relative; margin-top: 6px; }
+.host-history-plot svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+.host-history-plot .grid { stroke: var(--muted); stroke-opacity: 0.2; }
+.host-history-plot .axis { fill: var(--muted); font-size: 9px; }
+.host-history-plot .end-label { fill: var(--text); font-size: 9px; }
+.host-history-plot .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.host-history-plot .line.cpu { stroke: var(--chart-cpu); }
+.host-history-plot .line.ram { stroke: var(--chart-ram); }
+.host-history-plot .band.cpu { fill: var(--chart-cpu); fill-opacity: 0.25; }
+.host-history-plot .crosshair { stroke: var(--text); stroke-opacity: 0.5; }
+.chart-tooltip { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; background: var(--deep); border: 1px solid var(--edge-strong); border-radius: 4px; font-size: 11px; color: var(--text); pointer-events: none; white-space: nowrap; }
+.chart-table table { width: 100%; font-size: 11px; border-collapse: collapse; }
+.chart-table { max-height: 200px; overflow: auto; }
 .storage-volume .host-stat { margin: 10px 0 6px; }
 .host-stat strong.gauge-high { color: var(--gauge-high); }
 .host-stat strong.gauge-critical { color: var(--gauge-critical); }

@@ -664,6 +664,22 @@ of project stations and seats its crew in the machine's engineering bay. The hos
 **Set up scratch bay** calls `projects.ensureScratch`; servers without it get a plain
 `project.create` at `~/.t3/scratch` with `createWorkspaceRootIfMissing`.
 
+### Comms log and host history (Command server)
+
+The history recorder's per-machine shell subscriptions also feed `server/comms.ts`. The first
+snapshot after (re)connecting only sets a baseline. After that, crew state changes are logged with
+the same rules as the map, followed by connection loss (after a 90 s grace) and recovery, and
+low-disk warnings from the storage monitor. Entries `{id, at, tone, text, envId?, threadId?}`
+(`shared/comms.ts`) go to `comms-log.jsonl` (`0600`, 30 days). `GET /api/comms/stream` is a
+server-sent event stream. It sends the last 300 entries, or those after `Last-Event-ID`, then
+`event: synced`, then live entries, with a keepalive comment every 25 s.
+
+The recorder also sends `server.getHostResources {}` over the same connections (request ids
+`r<n>`; only the shell stream's `Exit` ends the connection) once a minute. Samples are kept 7 days in
+`host-history.json` (`0600`). `GET /api/hosts/history?envId=&hours=1..168` returns `HostHistory`
+(`shared/host.ts`): at most 240 points, averaged into buckets with each bucket's peak CPU. Hermes
+reports no host resources and is skipped.
+
 ### Disk usage (Command server)
 
 T3 has no disk-usage RPC, so `server/storage.ts` collects it. Every 5 minutes it checks each machine.
