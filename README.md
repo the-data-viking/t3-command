@@ -45,6 +45,11 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   their rooms (lit while occupied), and each awake crew member and Hermes operator a status glyph
   in the room they're in (most urgent first), so a large fleet stays readable instead of breaking
   up. Crew seated at a console are drawn from behind, facing its screen.
+  Each station there carries a one-line summary (who's waiting and for how long, who's working,
+  open PRs), and a waiting crew member's glyph gets a frame that thickens with the wait. Close in,
+  crew wear a short tag; the one you point at or select shows their full title. **P** is photo
+  mode: the HUD goes away, the map stands alone over a planet's horizon with a pixel-type title,
+  and **Save PNG** exports it at twice screen size.
   Zoomed out, each engineering deck shows its machine's callsign in large type on a dark band, and
   Hermes operators keep their names. A crew member whose turn has run past 2, 6, 12 and 24 hours
   gets a pip for each beside the head (amber, then magenta past 12 hours). Rooms are lit only

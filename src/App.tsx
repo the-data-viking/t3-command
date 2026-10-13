@@ -12,6 +12,7 @@ import { SquadBar } from "./ui/SquadBar";
 import { AwayDigest } from "./ui/AwayDigest";
 import { IncomingToast } from "./ui/IncomingToast";
 import { DebriefCard } from "./ui/DebriefCard";
+import { PhotoMode } from "./ui/PhotoMode";
 import { mayAutoOpen, noteKey } from "./ui/event-guard";
 import { CommandPalette } from "./ui/CommandPalette";
 import { HelpOverlay } from "./ui/HelpOverlay";
@@ -66,6 +67,7 @@ export default function App() {
   const showEnvManager = useGame((s) => s.showEnvManager);
   const showLog = useGame((s) => s.showLog);
   const showHistory = useGame((s) => s.showHistory);
+  const photo = useGame((s) => s.photo);
   const showPalette = useGame((s) => s.showPalette);
   const showHelp = useGame((s) => s.showHelp);
   const [fatal, setFatal] = useState<string>();
@@ -121,6 +123,15 @@ export default function App() {
     );
   }
 
+  if (photo) {
+    return (
+      <div className="game photo">
+        <MapView />
+        <PhotoMode />
+      </div>
+    );
+  }
+
   return (
     <div className="game">
       <MapView />
@@ -141,7 +152,7 @@ export default function App() {
       {selection?.kind === "unit" && <UnitPanel key={`${selection.envId}:${selection.threadId}`} envId={selection.envId} threadId={selection.threadId} />}
       {selection?.kind === "library" && <LibraryPanel key={`lib:${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
       {selection?.kind === "building" && <BuildingPanel key={`${selection.envId}:${selection.projectId}`} envId={selection.envId} projectId={selection.projectId} />}
-      <div className="hint">CTRL-K command · ? help · DRAG pan · SCROLL zoom · SHIFT pick squad · SPACE next alert · PERIOD next report · W next active · F fit fleet · L log · H history</div>
+      <div className="hint">CTRL-K command · ? keys and help · P photo mode</div>
       <EventDialog />
       {showEnvManager && <EnvManager />}
     </div>

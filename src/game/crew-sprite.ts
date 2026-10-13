@@ -16,6 +16,13 @@ import { crewTex, PX, tex } from "./textures";
 import { contextLevel, DEFAULT_VISOR, GAUGE, HUD, hudMaterials, mapInk, modelTier, PROVIDER_VISOR, providerSilhouette, SELECTION, STATUS, type Silhouette, type Tier } from "./theme";
 import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale, pixelFrame, pixelOval, REPORT_MS, seatedPose } from "./map-common";
 
+/** A crew member's short tag at close zoom: the first meaningful word of their title, at most 9 letters. */
+export function callsign(title: string): string {
+  const words = title.toUpperCase().replace(/[^A-Z0-9 ]+/g, " ").split(/\s+/).filter(Boolean);
+  const word = words.find((w) => w.length > 2 && !["THE", "AND", "FOR", "WITH"].includes(w)) ?? words[0] ?? "CREW";
+  return word.length > 9 ? `${word.slice(0, 8)}…` : word;
+}
+
 /** Round a local coordinate to the art grid (PX world px), so effects sit on the sprite's pixels. */
 const snap = (v: number) => Math.round(v / PX) * PX;
 
@@ -56,6 +63,8 @@ export class CrewSprite extends Container {
   hovered = false;
   /** Picked for batch actions; set by the World each frame. */
   inSquad = false;
+  private fullName = "";
+  private shortName = "";
   /**
    * How far the head sits below its standing height (seated crew drop 14 px). Every overlay over
    * the head (badge, spinner, pips) moves with it, so none lands on the console behind them.
@@ -171,7 +180,8 @@ export class CrewSprite extends Container {
     this.team = team;
     this.tier = modelTier(thread.modelSelection.model);
     this.silhouette = providerSilhouette(thread.modelSelection.instanceId);
-    this.nameText.text = truncate((thread.title || "Untitled").toUpperCase(), 26);
+    this.fullName = truncate((thread.title || "Untitled").toUpperCase(), 26);
+    this.shortName = callsign(thread.title || "Untitled");
   }
 
   /** Where this crew member needs to be, and in which room. */
@@ -273,7 +283,11 @@ export class CrewSprite extends Container {
     this.drawReveal(this.arriving ? 1 - this.arriving / BEAM_SECONDS : 1);
     this.drawFx(t, selected, zoom, resting);
     this.drawRing(selected, t, resting);
-    this.nameText.visible = !resting && (selected || this.hovered || zoom > 1.7);
+    // Close in, everyone wears a short tag (their title's first word); only the crew member you're
+    // pointing at or have selected shows the full title, so labels don't pile onto the consoles.
+    const full = selected || this.hovered;
+    this.nameText.visible = !resting && (full || zoom > 1.7);
+    this.nameText.text = full ? this.fullName : this.shortName;
     this.syncLabel();
   }
 

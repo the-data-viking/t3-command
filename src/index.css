@@ -2126,3 +2126,8 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .away-link.tone-good { color: var(--done); }
 
 .palette-prompt { padding: var(--space-2) var(--space-4); }
+
+/* ---- Photo mode ---- */
+.photo-card { position: absolute; left: var(--space-4); bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); background: color-mix(in srgb, #000 60%, transparent); color: #eef2f5; }
+.photo-card .pixel-label svg { fill: currentColor; }
+.photo-actions { display: flex; gap: var(--space-1h); }
