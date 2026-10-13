@@ -14,7 +14,7 @@ import { CrewMotion } from "./crew-motion";
 import { quietness } from "../t3/progress";
 import { crewTex, PX, tex } from "./textures";
 import { contextLevel, GAUGE, HUD, hudMaterials, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
-import { label, hash, truncate, STRATEGIC_ZOOM, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, reducedMotion, BADGES } from "./map-common";
+import { label, hash, truncate, STRATEGIC_ZOOM, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES } from "./map-common";
 
 // ---- Crew ------------------------------------------------------------------------------
 
@@ -49,12 +49,40 @@ export class CrewSprite extends Container {
   atStation = false;
   /** Seconds left of a recruitment beam-in. */
   private arriving = 0;
+  /** Seconds left of a beam-out (thread archived or removed); the World removes the sprite after. */
+  private leaving = 0;
+  /** When the last turn failed, for the burst of sparks right after. */
+  private failedAt = 0;
 
   /** Sleepers' decorative drift doesn't keep an otherwise idle fleet rendering. */
   get animated(): boolean {
     if (reducedMotion()) return this.motion.moving;
     return this.motion.moving || this.arriving > 0 || this.state === "working" || this.state === "monitoring"
-      || this.state === "alert" || this.state === "question" || !!this.info?.tasks;
+      || this.state === "alert" || this.state === "question" || !!this.info?.tasks || this.sparking();
+  }
+
+  /** Sparks fly for a minute after a failure, then it settles into a scorch mark and smoke. */
+  private sparking(now = Date.now()): boolean {
+    return this.state === "error" && now - this.failedAt < SPARK_MS;
+  }
+
+  /** Dematerialize; returns false if there's nothing to animate (reduced motion). */
+  beamOut(): boolean {
+    if (reducedMotion()) return false;
+    this.leaving = BEAM_SECONDS;
+    this.eventMode = "none";
+    return true;
+  }
+
+  /** One frame of a beam-out; false once it's finished. */
+  departTick(t: number, dt: number): boolean {
+    this.leaving = Math.max(0, this.leaving - dt);
+    this.figure.alpha = this.leaving / BEAM_SECONDS;
+    this.badge.visible = false;
+    this.nameText.visible = false;
+    this.ring.clear();
+    this.drawBeam(this.fx.clear(), 1 - this.leaving / BEAM_SECONDS, t);
+    return this.leaving > 0;
   }
 
   get moving(): boolean { return this.motion.moving; }
@@ -94,6 +122,10 @@ export class CrewSprite extends Container {
     this.thread = thread;
     if (detail !== this.detail) { this.detail = detail; this.quietCheckedAt = 0; }
     this.state = unitState(thread);
+    if (this.state === "error") {
+      const at = Date.parse(thread.latestTurn?.completedAt ?? thread.session?.updatedAt ?? "");
+      this.failedAt = Number.isFinite(at) ? at : 0;
+    }
     if (info && !this.hasTelemetry) {
       this.hasTelemetry = true;
       this.motion.hydrate();
@@ -192,21 +224,14 @@ export class CrewSprite extends Container {
 
   private drawFx(t: number, selected: boolean, zoom: number, sleeping: boolean): void {
     const f = this.fx.clear();
-    if (this.arriving) {
-      // Teleporter column in the crew member's team color, fading as they solidify.
-      const fade = this.arriving / BEAM_SECONDS;
-      f.rect(-12, -56, 24, 58).fill({ color: this.team, alpha: 0.18 * fade });
-      for (const x of [-10, -4, 2, 8]) {
-        const y = -56 + ((t * 90 + x * 7 + this.seed * 50) % 52);
-        f.rect(x, Math.round(y), 2, 4).fill({ color: 0xffffff, alpha: 0.8 * fade });
-      }
-      f.rect(-14, -2, 28, 4).fill({ color: this.team, alpha: 0.6 * fade });
-    }
+    // Teleporter column, fading as they solidify.
+    if (this.arriving) this.drawBeam(f, this.arriving / BEAM_SECONDS, t);
     if (sleeping) {
       const drift = (t * 0.5 + this.seed) % 1;
       f.rect(Math.round(10 + drift * 8), Math.round(-12 - drift * 14), 4, 2).fill({ color: 0xffffff, alpha: 1 - drift });
       return;
     }
+    if (this.state === "error") this.drawDamage(f, t);
     if (this.state === "working") {
       // Re-checked every few seconds rather than per frame: it scans the turn's activity.
       const now = Date.now();
@@ -245,6 +270,41 @@ export class CrewSprite extends Container {
       const left = 1 - ctx;
       const color = GAUGE[contextLevel(ctx)];
       for (let i = 0; i < 8; i++) f.rect(-16 + i * 4, 4, 3, 4).fill(i / 8 < left ? color : hudMaterials(useGame.getState().artStyle).meter);
+    }
+  }
+
+  /** A teleporter column in the crew member's team color at strength `fade` (0–1). */
+  private drawBeam(f: Graphics, fade: number, t: number): void {
+    f.rect(-12, -56, 24, 58).fill({ color: this.team, alpha: 0.18 * fade });
+    for (const x of [-10, -4, 2, 8]) {
+      const y = -56 + ((t * 90 + x * 7 + this.seed * 50) % 52);
+      f.rect(x, Math.round(y), 2, 4).fill({ color: 0xffffff, alpha: 0.8 * fade });
+    }
+    f.rect(-14, -2, 28, 4).fill({ color: this.team, alpha: 0.6 * fade });
+  }
+
+  /**
+   * A failed turn: sparks burst from the crew member's kit for a minute, then a scorch mark and a
+   * wisp of smoke stay until the thread moves on. Under reduced motion only the scorch and smoke.
+   */
+  private drawDamage(f: Graphics, t: number): void {
+    f.rect(-12, -2, 24, 3).fill({ color: 0x0b0d0f, alpha: 0.5 });
+    const still = reducedMotion() || !this.sparking();
+    for (let i = 0; i < 3; i++) {
+      const drift = still ? i / 3 : (t * 0.35 + i / 3 + this.seed) % 1;
+      const x = Math.round(-8 + Math.sin(drift * 6 + i) * 3);
+      f.rect(x, Math.round(-48 - drift * 18), 4, 4).fill({ color: 0x8a939c, alpha: (1 - drift) * 0.55 });
+    }
+    if (still) return;
+    const cycle = (t * 0.9 + this.seed) % 1;
+    if (cycle > 0.4) return;
+    const k = cycle / 0.4;
+    f.rect(6, -34, 8, 8).fill({ color: 0xffd166, alpha: (1 - k) * 0.5 }); // the flash
+    for (let j = 0; j < 8; j++) {
+      const a = (j / 8) * Math.PI * 2 + this.seed * 6;
+      const r = 4 + k * 16;
+      f.rect(Math.round(10 + Math.cos(a) * r), Math.round(-30 + Math.sin(a) * r * 0.7 + k * k * 10), 3, 3)
+        .fill({ color: j % 2 ? 0xffd166 : 0xffffff, alpha: 1 - k * 0.6 });
     }
   }
 

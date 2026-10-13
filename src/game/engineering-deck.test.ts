@@ -44,3 +44,12 @@ test('the bay crew stand in matches the sprite bay, inside the hull and above th
   assert.deepEqual(ENV_BAY, { x: b.x * PX, y: b.y * PX, w: b.w * PX, h: b.h * PX });
   assert.ok(b.y + b.h <= ENGINEERING_SPOTS.plate.y && b.x + b.w < deck[0].length);
 });
+
+test('damage draws only on the core window and bay screen (static) and the plating above the plate (hazard)', () => {
+  const core = ENGINEERING_SPOTS.coreScreen;
+  // Inside the core housing's window, never over the cell windows' frame.
+  assert.ok(cells(core).every((code) => code === 'k' || code === 'M' || code === 'D'), 'core screen stays inside the housing window');
+  const hazard = ENGINEERING_SPOTS.hazard;
+  assert.ok(cells(hazard).every((code) => code === 'H'), 'hazard stripes sit on bare plating');
+  assert.ok(hazard.y + hazard.h <= ENGINEERING_SPOTS.plate.y, 'hazard stripes stay clear of the plate text');
+});

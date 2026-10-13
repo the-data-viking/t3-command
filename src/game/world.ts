@@ -67,6 +67,8 @@ export class World {
   private controlCenter?: ControlCenterSprite;
   private lastCatalog?: GameState["hermesCatalog"];
   private crew = new Map<string, CrewSprite>();
+  /** Crew beaming out after their thread was archived or removed. */
+  private departing = new Set<CrewSprite>();
   private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
   private zoom = 1;
   private time = 0;
@@ -557,8 +559,10 @@ export class World {
     }
     for (const [key, sprite] of this.crew) {
       if (seenCrew.has(key)) continue;
-      sprite.destroy({ children: true });
       this.crew.delete(key);
+      // Archived or removed: beam out where they stand, then go.
+      if (sprite.beamOut()) this.departing.add(sprite);
+      else sprite.destroy({ children: true });
     }
 
     // Keep framing the fleet as it grows or shrinks, not on every thread update.
@@ -616,8 +620,14 @@ export class World {
           const p = linkPoint(link.from, link.to, k / 24, link.via);
           points.push(p.x, p.y);
         }
-        g.poly(points, false).stroke({ color: node.color, width: 5, alpha: live ? 0.1 : 0.04 });
-        g.poly(points, false).stroke({ color: node.color, width: 2, alpha: live ? 0.6 : 0.15 });
+        if (live || state.envs[node.envId]?.connection === "connecting" || state.envs[node.envId]?.connection === "reconnecting") {
+          g.poly(points, false).stroke({ color: node.color, width: 5, alpha: live ? 0.1 : 0.04 });
+          g.poly(points, false).stroke({ color: node.color, width: 2, alpha: live ? 0.6 : 0.15 });
+          continue;
+        }
+        // Unreachable machine: the supply line is severed, drawn as broken dashes.
+        for (let k = 0; k + 2 < points.length / 2; k += 3) g.moveTo(points[k * 2], points[k * 2 + 1]).lineTo(points[k * 2 + 2], points[k * 2 + 3]);
+        g.stroke({ color: node.color, width: 2, alpha: 0.25 });
       }
     }
   }
@@ -661,14 +671,19 @@ export class World {
       const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
       sprite.tick(lay, s, t, dt, frame, selected, this.zoom);
     }
+    for (const sprite of this.departing) {
+      if (sprite.departTick(t, dt)) continue;
+      this.departing.delete(sprite);
+      sprite.destroy({ children: true });
+    }
     this.separateLabels();
     this.drawLights(state, sel, t, frame);
     if (this.layout.controlCenter) this.controlCenter?.update(this.layout.controlCenter, sel, this.zoom, frame);
     for (const station of this.stations.values()) station.setZoom(this.zoom);
     for (const node of this.environmentNodes.values()) node.setZoom(this.zoom);
     this.drawEdgeIndicators(t);
-    if (still) return panning || this.doorsOpen || [...this.crew.values()].some((crew) => crew.animated);
-    return panning || this.doorsOpen || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
+    if (still) return panning || this.doorsOpen || this.departing.size > 0 || [...this.crew.values()].some((crew) => crew.animated);
+    return panning || this.doorsOpen || this.departing.size > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
   }
 

@@ -13,7 +13,7 @@ import { freeLabel, storageSummary } from "../t3/storage";
 import type { StorageView } from "../../shared/storage";
 import { currentStyle, PX, tex } from "./textures";
 import { GAUGE, HUD, STATUS } from "./theme";
-import { label, truncate, sprite, ROOM_SHADOW } from "./map-common";
+import { label, truncate, sprite, hash, ROOM_SHADOW } from "./map-common";
 import { worldRef } from "./world-ref";
 
 // ---- Environment service nodes -----------------------------------------------------------------------------
@@ -37,6 +37,10 @@ export class EnvironmentNodeSprite {
   private storage?: StorageView;
   /** Crew glyphs fill the plate from the right; past five, the disk readout drops free space. */
   private crowded = false;
+  /** Damage drawn from real state: static on an unreachable machine, hazard stripes on a full disk. */
+  private damage?: Graphics;
+  private offline = false;
+  private diskCritical = false;
   private hull?: Rect;
   private drawn?: string;
 
@@ -61,6 +65,9 @@ export class EnvironmentNodeSprite {
     this.root.addChild(hatch, sprite(tex(FLIGHT_KIT.ENGINEERING_DECK, { team: node.color }), h.x, h.y));
     this.meters = new Graphics();
     this.cells = new Graphics();
+    this.damage = new Graphics();
+    // A fresh damage layer: let the updates below redraw whatever applies.
+    this.offline = this.diskCritical = false;
     this.name=label(10,node.color);
     this.name.text=truncate((state.envs[node.envId]?.summary.label??'?').toUpperCase(),24);
     this.name.position.set(h.x+14,h.y+12);
@@ -74,7 +81,7 @@ export class EnvironmentNodeSprite {
     this.overflowText = label(7, HUD.text);
     this.overflowText.text = hidden ? `+${hidden}` : "";
     this.overflowText.position.copyFrom(at(ENGINEERING_SPOTS.bayCount));
-    this.root.addChild(this.meters, this.cells, this.name, this.cpuText, this.memoryText, this.caption, this.diskText, this.overflowText);
+    this.root.addChild(this.meters, this.cells, this.damage, this.name, this.cpuText, this.memoryText, this.caption, this.diskText, this.overflowText);
     this.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
     this.updateStorage(state.storage[node.envId]);
     this.root.eventMode = 'static';
@@ -98,10 +105,15 @@ export class EnvironmentNodeSprite {
     this.memoryText!.text = view.memoryFraction === undefined ? "RAM —" : `RAM ${Math.round(view.memoryFraction * 100)}%`;
     this.cpuText!.fill = view.stale ? HUD.muted : view.cpuColor;
     this.memoryText!.fill = view.stale ? HUD.muted : view.memoryColor;
+    // Unreachable (not just reconnecting): the deck loses signal rather than showing old numbers.
+    const offline = !["live", "connecting", "reconnecting"].includes(connection);
     // Only speak up when the readings can't be trusted.
-    this.caption!.text = view.stale ? "STALE SAMPLE" : view.snapshot ? "" : "NO HOST METRICS";
+    this.caption!.text = offline ? "NO SIGNAL" : view.stale ? "STALE SAMPLE" : view.snapshot ? "" : "NO HOST METRICS";
+    this.caption!.fill = offline ? GAUGE.critical : 0xa7bdcb;
+    if (offline !== this.offline) { this.offline = offline; this.drawDamage(); }
     const alpha = view.stale ? 0.35 : 1;
     const g = this.meters!.clear();
+    if (offline) return;
     const rect = (s: { x: number; y: number; w: number; h: number }) => g.rect(h.x + s.x * PX, h.y + s.y * PX, s.w * PX, s.h * PX);
     const leds = ENGINEERING_SPOTS.leds;
     if (view.cpuFraction !== undefined) {
@@ -127,6 +139,34 @@ export class EnvironmentNodeSprite {
       : `DISK ${Math.round(disk.usedFraction * 100)}%${short ? "" : ` · ${freeLabel(disk.volume!.availableBytes)} FREE`}`;
     this.diskText!.fill = disk.color;
     this.diskText!.x = this.caption!.x + (caption ? this.caption!.width + 8 : 0);
+    const critical = disk.level === "critical" && !disk.stale;
+    if (critical !== this.diskCritical) { this.diskCritical = critical; this.drawDamage(); }
+  }
+
+  /** Static, drawn once per change, so damage never keeps the render loop running. */
+  private drawDamage(): void {
+    const g = this.damage?.clear();
+    const h = this.hull;
+    if (!g || !h) return;
+    const px = (x: number, y: number, color: number, alpha = 1) => g.rect(h.x + x * PX, h.y + y * PX, PX, PX).fill({ color, alpha });
+    if (this.offline) {
+      // Snow on the core window and the bay terminal: a fixed pattern per machine.
+      for (const r of [ENGINEERING_SPOTS.coreScreen, ENGINEERING_SPOTS.bayScreen]) {
+        for (let y = r.y; y < r.y + r.h; y++) {
+          for (let x = r.x; x < r.x + r.w; x++) {
+            const n = hash(`${this.envId}:${x},${y}`);
+            if (n < 0.45) px(x, y, n < 0.15 ? 0xc9d1d9 : 0x5c6670, 0.85);
+          }
+        }
+      }
+    }
+    if (this.diskCritical) {
+      // Amber-and-black hazard stripes, stepped one pixel per row so they read as diagonal.
+      const r = ENGINEERING_SPOTS.hazard;
+      for (let y = 0; y < r.h; y++) {
+        for (let x = 0; x < r.w; x++) px(r.x + x, r.y + y, (x + y) % 6 < 3 ? GAUGE.high : 0x14110d);
+      }
+    }
   }
 
   /**

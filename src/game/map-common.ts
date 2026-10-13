@@ -65,6 +65,8 @@ export const WALK_SPEED = 75; // px per second, constant like FTL crew
 export const CREW_SPACING = 34;
 /** Recruitment beam-in and camera moves; both are skipped under prefers-reduced-motion. */
 export const BEAM_SECONDS = 0.9;
+/** How long sparks fly after a failed turn before it settles into a scorch mark. */
+export const SPARK_MS = 60_000;
 export const CAMERA_SECONDS = 0.35;
 /** Rooms nobody is using sit in this much shadow; crew and lit rooms stay bright. */
 export const ROOM_SHADOW = 0.32;

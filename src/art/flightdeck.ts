@@ -107,6 +107,10 @@ export const ENGINEERING_SPOTS = {
   bayCount: { x: 130, y: 17 },
   /** The bay's wall terminal screen (lit while scratch crew work). */
   bayScreen: { x: 115, y: 20, w: 12, h: 8 },
+  /** Inside the core housing's window; static when the machine is unreachable. */
+  coreScreen: { x: 57, y: 23, w: 22, h: 16 },
+  /** Plating strip above the status plate; hazard-striped when the disk is nearly full. */
+  hazard: { x: 5, y: 60, w: 134, h: 2 },
 };
 
 export const FLIGHT_KIT = { ...S, CONSOLE, TERMINAL, FILES, COMMS, CHAIR, ENGINEERING_DECK };
