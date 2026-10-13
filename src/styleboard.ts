@@ -4,7 +4,7 @@
 import { STYLES, type Style } from "./art/palettes";
 import { rasterize, type Arms, type Legs, type Silhouette, type Tier } from "./art/render";
 import * as S from "./art/sprites";
-import { STATUS } from "./game/theme";
+import { PROVIDER_VISOR, STATUS } from "./game/theme";
 import { FLIGHT_KIT, flightCrew } from "./art/flightdeck";
 
 let scale = 2;
@@ -17,7 +17,7 @@ const W = COLS * T + 40; // scene width in sprite pixels
 const H = 262;
 
 const TEAM = { amber: 0xf0a33a, violet: 0x9b7bff, teal: 0x3ec7b3, pink: 0xe45fbf, blue: 0x5b8cff, lime: 0xa8d65a };
-const VISOR = { claude: 0xe2884f, codex: 0x46d6c2 };
+const VISOR = { claude: PROVIDER_VISOR.claudeAgent, codex: PROVIDER_VISOR.codex };
 const SCREEN = { working: STATUS.working, alert: STATUS.alert, done: STATUS.done, monitoring: STATUS.monitoring };
 /** Each status badge is filled with its status colour, as on the map. */
 const BADGE_COLOR = new Map<S.Grid, number>([
@@ -193,6 +193,7 @@ for (const style of Object.values(STYLES).filter((s) => s.id !== "nightshift")) 
   ];
   for (const silhouette of ["round", "angular"] as const) for (const tier of ["light", "standard", "heavy", "reviewer"] as const) {
     assets.push([`${silhouette === "round" ? "Claude" : "Codex"} ${tier}`, flightCrew(silhouette, tier)]);
+    assets.push([`${silhouette === "round" ? "Claude" : "Codex"} ${tier} seated`, flightCrew(silhouette, tier, "behind")]);
   }
   for (const [name, grid] of assets) {
     const figure = document.createElement("figure");

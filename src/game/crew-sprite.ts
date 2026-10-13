@@ -244,15 +244,16 @@ export class CrewSprite extends Container {
       const working = this.state === "working" && !this.offline && (this.atConsole || this.atStation);
       // At a console the crew member sits in the chair, below the screen, instead of standing in front of it.
       const seated = this.atConsole && !moving;
-      const legs: Legs = moving ? WALK[Math.floor(t * 8) % 4] : seated ? "sit" : "idle";
-      // Seated below the screen; walking, the body rises an art pixel as the legs pass.
+      // Seated at a console they're seen from behind, facing its screen; walking, the body rises
+      // an art pixel as the legs pass.
+      const legs: Legs = moving ? WALK[Math.floor(t * 8) % 4] : seated ? "behind" : "idle";
       this.figure.y = seated ? 14 : moving && legs === "walkB" ? -PX : 0;
       this.lift = seated ? 14 : 0;
       const arms: Arms = working ? (frame % 2 ? "typeA" : "typeB") : "idle";
       this.figure.texture = crewTex(this.silhouette, this.tier, legs, arms, this.team, visor);
       this.figure.anchor.set(0.5, 1);
       // At a system they face its fixture, which stands to their left.
-      this.figure.scale.set(PX * (this.atStation && !moving ? -1 : this.motion.facing), PX);
+      this.figure.scale.set(PX * (seated ? 1 : this.atStation && !moving ? -1 : this.motion.facing), PX);
       // Offline: greyed out, as last seen.
       this.figure.tint = this.offline ? 0x8a919a : 0xffffff;
       const badge = BADGES[this.state];

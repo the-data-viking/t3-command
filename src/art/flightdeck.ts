@@ -128,18 +128,50 @@ export function flightCrew(silhouette: Silhouette, tier: Tier, legs: Legs = 'idl
   const head = silhouette === 'round'
     ? panel(16, 22, [[6, 2, 4, 1, 'k'], [4, 3, 8, 1, 'k'], [3, 4, 10, 5, 'k'], [4, 9, 8, 1, 'k'],
       [5, 3, 6, 1, 'W'], [4, 4, 8, 5, 'W'], [5, 3, 3, 1, 'w'], [4, 4, 1, 2, 'w'],
-      [6, 5, 7, 3, 'k'], [7, 5, 5, 1, 'V'], [7, 6, 6, 1, 'V'], [11, 5, 1, 1, 'v'], [8, 8, 4, 1, 's'], [11, 4, 1, 1, 's'], [6, 10, 5, 1, 'k']])
+      [6, 5, 7, 3, 'k'], [7, 5, 5, 1, 'V'], [7, 6, 5, 1, 'V'], [11, 5, 1, 1, 'v'], [8, 8, 4, 1, 's'], [11, 4, 1, 1, 's']])
     : panel(16, 22, [[7, 1, 3, 2, 'k'], [8, 1, 1, 1, 'T'], [3, 3, 10, 7, 'k'], [4, 4, 8, 5, 'W'], [4, 4, 8, 1, 'w'],
-      [5, 6, 9, 2, 'k'], [6, 6, 7, 1, 'V'], [12, 6, 1, 1, 'v'], [9, 8, 3, 1, 's'], [11, 4, 1, 2, 's'], [6, 10, 5, 1, 'k']]);
-  // The chest plate carries the team colour, so the machine reads from the front, not only the shoulders.
-  const body = panel(16, 22, [[3, 11, 10, 6, 'k'], [4, 12, 8, 4, 'W'], [4, 12, 2, 3, 'w'], [10, 12, 2, 4, 's'], [6, 13, 4, 3, 'T'], [6, 15, 4, 1, 't'], [4, 12, 2, 1, 'T']]);
+      [5, 6, 9, 2, 'k'], [6, 6, 7, 1, 'V'], [12, 6, 1, 1, 'v'], [9, 8, 3, 1, 's'], [11, 4, 1, 2, 's']]);
+  if (legs === 'behind') return flightCrewBehind(silhouette, tier, arms);
+  // The torso is suit, not outline: one outline row under the helmet, a 6-px chest lit from the
+  // upper left and shaded on the right, and a 1-px team stripe; the team colour's main home is
+  // the shoulder patches.
+  const body = panel(16, 22, [[3, 10, 10, 7, 'k'], [4, 10, 8, 6, 'W'], [4, 10, 4, 1, 'w'], [4, 11, 1, 3, 'w'],
+    [11, 10, 1, 6, 's'], [5, 15, 6, 1, 's'], [6, 13, 4, 1, 'T']]);
   const shoulders = tier === 'heavy'
-    ? panel(16, 22, [[1, 10, 5, 4, 'k'], [2, 11, 3, 2, 'T'], [10, 10, 5, 4, 'k'], [11, 11, 3, 2, 'T']])
+    ? panel(16, 22, [[0, 9, 5, 5, 'k'], [1, 10, 3, 3, 'T'], [1, 10, 3, 1, 'h'], [11, 9, 5, 5, 'k'], [12, 10, 3, 3, 't']])
     : tier === 'light'
-      ? panel(16, 22, [[3, 11, 2, 4, 'k'], [11, 11, 2, 4, 'k'], [5, 12, 2, 1, 'T'], [9, 12, 2, 1, 't']])
-      : panel(16, 22, [[2, 10, 4, 4, 'k'], [3, 11, 2, 2, 'T'], [10, 10, 4, 4, 'k'], [11, 11, 2, 2, 't']]);
+      ? panel(16, 22, [[5, 11, 2, 1, 'T'], [9, 11, 2, 1, 't']])
+      : panel(16, 22, [[1, 10, 4, 4, 'k'], [2, 11, 2, 2, 'T'], [11, 10, 4, 4, 'k'], [12, 11, 2, 2, 't']]);
   const pack = tier === 'heavy' ? S.PACK_HEAVY : tier === 'light' ? S.PACK_LIGHT : S.PACK_STANDARD;
   const feet = legs === 'walkA' ? S.LEGS_WALK_A : legs === 'walkB' ? S.LEGS_WALK_B : legs === 'walkC' ? S.LEGS_WALK_C : legs === 'sit' ? S.LEGS_SIT : S.LEGS_IDLE;
   const hands = arms === 'typeA' ? S.ARMS_TYPE_A : arms === 'typeB' ? S.ARMS_TYPE_B : S.ARMS_IDLE;
   return compose(pack, feet, body, shoulders, head, hands, ...(tier === 'reviewer' ? [S.SCANNER] : []));
+}
+
+/**
+ * Seated at a console, seen from behind: the back of the helmet, shoulder patches, the pack, elbows
+ * moving as they type, and the chair back. The console's screen stays in view above the head.
+ */
+function flightCrewBehind(silhouette: Silhouette, tier: Tier, arms: Arms): Grid {
+  const head = silhouette === 'round'
+    ? panel(16, 22, [[6, 2, 4, 1, 'k'], [4, 3, 8, 1, 'k'], [3, 4, 10, 5, 'k'], [4, 9, 8, 1, 'k'],
+      [5, 3, 6, 1, 'W'], [4, 4, 8, 5, 'W'], [5, 3, 3, 1, 'w'], [4, 4, 1, 3, 'w'], [11, 4, 1, 5, 's'], [8, 8, 3, 1, 's']])
+    : panel(16, 22, [[7, 1, 3, 2, 'k'], [8, 1, 1, 1, 'T'], [3, 3, 10, 7, 'k'], [4, 4, 8, 5, 'W'], [4, 4, 8, 1, 'w'],
+      [4, 5, 1, 3, 'w'], [11, 4, 1, 5, 's'], [9, 8, 2, 1, 's']]);
+  const up = arms === 'typeB' ? 1 : 0; // elbows rise and fall as they type
+  const back = panel(16, 22, [
+    [2, 10, 12, 5, 'k'], [3, 10, 10, 4, 'W'], [3, 10, 3, 1, 'w'], [12, 10, 1, 4, 's'],
+    // Pack between the shoulder blades.
+    [5, 10, 6, 4, 'k'], [6, 11, 4, 2, 'G'], [6, 11, 4, 1, 'g'],
+    // Elbows.
+    [1, 13 - up, 2, 2, 'k'], [13, 13 - (arms === 'typeA' ? 1 : 0), 2, 2, 'k'],
+    // Chair back.
+    [3, 15, 10, 5, 'k'], [4, 16, 8, 3, 'G'], [4, 16, 8, 1, 'g'],
+  ]);
+  const patches = tier === 'heavy'
+    ? panel(16, 22, [[0, 9, 4, 4, 'k'], [1, 10, 2, 2, 'T'], [12, 9, 4, 4, 'k'], [13, 10, 2, 2, 'T']])
+    : tier === 'light'
+      ? panel(16, 22, [[3, 11, 1, 1, 'T'], [12, 11, 1, 1, 'T']])
+      : panel(16, 22, [[3, 11, 2, 2, 'T'], [11, 11, 2, 2, 'T']]);
+  return compose(back, patches, head, ...(tier === 'reviewer' ? [panel(16, 22, [[13, 7, 2, 3, 'k'], [13, 8, 1, 1, 'm']])] : []));
 }
