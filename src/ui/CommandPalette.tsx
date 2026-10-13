@@ -8,6 +8,7 @@ import { isSettled } from "../t3/derive";
 import { prState } from "../t3/changes";
 import { envClient, logError } from "../t3/environment";
 import { openDebrief } from "./debrief";
+import { startQueue } from "./queue-run";
 import { pauseFollowUps } from "../t3/followups";
 import { fuzzyFilter } from "./fuzzy";
 import { jumpTo } from "./hotkeys";
@@ -73,6 +74,7 @@ function buildItems(state: GameState): Item[] {
     { id: "go:playbooks", group: "Go to", label: "Saved orders (/name shortcuts)", run: () => useGame.setState({ showPlaybooks: true }) },
     { id: "go:help", group: "Go to", label: "Keyboard and map help", detail: "?", run: () => useGame.setState({ showHelp: true }) },
     { id: "act:fit", group: "Action", label: "Fit fleet", detail: "F", run: () => worldRef.current?.fitAll() },
+    { id: "act:queue", group: "Action", label: "Work through the queue: approvals, questions, then reports", detail: "Q", run: () => startQueue() },
     { id: "act:alert", group: "Action", label: "Next crew waiting on you", detail: "Space", run: () => jumpTo("attention") },
     { id: "act:report", group: "Action", label: "Next report ready", detail: ".", run: () => jumpTo("done") },
     { id: "act:sound", group: "Action", label: state.muted ? "Turn sound on" : "Mute sound", run: () => setMuted(!state.muted) },

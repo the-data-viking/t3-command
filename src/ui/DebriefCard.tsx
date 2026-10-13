@@ -11,6 +11,8 @@ import { ARM_MS } from "./event-guard";
 import { PullRequestChips } from "./MissionTelemetry";
 import { batchSettle } from "./squad";
 import { openDebrief, unreadReports } from "./debrief";
+import { advanceQueue, finishQueue, queueLength, stopQueue } from "./queue-run";
+import { isPhone } from "./phone";
 
 /**
  * A finished job, as a card: what the agent reported, what changed, the PRs and their checks, and
@@ -44,9 +46,11 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
   }, [detail, turnId]);
   const time = detail ? turnBreakdown(detail.thread, Date.now()) : undefined;
 
-  const close = () => openDebrief(null);
+  const close = () => { stopQueue(); openDebrief(null); };
+  const running = useGame((s) => !!s.queueRun);
   const member = { envId, threadId, turnId: turnId ?? "" };
   const next = () => {
+    if (useGame.getState().queueRun) { if (!advanceQueue(`${envId}:${threadId}`)) finishQueue(); return; }
     const after = unreadReports().filter((r) => !(r.envId === envId && r.threadId === threadId));
     openDebrief(after[0] ?? null);
   };
@@ -111,7 +115,9 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
             ))}
           </ol>
         </div>
-        <div className="event-foot muted">Press a number to choose{remaining > 0 ? ` · ${remaining} more report${remaining === 1 ? "" : "s"} after this` : ""} · Esc to close</div>
+        <div className="event-foot muted">Press a number to choose{running
+          ? ` · ${queueLength() > 1 ? `${queueLength() - 1} more in the queue` : "last one"} · ${isPhone() ? "tap outside to stop" : "Esc stops"}`
+          : `${remaining > 0 ? ` · ${remaining} more report${remaining === 1 ? "" : "s"} after this` : ""} · Esc to close`}</div>
       </div>
     </div>
   );

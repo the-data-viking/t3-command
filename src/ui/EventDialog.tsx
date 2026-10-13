@@ -8,6 +8,8 @@ import { envClient, logError } from "../t3/environment";
 import { QuestionForm } from "./QuestionForm";
 import { ARM_MS } from "./event-guard";
 import { waitQueue } from "./queue";
+import { advanceQueue, finishQueue, queueLength, stopQueue } from "./queue-run";
+import { isPhone } from "./phone";
 import { RiskBanner } from "./RiskBanner";
 import { allowedDecisions, assessRisk, RISK_ARM_MS } from "./risk";
 import type { ApprovalDecision, PendingRequest } from "../t3/types";
@@ -78,13 +80,20 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
   const nextKey = next ? `${next.envId}:${next.threadId}` : "";
   useEffect(() => {
     if (!synced || request) return;
+    // Working the queue: go on to whatever is next, reports included, or end the run.
+    if (useGame.getState().queueRun) {
+      const timer = setTimeout(() => { if (!advanceQueue(`${envId}:${threadId}`)) finishQueue(); }, decided.current ? 180 : 0);
+      return () => clearTimeout(timer);
+    }
     if (!decided.current || !nextKey) { openEvent(null); return; }
     const [nextEnv, ...rest] = nextKey.split(":");
     const timer = setTimeout(() => openEvent({ envId: nextEnv, threadId: rest.join(":") }), 180);
     return () => clearTimeout(timer);
-  }, [synced, request, nextKey]);
+  }, [synced, request, nextKey, envId, threadId]);
 
-  const close = () => openEvent(null);
+  const close = () => { stopQueue(); openEvent(null); };
+  const running = useGame((s) => !!s.queueRun);
+  const left = running ? queueLength() - 1 : 0;
   const openLog = () => {
     const sel = { kind: "unit" as const, envId, threadId };
     setSelection(sel);
@@ -191,7 +200,8 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
         </div>
         <div className="event-foot muted">
           {request?.kind === "user-input" ? "Select or type your answers" : "Press a number to choose"}
-          {queue.length > 0 ? ` · ${queue.length} more waiting, next after this · Esc stops` : " · Esc to decide later"}
+          {running ? ` · ${left > 0 ? `${left} more in the queue` : "last one"} · ${isPhone() ? "tap outside to stop" : "Esc stops"}`
+            : queue.length > 0 ? ` · ${queue.length} more waiting, next after this · Esc stops` : " · Esc to decide later"}
         </div>
       </div>
     </div>

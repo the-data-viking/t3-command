@@ -144,6 +144,12 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   under six hours, and the Command server posts a comms warning (and a push) once it's under 12
   hours. When the fullest provider quota is 75% or more, the top bar's **LIMITS** chip shows when
   it resets (↺1h12m).
+- **Work the queue** (**Q**, the **▶ Queue N** button in the top bar, or the palette): one run
+  through everything waiting on you, one card at a time — every approval and question, longest
+  wait first (anything new that starts waiting mid-run goes next), then every unread report,
+  oldest first — ending on a **Queue clear** card with how many you handled. Esc (or tapping
+  outside on a phone) stops the run and leaves the rest as it was. On a phone the cards are bottom
+  sheets with full-size choices, so a whole queue clears with one thumb.
 - **Fleet timeline** (**T**, or the command palette): every crew member's turns over the last 6
   hours, 24 hours or 3 days, one lane each, grouped by project. Bars are coloured and named by
   outcome (done, failed, interrupted), and the right edge is live: what's running, or waiting on

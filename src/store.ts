@@ -90,6 +90,10 @@ export interface GameState {
   incoming: { envId: string; threadId: string; at: number } | null;
   /** The finished job shown as a report card ("." opens the oldest unread). */
   debrief: { envId: string; threadId: string } | null;
+  /** A run through the queue in progress: the cards it has opened so far. */
+  queueRun: { seen: string[] } | null;
+  /** The last run just ended: how many cards it went through (shown briefly). */
+  queueClear: { handled: number; at: number } | null;
   /** Photo mode: the HUD hidden, the map alone with a title card (P). */
   photo: boolean;
   /** Orders the Command server will send when a busy crew member's turn ends (every device's). */
@@ -249,6 +253,8 @@ export const useGame = create<GameState>()(() => ({
   event: null,
   incoming: null,
   debrief: null,
+  queueRun: null,
+  queueClear: null,
   photo: false,
   followUps: { paused: false, queued: [] },
   playbooks: DEFAULT_PLAYBOOKS,
