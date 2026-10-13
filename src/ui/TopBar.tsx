@@ -3,7 +3,7 @@ import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
 import { css, hudAccent, teamColor } from "../game/theme";
 import { worldRef } from "../game/world";
-import { openHost, setSelection, useGame, setNotify } from "../store";
+import { openHost, setSelection, useGame } from "../store";
 import { hostView } from "../t3/host";
 import { isHistory, unitState } from "../t3/derive";
 import { jumpTo } from "./hotkeys";
@@ -17,13 +17,13 @@ import { PixelIcon } from "./PixelArt";
 import { usePhone } from "./phone";
 import { ThemePicker } from "./ThemePicker";
 import { SoundMenu } from "./SoundMenu";
+import { AlertsMenu } from "./AlertsMenu";
 
 export function TopBar() {
   const bar = useRef<HTMLElement>(null);
   const artStyle = useGame((s) => s.artStyle);
   const envs = useGame((s) => s.envs);
   const hosts = useGame((s) => s.hosts);
-  const notify = useGame((s) => s.notify);
   const showLog = useGame((s) => s.showLog);
   const hermesCatalog = useGame(s => s.hermesCatalog);
   const hermes = Object.values(envs).filter(e => e.summary.kind === 'hermes');
@@ -140,13 +140,8 @@ export function TopBar() {
         <PixelIcon name="fit" /><span className="phone-label">Fit fleet</span>
       </button>
       <ThemePicker />
-      {typeof Notification !== "undefined" && (
-        <button className="icon-btn" aria-pressed={notify} onClick={() => void setNotify(!notify)}
-          title={notify ? "Desktop alerts on: approvals and questions notify you while this tab isn't in view" : "Turn on desktop alerts for approvals and questions"}
-          aria-label={notify ? "Turn off desktop alerts" : "Turn on desktop alerts"}>
-          <PixelIcon name={notify ? "bell" : "bellOff"} /><span className="phone-label">{notify ? "Alerts on" : "Alerts off"}</span>
-        </button>
-      )}
+      {/* Always shown: on an iPhone before Add to Home Screen it explains how to get push. */}
+      <AlertsMenu />
       <SoundMenu />
       </div>
     </header>

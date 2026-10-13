@@ -13,6 +13,7 @@ import { AwayDigest } from "./ui/AwayDigest";
 import { IncomingToast } from "./ui/IncomingToast";
 import { DebriefCard } from "./ui/DebriefCard";
 import { PhotoMode } from "./ui/PhotoMode";
+import { registerServiceWorker } from "./t3/push";
 import { mayAutoOpen, noteKey } from "./ui/event-guard";
 import { CommandPalette } from "./ui/CommandPalette";
 import { HelpOverlay } from "./ui/HelpOverlay";
@@ -93,6 +94,7 @@ export default function App() {
       }
     })();
     const offHotkeys = installHotkeys();
+    registerServiceWorker();
     window.addEventListener("keydown", noteKey, true);
     const offTransitions = announceTransitions();
     const offTitle = installTitleBadge();
