@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { useGame } from "../store";
+import { openEvent, setSelection, useGame, type LogEntry } from "../store";
+import { worldRef } from "../game/world";
+import { waitQueue } from "./queue";
 import { elapsed } from "../t3/timing";
 import { AWAY_MS, digest, type Digest } from "./away";
 
@@ -15,6 +17,8 @@ function markSeen(): void {
 /** After 30+ minutes away, what the fleet did meanwhile, from the shared comms log. */
 export function AwayDigest() {
   const [shown, setShown] = useState<Digest>();
+  const envs = useGame((s) => s.envs);
+  const details = useGame((s) => s.details);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -36,7 +40,19 @@ export function AwayDigest() {
   }, []);
 
   if (!shown) return null;
-  const parts = [shown.done && `${shown.done} job${shown.done === 1 ? "" : "s"} done`, shown.failed && `${shown.failed} failed`, shown.waiting && `${shown.waiting} waiting on you`].filter(Boolean);
+  const parts = [shown.done && `${shown.done} finished`, shown.merged && `${shown.merged} PR${shown.merged === 1 ? "" : "s"} merged`, shown.failed && `${shown.failed} failed`].filter(Boolean);
+  // Still waiting is the live queue (not the log): who is blocked on you right now, longest first.
+  const waiting = waitQueue(envs, details);
+  const goTo = (envId?: string, threadId?: string, ask = false) => {
+    if (!envId || !threadId || !envs[envId]?.threads[threadId]) return;
+    const sel = { kind: "unit" as const, envId, threadId };
+    setSelection(sel);
+    worldRef.current?.focus(sel);
+    if (ask) openEvent({ envId, threadId });
+  };
+  const line = (e: LogEntry) => (
+    <li key={e.id}><button className={`away-link tone-${e.tone}`} disabled={!e.threadId} onClick={() => goTo(e.envId, e.threadId)}>{e.text}</button></li>
+  );
   return (
     <section className="away-digest hud-frame" role="status" aria-label="While you were away">
       <header className="panel-head">
@@ -45,11 +61,20 @@ export function AwayDigest() {
         <button className="icon-btn" aria-label="Dismiss" onClick={() => setShown(undefined)}>✕</button>
       </header>
       {parts.length > 0 && <p className="away-counts">{parts.join(" · ")}</p>}
-      {shown.notable.length > 0 && (
-        <ul className="history-list">
-          {shown.notable.map((e) => <li key={e.id} className={`tone-${e.tone}`}>{e.text}</li>)}
-        </ul>
+      {waiting.length > 0 && (
+        <>
+          <h3 className="away-heading">Still waiting on you</h3>
+          <ul className="away-list">
+            {waiting.slice(0, 5).map((w) => (
+              <li key={`${w.envId}:${w.threadId}`}>
+                <button className="away-link tone-alert" onClick={() => goTo(w.envId, w.threadId, true)}>{envs[w.envId]?.threads[w.threadId]?.title || "Untitled"}</button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
+      {shown.landed.length > 0 && <><h3 className="away-heading">Landed</h3><ul className="away-list">{shown.landed.map(line)}</ul></>}
+      {shown.notable.length > 0 && <><h3 className="away-heading">Worth a look</h3><ul className="away-list">{shown.notable.map(line)}</ul></>}
       <div className="away-actions">
         <button className="btn" onClick={() => { useGame.setState({ showLog: true }); setShown(undefined); }}>Open comms log</button>
       </div>

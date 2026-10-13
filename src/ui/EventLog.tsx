@@ -3,6 +3,8 @@ import { PixelLabel } from "./PixelArt";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
 import { clearLog, setSelection, useGame } from "../store";
+import { ROUTINE_KINDS } from "../../shared/comms";
+import { entryKind } from "./away";
 
 const VISIBLE_MS = 12_000;
 
@@ -25,7 +27,8 @@ export function EventLog() {
     };
   }, [log]);
 
-  const recent = log.filter((e) => now - e.at < VISIBLE_MS).slice(-6);
+  // The ticker skips routine lines (work starting, background watching): they'd bury the rest.
+  const recent = log.filter((e) => now - e.at < VISIBLE_MS && !ROUTINE_KINDS.has(entryKind(e))).slice(-6);
   return (
     <div className="event-log">
       {recent.map((e) => (
@@ -51,15 +54,20 @@ export function EventLog() {
 
 /** Scrollback of everything the comms feed announced, newest first. */
 export function CommsLog() {
-  const log = useGame((s) => s.log);
+  const all = useGame((s) => s.log);
   const envs = useGame((s) => s.envs);
+  // Routine lines (work starting, background watching) are folded away unless asked for.
+  const [routine, setRoutine] = useState(false);
+  const hidden = all.filter((e) => ROUTINE_KINDS.has(entryKind(e))).length;
+  const log = routine ? all : all.filter((e) => !ROUTINE_KINDS.has(entryKind(e)));
   return (
     <section className="comms-log hud-frame" aria-label="Comms log">
       <div className="hud-label"><PixelLabel text="Comms log" /></div>
       <header className="comms-log-head">
         <span className="muted small">{log.length} event{log.length === 1 ? "" : "s"} · shared by every device, kept 30 days</span>
         <span className="spacer" />
-        <button className="btn small" disabled={!log.length} onClick={clearLog}>Clear</button>
+        {hidden > 0 && <button className="btn small" aria-pressed={routine} onClick={() => setRoutine(!routine)}>{routine ? "Hide routine" : `Show routine (${hidden})`}</button>}
+        <button className="btn small" disabled={!all.length} onClick={clearLog}>Clear</button>
         <button className="icon-btn" aria-label="Close comms log" onClick={() => useGame.setState({ showLog: false })}>✕</button>
       </header>
       <ol className="comms-log-list">

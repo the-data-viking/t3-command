@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { CommsKind } from "../shared/comms";
 import type { EnvSummary, MeResponse } from "../shared/api";
 import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
 import type { UsageState } from "./t3/usage";
@@ -40,6 +41,8 @@ export interface LogEntry {
   id: string;
   at: number;
   tone: LogTone;
+  /** What the entry is about (server entries since kinds were added); see shared/comms.ts. */
+  kind?: CommsKind;
   text: string;
   envId?: string;
   threadId?: string;

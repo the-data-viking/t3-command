@@ -16,16 +16,27 @@ const KEEPALIVE_MS = 25_000;
 
 type NewEntry = Omit<CommsEntry, "id" | "at"> & { at?: number };
 
-/** The comms line for a crew state change, matching what the map shows; undefined if quiet. */
-export function transitionEntry(thread: ThreadShell, from: UnitState, to: UnitState): Pick<CommsEntry, "tone" | "text"> | undefined {
+/**
+ * The comms line for a crew state change, matching what the map shows; undefined if quiet. Plain
+ * words (the map carries the flavour): these lines are scanned in logs and notifications.
+ */
+export function transitionEntry(thread: ThreadShell, from: UnitState, to: UnitState): Pick<CommsEntry, "tone" | "kind" | "text"> | undefined {
   const name = `"${thread.title || "Untitled"}"`;
-  if (to === "alert") return { tone: "alert", text: `${name} needs your approval` };
-  if (to === "question") return { tone: "alert", text: `${name} has a question` };
-  if (to === "error") return { tone: "bad", text: `${name} was hurt — the turn failed` };
-  if (to === "monitoring" && from === "working") return { tone: "info", text: `${name} is monitoring background work` };
-  if (to === "done" && (from === "working" || from === "monitoring")) return { tone: "good", text: `Job's done: ${name}` };
-  if (to === "working" && from !== "alert" && from !== "question") return { tone: "info", text: `${name} got to work` };
+  if (to === "alert") return { tone: "alert", kind: "approval", text: `${name} needs your approval` };
+  if (to === "question") return { tone: "alert", kind: "question", text: `${name} has a question` };
+  if (to === "error") {
+    const reason = thread.session?.lastError?.split("\n")[0].trim();
+    return { tone: "bad", kind: "failed", text: `${name} failed${reason ? `: ${reason.length > 120 ? `${reason.slice(0, 119)}…` : reason}` : ""}` };
+  }
+  if (to === "monitoring" && from === "working") return { tone: "info", kind: "monitoring", text: `${name} is watching background tasks` };
+  if (to === "done" && (from === "working" || from === "monitoring")) return { tone: "good", kind: "done", text: `${name} finished` };
+  if (to === "working" && from !== "alert" && from !== "question") return { tone: "info", kind: "started", text: `${name} started work` };
   return undefined;
+}
+
+/** PR numbers T3 reports merged for a thread. */
+function mergedPrs(thread: ThreadShell): Map<number, string> {
+  return new Map((thread.pullRequests ?? []).filter((pr) => pr.snapshot?.state === "merged").map((pr) => [pr.number, pr.snapshot?.title ?? ""]));
 }
 
 export class CommsLog {
@@ -35,6 +46,8 @@ export class CommsLog {
   private listeners = new Set<(entry: CommsEntry) => void>();
   /** Last seen crew states per environment; absent until its first snapshot after connecting. */
   private states = new Map<string, Map<string, UnitState>>();
+  /** PRs already known merged, per environment and thread: a newly merged one is announced. */
+  private merged = new Map<string, Map<string, Set<number>>>();
   private offline = new Map<string, { timer?: ReturnType<typeof setTimeout>; announced: boolean }>();
   private writes: Promise<void> = Promise.resolve();
 
@@ -74,17 +87,29 @@ export class CommsLog {
   /** Crew state changes on a machine. Its first snapshot after connecting only sets the baseline. */
   observe(envId: string, threads: ThreadShell[]): void {
     const previous = this.states.get(envId);
+    const previousMerged = this.merged.get(envId);
     const next = new Map<string, UnitState>();
+    const nextMerged = new Map<string, Set<number>>();
     for (const thread of threads) {
       if (isHistory(thread) || thread.archivedAt) continue;
       const to = unitState(thread);
       next.set(thread.id, to);
+      // What landed: a PR this thread links that T3 now reports merged.
+      const merged = mergedPrs(thread);
+      nextMerged.set(thread.id, new Set(merged.keys()));
+      if (previousMerged) {
+        const known = previousMerged.get(thread.id);
+        for (const [number, title] of merged) {
+          if (!known?.has(number)) this.add({ tone: "good", kind: "merged", text: `"${thread.title || "Untitled"}": PR #${number} merged${title ? ` (${title})` : ""}`, envId, threadId: thread.id });
+        }
+      }
       const from = previous?.get(thread.id);
       if (!previous || from === to) continue;
       const line = transitionEntry(thread, from ?? "idle", to);
       if (line) this.add({ ...line, envId, threadId: thread.id });
     }
     this.states.set(envId, next);
+    this.merged.set(envId, nextMerged);
   }
 
   connected(envId: string, label: string): void {
@@ -92,17 +117,18 @@ export class CommsLog {
     this.offline.delete(envId);
     if (!state) return;
     clearTimeout(state.timer);
-    if (state.announced) this.add({ tone: "good", text: `${label} is back online`, envId });
+    if (state.announced) this.add({ tone: "good", kind: "online", text: `${label} is back online`, envId });
   }
 
   /** Announced only if the machine stays away past a short grace period. */
   disconnected(envId: string, label: string): void {
     this.states.delete(envId);
+    this.merged.delete(envId);
     if (this.offline.has(envId)) return;
     const state: { timer?: ReturnType<typeof setTimeout>; announced: boolean } = { announced: false };
     state.timer = setTimeout(() => {
       state.announced = true;
-      this.add({ tone: "bad", text: `Lost contact with ${label}`, envId });
+      this.add({ tone: "bad", kind: "offline", text: `Lost contact with ${label}`, envId });
     }, OFFLINE_GRACE_MS);
     state.timer.unref();
     this.offline.set(envId, state);

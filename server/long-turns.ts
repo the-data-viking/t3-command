@@ -52,7 +52,7 @@ export class LongTurns {
           if (this.noted.has(key)) continue;
           this.noted.add(key);
           // After a restart, turns already past a threshold were (or would have been) noted before.
-          if (this.seeded) this.comms.add({ tone: hours >= 12 ? "bad" : "alert", text: `"${thread.title || "Untitled"}" has been running for ${hours} hours`, envId, threadId: thread.id });
+          if (this.seeded) this.comms.add({ tone: hours >= 12 ? "bad" : "alert", kind: "long-turn", text: `"${thread.title || "Untitled"}" has been running for ${hours} hours`, envId, threadId: thread.id });
         }
       }
     }
