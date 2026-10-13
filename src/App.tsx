@@ -11,6 +11,7 @@ import { HistoryPanel } from "./ui/HistoryPanel";
 import { SquadBar } from "./ui/SquadBar";
 import { AwayDigest } from "./ui/AwayDigest";
 import { IncomingToast } from "./ui/IncomingToast";
+import { DebriefCard } from "./ui/DebriefCard";
 import { mayAutoOpen, noteKey } from "./ui/event-guard";
 import { CommandPalette } from "./ui/CommandPalette";
 import { HelpOverlay } from "./ui/HelpOverlay";
@@ -132,6 +133,7 @@ export default function App() {
       <SquadBar />
       <AwayDigest />
       <IncomingToast />
+      <DebriefCard />
       {showPalette && <CommandPalette />}
       {showHelp && <HelpOverlay />}
       {hostPanel && <HostPanel envId={hostPanel} />}

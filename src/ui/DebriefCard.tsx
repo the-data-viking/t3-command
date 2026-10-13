@@ -1,0 +1,118 @@
+import { useEffect, useMemo, useState } from "react";
+import { PixelLabel } from "./PixelArt";
+import { sfx } from "../game/sfx";
+import { worldRef } from "../game/world";
+import { markReportsRead, setSelection, unitKey, useGame } from "../store";
+import { changeTotals } from "../t3/changes";
+import { envClient } from "../t3/environment";
+import { turnBreakdown } from "../t3/progress";
+import { elapsed } from "../t3/timing";
+import { ARM_MS } from "./event-guard";
+import { PullRequestChips } from "./MissionTelemetry";
+import { batchSettle } from "./squad";
+import { openDebrief, unreadReports } from "./debrief";
+
+/**
+ * A finished job, as a card: what the agent reported, what changed, the PRs and their checks, and
+ * how long it took, with numbered choices. The release beat after the tension of a long turn.
+ */
+export function DebriefCard() {
+  const at = useGame((s) => s.debrief);
+  if (!at) return null;
+  return <Debrief key={`${at.envId}:${at.threadId}`} envId={at.envId} threadId={at.threadId} />;
+}
+
+function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
+  const env = useGame((s) => s.envs[envId]);
+  const thread = env?.threads[threadId];
+  const detail = useGame((s) => s.details[unitKey(envId, threadId)]);
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => envClient(envId)?.watchThread(threadId), [envId, threadId]);
+  useEffect(() => { const t = setTimeout(() => setArmed(true), ARM_MS); return () => clearTimeout(t); }, []);
+
+  const turnId = thread?.latestTurn?.turnId;
+  const report = useMemo(() => {
+    const messages = detail?.thread.messages ?? [];
+    const last = [...messages].reverse().find((m) => m.role === "assistant" && m.turnId === turnId && m.text.trim());
+    return last?.text.trim();
+  }, [detail, turnId]);
+  const changes = useMemo(() => {
+    const checkpoint = detail?.thread.checkpoints.find((c) => c.turnId === turnId);
+    return checkpoint ? { files: checkpoint.files.length, ...changeTotals(checkpoint.files) } : undefined;
+  }, [detail, turnId]);
+  const time = detail ? turnBreakdown(detail.thread, Date.now()) : undefined;
+
+  const close = () => openDebrief(null);
+  const member = { envId, threadId, turnId: turnId ?? "" };
+  const next = () => {
+    const after = unreadReports().filter((r) => !(r.envId === envId && r.threadId === threadId));
+    openDebrief(after[0] ?? null);
+  };
+  const openLog = () => {
+    const sel = { kind: "unit" as const, envId, threadId };
+    setSelection(sel);
+    worldRef.current?.focus(sel);
+    close();
+  };
+  const choices: Array<{ label: string; run: () => void | Promise<void>; tone?: "good" }> = [
+    { label: "Open the crew log and diff.", run: openLog },
+    { label: "Give follow-up orders.", run: openLog },
+    { label: "Mark read.", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
+    { label: "Accept and send to camp.", tone: "good", run: async () => { if (turnId) markReportsRead([member]); await batchSettle(true, [{ envId, threadId }]); next(); } },
+  ];
+  const choose = async (i: number) => {
+    if (!armed || busy) return;
+    setBusy(true);
+    try { await choices[i].run(); } finally { setBusy(false); }
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if ((e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable]")) return;
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); return; }
+      const n = Number(e.key);
+      if (!armed || !Number.isInteger(n) || n < 1 || n > choices.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void choose(n - 1);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  });
+
+  if (!env || !thread) return null;
+  const project = env.projects[thread.projectId];
+  const remaining = unreadReports().filter((r) => !(r.envId === envId && r.threadId === threadId)).length;
+  return (
+    <div className="event-backdrop" onClick={close}>
+      <div className="event debrief ftl-frame" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Report">
+        <div className="ftl-tab"><PixelLabel text="Report" /></div>
+        <div className="event-meta">{env.summary.label} · {project?.title ?? "?"}</div>
+        <div className="event-body">
+          <p className="event-text"><strong>{thread.title || "A crew member"}</strong> finished.</p>
+          {report
+            ? <div className="debrief-report">{report.length > 900 ? `${report.slice(0, 899)}…` : report}</div>
+            : <p className="muted">{detail ? "No written report this turn." : "Loading the report…"}</p>}
+          <div className="debrief-facts">
+            {changes && <span>{changes.files} file{changes.files === 1 ? "" : "s"} · <span className="st-done">+{changes.additions}</span> <span className="st-error">−{changes.deletions}</span>{changes.generated ? ` · ${changes.generated} generated` : ""}</span>}
+            {time && <span>Agent {elapsed(time.agentMs)}{time.waitingMs > 0 ? ` · waited on you ${elapsed(time.waitingMs)}` : ""}</span>}
+          </div>
+          <PullRequestChips thread={thread} />
+          <ol className={`event-choices ${armed ? "" : "arming"}`}>
+            {choices.map((c, i) => (
+              <li key={i}>
+                <button className={`event-choice ${c.tone ?? ""}`} disabled={!armed || busy} onClick={() => void choose(i)}>
+                  <span className="choice-num">{i + 1}.</span> {c.label}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className="event-foot muted">Press a number to choose{remaining > 0 ? ` · ${remaining} more report${remaining === 1 ? "" : "s"} after this` : ""} · Esc to close</div>
+      </div>
+    </div>
+  );
+}

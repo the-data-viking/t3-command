@@ -7,6 +7,7 @@ import { recallGroup, saveGroup } from "./squad";
 import type { UnitState } from "../t3/derive";
 import { allUnits, reportRead } from "./util";
 import { byWait, waitingSince } from "./queue";
+import { openDebrief } from "./debrief";
 
 export type JumpGroup = "attention" | "done" | "working" | "monitoring" | "error";
 
@@ -23,10 +24,13 @@ export function jumpTo(group: JumpGroup): void {
   const { envs, selection, readReports, details } = useGame.getState();
   const found = allUnits(envs)
     .filter((u) => GROUPS[group].includes(u.state) && !(group === "done" && reportRead(readReports, u.envId, u.thread)));
-  // Waiting on you: longest wait first, the same order as the roster. Others: most recent first.
+  // Waiting on you: longest wait first, the same order as the roster. Reports: oldest finished
+  // first, like the debrief queue. Others: most recent first.
   const units = group === "attention"
     ? found.map((u) => ({ u, key: unitKey(u.envId, u.thread.id), since: waitingSince(u.thread, details[unitKey(u.envId, u.thread.id)]?.thread) })).sort(byWait).map(({ u }) => u)
-    : found.sort((a, b) => (a.thread.updatedAt < b.thread.updatedAt ? 1 : -1));
+    : group === "done"
+      ? found.sort((a, b) => (a.thread.latestTurn?.completedAt ?? "").localeCompare(b.thread.latestTurn?.completedAt ?? ""))
+      : found.sort((a, b) => (a.thread.updatedAt < b.thread.updatedAt ? 1 : -1));
   if (units.length === 0) {
     sfx.deny();
     return;
@@ -38,6 +42,9 @@ export function jumpTo(group: JumpGroup): void {
   setSelection(sel);
   worldRef.current?.focus(sel);
   if (group === "attention") openEvent({ envId: next.envId, threadId: next.thread.id });
+  // A report opens as its debrief card: what was done, what changed, then accept or follow up.
+  // (Hermes operators acknowledge reports in their own panel.)
+  if (group === "done" && envs[next.envId]?.summary.kind !== "hermes") openDebrief({ envId: next.envId, threadId: next.thread.id });
 }
 
 function typing(target: EventTarget | null): boolean {
