@@ -1,12 +1,12 @@
 // Turns sprite grids into pixel canvases: composes crew from layers and fills in per-sprite colors.
 
 import type { Style } from "./palettes";
-import * as S from "./sprites";
 import type { Grid } from "./sprites";
 
 export type Silhouette = "round" | "angular";
 export type Tier = "light" | "standard" | "heavy" | "reviewer";
-export type Legs = "idle" | "walkA" | "walkB" | "sit";
+/** Walk frames: stride (A), passing (B), the other stride (C), passing (B). */
+export type Legs = "idle" | "walkA" | "walkB" | "walkC" | "sit";
 export type Arms = "idle" | "typeA" | "typeB";
 
 export interface Fill {
@@ -31,17 +31,6 @@ export function compose(...layers: Grid[]): string[] {
     });
   }
   return out.map((r) => r.join(""));
-}
-
-export function crewGrid(silhouette: Silhouette, tier: Tier, legs: Legs = "idle", arms: Arms = "idle"): string[] {
-  const body = tier === "heavy" ? S.BODY_HEAVY : tier === "light" ? S.BODY_LIGHT : S.BODY_STANDARD;
-  const pack = tier === "heavy" ? S.PACK_HEAVY : tier === "light" ? S.PACK_LIGHT : S.PACK_STANDARD;
-  const legsGrid = legs === "walkA" ? S.LEGS_WALK_A : legs === "walkB" ? S.LEGS_WALK_B : S.LEGS_IDLE;
-  const armsGrid = arms === "typeA" ? S.ARMS_TYPE_A : arms === "typeB" ? S.ARMS_TYPE_B : S.ARMS_IDLE;
-  const helmet = silhouette === "round" ? S.HELMET_ROUND : S.HELMET_ANGULAR;
-  const layers: Grid[] = [pack, legsGrid, body, armsGrid, helmet];
-  if (tier === "reviewer") layers.push(S.SCANNER);
-  return compose(...layers);
 }
 
 const cache = new Map<string, HTMLCanvasElement>();

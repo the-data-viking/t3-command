@@ -31,57 +31,7 @@ const rows = (top: number, lines: string[], total = CREW_H): Grid => {
 
 // ---- Helmets (by provider silhouette) --------------------------------------------------
 
-export const HELMET_ROUND = rows(2, [
-  "......kkkk......",
-  "....kkwwwwkk....",
-  "...kwwwwwwwwk...",
-  "..kwwwwwkkkkkk..",
-  "..kwwwwkVVVVvVk.",
-  "..kwwwwkVVVVVVk.",
-  "..kswwwkVVVVVVk.",
-  "..kswwwwkkkkkkk.",
-  "...ksswwwwwwsk..",
-  "....kkkTTkkkk...",
-]);
-
-export const HELMET_ANGULAR = rows(2, [
-  "...kkkkkkkkkk...",
-  "...kwwwwwwwwwk..",
-  "...kwwwwwwwwwkk.",
-  "...kkkkkkkkkkkk.",
-  "...kVVVVVVVvVVk.",
-  "...kVVVVVVVVVVk.",
-  "...kkkkkkkkkkkk.",
-  "...kswwwwwwwwsk.",
-  "...ksssssssssk..",
-  "....kkkTTkkkk...",
-]);
-
 // ---- Bodies (by model tier) ------------------------------------------------------------
-
-export const BODY_STANDARD = rows(12, [
-  "...kTTTTTTTTk...",
-  "...kWWWWWWWWk...",
-  "...kwWWWWWWsk...",
-  "...kwWWWWWWsk...",
-  "...kkkkkkkkkk...",
-]);
-
-export const BODY_HEAVY = rows(11, [
-  "..kkkk....kkkk..",
-  ".kTTTkkkkkkTTTk.",
-  ".kTttkWWWWkttTk.",
-  "..kkkwWWWWskkk..",
-  "...kwWWWWWWsk...",
-  "...kkkkkkkkkk...",
-]);
-
-export const BODY_LIGHT = rows(12, [
-  "....kTTTTTTk....",
-  "....kWWWWWWk....",
-  "....kwWWWWsk....",
-  "....kkkkkkkk....",
-]);
 
 // ---- Packs and tier extras --------------------------------------------------------------
 
@@ -131,9 +81,17 @@ export const LEGS_SIT = rows(17, [
   ".........kkk....",
 ]);
 
+/** Stride, left leg forward: the far (right) leg is in shadow, so the two strides read apart. */
 export const LEGS_WALK_A = rows(17, [
-  "...kssk...kssk..",
-  "..kssk.....kssk.",
+  "...kssk...kGGk..",
+  "..kssk.....kGGk.",
+  "..kkkk.....kkkk.",
+]);
+
+/** Stride, right leg forward (the walk's third frame). */
+export const LEGS_WALK_C = rows(17, [
+  "...kGGk...kssk..",
+  "..kGGk.....kssk.",
   "..kkkk.....kkkk.",
 ]);
 
@@ -310,24 +268,6 @@ export const DOOR_H: Grid = ["kkkkkkkkkkkkkkkk", "kmmmmmmmkmmmmmmk", "kDDDDDDDkD
 export const DOOR_H_HALF: Grid = ["kkkkkffffffkkkkk", "kmmmkffffffkmmmk", "kDDDkffffffkDDDk", "kkkkkffffffkkkkk"];
 export const DOOR_H_OPEN: Grid = ["kkffffffffffffkk", "kmffffffffffffmk", "kDffffffffffffDk", "kkffffffffffffkk"];
 
-/** One environment's ship: engine left, bow right, team stripe along the hull. */
-export const SHIP: Grid = [
-  "..........kkkkkkkkkkkkkkkkkkkkkkkkk...................",
-  "........kkhhhhhhhhhhhhhhhhhhhhhhhhhkkkk...............",
-  "......kkhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhkkkk...........",
-  "kkkk.kHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHkkk........",
-  "kDDkkHHHHkkkkkHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHkkk.....",
-  "kDDDkHHHkaaaakHHHHHHHHHHHHHHHHHHHHHHHkkkkkkHHHHHHkk...",
-  "kDDDkHHHkkkkkkHHHHHHHHHHHHHHHHHHHHHHkccccccckHHHHHHk..",
-  "kDDDkTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTkcccccccckHHHHHHk.",
-  "kDDDktttttttttttttttttttttttttttttttkcccccccckHHHHHHk.",
-  "kDDDkHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHkccccccckHHHHHk..",
-  "kDDkkDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDkkkkkkkDDDDkk...",
-  "kkkk.kDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDkk.....",
-  "......kkDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDkkk.......",
-  "........kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk...........",
-];
-
 // ---- Status badges (9×9) ---------------------------------------------------------------
 // Drawn in V, filled with the crew member's status colour (STATUS) when rasterized, so a badge is
 // always the same colour as the HUD's pill for that state. Glyphs are solid white (or ink on yellow).
@@ -395,11 +335,6 @@ export const BADGE_MONITOR: Grid = [
 
 /** All grids, for validation. */
 export const ALL: Record<string, Grid> = {
-  HELMET_ROUND,
-  HELMET_ANGULAR,
-  BODY_STANDARD,
-  BODY_HEAVY,
-  BODY_LIGHT,
   PACK_STANDARD,
   PACK_HEAVY,
   PACK_LIGHT,
@@ -407,6 +342,7 @@ export const ALL: Record<string, Grid> = {
   LEGS_IDLE,
   LEGS_WALK_A,
   LEGS_WALK_B,
+  LEGS_WALK_C,
   ARMS_IDLE,
   ARMS_TYPE_A,
   ARMS_TYPE_B,
@@ -424,7 +360,6 @@ export const ALL: Record<string, Grid> = {
   DOOR_H,
   DOOR_H_HALF,
   DOOR_H_OPEN,
-  SHIP,
   BADGE_ALERT,
   BADGE_QUESTION,
   BADGE_DONE,

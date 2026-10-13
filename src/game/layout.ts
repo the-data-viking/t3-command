@@ -138,6 +138,8 @@ export const ENV_BAY = { x: 222, y: 30, w: 56, h: 88 };
 /** Scratch crew standing in a bay at once; the rest are counted on the bay wall. */
 export const BAY_SHOWN = 2;
 const NODE_GAP = 24;
+/** Height of a row of Hermes operator bays (console, chair, name and status). */
+const HERMES_BAY_PITCH = 104;
 const CAMPUS_GAP = 400;
 const STATION_GAP_Y = 180;
 
@@ -457,7 +459,8 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   // A shared engineering spine: membership adds a conduit, never another chassis.
   const nodeX = columnW + (CAMPUS_GAP - ENV_NODE_W) / 2;
   const bridgeW = 3 * ENV_NODE_W + 2 * NODE_GAP;
-  const bridgeH = 196 + Math.max(1, Math.ceil(operators.length / 4)) * 144;
+  // Header, a row of seated operator bays per four operators, then the services strip.
+  const bridgeH = 104 + Math.max(1, Math.ceil(operators.length / 4)) * HERMES_BAY_PITCH + 64;
   const dockRows = Math.ceil(engineering.length / 3);
   const bridge = { x: nodeX + ENV_NODE_W / 2 - bridgeW / 2,
     y: -120 - dockRows * (ENV_NODE_H + NODE_GAP) - bridgeH,
@@ -476,7 +479,12 @@ export function computeFleetLayout(state: GameState): FleetLayout {
       const left = station.port.x < nodeX + ENV_NODE_W / 2;
       const members = [...new Set(station.members.map(m => m.envId))];
       const offset = (members.indexOf(key) - (members.length - 1) / 2) * 12;
-      const laneX = nodeX + ENV_NODE_W / 2 + (left ? -1 : 1) * (ENV_NODE_W + NODE_GAP) / 2;
+      // Each dock column gets its own lane through the gaps (8 px apart across, 6 px apart in the
+      // row gap), so supply lines from neighbouring machines run side by side instead of on top
+      // of each other.
+      const lane = (index % 3) - (rowCount - 1) / 2;
+      const laneX = nodeX + ENV_NODE_W / 2 + (left ? -1 : 1) * (ENV_NODE_W + NODE_GAP) / 2 + lane * 8;
+      const gapY = nodeY + ENV_NODE_H + NODE_GAP / 2 + lane * 6;
       return { stationKey: station.key,
         from: hermes.length ? { x: x + ENV_NODE_W / 2, y: nodeY + ENV_NODE_H }
           : { x: left ? x : x + ENV_NODE_W, y: nodeY + ENV_NODE_H / 2 },
@@ -484,8 +492,8 @@ export function computeFleetLayout(state: GameState): FleetLayout {
         // Use the gaps between dock columns, then the existing project-side ports.
         // Conduits must not cut through a docked node or a project interior.
         ...(hermes.length ? { via: [
-          { x: x + ENV_NODE_W / 2, y: nodeY + ENV_NODE_H + NODE_GAP / 2 },
-          { x: laneX, y: nodeY + ENV_NODE_H + NODE_GAP / 2 },
+          { x: x + ENV_NODE_W / 2, y: gapY },
+          { x: laneX, y: gapY },
           { x: laneX, y: station.port.y + offset },
         ] } : {}),
       };
@@ -513,7 +521,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
         const row = Math.floor(i / 4);
         const columns = Math.min(4, operators.length - row * 4);
         return { bot, workstation: { x: hull.x + (hull.w - (columns * 166 - 8)) / 2 + (i % 4) * 166,
-          y: hull.y + 126 + row * 144, w: 158, h: 132 } };
+          y: hull.y + 104 + row * HERMES_BAY_PITCH, w: 158, h: 96 } };
       }),
       links: [...fleet.environmentNodes.values()].map((node, index) => ({ envId: node.envId,
         from: index < 3 ? { x: node.hull.x + node.hull.w / 2, y: hull.y + hull.h }

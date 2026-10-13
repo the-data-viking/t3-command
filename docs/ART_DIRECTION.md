@@ -33,30 +33,12 @@ palettes as the map. Its scene is an illustrative fixture, not live telemetry.
 - New art must preserve the map's rules: movement, exhaust, and activity lights follow
   observed T3 state.
 
-## Pass 03: Signal Workshop (concept)
+## Pass 03: Signal Workshop (retired concept)
 
-The requested direction is a more distinctive visual identity. Signal Workshop imagines
-an orbital repair atelier with four material families: ceramic ivory hull panels, exposed
-copper services, ink-blue working decks, and canvas-colored quarters. Crisp single-pixel
-edges remain, with less emphasis on the oversized space helmet.
-
-Shape motifs:
-
-- Offset ceramic cargo pods around a tug's copper service spine; a blunt cockpit and aerial.
-- External service pipes held by ceramic clamps, plus copper recesses along the hull.
-- A small monitor beside an analog dial, rather than a single wide console strip.
-- Drawer banks and bench terminals with visible legs and separate material surfaces.
-- Compact goggled headgear, dark workwear, tool belts, and independent crew team patches.
-
-Review at `/styleboard.html?palette=signal`. This is a concept kit in `src/art/signal.ts`;
-its new geometry is not yet used by the live map. The board includes a scene, fixture
-contact sheets and all eight provider/tier crew variants. Walking and typing still use
-independent layers. Existing status badge shapes and activity colors remain recognizable.
-
-If this direction is selected, carry its shape language into the live hull renderer, ship
-layout dimensions, fixture placement, texture selection and HUD framing together. The tug
-is taller than the current live ship, so integration must include layout changes rather
-than only replacing its texture.
+Signal Workshop was a concept kit (ceramic tug hulls, copper services, goggled crew). Its
+palette shipped as the Signal theme on the Flight Deck kit; the concept kit itself, the
+legacy crew layers it was built from and the old ship sprite have been removed. The style
+board now shows every palette on the live kit.
 
 ## Pass 04: Flight Deck (concept)
 
