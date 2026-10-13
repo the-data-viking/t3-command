@@ -3,16 +3,14 @@
 
 import { WebSocket } from "ws";
 import type { Registry, StoredEnv } from "./registry.ts";
+import { t3SocketUrl } from "./t3-socket.ts";
 
 const THREAD_ID = "t3-command-storage";
 
 /** Resolves with everything the terminal printed once `done(output)` is true, or the deadline passes. */
 export async function runInT3Terminal(registry: Registry, env: StoredEnv, cwd: string, command: string,
   done: (output: string) => boolean, timeoutMs: number): Promise<string> {
-  const url = new URL("/ws", await registry.resolveUrl(env));
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.searchParams.set("clientSurface", "web");
-  url.searchParams.set("clientAppVersion", "t3-command-storage");
+  const url = await t3SocketUrl(registry, env, "t3-command-storage");
   const ws = new WebSocket(url, { headers: { authorization: `Bearer ${await registry.tokenFor(env)}` }, maxPayload: 16 * 1024 * 1024 });
   const exits = new Map<string, (exit: { _tag: string; cause?: Array<{ error?: { message?: string } }> }) => void>();
   const streams = new Map<string, (values: Array<{ type?: string; data?: string; snapshot?: { history?: string } }>) => void>();

@@ -108,7 +108,8 @@ export class EnvironmentNodeSprite {
     // Unreachable (not just reconnecting): the deck loses signal rather than showing old numbers.
     const offline = !["live", "connecting", "reconnecting"].includes(connection);
     // Only speak up when the readings can't be trusted.
-    this.caption!.text = offline ? "NO SIGNAL" : view.stale ? "STALE SAMPLE" : view.snapshot ? "" : "NO HOST METRICS";
+    // A newer T3 protocol isn't an outage: what's needed is a Command update.
+    this.caption!.text = connection === "needs-update" ? "NEEDS COMMAND UPDATE" : offline ? "NO SIGNAL" : view.stale ? "STALE SAMPLE" : view.snapshot ? "" : "NO HOST METRICS";
     this.caption!.fill = offline ? GAUGE.critical : 0xa7bdcb;
     if (offline !== this.offline) { this.offline = offline; this.drawDamage(); }
     const alpha = view.stale ? 0.35 : 1;

@@ -36,7 +36,7 @@ test("the recorder subscribes with the environment's token, acks chunks, and rec
   const history = new TurnHistory(dir);
   await history.load();
   const env = { id: "remote", label: "Remote", url: `http://127.0.0.1:${port}`, token: "secret", addedAt: "" };
-  const registry = { ids: () => ["remote"], get: () => env, resolveUrl: async () => env.url, tokenFor: async () => "secret" } as unknown as Registry;
+  const registry = { ids: () => ["remote"], get: () => env, resolveUrl: async () => env.url, tokenFor: async () => "secret", status: async () => ({ protocolVersion: 1 }) } as unknown as Registry;
   const recorder = new HistoryRecorder(registry, history, async () => { throw new Error("no Hermes here"); });
   recorder.start();
   t.after(() => recorder.stop());

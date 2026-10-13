@@ -296,6 +296,12 @@ export class Registry {
     return Promise.all([...this.envs.values()].map((e) => this.summary(e)));
   }
 
+  /** One environment's status (reachability, pairing, T3 version and protocol), cached briefly. */
+  status(id: string): Promise<EnvSummary> | undefined {
+    const env = this.envs.get(id);
+    return env ? this.summary(env) : undefined;
+  }
+
   private async summary(env: StoredEnv): Promise<EnvSummary> {
     const cached = this.statusCache.get(env.id);
     if (cached && Date.now() - cached.at < STATUS_TTL_MS) return cached.summary;

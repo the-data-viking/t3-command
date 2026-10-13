@@ -18,6 +18,8 @@ import { HistoryRecorder } from "./history-recorder.ts";
 import { StorageMonitor } from "./storage.ts";
 import { CommsLog } from "./comms.ts";
 import { HostHistoryRecorder } from "./host-history.ts";
+import { t3SocketUrl } from "./t3-socket.ts";
+import { T3Versions } from "./t3-versions.ts";
 import { HISTORY_RETENTION_DAYS } from "../shared/history.ts";
 
 const config = loadConfig();
@@ -51,6 +53,10 @@ recorder.listen({
 });
 setInterval(() => void comms.prune().catch((err) => console.warn("[comms] prune failed", (err as Error).message)), 6 * 3_600_000).unref();
 recorder.start();
+// Announce T3 updates on each machine, and protocol changes Command can't follow yet.
+const t3Versions = new T3Versions(config.dataDir, registry, comms);
+await t3Versions.load();
+t3Versions.start();
 // Whole-host CPU/RAM history per machine.
 const hostHistory = new HostHistoryRecorder(config.dataDir, registry, recorder);
 await hostHistory.load();
@@ -321,10 +327,11 @@ async function relay(client: WebSocket, envId: string): Promise<void> {
   const early: Array<[RawData, boolean]> = [];
   const hold = (data: RawData, isBinary: boolean) => early.push([data, isBinary]);
   client.on("message", hold);
-  let baseUrl: string;
+  let upstreamUrl: URL;
   let token: string;
   try {
-    baseUrl = await registry.resolveUrl(env);
+    // Also refuses a machine on an orchestration protocol this Command doesn't speak.
+    upstreamUrl = await t3SocketUrl(registry, env, "t3-command");
     token = await registry.tokenFor(env);
   } catch (err) {
     if (client.readyState === WebSocket.OPEN) client.close(CLOSE.upstreamFailed, (err as Error).message.slice(0, 120));
@@ -332,11 +339,6 @@ async function relay(client: WebSocket, envId: string): Promise<void> {
   }
   client.off("message", hold);
   if (client.readyState !== WebSocket.OPEN) return;
-
-  const upstreamUrl = new URL("/ws", baseUrl);
-  upstreamUrl.protocol = upstreamUrl.protocol === "https:" ? "wss:" : "ws:";
-  upstreamUrl.searchParams.set("clientSurface", "web");
-  upstreamUrl.searchParams.set("clientAppVersion", "t3-command");
   const upstream = new WebSocket(upstreamUrl, {
     headers: { authorization: `Bearer ${token}` },
     maxPayload: 64 * 1024 * 1024,
@@ -392,6 +394,7 @@ server.listen(config.port, config.host, () => {
 
 async function shutdown(): Promise<void> {
   storage.stop();
+  t3Versions.stop();
   await recorder.stop();
   await hostHistory.stop();
   await comms.flush();
