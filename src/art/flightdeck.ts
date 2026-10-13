@@ -57,13 +57,13 @@ function rack(x: number): PixelBox[] {
   ];
 }
 
-const ENGINEERING_DECK = panel(112, 76, [
+const ENGINEERING_DECK = panel(144, 76, [
   // Chamfered hull: outline, plating, top highlight, bottom shadow.
-  [6, 0, 100, 76, 'k'], [4, 2, 104, 72, 'k'], [2, 4, 108, 68, 'k'], [0, 6, 112, 64, 'k'],
-  [7, 2, 98, 72, 'H'], [5, 4, 102, 68, 'H'], [3, 6, 106, 64, 'H'], [2, 8, 108, 60, 'H'],
-  [7, 2, 98, 1, 'h'], [7, 73, 98, 1, 'D'],
+  [6, 0, 132, 76, 'k'], [4, 2, 136, 72, 'k'], [2, 4, 140, 68, 'k'], [0, 6, 144, 64, 'k'],
+  [7, 2, 130, 72, 'H'], [5, 4, 134, 68, 'H'], [3, 6, 138, 64, 'H'], [2, 8, 140, 60, 'H'],
+  [7, 2, 130, 1, 'h'], [7, 73, 130, 1, 'D'],
   // Nameplate recess and the environment's identity stripe.
-  [5, 5, 70, 8, 'k'], [78, 7, 28, 2, 'T'], [78, 9, 28, 1, 't'],
+  [5, 5, 70, 8, 'k'], [78, 7, 60, 2, 'T'], [78, 9, 60, 1, 't'],
   // Compute bay: two storage racks.
   [4, 14, 42, 46, 'k'], [5, 15, 40, 44, 'F'], [6, 56, 38, 2, 'D'],
   ...rack(RACK_X[0]), ...rack(RACK_X[1]),
@@ -79,8 +79,13 @@ const ENGINEERING_DECK = panel(112, 76, [
   [97, 30, 2, 2, 'm'], [99, 18, 7, 29, 'D'],
   [50, 49, 57, 7, 'k'],
   ...[0, 1, 2, 3, 4, 5, 6].map((i): PixelBox => [99, 19 + i * 4, 7, 2, 'g']),
+  // Engineering bay: open standing room for scratch crew, with a wall terminal and tool board.
+  [110, 14, 30, 46, 'k'], [111, 15, 28, 44, 'F'], [111, 15, 28, 2, 'D'],
+  [114, 19, 14, 11, 'k'], [115, 20, 12, 8, 'D'], [120, 30, 2, 3, 'M'],
+  [131, 23, 6, 13, 'k'], [132, 24, 4, 11, 'G'], [133, 26, 2, 1, 'g'], [133, 30, 2, 1, 'g'],
+  [111, 56, 28, 3, 'D'], ...[0, 1, 2, 3, 4, 5].map((i): PixelBox => [113 + i * 4, 57, 2, 1, 'k']),
   // Status plate along the bottom edge.
-  [4, 63, 104, 10, 'k'], [5, 64, 102, 8, 'D'],
+  [4, 63, 136, 10, 'k'], [5, 64, 134, 8, 'D'],
 ]);
 
 /** Where the map draws each light, in deck pixels. */
@@ -95,7 +100,13 @@ export const ENGINEERING_SPOTS = {
   cpuLabel: { x: 7, y: 50 },
   memoryLabel: { x: 52, y: 50 },
   /** Status plate; matches the layout's node plate. */
-  plate: { x: 4, y: 63, w: 104, h: 10 },
+  plate: { x: 4, y: 63, w: 136, h: 10 },
+  /** Engineering bay floor space; matches the layout's bay. */
+  bay: { x: 111, y: 15, w: 28, h: 44 },
+  /** Above the tool board, where the bay counts scratch crew it has no room for. */
+  bayCount: { x: 130, y: 17 },
+  /** The bay's wall terminal screen (lit while scratch crew work). */
+  bayScreen: { x: 115, y: 20, w: 12, h: 8 },
 };
 
 export const FLIGHT_KIT = { ...S, CONSOLE, TERMINAL, FILES, COMMS, CHAIR, ENGINEERING_DECK };

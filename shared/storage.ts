@@ -14,6 +14,8 @@ export interface WorktreeUsage {
   totalBytes: number;
   /** Each T3 worktree (~/.t3/worktrees/<project>/<worktree>), largest first. */
   entries: Array<{ path: string; project: string; bytes: number }>;
+  /** T3's scratch folder for threads without a project (~/.t3/scratch), when it exists. */
+  scratchBytes?: number;
 }
 
 export interface StorageReading {
@@ -61,11 +63,11 @@ export function storageCommand(paths: string[], withWorktrees: boolean, windows:
   if (windows) {
     const drives = `foreach ($p in @(${paths.map(pq).join(",")})) { $d = (Get-Item -LiteralPath $p -ErrorAction SilentlyContinue).PSDrive; if ($d) { Write-Output ("PSDRIVE {0} {1} {2}" -f $d.Name, [int64]$d.Used, [int64]$d.Free) } }`;
     const worktrees = withWorktrees
-      ? `Get-ChildItem -Directory -LiteralPath "$env:USERPROFILE\\.t3\\worktrees" -ErrorAction SilentlyContinue | Get-ChildItem -Directory -ErrorAction SilentlyContinue | ForEach-Object { $s = (Get-ChildItem -LiteralPath $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum; Write-Output ("WT {0} {1}" -f [int64]$s, $_.FullName) }; `
+      ? `@(Get-ChildItem -Directory -LiteralPath "$env:USERPROFILE\\.t3\\worktrees" -ErrorAction SilentlyContinue | Get-ChildItem -Directory -ErrorAction SilentlyContinue) + @(Get-Item -LiteralPath "$env:USERPROFILE\\.t3\\scratch" -ErrorAction SilentlyContinue) | ForEach-Object { $s = (Get-ChildItem -LiteralPath $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum; Write-Output ("WT {0} {1}" -f [int64]$s, $_.FullName) }; `
       : "";
     return `Write-Output '${BEGIN}'; ${drives}; Write-Output '${WORKTREES}'; ${worktrees}Write-Output '${END}'`;
   }
-  const worktrees = withWorktrees ? `nice -n 19 du -sk "$HOME"/.t3/worktrees/*/* 2>/dev/null; ` : "";
+  const worktrees = withWorktrees ? `nice -n 19 du -sk "$HOME"/.t3/worktrees/*/* "$HOME"/.t3/scratch 2>/dev/null; ` : "";
   return `printf '%s\\n' ${BEGIN}; df -Pk ${paths.map(sq).join(" ")} 2>/dev/null; printf '%s\\n' ${WORKTREES}; ${worktrees}printf '%s\\n' ${END}`;
 }
 
@@ -110,9 +112,13 @@ export function parseStorageOutput(raw: string, now: number, withWorktrees: bool
     if (df) volumes.set(df[4], { mount: df[4], totalBytes: Number(df[1]) * 1024, usedBytes: Number(df[2]) * 1024, availableBytes: Number(df[3]) * 1024 });
   }
   const entries: Array<{ path: string; project: string; bytes: number }> = [];
+  let scratchBytes: number | undefined;
   const entry = (raw: string, bytes: number) => {
     const p = raw.replace(/[\\/]+$/, "");
-    entries.push({ path: p, project: p.split(/[\\/]/).slice(-2, -1)[0] ?? "", bytes });
+    const parts = p.split(/[\\/]/);
+    // Worktrees are two levels into ~/.t3/worktrees, so ~/.t3/scratch can't be mistaken for one.
+    if (parts.at(-1) === "scratch" && parts.at(-2) === ".t3") scratchBytes = (scratchBytes ?? 0) + bytes;
+    else entries.push({ path: p, project: parts.slice(-2, -1)[0] ?? "", bytes });
   };
   for (const line of worktreeLines) {
     const wt = /^WT (\d+) (.+)$/.exec(line);
@@ -124,7 +130,7 @@ export function parseStorageOutput(raw: string, now: number, withWorktrees: bool
   return {
     sampledAt: now,
     volumes: [...volumes.values()],
-    ...(withWorktrees ? { worktrees: { measuredAt: now, totalBytes: entries.reduce((n, p) => n + p.bytes, 0), entries } } : {}),
+    ...(withWorktrees ? { worktrees: { measuredAt: now, totalBytes: entries.reduce((n, p) => n + p.bytes, 0), entries, ...(scratchBytes === undefined ? {} : { scratchBytes }) } } : {}),
   };
 }
 
