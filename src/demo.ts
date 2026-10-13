@@ -45,6 +45,14 @@ function env(id: string, label: string, projects: ProjectShell[], threads: Threa
   };
 }
 
+/** A local Hermes base with two operators: one working, one with a report ready. */
+function hermesEnv(): EnvWorld {
+  const ws = project("hermes-ws", "hermes-workspace");
+  const op = (id: string, profile: string, title: string, state: "working" | "done") => ({ ...thread(id, ws.id, title, state, 30), hermesProfile: profile });
+  const e = env("hermes", "Hermes", [ws], [op("h1", "default", "Morning briefing", "working"), op("h2", "money-guy", "Budget review", "done")]);
+  return { ...e, summary: { ...e.summary, kind: "hermes", url: "/work/hermes" }, providers: [] };
+}
+
 /** Codex reports a weekly quota on one machine and fails on another; Claude reports none. */
 function providers(envId: string): Provider[] {
   const base = { enabled: true, installed: true, status: "ready", models: [] };
@@ -69,6 +77,7 @@ function fleet(): Record<string, EnvWorld> {
       thread("b2", "stone", "Diagnose Hollow Vein client visuals", "question", 15),
       thread("b3", "stone", "Watch the nightly build", "monitoring", 200),
     ]),
+    hermes: hermesEnv(),
     wes: env("wes", "Wesley-Desktop", [stone], [
       thread("c1", "stone", "Update Althing and Synthbench repos", "error", 60),
       thread("c2", "stone", "Background review sweep", "background", 25),
@@ -125,6 +134,10 @@ export function loadDemoFleet(): void {
   useGame.setState({
     me: { user: "demo", devMode: true },
     envs,
+    hermesCatalog: { envId: "hermes", loaded: true, bots: [
+      { name: "default", title: "default", description: "", model: null, provider: null, skillCount: 0, isDefault: true },
+      { name: "money-guy", title: "Money Guy", description: "", model: null, provider: null, skillCount: 0, isDefault: false },
+    ] },
     storage: storage(),
     hosts: Object.fromEntries(Object.keys(envs).map((id, i) => [id, { history: [], snapshot: { sampledAt: Date.now(), cpuUtilization: 0.2 + i * 0.25, cpuCount: 8, availableMemoryBytes: 8 * GB, totalMemoryBytes: 24 * GB } }])),
   });

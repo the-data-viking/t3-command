@@ -171,3 +171,32 @@ the map sleep.
 - **Pixel HUD art:** crew portraits in the roster and crew panel are the crew member's map sprite
   (`CrewPortrait`). Emoji icons are replaced by pixel SVG icons in the current text color
   (`PixelIcon`).
+
+## Art bible
+
+The rules every map change follows. `src/game/art-rules.test.ts` enforces the mechanical ones.
+
+1. **Pixels, not vectors.** Everything drawn on the map sits on the art grid: `PX` = 2 world px per
+   art pixel. Shapes are built from cells: `pixelOval`, `pixelDiamond`, `steppedPlate` and
+   `lightSpill` in `map-common.ts`. No `ellipse`, `circle`, `roundRect`, `arc` or curves on the map.
+   Diagonal edges are staircases. The backdrop's nebula is the one exception: it is baked into a
+   texture as soft atmosphere.
+2. **Crisp on every screen.** The canvas is `image-rendering: pixelated`. The camera settles on
+   `ZOOM_STEPS`, where art pixels cover whole screen pixels. Labels use whole screen pixels per font
+   pixel (`crispScale`), and their origins snap to whole pixels each frame. Small figures zoomed out
+   hold exactly one screen pixel per art pixel (`figureBoost`), never more.
+3. **Outlines.** One art pixel of `k` around every sprite and plate. Trim colours (team stripes,
+   Hermes tan) are one art pixel wide and sit inside the outline.
+4. **Light comes from the upper left.** Highlights (`h`, `w`) on top and left edges, shade (`D`, `s`)
+   on bottom and right, in sprites and in drawn plates alike.
+5. **Scale ladder.** Crew 16×22 art px. Consoles and system fixtures are about crew height. A room
+   is at least three crew wide. Stations are sized by their rooms, never stretched.
+6. **Colour has one job.** Status colours mean state, gauge colours mean load, team colours mean
+   machine, Hermes tan means Hermes. Decoration uses the theme's materials (`h/H/D`, `m/M`, `f/F`,
+   `p/P`, `q/Q`, `b`), never another job's colour.
+7. **Lighting follows use.** Idle rooms are multiplied by the theme's own dim tone (`shadeColor`),
+   so a warm deck dims warm instead of greying. Working fixtures spill dithered light (`lightSpill`).
+8. **Themes change materials, not meaning.** A theme supplies the sprite palette, the HUD materials
+   and its chrome (frame corners and weight). Status and gauge colours are identical in every theme.
+9. **Every effect is earned.** Motion means real activity. Anything that lingers (scorch, hazard
+   stripes, turn-age pips) is static, so it never keeps the render loop running.

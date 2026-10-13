@@ -14,7 +14,7 @@ import { CrewMotion } from "./crew-motion";
 import { quietness } from "../t3/progress";
 import { crewTex, PX, tex } from "./textures";
 import { contextLevel, GAUGE, HUD, hudMaterials, modelTier, PROVIDER_VISOR, providerSilhouette, STATUS, type Silhouette, type Tier } from "./theme";
-import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale } from "./map-common";
+import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale, pixelOval } from "./map-common";
 
 // ---- Crew ------------------------------------------------------------------------------
 
@@ -334,15 +334,16 @@ export class CrewSprite extends Container {
       if (this.inSquad) r.rect(-29, -13, 58, 26).stroke({ color: STATUS.working, width: 2 });
       return;
     }
-    // Squad members wear a second, wider cyan ring (alongside any state or selection ring).
-    if (this.inSquad) r.ellipse(0, 0, 20, 8).stroke({ color: STATUS.working, width: 2 });
+    // Rings are plotted in art-pixel cells. Squad members wear a second, wider cyan ring.
+    if (this.inSquad) pixelOval(r, 0, 0, 20, 8, STATUS.working);
     if (selected) {
-      r.ellipse(0, 0, 16, 6).stroke({ color: STATUS.done, width: 2 });
+      pixelOval(r, 0, 0, 16, 6, STATUS.done);
     } else if (this.state === "alert" || this.state === "question") {
-      const g = (t * 1.1 + this.seed) % 1;
-      r.ellipse(0, 0, 10 + g * 22, 4 + g * 8).stroke({ color: STATUS[this.state], width: 2, alpha: 1 - g });
+      // The pulse grows in whole art-pixel steps rather than smoothly.
+      const g = Math.floor(((t * 1.1 + this.seed) % 1) * 6) / 6;
+      pixelOval(r, 0, 0, 10 + g * 22, 4 + g * 8, STATUS[this.state], 1 - g);
     } else if (this.hovered) {
-      r.ellipse(0, 0, 15, 5).stroke({ color: 0x101418, width: 1.5, alpha: 0.7 });
+      pixelOval(r, 0, 0, 14, 5, 0x101418, 0.7);
     }
   }
 }
