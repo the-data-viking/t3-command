@@ -28,9 +28,21 @@ function texture(renderer: Renderer, size: number, draw: (g: Graphics) => void):
   return t;
 }
 
-/** A pixel-art planet: 3-px cells, lit from the upper left, with a dithered terminator. */
-function planet(g: Graphics, cx: number, cy: number, radius: number, [light, mid, shade]: [number, number, number], ringed: boolean): void {
-  const cell = 3;
+/** Mix a colour toward another by k (0–1). */
+function mix(a: number, b: number, k: number): number {
+  const ch = (c: number, s: number) => (c >> s) & 255;
+  const m = (s: number) => Math.round(ch(a, s) * (1 - k) + ch(b, s) * k);
+  return (m(16) << 16) | (m(8) << 8) | m(0);
+}
+
+/**
+ * A pixel-art planet in 2-px cells (an art pixel at 1× zoom), lit from the upper left with a
+ * dithered terminator. `haze` mixes its colours toward space so it sits back without being
+ * drawn translucent over the stars.
+ */
+function planet(g: Graphics, cx: number, cy: number, radius: number, colors: [number, number, number], ringed: boolean, space: number, haze: number): void {
+  const [light, mid, shade] = colors.map((c) => mix(c, space, haze));
+  const cell = 2;
   const n = Math.ceil(radius / cell);
   for (let y = -n; y <= n; y++) {
     for (let x = -n; x <= n; x++) {
@@ -47,7 +59,8 @@ function planet(g: Graphics, cx: number, cy: number, radius: number, [light, mid
     for (let x = -n * 1.8; x <= n * 1.8; x++) {
       const y = Math.round(x * 0.22);
       if (Math.hypot(x, y) < n * 0.95 && y < 0) continue; // behind the planet
-      g.rect(cx + Math.round(x) * cell, cy + y * cell, cell, cell).fill({ color: mid, alpha: 0.8 });
+      if (Math.round(x) % 3 === 0) continue; // a dithered, broken ring rather than a translucent one
+      g.rect(cx + Math.round(x) * cell, cy + y * cell, cell, cell).fill(mid);
     }
   }
 }
@@ -84,8 +97,8 @@ export class Backdrop {
       }
     });
     const planets = sky.planets.length ? texture(this.renderer, 2048, (g) => {
-      planet(g, 520, 380, 30, sky.planets[0], false);
-      planet(g, 1560, 1420, 18, sky.planets[1], true);
+      planet(g, 520, 380, 30, sky.planets[0], false, space, 0.45);
+      planet(g, 1560, 1420, 18, sky.planets[1], true, space, 0.45);
     }) : undefined;
     const near = texture(this.renderer, 1024, (g) => {
       for (let i = 0; i < 160; i++) {
@@ -110,9 +123,8 @@ export class Backdrop {
       this.layers.push({ sprite, parallax, twinkle: tw });
     };
     add(far, 0.06);
+    // Distant: planets sit back in the haze (mixed toward space) rather than competing with the stations.
     add(planets, 0.1);
-    // Distant: planets sit back in the haze rather than competing with the stations.
-    if (this.layers.at(-1)?.sprite.texture === planets) this.layers.at(-1)!.sprite.alpha = 0.55;
     add(near, 0.2);
     if (sky.planets.length) {
       add(twinkle("ta"), 0.2, 0);
@@ -125,7 +137,8 @@ export class Backdrop {
     for (const l of this.layers) {
       l.sprite.width = width;
       l.sprite.height = height;
-      l.sprite.tilePosition.set(camX * l.parallax, camY * l.parallax);
+      // Whole pixels, so stars and planets don't shimmer between pixels while the camera pans.
+      l.sprite.tilePosition.set(Math.round(camX * l.parallax), Math.round(camY * l.parallax));
       if (l.twinkle !== undefined) l.sprite.alpha = 0.3 + 0.7 * Math.abs(Math.sin(t * 0.8 + l.twinkle));
     }
   }

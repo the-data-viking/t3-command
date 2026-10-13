@@ -2,10 +2,9 @@
 // picked by eye. Uses the real sprite data and renderer the game will use.
 
 import { STYLES, type Style } from "./art/palettes";
-import { crewGrid, rasterize, type Arms, type Legs, type Silhouette, type Tier } from "./art/render";
+import { rasterize, type Arms, type Legs, type Silhouette, type Tier } from "./art/render";
 import * as S from "./art/sprites";
 import { STATUS } from "./game/theme";
-import { SIGNAL_KIT, signalCrew } from "./art/signal";
 import { FLIGHT_KIT, flightCrew } from "./art/flightdeck";
 
 let scale = 2;
@@ -49,26 +48,20 @@ interface Crew {
 }
 
 function drawCrew(ctx: Ctx, style: Style, c: Crew): void {
-  const grid = (style.id.startsWith("flightdeck") ? flightCrew : style.id === "signal" ? signalCrew : crewGrid)(c.silhouette, c.tier, c.legs, c.arms);
+  const grid = flightCrew(c.silhouette, c.tier, c.legs, c.arms);
   const visor = c.silhouette === "round" ? VISOR.claude : VISOR.codex;
   // Feet at (x, y).
   blit(ctx, rasterize(grid, style, { team: c.team, visor }, c.mirror), c.x - S.CREW_W / 2, c.y - S.CREW_H);
 }
 
 function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
-  const kit = style.id.startsWith("flightdeck") ? FLIGHT_KIT : style.id === "signal" ? SIGNAL_KIT : S;
+  const kit = FLIGHT_KIT;
   rect(ctx, style.space, 0, 0, W, H);
   // A few stars.
   for (let i = 0; i < 60; i++) rect(ctx, 0xffffff, (i * 97) % W, (i * 53) % 60, 1, 1);
 
-  // Ship above the station.
-  const ship = rasterize(kit.SHIP, style, { team: TEAM.amber });
-  blit(ctx, ship, 40, 8);
-  // Engine glow (the ship's crew are working).
-  rect(ctx, 0x59e1ff, 32 - (frame % 2) * 2, 15, 8 + (frame % 2) * 2, 4);
-  rect(ctx, 0xffffff, 37, 16, 3, 2);
   // Supply line down to the station.
-  for (let y = style.id === "signal" ? 34 : 24; y < 52; y += 3) rect(ctx, TEAM.amber, 64, y, 1, 2);
+  for (let y = 24; y < 52; y += 3) rect(ctx, TEAM.amber, 64, y, 1, 2);
 
   // Station hull.
   const ox = 20;
@@ -81,22 +74,6 @@ function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
   rect(ctx, style.colors.D, ox - 6, oy + ih + 4, iw + 12, 2);
   rect(ctx, style.colors.D, 58, oy - 10, 12, 4); // supply port
 
-  if (style.id === "signal") {
-    // Exposed copper services and ceramic buttresses give the hull its own construction language.
-    for (const x of [ox - 10, ox + iw + 6]) {
-      rect(ctx, style.colors.k, x - 2, oy + 8, 6, ih - 16);
-      rect(ctx, style.colors.M, x, oy + 8, 2, ih - 16);
-      for (const y of [oy + 6, oy + 48, oy + 96]) {
-        rect(ctx, style.colors.k, x - 4, y, 10, 8);
-        rect(ctx, style.colors.h, x - 3, y + 1, 8, 3);
-        rect(ctx, style.colors.H, x - 3, y + 4, 8, 3);
-      }
-    }
-    for (let x = ox + 16; x < ox + iw; x += 32) {
-      rect(ctx, style.colors.k, x, oy - 7, 16, 5);
-      rect(ctx, style.colors.m, x + 1, oy - 6, 14, 2);
-    }
-  }
 
   // Floor.
   const floor = rasterize(S.FLOOR, style);
@@ -145,7 +122,7 @@ function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
   }
   // Someone walking through quarters toward the door.
   const walkX = ox + 7 * T + ((t * 14) % (3 * T));
-  drawCrew(ctx, style, { silhouette: "angular", tier: "standard", team: TEAM.violet, x: walkX, y: oy + 7 * T - 3, legs: frame % 2 ? "walkA" : "walkB" });
+  drawCrew(ctx, style, { silhouette: "angular", tier: "standard", team: TEAM.violet, x: walkX, y: oy + 7 * T - 3, legs: (["walkA", "walkB", "walkC", "walkB"] as const)[frame % 4] });
 
   // Inspector monitoring at comms.
   drawCrew(ctx, style, { silhouette: "angular", tier: "reviewer", team: TEAM.teal, x: ox + 13.5 * T, y: oy + 2 * T - 3 });
@@ -180,7 +157,7 @@ function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
 
 const board = document.getElementById("board")!;
 const scenes: Array<{ ctx: Ctx; style: Style }> = [];
-for (const style of Object.values(STYLES)) {
+for (const style of Object.values(STYLES).filter((s) => s.id !== "nightshift")) { // Night Shift ships as flightdeck-nightshift.
   const section = document.createElement("section");
   section.className = "style";
   section.dataset.style = style.id;
@@ -206,19 +183,16 @@ for (const style of Object.values(STYLES)) {
   section.firstElementChild!.appendChild(download);
   const gallery = document.createElement("div");
   gallery.className = "assets";
-  const kit = style.id.startsWith("flightdeck") ? FLIGHT_KIT : style.id === "signal" ? SIGNAL_KIT : S;
+  const kit = FLIGHT_KIT;
   const assets: Array<[string, S.Grid]> = [
     ["Utility deck", S.FLOOR], ["Bridge alloy", S.FLOOR_BRIDGE], ["Quarters panels", S.FLOOR_QUARTERS],
     ["Console", kit.CONSOLE], ["Terminal", kit.TERMINAL], ["File bank", kit.FILES], ["Comms", kit.COMMS],
-    ["Bunk", S.BUNK_EMPTY], ["Archive", S.SHELF], ["Ship", kit.SHIP],
+    ["Bunk", S.BUNK_EMPTY], ["Archive", S.SHELF], ["Engineering deck", kit.ENGINEERING_DECK],
     ["Approval", S.BADGE_ALERT], ["Question", S.BADGE_QUESTION], ["Report ready", S.BADGE_DONE],
     ["Failed", S.BADGE_ERROR], ["Monitoring", S.BADGE_MONITOR],
   ];
-  if (style.id.startsWith("flightdeck")) assets.push(["Engineering deck", FLIGHT_KIT.ENGINEERING_DECK]);
-  if (style.id === "signal" || style.id.startsWith("flightdeck")) {
-    for (const silhouette of ["round", "angular"] as const) for (const tier of ["light", "standard", "heavy", "reviewer"] as const) {
-      assets.push([`${silhouette === "round" ? "Claude" : "Codex"} ${tier}`, (style.id.startsWith("flightdeck") ? flightCrew : signalCrew)(silhouette, tier)]);
-    }
+  for (const silhouette of ["round", "angular"] as const) for (const tier of ["light", "standard", "heavy", "reviewer"] as const) {
+    assets.push([`${silhouette === "round" ? "Claude" : "Codex"} ${tier}`, flightCrew(silhouette, tier)]);
   }
   for (const [name, grid] of assets) {
     const figure = document.createElement("figure");

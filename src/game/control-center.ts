@@ -80,32 +80,33 @@ export class ControlCenterSprite {
     this.text(live ? 'CONNECTED' : 'OFFLINE', h.x + h.w - 155, h.y + 35, 10, live ? 0x9bc9c2 : HUD.muted);
     this.text(`${center.operators.length} OPERATORS`, h.x + h.w - 155, h.y + 55, 9, HUD.muted);
     this.text(`${endpointCount} BAYS ONLINE`, h.x + h.w - 155, h.y + 74, 9, HUD.muted);
-    g.rect(h.x + 30, h.y + 112, h.w - 60, 2).fill({ color: HERMES_COLOR, alpha: 0.35 });
-    if (!center.operators.length) this.text('OPEN CONTROL CENTER TO VIEW OPERATORS', h.x + 150, h.y + 180, 12, HUD.muted);
+    g.rect(h.x + 30, h.y + 98, h.w - 60, 2).fill({ color: HERMES_COLOR, alpha: 0.35 });
+    if (!center.operators.length) this.text('OPEN CONTROL CENTER TO VIEW OPERATORS', h.x + 150, h.y + 136, 12, HUD.muted);
     for (const { bot, workstation: r } of center.operators) {
       const color = botColor(bot.name);
       const x = r.x + r.w / 2;
-      // Each operator's bay: a dark well with an edge, a deck plate and the bot's colour stripe.
-      g.rect(r.x + 8, r.y + 2, r.w - 16, 100).fill(m.edge);
-      g.rect(r.x + 10, r.y + 4, r.w - 20, 96).fill(m.surface);
-      g.rect(r.x + 10, r.y + 84, r.w - 20, 16).fill(c.P);
-      g.rect(r.x + 12, r.y + 96, 12, 4).fill(color);
-      const console = this.fixture(A.CONSOLE, x, r.y + 14, 0.5, 0);
-      this.fixture(A.CHAIR, x, r.y + 75, 0.5, 0.5);
+      // Each operator's bay: a well with an edge, a deck plate and the bot's colour stripe, and the
+      // operator seated at their console the way bridge crew are.
+      g.rect(r.x + 8, r.y + 2, r.w - 16, 60).fill(m.edge);
+      g.rect(r.x + 10, r.y + 4, r.w - 20, 56).fill(m.surface);
+      g.rect(r.x + 10, r.y + 46, r.w - 20, 14).fill(c.P);
+      g.rect(r.x + 12, r.y + 56, 12, 4).fill(color);
+      const console = this.fixture(A.CONSOLE, x, r.y + 6, 0.5, 0);
+      this.fixture(A.CHAIR, x, r.y + 54, 0.5, 1);
       const figure = new Sprite();
       figure.anchor.set(0.5, 1);
-      figure.position.set(x, r.y + 94);
+      figure.position.set(x, r.y + 46);
       const badge = new Sprite();
       badge.anchor.set(0, 1);
       badge.scale.set(PX);
-      badge.position.set(x + 14, r.y + 54);
+      badge.position.set(x + 14, r.y + 22);
       this.root.addChild(figure, badge);
       this.operators.push({ bot, workstation: r, figure, console, badge });
-      const name = this.text(bot.title.length > 18 ? bot.title.slice(0, 17) + '…' : bot.title, x, r.y + 103, 12, HUD.text);
+      const name = this.text(bot.title.length > 18 ? bot.title.slice(0, 17) + '…' : bot.title, x, r.y + 64, 12, HUD.text);
       name.anchor.set(0.5, 0);
       this.names.push({ label: name, full: bot.title, width: r.w - 12 });
       const status = this.text(bot.observed ? BOT_STATE_LABELS[bot.state].toUpperCase() : 'ON CALL · UNOBSERVED',
-        x, r.y + 121, 8, bot.observed ? STATUS[bot.state] : HUD.muted);
+        x, r.y + 82, 8, bot.observed ? STATUS[bot.state] : HUD.muted);
       status.anchor.set(0.5, 0);
       const hit = new Container();
       hit.eventMode = 'static'; hit.cursor = 'pointer';
@@ -166,16 +167,17 @@ export class ControlCenterSprite {
       const active = bot.observed && bot.state === 'working';
       const color = botColor(bot.name);
       figure.texture = crewTex(providerSilhouette(bot.provider ?? 'hermes'), modelTier(bot.model ?? ''),
-        'idle', active ? (frame % 2 ? 'typeA' : 'typeB') : 'idle', color, HERMES_COLOR);
+        'sit', active ? (frame % 2 ? 'typeA' : 'typeB') : 'idle', color, HERMES_COLOR);
       figure.scale.set(PX * figureBoost(zoom, PX));
       const screen = bot.observed && bot.state !== 'idle' ? STATUS[bot.state] : 0x1c2228;
       console.texture = tex(A.CONSOLE, { screen });
       const grid = bot.observed ? badges[bot.state] : undefined;
       badge.visible = !!grid;
       if (grid) {
-        badge.texture = tex(grid);
+        // Status-filled, like crew badges on the map and pills in the HUD.
+        badge.texture = tex(grid, { visor: STATUS[bot.state] });
         const bob = bot.state === 'alert' || bot.state === 'question' ? (frame % 2) * PX : 0;
-        badge.y = workstation.y + 54 - bob;
+        badge.y = workstation.y + 22 - bob;
       }
     }
     const g = this.selection.clear();

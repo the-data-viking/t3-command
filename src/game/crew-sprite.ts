@@ -19,6 +19,12 @@ import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS
 /** Round a local coordinate to the art grid (PX world px), so effects sit on the sprite's pixels. */
 const snap = (v: number) => Math.round(v / PX) * PX;
 
+/** Four-frame walk: stride, passing, the other stride, passing. */
+const WALK: Legs[] = ["walkA", "walkB", "walkC", "walkB"];
+
+/** 4×4 ordered dither: the order art pixels appear in as a crew member beams in. */
+const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+
 // ---- Crew ------------------------------------------------------------------------------
 
 export class CrewSprite extends Container {
@@ -30,6 +36,8 @@ export class CrewSprite extends Container {
   private figure = new Sprite();
   private badge = new Sprite();
   private fx = new Graphics();
+  /** Mask that reveals the figure pixel by pixel while beaming in or out. */
+  private reveal = new Graphics();
   private nameText = label(7, HUD.text);
   private motion: CrewMotion;
   private hasTelemetry = false;
@@ -95,7 +103,8 @@ export class CrewSprite extends Container {
   /** One frame of a beam-out; false once it's finished. */
   departTick(t: number, dt: number): boolean {
     this.leaving = Math.max(0, this.leaving - dt);
-    this.figure.alpha = this.leaving / BEAM_SECONDS;
+    this.figure.alpha = 1;
+    this.drawReveal(this.leaving / BEAM_SECONDS);
     this.badge.visible = false;
     this.nameText.visible = false;
     this.ring.clear();
@@ -122,7 +131,7 @@ export class CrewSprite extends Container {
     this.badge.scale.set(PX);
     this.nameText.anchor.set(0.5, 0);
     this.nameText.y = 6;
-    this.addChild(this.ring, this.figure, this.badge, this.fx);
+    this.addChild(this.ring, this.figure, this.reveal, this.badge, this.fx);
     this.labelLayer.addChild(this.nameText);
     this.eventMode = "static";
     this.cursor = "pointer";
@@ -229,8 +238,9 @@ export class CrewSprite extends Container {
       const working = this.state === "working" && !this.offline && (this.atConsole || this.atStation);
       // At a console the crew member sits in the chair, below the screen, instead of standing in front of it.
       const seated = this.atConsole && !moving;
-      const legs: Legs = moving ? (frame % 2 ? "walkA" : "walkB") : seated ? "sit" : "idle";
-      this.figure.y = seated ? 14 : 0;
+      const legs: Legs = moving ? WALK[Math.floor(t * 8) % 4] : seated ? "sit" : "idle";
+      // Seated below the screen; walking, the body rises an art pixel as the legs pass.
+      this.figure.y = seated ? 14 : moving && legs === "walkB" ? -PX : 0;
       const arms: Arms = working ? (frame % 2 ? "typeA" : "typeB") : "idle";
       this.figure.texture = crewTex(this.silhouette, this.tier, legs, arms, this.team, visor);
       this.figure.anchor.set(0.5, 1);
@@ -250,7 +260,8 @@ export class CrewSprite extends Container {
     }
 
     this.arriving = Math.max(0, this.arriving - dt);
-    this.figure.alpha = this.arriving ? 1 - this.arriving / BEAM_SECONDS : this.offline ? 0.7 : 1;
+    this.figure.alpha = this.offline ? 0.7 : 1;
+    this.drawReveal(this.arriving ? 1 - this.arriving / BEAM_SECONDS : 1);
     this.drawFx(t, selected, zoom, resting);
     this.drawRing(selected, t, resting);
     this.nameText.visible = !resting && (selected || this.hovered || zoom > 1.7);
@@ -360,6 +371,24 @@ export class CrewSprite extends Container {
       if ((j + Math.floor(k * 12)) % 3 === 0) continue; // Twinkle.
       f.rect(x, y, 2, 2).fill({ color: colors[j % 3], alpha: 1 - k });
     }
+  }
+
+  /**
+   * Show `progress` (0–1) of the figure's art pixels, in ordered-dither order, so a beam-in
+   * resolves pixel by pixel instead of fading in translucent. At 1 the mask comes off.
+   */
+  private drawReveal(progress: number): void {
+    const r = this.reveal.clear();
+    if (progress >= 1) {
+      if (this.figure.mask) this.figure.mask = null;
+      return;
+    }
+    for (let y = -50; y < 22; y += PX) {
+      for (let x = -18; x < 18; x += PX) {
+        if ((BAYER[(y / PX) & 3][(x / PX) & 3] + 0.5) / 16 < progress) r.rect(x, y, PX, PX).fill(0xffffff);
+      }
+    }
+    this.figure.mask = r;
   }
 
   /** A teleporter column in the crew member's team color at strength `fade` (0–1). */

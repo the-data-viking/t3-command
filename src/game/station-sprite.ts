@@ -69,8 +69,10 @@ export class StationSprite {
     }
     // Antenna mast and the side port to the operations network.
     g.rect(i.x + i.w - 42, hullTop - 28, 4, 28).fill(c.k);
-    g.rect(i.x + i.w - 44, hullTop - 32, 8, 6).fill(c.a);
-    g.rect(s.port.x - 5, s.port.y - 18, 10, 36).fill(c.D).stroke({ color: c.k, width: 2 });
+    // Decoration uses the theme's materials, never a status colour: a white beacon, not amber.
+    g.rect(i.x + i.w - 44, hullTop - 32, 8, 6).fill(c.w);
+    g.rect(Math.round(s.port.x / 2) * 2 - 6, s.port.y - 20, 12, 40).fill(c.k);
+    g.rect(Math.round(s.port.x / 2) * 2 - 4, s.port.y - 18, 8, 36).fill(c.D);
     this.drawExterior(g, s, { x: hx, y: hy, w: hw, h: hh }, hullTop, i);
 
     // Deck plating.
@@ -206,7 +208,7 @@ export class StationSprite {
       for (let x = i.x + 72 + Math.round(seed * 8) * 2; x < i.x + i.w - 72; x += spacing) {
         g.rect(x, wy, 10, 6).fill(c.k);
         g.rect(x + 2, wy + 2, 6, 2).fill(c.b);
-        if (hash(`${s.key}${x}`) > 0.45) g.rect(x + 2, wy + 2, 2, 2).fill({ color: c.c, alpha: 0.85 });
+        if (hash(`${s.key}${x}`) > 0.45) g.rect(x + 2, wy + 2, 2, 2).fill(c.h);
       }
     }
     // Engine block on the side away from the network port, with three exhaust vents.
@@ -217,17 +219,18 @@ export class StationSprite {
     g.rect(ex - 2, ey - 2, 20, eh + 4).fill(c.k);
     g.rect(ex, ey, 16, eh).fill(c.D);
     g.rect(right ? ex : ex + 12, ey, 4, eh).fill(c.H);
-    for (let k = 0; k < 3; k++) g.rect(right ? ex + 10 : ex + 2, ey + 6 + k * Math.floor((eh - 12) / 3), 4, 4).fill(c.a);
-    // Roof: a dish on half the stations, a second mast on the rest.
-    const rx = i.x + 40 + Math.round(seed * 10) * 4;
+    for (let k = 0; k < 3; k++) g.rect(right ? ex + 10 : ex + 2, ey + 6 + k * Math.floor((eh - 12) / 3), 4, 4).fill(c.W);
+    // Roof: a dish on half the stations, a second mast on the rest. In the middle of the roof, clear
+    // of the title over its left end and the antenna mast at its right.
+    const rx = i.x + Math.round(i.w * 0.5 / 4) * 4 + Math.round(seed * 10) * 4;
     if (seed > 0.5) {
       g.rect(rx + 6, hullTop - 10, 4, 10).fill(c.k);
       for (let row = 0; row < 4; row++) g.rect(rx + row * 2, hullTop - 14 - row * 2, 16 - row * 4, 2).fill(row === 0 ? c.k : c.m);
-      g.rect(rx + 7, hullTop - 22, 2, 4).fill(c.a);
+      g.rect(rx + 7, hullTop - 22, 2, 4).fill(c.m);
     } else {
       g.rect(rx, hullTop - 18, 4, 18).fill(c.k);
       g.rect(rx - 4, hullTop - 14, 12, 2).fill(c.k);
-      g.rect(rx, hullTop - 22, 4, 4).fill(c.c);
+      g.rect(rx, hullTop - 22, 4, 4).fill(c.w);
     }
   }
 

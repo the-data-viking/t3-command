@@ -60,7 +60,7 @@ export interface HudMaterials {
 const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   flightdeck: {
     id: "flightdeck", name: "Kestrel",
-    blurb: "FTL's warm hull: ivory and stone plating, copper details and charcoal wells, on the Flight Deck kit.",
+    blurb: "FTL's warm hull: ivory and stone plating with copper details, a brass-and-leather HUD, over warm space.",
     // Warm space: a brown-black void, so the ivory hull reads warm against it.
     space: 0x110d0b, wall: 0x1f1813,
     // Leather and brass: brass frames, oiled-leather panels and wells, cream text.
