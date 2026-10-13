@@ -40,10 +40,16 @@ export function fitLabel(label: PixelText, full: string, width: number, zoom: nu
  * at 1–3 world px per font pixel; at these steps both land on whole screen pixels (zoomed far
  * out, art drops on a regular pattern and labels hold a crisp minimum). In-between steps
  * (0.75, 1.5, 2.5) made text swell, shrink back and re-truncate relative to its plate as you
- * zoomed, which read as jitter. 1/3 stays as the one far-out in-between until the fleet view
- * gets its own art.
+ * zoomed, which read as jitter. 1/3 stays as the one far-out in-between; from there down the map is
+ * the fleet view (FLEET_VIEW_ZOOM).
  */
 export const ZOOM_STEPS = [0.125, 1 / 6, 0.25, 1 / 3, 0.5, 1, 2, 3];
+
+/**
+ * Below this zoom the map is the fleet view: stations as flat room blocks, and one status glyph
+ * per crew member instead of sprites, which would pile up and break apart at that scale.
+ */
+export const FLEET_VIEW_ZOOM = 0.5;
 
 /** The nearest zoom step (in log space, so in and out feel the same). */
 export function snapZoom(z: number): number {

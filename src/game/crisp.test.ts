@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { crispScale, figureBoost, floorZoom, snapZoom, ZOOM_STEPS } from "./map-common";
+import { crispScale, figureBoost, FLEET_VIEW_ZOOM, floorZoom, snapZoom, ZOOM_STEPS } from "./map-common";
 
 test("labels land on whole screen pixels per font pixel, never below one", () => {
   for (const [unit, zoom] of [[1, 0.9], [1, 1.5], [2, 0.33], [1, 0.2], [3, 1.25]]) {
@@ -25,6 +25,10 @@ test("at every zoom step from 1 up, art pixels and font pixels (1–3 world px) 
   for (const z of ZOOM_STEPS.filter((s) => s >= 1)) {
     for (const unit of [1, 2, 3, 2 /* PX */]) assert.ok(Number.isInteger(unit * z), `unit ${unit} at zoom ${z}`);
   }
+});
+
+test("in the fleet view every zoom step draws glyph cells two whole screen pixels wide", () => {
+  for (const z of ZOOM_STEPS.filter((s) => s < FLEET_VIEW_ZOOM)) assert.ok(Number.isInteger(2 / z), `zoom ${z}`);
 });
 
 test("small figures stay at one screen pixel per art pixel when zoomed out, and no bigger", () => {

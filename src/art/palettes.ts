@@ -61,11 +61,13 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   flightdeck: {
     id: "flightdeck", name: "Kestrel",
     blurb: "FTL's warm hull: ivory and stone plating, copper details and charcoal wells, on the Flight Deck kit.",
-    space: 0x080d16, wall: 0x1a212a,
-    // Warm plating frames and charcoal wells, echoing the deck's ivory and copper.
+    // Warm space: a brown-black void, so the ivory hull reads warm against it.
+    space: 0x110d0b, wall: 0x1f1813,
+    // Leather and brass: brass frames, oiled-leather panels and wells, cream text.
     hud: {
-      frame: 0xc9c1aa, ink: 0x14110d, surface: 0x1e1b17, deep: 0x100e0b, slot: 0x15130f,
-      edge: 0x3a352c, edgeStrong: 0x4c4639, control: 0x2a261f, meter: 0x35302a, bright: 0xf6eedc,
+      frame: 0xd9b77a, ink: 0x1a120b, surface: 0x2a2018, deep: 0x18120d, slot: 0x211912,
+      edge: 0x4a3a2a, edgeStrong: 0x6a5238, control: 0x3a2c1f, meter: 0x4a3a2a, bright: 0xfbf0d8,
+      text: 0xf1e6d0, muted: 0xb9a88c,
       chrome: { corner: "bevel", radius: 6, width: 3 },
     },
     colors: {
