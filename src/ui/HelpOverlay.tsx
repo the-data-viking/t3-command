@@ -16,6 +16,7 @@ const KEYS: Array<[string, string]> = [
   ["W / M / X", "Next working / monitoring / failed crew (the keyboard stays on the map)"],
   ["O or Enter", "Write in the selected crew member's order box"],
   ["F", "Fit the whole fleet"],
+  ["Z", "Up to the whole fleet, and back down to where you were (or to the selected crew)"],
   ["Backspace / Alt+←", "Back to where you were before the last jump (8 deep)"],
   ["L / H / T / B", "Comms log / turn history / fleet timeline / work board (missions and orders on top)"],
   ["D", "Shipping dock: every open PR, by how ready it is to merge, and what's holding it back"],

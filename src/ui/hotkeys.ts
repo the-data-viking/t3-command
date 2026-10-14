@@ -116,6 +116,7 @@ export function installHotkeys(): () => void {
       w: () => jumpTo("working"),
       m: () => jumpTo("monitoring"),
       f: () => worldRef.current?.fitAll(),
+      z: () => worldRef.current?.toggleAltitude(),
       l: () => useGame.setState((s) => ({ showLog: !s.showLog })),
       h: () => useGame.setState((s) => ({ showHistory: !s.showHistory })),
       t: () => useGame.setState((s) => ({ showTimeline: !s.showTimeline })),
