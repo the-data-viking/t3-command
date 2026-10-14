@@ -38,5 +38,6 @@ test("the PR under review: the current branch's, else the newest open, else the 
   assert.equal(reviewPullRequest(t("x", [pr(3, "open"), pr(9, "merged"), pr(7, "open")]))?.number, 7);
   assert.equal(reviewPullRequest(t(null, [pr(2, "merged"), pr(4, "closed")]))?.number, 4);
   assert.equal(reviewPullRequest(t(null, [])), undefined);
+  assert.equal(reviewPullRequest(t(null, [{ number: 646, repository: "r", url: "", snapshot: null }, pr(3, "merged")]))?.number, 3, "a bare linked reference isn't reviewable");
   assert.match(changesOrder("  rename foo  "), /Review feedback[\s\S]*\n\nrename foo$/);
 });
