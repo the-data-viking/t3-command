@@ -31,7 +31,8 @@ export function QueueClear() {
   return (
     <div className="queue-clear ftl-frame" role="status" onClick={() => useGame.setState({ queueClear: null })}>
       <div className="ftl-tab"><PixelLabel text="Queue clear" /></div>
-      <p>{clear.handled ? `${clear.handled} card${clear.handled === 1 ? "" : "s"} handled. Nothing else is waiting on you.` : "Nothing was waiting on you."}</p>
+      <p>{clear.handled + clear.skipped === 0 ? "Nothing was waiting on you."
+        : `${clear.handled} card${clear.handled === 1 ? "" : "s"} handled.${clear.skipped ? ` ${clear.skipped} left for later, still waiting.` : " Nothing else is waiting on you."}`}</p>
     </div>
   );
 }

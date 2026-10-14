@@ -8,7 +8,8 @@ import { envClient, logError } from "../t3/environment";
 import { QuestionForm } from "./QuestionForm";
 import { ARM_MS } from "./event-guard";
 import { waitQueue } from "./queue";
-import { advanceQueue, finishQueue, queueLength, stopQueue } from "./queue-run";
+import { advanceQueue, finishQueue, queueLength, skipInQueue, stopQueue } from "./queue-run";
+import { useSwipe } from "./useSwipe";
 import { isPhone } from "./phone";
 import { RiskBanner } from "./RiskBanner";
 import { allowedDecisions, assessRisk, RISK_ARM_MS } from "./risk";
@@ -94,6 +95,9 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
   const close = () => { stopQueue(); openEvent(null); };
   const running = useGame((s) => !!s.queueRun);
   const left = running ? queueLength() - 1 : 0;
+  // In a run on a phone, swiping the card left leaves it for later. Never approves.
+  const skip = () => skipInQueue({ envId, threadId });
+  const swipe = useSwipe(running && isPhone(), skip);
   const openLog = () => {
     const sel = { kind: "unit" as const, envId, threadId };
     setSelection(sel);
@@ -141,6 +145,7 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
       if (request?.kind === "user-input" || e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable]")) return;
+      if (running && (e.key === "s" || e.key === "S")) { e.preventDefault(); e.stopPropagation(); skip(); return; }
       const n = Number(e.key);
       // Not armed yet: the keypress wasn't meant for this card, so leave it to its own handler.
       if (!armed) return;
@@ -161,7 +166,8 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
 
   return (
     <div className="event-backdrop" onClick={close}>
-      <div className="event ftl-frame" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Crew request">
+      <div className="event ftl-frame" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Crew request" {...swipe.handlers} style={swipe.style}>
+        {swipe.armed !== 0 && <div className="swipe-hint left">Later</div>}
         <div className="ftl-tab"><PixelLabel text={request?.kind === "user-input" ? "Incoming question" : "Incoming request"} /></div>
         <div className="event-meta">
           {env.summary.label} · {project?.title ?? "?"}
@@ -202,6 +208,7 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
           {request?.kind === "user-input" ? "Select or type your answers" : "Press a number to choose"}
           {running ? ` · ${left > 0 ? `${left} more in the queue` : "last one"} · ${isPhone() ? "tap outside to stop" : "Esc stops"}`
             : queue.length > 0 ? ` · ${queue.length} more waiting, next after this · Esc stops` : " · Esc to decide later"}
+          {running && <button className="link-button queue-skip" onClick={skip}>{isPhone() ? "Later (or swipe left)" : "Later (S)"}</button>}
         </div>
       </div>
     </div>

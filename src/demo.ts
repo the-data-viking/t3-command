@@ -107,7 +107,7 @@ function records(): TurnRecord[] {
       const start = NOW - d * 86_400_000 - i * 3_600_000;
       const dur = (10 + i * 7) * 60_000;
       out.push({ envId: "mini", envLabel: "Mac mini (local)", projectId: "command", projectTitle: "t3-command", threadId: `h${d}${i}`, threadTitle: `Demo turn ${d}.${i}`, turnId: `h${d}${i}`,
-        provider: "claudeAgent", model: "claude-opus-5-5", startedAt: new Date(start - dur).toISOString(), completedAt: new Date(start).toISOString(), durationMs: dur, waitMs: i === 1 ? 5 * 60_000 : 0,
+        provider: "claudeAgent", model: "claude-opus-5-5", startedAt: new Date(start - dur).toISOString(), completedAt: new Date(start).toISOString(), durationMs: dur, waitMs: i === 1 ? 5 * 60_000 : 0, ...(i === 1 ? { waits: [[start - dur + 4 * 60_000, start - dur + 9 * 60_000]] as Array<[number, number]> } : {}),
         outcome: i === 3 ? "error" : "completed", ...(i === 3 ? { error: "npm test exited 1" } : {}) });
     }
   }

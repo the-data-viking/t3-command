@@ -11,7 +11,8 @@ import { ARM_MS } from "./event-guard";
 import { PullRequestChips } from "./MissionTelemetry";
 import { batchSettle } from "./squad";
 import { openDebrief, unreadReports } from "./debrief";
-import { advanceQueue, finishQueue, queueLength, stopQueue } from "./queue-run";
+import { advanceQueue, finishQueue, queueLength, skipInQueue, stopQueue } from "./queue-run";
+import { useSwipe } from "./useSwipe";
 import { isPhone } from "./phone";
 
 /**
@@ -48,6 +49,9 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
 
   const close = () => { stopQueue(); openDebrief(null); };
   const running = useGame((s) => !!s.queueRun);
+  const skip = () => skipInQueue({ envId, threadId });
+  // In a run on a phone: swipe left to leave the report for later, right to mark it read.
+  const swipe = useSwipe(running && isPhone(), skip, () => { if (turnId) markReportsRead([{ envId, threadId, turnId }]); sfx.select(); next(); });
   const member = { envId, threadId, turnId: turnId ?? "" };
   const next = () => {
     if (useGame.getState().queueRun) { if (!advanceQueue(`${envId}:${threadId}`)) finishQueue(); return; }
@@ -77,6 +81,7 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if ((e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable]")) return;
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); return; }
+      if (running && (e.key === "s" || e.key === "S")) { e.preventDefault(); e.stopPropagation(); skip(); return; }
       const n = Number(e.key);
       if (!armed || !Number.isInteger(n) || n < 1 || n > choices.length) return;
       e.preventDefault();
@@ -92,7 +97,9 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
   const remaining = unreadReports().filter((r) => !(r.envId === envId && r.threadId === threadId)).length;
   return (
     <div className="event-backdrop" onClick={close}>
-      <div className="event debrief ftl-frame" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Report">
+      <div className="event debrief ftl-frame" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Report" {...swipe.handlers} style={swipe.style}>
+        {swipe.armed === -1 && <div className="swipe-hint left">Later</div>}
+        {swipe.armed === 1 && <div className="swipe-hint right">Mark read</div>}
         <div className="ftl-tab"><PixelLabel text="Report" /></div>
         <div className="event-meta">{env.summary.label} · {project?.title ?? "?"}</div>
         <div className="event-body">
@@ -117,7 +124,8 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
         </div>
         <div className="event-foot muted">Press a number to choose{running
           ? ` · ${queueLength() > 1 ? `${queueLength() - 1} more in the queue` : "last one"} · ${isPhone() ? "tap outside to stop" : "Esc stops"}`
-          : `${remaining > 0 ? ` · ${remaining} more report${remaining === 1 ? "" : "s"} after this` : ""} · Esc to close`}</div>
+          : `${remaining > 0 ? ` · ${remaining} more report${remaining === 1 ? "" : "s"} after this` : ""} · Esc to close`}
+          {running && <button className="link-button queue-skip" onClick={skip}>{isPhone() ? "Later (or swipe left; right marks read)" : "Later (S)"}</button>}</div>
       </div>
     </div>
   );

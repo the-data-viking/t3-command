@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { loadDemoFleet } from "../demo";
 import { useGame } from "../store";
-import { advanceQueue, startQueue, stopQueue } from "./queue-run";
+import { advanceQueue, skipInQueue, startQueue, stopQueue } from "./queue-run";
 
 /** Answer a crew member's open request in its loaded details (its summary still says waiting). */
 const answer = (key: string) => {
@@ -32,4 +32,19 @@ test("stepping out ends the run without touching anything", () => {
   stopQueue();
   assert.equal(useGame.getState().queueRun, null);
   assert.equal(advanceQueue(null), false);
+});
+
+test("leaving a card for later moves on without it and doesn't count it as handled", () => {
+  loadDemoFleet();
+  useGame.setState({ readReports: {} });
+  startQueue();
+  assert.equal(open(), "event mini:a2");
+  skipInQueue({ envId: "mini", threadId: "a2" });
+  assert.equal(open(), "event agent1:b2", "the skipped approval stays waiting but the run moves on");
+  answer("agent1:b2");
+  assert.ok(advanceQueue("agent1:b2"));
+  assert.equal(open(), "report mini:a3", "the skipped approval isn't brought back");
+  skipInQueue({ envId: "mini", threadId: "a3" });
+  const clear = useGame.getState().queueClear;
+  assert.deepEqual([clear?.handled, clear?.skipped], [1, 2]);
 });

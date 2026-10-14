@@ -19,6 +19,8 @@ export interface TurnRecord {
   durationMs: number;
   /** Part of the duration spent waiting on the operator (approvals, questions), when watched live. */
   waitMs?: number;
+  /** When it waited on the operator, as [from, to] epoch ms spans (watched live; at most 20). */
+  waits?: Array<[number, number]>;
   outcome: TurnOutcome;
   /** The provider's error text for failed turns, shortened. */
   error?: string;
