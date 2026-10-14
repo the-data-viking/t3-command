@@ -7,6 +7,7 @@ import { agentMs, type HistorySummary, type TurnRecord } from "../../shared/hist
 import { worldRef } from "../game/world";
 import { setSelection, useGame } from "../store";
 import { envClient, fetchJson } from "../t3/environment";
+import { unitState } from "../t3/derive";
 import { fleetSpend, formatSpend, historyWindow, type UsageSummary } from "../t3/usage";
 import { BarChart } from "./BarChart";
 import { timeAgo } from "./util";
@@ -150,7 +151,13 @@ function LongTurns({ longest }: { longest: TurnRecord[] }) {
       <ol className="history-list history-recent">
         {running.map(({ env, t, ms }) => (
           <li key={`${env.summary.id}${t.id}`}>
-            <span className="pill state-working">Running</span>
+            {(() => {
+              // What the turn is doing now, as its colour says everywhere else: a turn waiting on
+              // you isn't "running" in working cyan.
+              const st = unitState(t);
+              const live = st === "alert" ? "Needs approval" : st === "question" ? "Has a question" : "Working";
+              return <span className={`pill state-${st === "alert" || st === "question" ? st : "working"}`}>{live}</span>;
+            })()}
             <button className="history-title link-button" onClick={() => open(env.summary.id, t.id)}>{t.title || "Untitled"}</button>
             <span className="muted small">{env.summary.label} · {formatDuration(ms)}</span>
           </li>

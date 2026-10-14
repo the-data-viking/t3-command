@@ -334,8 +334,10 @@ export function lightSpill(g: Graphics, fx: number, fy: number, color: number, c
     const half = 8 + row * 5;
     const fade = 1 - row / 7;
     for (let x = -half; x < half; x += cell) {
-      if (((x / cell) + row) % 2 !== 0) continue;
-      g.rect(Math.round((fx + x) / cell) * cell, Math.round((fy - 6 + row * cell) / cell) * cell, cell, cell).fill({ color, alpha: 0.16 * fade });
+      // Checker on whole cells (a fractional index skipped every row whose width isn't a multiple of 4).
+      const col = Math.round((fx + x) / cell);
+      if ((((col + row) % 2) + 2) % 2 !== 0) continue;
+      g.rect(col * cell, Math.round((fy - 6 + row * cell) / cell) * cell, cell, cell).fill({ color, alpha: 0.16 * fade });
     }
   }
 }

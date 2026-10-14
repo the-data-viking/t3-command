@@ -90,7 +90,8 @@ export class CrewSprite extends Container {
   /** When the last turn failed, for the burst of sparks right after. */
   private failedAt = 0;
   /** When this crew member finished a job (working → done), for the report-ready sparkle. */
-  private reportAt = 0;
+  /** When a report landed; never on load, so nobody celebrates what they didn't just finish. */
+  private reportAt = -Infinity;
 
   /** Sleepers' decorative drift doesn't keep an otherwise idle fleet rendering. */
   get animated(): boolean {
@@ -262,10 +263,12 @@ export class CrewSprite extends Container {
       this.figure.y = seated ? 14 : moving && legs === "walkB" ? -PX : 0;
       this.lift = seated ? 14 : 0;
       const pose = seated ? seatedPose(this.state, frame, t, this.seed, this.offline) : { arms: (working ? (frame % 2 ? "typeA" : "typeB") : "idle") as Arms, head: "" as const };
-      this.figure.texture = crewTex(this.silhouette, this.tier, legs, pose.arms, this.team, visor, pose.head);
+      // At a system they face its fixture, which stands to their left. Facing left is a mirrored
+      // texture relit from the upper left, not a flipped sprite (that would light them from the right).
+      const facing = seated ? 1 : this.atStation && !moving ? -1 : this.motion.facing;
+      this.figure.texture = crewTex(this.silhouette, this.tier, legs, pose.arms, this.team, visor, pose.head, facing < 0);
       this.figure.anchor.set(0.5, 1);
-      // At a system they face its fixture, which stands to their left.
-      this.figure.scale.set(PX * (seated ? 1 : this.atStation && !moving ? -1 : this.motion.facing), PX);
+      this.figure.scale.set(PX, PX);
       // Offline: greyed out, as last seen.
       this.figure.tint = this.offline ? 0x8a919a : 0xffffff;
       const badge = BADGES[this.state];

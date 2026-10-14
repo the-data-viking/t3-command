@@ -71,7 +71,7 @@ const SHAPES: Partial<Record<UnitState, string[]>> = {
   alert: ["...x...", "..x.x..", ".x...x.", "xxxxxxx"],
   question: ["..x..", ".xxx.", ".xxx.", "..x.."],
   done: ["....x", "...x.", "x.x..", ".x..."],
-  error: ["x...x", ".x.x.", ".x.x.", "x...x"],
+  error: ["x..x", ".xx.", ".xx.", "x..x"],
 };
 
 function shape(state: UnitState): Grid | undefined {

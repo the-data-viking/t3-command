@@ -158,7 +158,8 @@ export class StationSprite {
     this.root.addChild(walls);
     for (const d of s.doors) {
       const door = sprite(tex(A.DOOR_H), d.x, d.y, 0.5, 0.5);
-      if (d.vertical) door.rotation = Math.PI / 2;
+      // Turned so the lit edge faces left, toward the light (upper left), not away from it.
+      if (d.vertical) door.rotation = -Math.PI / 2;
       this.root.addChild(door);
       this.doors.push({ sprite: door, x: d.x, y: d.y, open: A.DOOR_H });
     }

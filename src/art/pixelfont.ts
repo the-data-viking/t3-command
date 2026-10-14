@@ -105,7 +105,7 @@ export function glyphFor(ch: string): string[] {
 export const STATUS_GLYPHS: Record<UnitState, string[]> = {
   // ▲ with its "!" knocked out (a stepped triangle alone read as a house), ◆ with a hollow core
   // (a solid one read as a "+") at the fleet view's 3-px cells.
-  alert: ["..#..", ".###.", "##.##", "#####", "##.##"],
+  alert: ["..#..", ".###.", "##.##", "#####", "#####"],
   question: ["..#..", ".###.", "##.##", ".###.", "..#.."],
   working: [".###.", "#####", "#####", "#####", ".###."],
   monitoring: [".###.", "#...#", "#...#", "#...#", ".###."],
