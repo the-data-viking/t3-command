@@ -21,3 +21,11 @@ test("a turn's pulse: last file change, tests, a command failing again and again
   assert.equal(still.noChangeMs, 75 * 60_000, "running 75 minutes past its last change");
   assert.equal(pulseOf(thread([], "completed"), T0 + 200 * 60_000)!.noChangeMs, undefined, "a finished turn isn't 'not changing'");
 });
+
+test("a repeated command reads as typed, without the shell wrapper agents run it in", async () => {
+  const { bareCommand } = await import("./pulse");
+  assert.equal(bareCommand(`/bin/bash -lc "python3 check.py --all"`), "python3 check.py --all");
+  assert.equal(bareCommand(`/bin/zsh -lc 'npm test'`), "npm test");
+  assert.equal(bareCommand(`bash -c "python3 - <<'PY'`), "python3 - <<'PY'");
+  assert.equal(bareCommand("npm test"), "npm test");
+});
