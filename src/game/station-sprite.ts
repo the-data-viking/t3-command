@@ -94,8 +94,10 @@ export class StationSprite {
     g.rect(i.x + i.w - 42, hullTop - 28, 4, 28).fill(c.k);
     // Decoration uses the theme's materials, never a status colour: a white beacon, not amber.
     g.rect(i.x + i.w - 44, hullTop - 32, 8, 6).fill(c.w);
-    g.rect(Math.round(s.port.x / 2) * 2 - 6, s.port.y - 20, 12, 40).fill(c.k);
-    g.rect(Math.round(s.port.x / 2) * 2 - 4, s.port.y - 18, 8, 36).fill(c.D);
+    // The port plate takes every machine's line: 12 px apart, so it grows past four machines.
+    const plateH = Math.max(40, Math.round((12 * s.members.length + 16) / 4) * 4);
+    g.rect(Math.round(s.port.x / 2) * 2 - 6, s.port.y - plateH / 2, 12, plateH).fill(c.k);
+    g.rect(Math.round(s.port.x / 2) * 2 - 4, s.port.y - plateH / 2 + 2, 8, plateH - 4).fill(c.D);
     this.drawExterior(g, s, { x: hx, y: hy, w: hw, h: hh }, hullTop, i);
     const memory = stationMemory(state, s);
     this.drawMemory(g, s, memory, hullTop, hullBottom, i);

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { GameState } from '../store';
-import { computeFleetLayout, fingerprint, nodeDrawKey, stationDrawKey, type Rect } from './layout';
+import { computeFleetLayout, fingerprint, nodeDrawKey, orderLanes, stationDrawKey, type Rect } from './layout';
+import { linkPath } from './map-common';
 
 function fixture(crewCount=1): GameState {
   const env=(id:string, projectNames:string[])=>({
@@ -31,8 +32,9 @@ test('each environment has one engineering node connected to every project it se
     assert.deepEqual(node.links.map(l=>l.stationKey).sort(),expected);
     for(const link of node.links){
       const station=layout.stations.get(link.stationKey)!;
-      assert.equal(link.from.y,node.hull.y+node.hull.h/2);
-      assert.ok(link.from.x===node.hull.x||link.from.x===node.hull.x+node.hull.w);
+      // Every line leaves its deck from the bottom, down onto the keel's bus.
+      assert.equal(link.from.y,node.hull.y+node.hull.h);
+      assert.equal(link.from.x,node.hull.x+node.hull.w/2);
       assert.equal(link.to.x,station.port.x);
       assert.ok(link.to.y>=station.bounds.y&&link.to.y<=station.bounds.y+station.bounds.h);
     }
@@ -197,7 +199,66 @@ test('the Hermes hall is sized to its operators, and each dock takes its collar 
       const node = layout.environmentNodes.get(link.envId)!;
       assert.equal(link.laneX, node.hatchX, 'the collar lands on the dock\'s hatch');
       assert.ok(node.hatchX - 20 >= node.hull.x && node.hatchX + 20 <= node.hull.x + node.hull.w, 'the hatch is on the dock\'s roof');
-      assert.ok(link.from.x - 20 >= center.hull.x + 40 && link.from.x + 20 <= center.hull.x + center.hull.w - 40, 'clear of the hall\'s stepped corners');
+    }
+    // The collars hang from the keel's spine, which leaves the hall clear of its stepped corners
+    // and reaches every deck in the top row, however wide the row and however small the hall.
+    const spine = center.manifold!;
+    assert.ok(spine.stemX - 20 >= center.hull.x + 40 && spine.stemX + 20 <= center.hull.x + center.hull.w - 40, 'clear of the hall\'s stepped corners');
+    assert.equal(spine.top, center.hull.y + center.hull.h);
+    for (const link of center.links.slice(0, 3)) {
+      assert.equal(link.from.y, spine.y);
+      assert.ok(link.from.x >= spine.x0 && link.from.x <= spine.x1);
     }
   }
+});
+
+// A fleet of `machines`, each serving some of `projects` (the first two shared by all).
+function fleet(machines: number, projects: number): GameState {
+  const envs: Record<string, unknown> = {};
+  for (let m = 0; m < machines; m++) {
+    const names = Array.from({ length: projects }, (_, p) => `p${p}`).filter((_, p) => p % machines === m || p < 2 || (p * 7 + m) % 5 === 0);
+    envs[`m${m}`] = { summary: { id: `m${m}`, addedAt: `2026-01-${String(m + 1).padStart(2, '0')}` },
+      projects: Object.fromEntries(names.map(n => [n, { id: n, title: n, workspaceRoot: `/${n}`, repositoryIdentity: { canonicalKey: `gh/${n}`, name: n } }])),
+      threads: {} };
+  }
+  return { envs, memory: {} } as unknown as GameState;
+}
+
+test('the keel: a lone project sits on the axis under the decks, and a big fleet spreads wide, not tall', () => {
+  const one = computeFleetLayout(fleet(1, 1));
+  const station = [...one.stations.values()][0];
+  assert.equal(station.bounds.x + station.bounds.w / 2, 0);
+  const deck = [...one.environmentNodes.values()][0].hull;
+  assert.equal(deck.x + deck.w / 2, 0);
+  assert.ok(station.bounds.y > deck.y + deck.h);
+  const big = computeFleetLayout(fleet(6, 15));
+  assert.equal(big.stations.size, 15);
+  assert.ok(big.bounds.w > big.bounds.h, `6 machines × 15 projects: ${big.bounds.w}×${big.bounds.h}`);
+});
+
+test('supply lines cross only on the bus; below it each runs its own lane into its port', () => {
+  for (const [machines, projects] of [[2, 3], [5, 3], [5, 5], [6, 15]]) {
+    const layout = computeFleetLayout(fleet(machines, projects));
+    const decksBottom = Math.max(...[...layout.environmentNodes.values()].map(n => n.hull.y + n.hull.h));
+    const busBottom = decksBottom + 28 + (machines - 1) * 8;
+    const segments: Array<{ env: string; a: { x: number; y: number }; b: { x: number; y: number } }> = [];
+    for (const node of layout.environmentNodes.values()) for (const link of node.links) {
+      const points = linkPath(link.from, link.to, link.via);
+      for (let i = 1; i < points.length; i++) segments.push({ env: node.envId, a: points[i - 1], b: points[i] });
+    }
+    for (const s of segments) for (const t of segments) {
+      if (s.env === t.env || s.a.x !== s.b.x || t.a.y !== t.b.y || t.a.y <= busBottom) continue;
+      const crosses = s.a.x > Math.min(t.a.x, t.b.x) && s.a.x < Math.max(t.a.x, t.b.x)
+        && t.a.y > Math.min(s.a.y, s.b.y) && t.a.y < Math.max(s.a.y, s.b.y);
+      assert.equal(crosses, false, `${machines}×${projects}: ${s.env} and ${t.env} cross below the bus at ${s.a.x},${t.a.y}`);
+    }
+  }
+});
+
+test('bus lanes stack in the order with fewest crossings', () => {
+  // A drops at 0 and runs to 100; B drops at 50 and runs to 150. With B under A, B's drop and
+  // A's line down both cross the other's lane; with B on top, neither does.
+  const a = { drop: 0, downs: [100], lo: 0, hi: 100 }, b = { drop: 50, downs: [150], lo: 50, hi: 150 };
+  assert.deepEqual(orderLanes([a, b]), [1, 0]);
+  assert.deepEqual(orderLanes([b, a]), [0, 1]);
 });
