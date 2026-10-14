@@ -1,8 +1,8 @@
 // One answer to "what needs me?", used by every count and list that asks it: the top bar, the
 // roster, the mission board, the queue run and the tab title. In order: approvals and questions
 // (an agent is blocked; longest wait first), plans waiting for approval, failed turns, then
-// reports. A failure or report you've seen (marked read, or dismissed) stops needing you until
-// that crew member's next turn.
+// reports, Hermes operators' included. A failure or report you've seen (marked read, or
+// dismissed) stops needing you until that crew member's next turn.
 
 import type { GameState } from "../store";
 import { allUnits, reportRead } from "./util";
@@ -25,11 +25,12 @@ export function needsYou(state: Inputs): Need[] {
         since: waitingSince(u.thread, state.details?.[key]?.thread) });
       continue;
     }
-    // Plans, failures and reports open as cards Hermes sessions don't have; their own panel covers them.
-    if (state.envs[u.envId]?.summary.kind === "hermes" || !u.thread.latestTurn) continue;
+    if (!u.thread.latestTurn) continue;
     if (reportRead(state.readReports, u.envId, u.thread)) continue;
     const at = u.thread.latestTurn.completedAt ?? u.thread.updatedAt;
-    if (u.state === "done") rest.push({ envId: u.envId, threadId: u.thread.id, kind: u.thread.interactionMode === "plan" ? "plan" : "report", at });
+    // A Hermes operator's finished turn is a report to read (it has no plan mode).
+    const hermes = state.envs[u.envId]?.summary.kind === "hermes";
+    if (u.state === "done") rest.push({ envId: u.envId, threadId: u.thread.id, kind: !hermes && u.thread.interactionMode === "plan" ? "plan" : "report", at });
     else if (u.state === "error") rest.push({ envId: u.envId, threadId: u.thread.id, kind: "failure", at });
   }
   const rank: Record<NeedKind, number> = { approval: 0, question: 0, plan: 1, failure: 2, report: 3 };

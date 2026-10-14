@@ -46,9 +46,9 @@ export function jumpTo(group: JumpGroup): void {
   setSelection(sel);
   worldRef.current?.focus(sel);
   if (group === "attention") openEvent({ envId: next.envId, threadId: next.thread.id });
-  // A report opens as its debrief card: what was done, what changed, then accept or follow up.
-  // (Hermes operators acknowledge reports in their own panel.)
-  if (group === "done" && envs[next.envId]?.summary.kind !== "hermes") openDebrief({ envId: next.envId, threadId: next.thread.id });
+  // A report opens as its debrief card: what was done, what changed, then accept or follow up
+  // (a Hermes operator's: read it, or open the conversation to reply).
+  if (group === "done") openDebrief({ envId: next.envId, threadId: next.thread.id });
 }
 
 /** Put the cursor in the selected crew member's order box (after a hotkey jump left it on the map). */

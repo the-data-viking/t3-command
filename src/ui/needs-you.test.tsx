@@ -10,11 +10,13 @@ test("one ordered list: requests by longest wait, then plans, failures, reports"
   loadDemoFleet();
   useGame.setState({ readReports: {} });
   const s = useGame.getState();
-  assert.deepEqual(needsYou(s).map((n) => `${n.kind} ${n.threadId}`), ["approval a2", "question b2", "failure c1", "report a3"]);
+  // The Hermes operator's finished turn (Money Guy's budget review) is a report too.
+  assert.deepEqual(needsYou(s).map((n) => `${n.kind} ${n.threadId}`).sort(), ["approval a2", "question b2", "failure c1", "report a3", "report h2"].sort());
+  assert.deepEqual(needsYou(s).slice(0, 3).map((n) => `${n.kind} ${n.threadId}`), ["approval a2", "question b2", "failure c1"]);
   // A plan waiting for approval goes before failures and reports.
   const env = s.envs.mini;
   useGame.setState({ envs: { ...s.envs, mini: { ...env, threads: { ...env.threads, a3: { ...env.threads.a3, interactionMode: "plan" } } } } });
-  assert.deepEqual(needsYou(useGame.getState()).map((n) => n.kind), ["approval", "question", "plan", "failure"]);
+  assert.deepEqual(needsYou(useGame.getState()).map((n) => n.kind), ["approval", "question", "plan", "failure", "report"]);
 });
 
 test("seen failures and reports stop needing you, and every count agrees", () => {

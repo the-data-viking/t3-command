@@ -74,7 +74,12 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
   // A failed turn is a triage card: ask the crew member to fix it, look, dismiss, or stand it down.
   const failed = thread?.latestTurn?.state === "error" || thread?.session?.status === "error";
   const error = thread?.session?.lastError?.trim();
-  const choices: Array<{ label: string; run: () => void | Promise<void>; tone?: "good" }> = failed ? [
+  // A Hermes operator's report is a conversation, not code: read it, or open the chat to reply.
+  const hermes = env?.summary.kind === "hermes";
+  const choices: Array<{ label: string; run: () => void | Promise<void>; tone?: "good" }> = hermes ? [
+    { label: "Mark read.", tone: "good", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
+    { label: "Open the conversation to reply.", run: openLog },
+  ] : failed ? [
     { label: "Ask it to find and fix the cause.", tone: "good", run: async () => { if (thread && await answerFailure(envId, thread, fixOrder(thread), "fix order")) next(); } },
     { label: "Open the crew log.", run: openLog },
     { label: "Dismiss: I've seen it.", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
