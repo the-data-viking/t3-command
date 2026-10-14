@@ -2085,6 +2085,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 }
 .more-list { width: auto; min-width: 180px; }
 .diff-stat { white-space: nowrap; }
+.fleet-line { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--edge); }
 .more-list > .btn { width: 100%; justify-content: flex-start; }
 /* Every popover stays on screen, whatever wraps where. */
 .theme-list { max-width: calc(100vw - 16px); max-height: calc(100dvh - var(--topbar-bottom, 120px) - 8px); overflow-y: auto; }
@@ -2153,16 +2154,19 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
   /* Crew dock along the bottom edge; opens upward over the map. */
   .crew-roster {
     top: auto; bottom: 0; left: 0; right: 0; width: auto;
-    max-height: min(70dvh, calc(100dvh - var(--topbar-bottom, 64px)));
+    /* Home is the decision list, the whole screen under the top bar; the map is its own tab. */
+    max-height: calc(100dvh - var(--topbar-bottom, 64px));
     padding: 0 0 env(safe-area-inset-bottom); border-radius: 0;
   }
+  .crew-roster:not(.collapsed) { height: calc(100dvh - var(--topbar-bottom, 64px)); background: var(--surface); }
   .crew-roster.collapsed { height: auto; padding: 0 0 env(safe-area-inset-bottom); }
   /* The dock bar: a dark panel with a frame-coloured top edge and label, not a pale slab. */
   .crew-roster .roster-tab { position: static; order: -1; width: 100%; min-height: var(--touch-target); border: none; border-top: 3px solid var(--frame); border-radius: 0; padding: 0 var(--space-3); justify-content: flex-start; background: var(--surface); color: var(--frame); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .crew-roster .roster-tab .count, .crew-roster .roster-tab .operator-count { color: var(--bright); }
   .crew-roster .roster-tab .needs-count.hot { color: var(--alert); }
   /* The phone's tab bar along the bottom: what needs you, the board, the dock, the map. */
-  .phone-tabs { order: -1; display: flex; width: 100%; border-top: 3px solid var(--frame); background: var(--surface); }
+  /* Always along the bottom of the screen, under the list or on its own over the map. */
+  .phone-tabs { order: 2; display: flex; width: 100%; border-top: 3px solid var(--frame); background: var(--surface); }
   .phone-tab { flex: 1 1 0; min-height: var(--touch-target); background: none; border: 0; border-right: 1px solid var(--edge); color: var(--frame); font: 700 var(--fs-xs)/1 var(--display); letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 var(--space-1); }
   .phone-tab:first-child { flex: 1.6 1 0; }
   .phone-tab:last-child { border-right: 0; }

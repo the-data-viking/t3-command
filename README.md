@@ -81,8 +81,9 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   the machines (scrolling sideways if they don't fit), Hermes and the work views (**Board**,
   **Dock**, **Timeline**, with the log, history and **Machines** under **More**). On phones the top bar is one row
   (active, alerts, reports) with a menu holding the machines, spend, limits and the rest, and a tab
-  bar along the bottom: **Needs you** (the roster, which opens by itself the first time something
-  needs you), **Board**, **Dock** and **Map**. Panels and dialogs fill the screen. The map pinch-zooms, and a tap just beside a small crew member still
+  bar along the bottom: **Needs you** (home: the whole screen, a one-line fleet status, then a
+  stream of decisions; tapping one opens its card, the request, report, plan, failure or stuck
+  turn, and you come back to the list after), **Board**, **Dock** and **Map**. Panels and dialogs fill the screen. The map pinch-zooms, and a tap just beside a small crew member still
   selects them. Return adds a line in the order box (Send sends), and opening a unit doesn't raise
   the keyboard.
 - **Host resources**: each environment's engineering deck shows whole-host CPU load as lit

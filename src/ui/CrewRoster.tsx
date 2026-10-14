@@ -23,6 +23,7 @@ import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
 import { BotPortrait } from './HermesControlCenter';
 import { CrewPortrait, PixelLabel, PixelIcon } from "./PixelArt";
 import { isPhone, usePhone } from "./phone";
+import { openDebrief } from "./debrief";
 
 const NEEDS_YOU: UnitState[] = ["alert", "question", "error", "done"];
 const ON_DUTY: UnitState[] = ["working", "monitoring", "idle"];
@@ -107,10 +108,19 @@ export function CrewRoster() {
     if (e?.shiftKey) { sfx.select(); toggleSquad({ envId: u.envId, threadId: u.thread.id }); return; }
     pick();
     sfx.select();
-    const sel = { kind: "unit" as const, envId: u.envId, threadId: u.thread.id };
+    const at = { envId: u.envId, threadId: u.thread.id };
+    // On the phone, Needs you is a stream of decisions: a row opens its card (the request, or the
+    // report, plan, failure or stuck turn) over the list, and you come back to the list after.
+    // Each card has "Open the crew log" for the rest.
+    if (phone && order.has(unitKey(u.envId, u.thread.id))) {
+      if (u.state === "alert" || u.state === "question") openEvent(at);
+      else openDebrief(at);
+      return;
+    }
+    const sel = { kind: "unit" as const, ...at };
     setSelection(sel);
     worldRef.current?.focus(sel);
-    if (u.state === "alert" || u.state === "question") openEvent({ envId: u.envId, threadId: u.thread.id });
+    if (u.state === "alert" || u.state === "question") openEvent(at);
   };
 
   const row = (u: UnitRef) => {
@@ -155,7 +165,7 @@ export function CrewRoster() {
     );
   };
 
-  // What needs you: first on the phone, where this list is home; after the operators on desktop.
+  // What needs you: first, above the Hermes operators and the crew on duty.
   const needsBlock = needsYou.length > 0 && (
             <>
               <div className="roster-heading">Needs you</div>
@@ -183,7 +193,8 @@ export function CrewRoster() {
       )}
       {!collapsed && (
         <div className="roster-body">
-          {phone && needsBlock}
+          {phone && <FleetLine />}
+          {needsBlock}
           {operators.length > 0 && <><div className="roster-heading hermes-roster-heading">Hermes operators · {operators.length}</div>
             <ol className="crew-list">{operators.map(bot => <li key={bot.name}><button className={`crew-row operator-row row-${bot.state} ${selection?.kind === 'hermes' && selection.profile === bot.name ? 'active' : ''}`} onClick={() => {
               const pending = bot.sessions.find(s => envs[s.envId]?.connection === 'live' && (s.state === 'alert' || s.state === 'question'));
@@ -194,12 +205,29 @@ export function CrewRoster() {
             }}><BotPortrait profile={bot.name} /><span className="crew-text"><span className="crew-name">{bot.title}</span>
               <span className="crew-sub"><span className={`crew-state st-${bot.observed ? bot.state : 'idle'}`}>{bot.observed ? BOT_STATE_LABELS[bot.state] : 'Unobserved'}</span><span className="muted"> · operator</span></span>
             </span></button></li>)}</ol></>}
-          {!phone && needsBlock}
           <div className="roster-heading">On duty</div>
           <ol className="crew-list">{onDuty.length ? onDuty.map(row) : <li className="muted small empty">Nobody on duty.</li>}</ol>
         </div>
       )}
     </aside>
+  );
+}
+
+/** The phone's home, in one line: what the fleet is doing and whether every machine is up (the map is a tab away). */
+function FleetLine() {
+  const envs = useGame((s) => s.envs);
+  const machines = Object.values(envs).filter((e) => e.summary.kind !== "hermes");
+  const down = machines.filter((e) => e.connection !== "live");
+  const units = allUnits(envs);
+  const working = units.filter((u) => u.state === "working").length;
+  const watching = units.filter((u) => u.state === "monitoring").length;
+  return (
+    <div className="fleet-line small">
+      <span className="st-working">{working} working</span>
+      {watching > 0 && <span className="st-monitoring"> · {watching} monitoring</span>}
+      <span className="muted"> · {machines.length - down.length}/{machines.length} machines up</span>
+      {down.length > 0 && <span className="orange"> · {down.map((e) => e.summary.label).join(", ")} unreachable</span>}
+    </div>
   );
 }
 
