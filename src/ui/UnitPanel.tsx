@@ -8,7 +8,7 @@ import { openReview } from "./review";
 import { allowedDecisions, assessRisk } from "./risk";
 import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
-import { isHistory, pendingRequests, unitState } from "../t3/derive";
+import { isHistory, pendingRequests, turnBusy, unitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { contextLevel, modelTier, TIER_LABEL } from "../game/theme";
 import { envClient, logError } from "../t3/environment";
@@ -215,7 +215,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
       </div>
 
       {!archived && env.summary.kind !== "hermes" && thread.interactionMode === "plan" && state === "done" && env.connection === "live" && <PlanReady envId={envId} thread={thread} />}
-      {!archived && <OrderBox envId={envId} threadId={threadId} disabled={env.connection !== "live"} working={state === "working"} busy={state === "working" || state === "alert" || state === "question"} />}
+      {!archived && <OrderBox envId={envId} threadId={threadId} disabled={env.connection !== "live"} working={state === "working"} busy={turnBusy(thread)} />}
     </aside>
   );
 }

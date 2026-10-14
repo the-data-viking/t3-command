@@ -26,6 +26,14 @@ export function isSettled(t: ThreadShell): boolean {
   return !t.unsettledAt || Date.parse(t.settledAt) >= Date.parse(t.unsettledAt);
 }
 
+/**
+ * Busy as the Command server counts it for a follow-up: a turn running, or waiting on you. (A
+ * crew member working only in the background has no turn to wait for: an order goes now.)
+ */
+export function turnBusy(t: ThreadShell): boolean {
+  return t.latestTurn?.state === "running" || t.hasPendingApprovals || t.hasPendingUserInput;
+}
+
 export function unitState(t: ThreadShell): UnitState {
   if (t.hasPendingApprovals) return "alert";
   if (t.hasPendingUserInput) return "question";

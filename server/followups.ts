@@ -6,17 +6,24 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { FOLLOW_UP_MAX_CHARS, FOLLOW_UP_TTL_MS, STANDING_MAX, STANDING_START_MS, type FollowUp, type FollowUpsView } from "../shared/followups.ts";
+import { FOLLOW_UP_MAX_CHARS, FOLLOW_UP_TTL_MS, SEND_ATTEMPTS, SEND_BACKOFF_MS, STANDING_MAX, STANDING_START_MS, type FollowUp, type FollowUpsView } from "../shared/followups.ts";
 import type { ThreadShell } from "../src/t3/types.ts";
 import type { CommsLog } from "./comms.ts";
 
 /** What to do with a follow-up given its thread now. */
 export function decide(f: FollowUp, thread: ThreadShell | undefined, now: number):
-  { action: "wait" } | { action: "send" } | { action: "attach"; turnId: string } | { action: "drop"; reason: string } {
+  { action: "wait" } | { action: "send" } | { action: "attach"; turnId: string } | { action: "landed"; turnId: string } | { action: "drop"; reason: string } {
   if (now >= f.expiresAt) return { action: "drop", reason: "it expired after 12 hours" };
   if (!thread) return { action: "drop", reason: "the thread is gone" };
   if (thread.archivedAt) return { action: "drop", reason: "the thread was archived" };
   const turn = thread.latestTurn;
+  // A send that errored: if a new turn shows up, it landed after all; otherwise try again later.
+  if (f.uncertain && f.afterTurnId !== null) {
+    if (turn && turn.turnId !== f.afterTurnId) return { action: "landed", turnId: turn.turnId };
+    if (f.uncertain.attempts >= SEND_ATTEMPTS) return { action: "drop", reason: `sending failed ${f.uncertain.attempts} times` };
+    if (now < f.uncertain.retryAt) return { action: "wait" };
+    return { action: "send" };
+  }
   // Waiting for the turn its own order started: any turn but the one before it.
   if (f.afterTurnId === null) {
     if (turn && turn.turnId !== f.startedAfter) return { action: "attach", turnId: turn.turnId };
@@ -46,6 +53,8 @@ export class FollowUps {
   private readonly comms: CommsLog;
   private readonly send: SendOrder;
   private readonly label: (envId: string) => string | undefined;
+  /** Told when a queued follow-up goes without being sent (dropped, cancelled, replaced, forgotten). */
+  private dropListeners = new Set<(f: FollowUp) => void>();
 
   constructor(dataDir: string, comms: CommsLog, send: SendOrder, label: (envId: string) => string | undefined) {
     this.file = path.join(dataDir, "followups.json");
@@ -62,6 +71,14 @@ export class FollowUps {
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.warn("[followups] load failed", (err as Error).message);
     }
+  }
+
+  onDrop(listener: (f: FollowUp) => void): void {
+    this.dropListeners.add(listener);
+  }
+
+  private dropped(f: FollowUp): void {
+    for (const listener of this.dropListeners) listener(f);
   }
 
   view(): FollowUpsView {
@@ -105,6 +122,12 @@ export class FollowUps {
       ...(afterOwn ? { afterTurnId: null, startedAfter: opts.startedAfter, waitingSince: now } : { afterTurnId: turn!.turnId }),
       ...(times > 1 || afterOwn ? { left: times, total: times + (afterOwn ? 1 : 0) } : {}),
     };
+    // One per crew member: one already queued is replaced, and that's said, not silent.
+    const replaced = this.queued.find((f) => f.envId === envId && f.threadId === threadId);
+    if (replaced) {
+      this.comms.add({ tone: "alert", kind: "info", text: `${replaced.total ? "Standing order" : "Follow-up"} for "${thread.title || "Untitled"}" replaced by a newer one: ${preview(replaced.text)}`, envId, threadId });
+      this.dropped(replaced);
+    }
     this.queued = [...this.queued.filter((f) => !(f.envId === envId && f.threadId === threadId)), followUp];
     this.comms.add({ tone: "info", kind: "info", text: times > 1 || afterOwn
       ? `Standing order for "${thread.title || "Untitled"}", ${times} more time${times === 1 ? "" : "s"} after ${afterOwn ? "this one" : "this turn"}: ${preview(order)}`
@@ -114,11 +137,23 @@ export class FollowUps {
   }
 
   cancel(id: string): boolean {
-    const before = this.queued.length;
+    const gone = this.queued.find((f) => f.id === id);
+    if (!gone) return false;
     this.queued = this.queued.filter((f) => f.id !== id);
-    if (this.queued.length === before) return false;
+    this.dropped(gone);
     this.changed();
     return true;
+  }
+
+  /** A machine removed from the fleet: its queued follow-ups go, and the log says so. */
+  forget(envId: string): void {
+    const gone = this.queued.filter((f) => f.envId === envId);
+    this.threads.delete(envId);
+    if (!gone.length) return;
+    this.queued = this.queued.filter((f) => f.envId !== envId);
+    for (const f of gone) this.dropped(f);
+    this.comms.add({ tone: "alert", kind: "info", text: `${gone.length} follow-up${gone.length === 1 ? "" : "s"} dropped: the machine was removed`, envId });
+    this.changed();
   }
 
   setPaused(paused: boolean): void {
@@ -150,10 +185,12 @@ export class FollowUps {
         verdict = decide(attached, thread, now);
         if (verdict.action === "send") { this.dispatch(envId, attached, thread!); continue; }
       }
+      if (verdict.action === "landed") { this.delivered(envId, f, thread!, verdict.turnId); continue; }
       if (verdict.action === "wait" || verdict.action === "attach") continue;
       if (verdict.action === "drop") {
         this.queued = this.queued.filter((q) => q.id !== f.id);
         this.comms.add({ tone: "alert", kind: "info", text: `Follow-up for "${thread?.title || "Untitled"}" not sent: ${verdict.reason}`, envId, threadId: f.threadId });
+        this.dropped(f);
         this.changed();
         continue;
       }
@@ -161,24 +198,39 @@ export class FollowUps {
     }
   }
 
+  /**
+   * A send went out. A standing order with sends to go then waits on the turn it started: known
+   * (`turnId`, when an errored send turned out to have landed) or the next one to show up.
+   */
+  private delivered(envId: string, f: FollowUp, thread: ThreadShell, turnId?: string): void {
+    if (!this.queued.some((q) => q.id === f.id)) return; // Cancelled meanwhile.
+    const left = (f.left ?? 1) - 1;
+    const where = `"${thread.title || "Untitled"}" on ${this.label(envId) ?? envId}`;
+    this.comms.add({ tone: "info", kind: "info", envId, threadId: f.threadId, text: f.total
+      ? `Standing order ${f.total - left} of ${f.total} sent to ${where}: ${preview(f.text)}`
+      : `Sent by follow-up to ${where}: ${preview(f.text)}` });
+    const now = Date.now();
+    this.queued = left > 0
+      ? this.queued.map((q) => (q.id === f.id ? { ...f, uncertain: undefined, left, expiresAt: now + FOLLOW_UP_TTL_MS,
+        ...(turnId ? { afterTurnId: turnId, startedAfter: undefined, waitingSince: undefined } : { afterTurnId: null, startedAfter: thread.latestTurn?.turnId ?? null, waitingSince: now }) } : q))
+      : this.queued.filter((q) => q.id !== f.id);
+    this.changed();
+  }
+
   private dispatch(envId: string, f: FollowUp, thread: ThreadShell): void {
     if (this.paused) return;
     this.sending.add(f.id);
-    void this.send(envId, thread, f.text).then(() => {
-      const left = (f.left ?? 1) - 1;
-      const where = `"${thread.title || "Untitled"}" on ${this.label(envId) ?? envId}`;
-      this.comms.add({ tone: "info", kind: "info", envId, threadId: f.threadId, text: f.total
-        ? `Standing order ${f.total - left} of ${f.total} sent to ${where}: ${preview(f.text)}`
-        : `Sent by follow-up to ${where}: ${preview(f.text)}` });
-      // A standing order with sends to go waits on the turn this one starts; cancelled meanwhile, it's gone.
-      const now = Date.now();
-      this.queued = left > 0
-        ? this.queued.map((q) => (q.id === f.id ? { ...f, left, afterTurnId: null, startedAfter: thread.latestTurn?.turnId ?? null, waitingSince: now, expiresAt: now + FOLLOW_UP_TTL_MS } : q))
-        : this.queued.filter((q) => q.id !== f.id);
+    void this.send(envId, thread, f.text).then(() => this.delivered(envId, f, thread)).catch((err) => {
+      // It may have landed anyway (a timeout, a dropped link): wait to see whether its turn shows
+      // up before trying again, backing off, and give up (saying so) after a few tries.
+      const current = this.queued.find((q) => q.id === f.id);
+      if (!current) return;
+      const attempts = (current.uncertain?.attempts ?? 0) + 1;
+      const retryAt = Date.now() + SEND_BACKOFF_MS * 2 ** (attempts - 1);
+      this.queued = this.queued.map((q) => (q.id === f.id ? { ...q, uncertain: { attempts, retryAt } } : q));
+      if (attempts === 1) this.comms.add({ tone: "alert", kind: "info", envId, threadId: f.threadId,
+        text: `Follow-up for "${thread.title || "Untitled"}" didn't go through (${(err as Error).message}); trying again shortly` });
       this.changed();
-    }).catch((err) => {
-      // Keep it queued: the next observation retries (until it expires).
-      console.warn("[followups] send failed", (err as Error).message);
     }).finally(() => this.sending.delete(f.id));
   }
 

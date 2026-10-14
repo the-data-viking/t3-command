@@ -114,7 +114,7 @@ function buildItems(state: GameState): Item[] {
   }
   // Squad orders and missions being followed: read their replies, or stop following.
   for (const d of state.dispatches) {
-    const p = progressOf(d, state.envs, state.followUps);
+    const p = progressOf(d, state.envs);
     items.push({ id: `replies:${d.id}`, group: "Mission", label: `Read replies: ${dispatchTitle(d, 60)}`, detail: `${p.reported} of ${p.total} reported`,
       run: () => useGame.setState({ replies: d.id }) });
     items.push({ id: `unfollow:${d.id}`, group: "Mission", label: `Stop following: ${dispatchTitle(d, 60)}`, detail: "the order itself stands",

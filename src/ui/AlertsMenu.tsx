@@ -22,7 +22,8 @@ export function AlertsMenu() {
   useEffect(() => {
     if (!open) return;
     const outside = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); };
-    const escape = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    // Esc closes the menu only: not the squad or the selection behind it as well.
+    const escape = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } };
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escape);
     if (pushSupported()) {

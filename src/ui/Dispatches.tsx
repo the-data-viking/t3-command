@@ -12,8 +12,7 @@ import { useClock } from "./useClock";
 function useProgress(): Array<{ dispatch: Dispatch; progress: DispatchProgress }> {
   const dispatches = useGame((s) => s.dispatches);
   const envs = useGame((s) => s.envs);
-  const followUps = useGame((s) => s.followUps);
-  return useMemo(() => dispatches.map((dispatch) => ({ dispatch, progress: progressOf(dispatch, envs, followUps) })), [dispatches, envs, followUps]);
+  return useMemo(() => dispatches.map((dispatch) => ({ dispatch, progress: progressOf(dispatch, envs) })), [dispatches, envs]);
 }
 
 function summary(p: DispatchProgress): string {

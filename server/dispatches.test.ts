@@ -125,3 +125,44 @@ test("an order's crew on a machine not seen yet are waited for, and a removed th
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("a queued member whose follow-up was dropped ends the order as never sent, even if a later turn runs", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dispatches-"));
+  try {
+    const store = new Dispatches(dir);
+    const comms = new CommsLog(dir);
+    store.announceTo(comms, () => false);
+    store.add("Go", [member("a"), { ...member("b"), how: "queued" }], Date.now() - 300_000);
+    store.observe("e", [shell("a", "t2"), shell("b", "t1")]);
+    assert.equal(comms.since().length, 0, "b is still queued (its follow-up may be on its way)");
+    store.followUpDropped("e", "b", "t1");
+    assert.equal(store.all()[0].members[1].dropped, true);
+    assert.match(comms.since()[0].text, /^Squad order "Go": 1 of 2 reported, 1 never sent\./);
+    await store.flush(); await comms.flush();
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a retry that reaches a failed member reopens a finished order; all-failed waits for one", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dispatches-"));
+  try {
+    const store = new Dispatches(dir);
+    const comms = new CommsLog(dir);
+    store.announceTo(comms, () => false);
+    const now = Date.now();
+    const all = store.add("Go", [{ ...member("a"), how: "failed" }], now);
+    store.observe("e", [shell("a", "t1")], now + 1_000);
+    assert.equal(comms.since().length, 0, "every send failed just now: a retry gets a chance");
+    store.observe("e", [shell("a", "t1")], now + 130_000);
+    assert.equal(comms.since().length, 1);
+    assert.ok(store.all(now + 130_000).find((d) => d.id === all.id)?.finishedAt);
+    store.update(all.id, [{ ...member("a"), how: "sent" }]);
+    assert.equal(store.all(now + 130_000).find((d) => d.id === all.id)?.finishedAt, undefined, "reopened");
+    store.observe("e", [shell("a", "t2")], now + 140_000);
+    assert.equal(comms.since().length, 2, "and announced again once the retried part is over");
+    await store.flush(); await comms.flush();
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

@@ -3,10 +3,8 @@
 // what they did with it. Pure over the store, so every device shows the same from the same fleet.
 
 import type { Dispatch, DispatchMember, MissionInfo } from "../../shared/dispatches";
-import type { FollowUpsView } from "../../shared/followups";
 import type { EnvWorld, ThreadDetail } from "../store";
 import { unitState } from "../t3/derive";
-import { followUpFor } from "../t3/followups";
 import { fetchJson } from "../t3/environment";
 
 export type ReceiptStatus = "unsent" | "queued" | "undelivered" | "sent" | "working" | "needs-you" | "reported" | "failed" | "stopped" | "gone";
@@ -24,15 +22,16 @@ export const RECEIPT: Record<ReceiptStatus, { mark: string; label: string; done:
   gone: { mark: "–", label: "no longer aboard", done: true },
 };
 
-export function receiptOf(m: DispatchMember, envs: Record<string, EnvWorld>, followUps: FollowUpsView): ReceiptStatus {
+export function receiptOf(m: DispatchMember, envs: Record<string, EnvWorld>): ReceiptStatus {
   if (m.how === "failed") return "unsent";
+  // The server marks a queued member whose follow-up went unsent; a later turn isn't this order's.
+  if (m.dropped) return "undelivered";
   const thread = envs[m.envId]?.threads[m.threadId];
   if (!thread || thread.archivedAt) return "gone";
   const turn = thread.latestTurn;
-  if (!turn || turn.turnId === m.baseTurnId) {
-    if (m.how === "sent") return "sent";
-    return followUpFor(followUps, m.envId, m.threadId) ? "queued" : "undelivered";
-  }
+  // Not reached yet. A queued one stays "queued" in the gap between its follow-up going out and
+  // the new turn showing up (the follow-up leaves the queue first).
+  if (!turn || turn.turnId === m.baseTurnId) return m.how === "sent" ? "sent" : "queued";
   const state = unitState(thread);
   if (state === "alert" || state === "question") return "needs-you";
   if (turn.state === "running") return "working";
@@ -52,8 +51,8 @@ export interface DispatchProgress {
   total: number;
 }
 
-export function progressOf(d: Dispatch, envs: Record<string, EnvWorld>, followUps: FollowUpsView): DispatchProgress {
-  const receipts = d.members.map((member) => ({ member, status: receiptOf(member, envs, followUps) }));
+export function progressOf(d: Dispatch, envs: Record<string, EnvWorld>): DispatchProgress {
+  const receipts = d.members.map((member) => ({ member, status: receiptOf(member, envs) }));
   const count = (pred: (s: ReceiptStatus) => boolean) => receipts.filter((r) => pred(r.status)).length;
   return {
     receipts,
