@@ -61,6 +61,7 @@ export function ThemePicker() {
           })}
           <label className="theme-hc">
             <input type="checkbox" checked={highContrast} onChange={(e) => { setHighContrast(e.target.checked); setOpen(false); }} />
+            <img className="theme-thumb" src={themeThumbnail("highcontrast")} alt="" width={104} height={60} draggable={false} />
             <span className="theme-option-text"><span>High contrast</span><span className="muted small">Accessibility: black wells, white frames, the brightest status colours. Turn off to return to your world.</span></span>
           </label>
         </div>
