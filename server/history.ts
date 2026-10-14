@@ -16,6 +16,8 @@ import {
 import { memoryOf, type FleetMemory } from "../shared/memory.ts";
 
 const TERMINAL = new Set<string>(["completed", "error", "interrupted"]);
+/** Wait spans kept per turn; past this, the total (waitMs) still counts them all. */
+const MAX_WAITS = 20;
 const DAY_MS = 86_400_000;
 
 interface EnvState { watermark: string; spans: Array<{ from: string; to: string }> }
@@ -43,7 +45,7 @@ export class TurnHistory {
    * Running turns seen live, keyed env|thread: the model chosen when the turn started (a thread's
    * selection can change later) and time spent waiting on the operator (approvals, questions).
    */
-  private running = new Map<string, { turnId: string; provider: string; model: string; waitMs: number; waitingSince?: number }>();
+  private running = new Map<string, { turnId: string; provider: string; model: string; waitMs: number; waitingSince?: number; waits: Array<[number, number]> }>();
   private writes: Promise<void> = Promise.resolve();
   private stateDirty = false;
   private readonly now: () => number;
@@ -105,10 +107,14 @@ export class TurnHistory {
       const runKey = `${envId}|${t.id}`;
       if (turn?.state === "running") {
         let run = this.running.get(runKey);
-        if (run?.turnId !== turn.turnId) this.running.set(runKey, (run = { turnId: turn.turnId, ...turnModel(t), waitMs: 0 }));
+        if (run?.turnId !== turn.turnId) this.running.set(runKey, (run = { turnId: turn.turnId, ...turnModel(t), waitMs: 0, waits: [] }));
         const waiting = !!(t.hasPendingApprovals || t.hasPendingUserInput);
         if (waiting && run.waitingSince === undefined) run.waitingSince = now;
-        if (!waiting && run.waitingSince !== undefined) { run.waitMs += now - run.waitingSince; run.waitingSince = undefined; }
+        if (!waiting && run.waitingSince !== undefined) {
+          run.waitMs += now - run.waitingSince;
+          if (run.waits.length < MAX_WAITS) run.waits.push([run.waitingSince, now]);
+          run.waitingSince = undefined;
+        }
         continue;
       }
       if (!turn || !TERMINAL.has(turn.state) || !turn.completedAt) continue;
@@ -124,6 +130,7 @@ export class TurnHistory {
       const run = this.running.get(runKey)?.turnId === turn.turnId ? this.running.get(runKey) : undefined;
       this.running.delete(runKey);
       const waitMs = run ? Math.min(durationMs, run.waitMs + (run.waitingSince !== undefined ? Math.max(0, completed - run.waitingSince) : 0)) : undefined;
+      const waits = run ? [...run.waits, ...(run.waitingSince !== undefined && completed > run.waitingSince ? [[run.waitingSince, completed] as [number, number]] : [])].slice(0, MAX_WAITS) : [];
       const { provider, model } = run ?? turnModel(t);
       const record: TurnRecord = {
         envId, envLabel: this.labels[envId] ?? envId,
@@ -133,6 +140,7 @@ export class TurnHistory {
         startedAt: started, completedAt: turn.completedAt,
         durationMs,
         ...(waitMs !== undefined ? { waitMs } : {}),
+        ...(waits.length ? { waits } : {}),
         outcome: turn.state as TurnOutcome,
         ...(turn.state === "error" && t.session?.lastError ? { error: t.session.lastError.slice(0, 300) } : {}),
       };

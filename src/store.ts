@@ -92,9 +92,9 @@ export interface GameState {
   /** The finished job shown as a report card ("." opens the oldest unread). */
   debrief: { envId: string; threadId: string } | null;
   /** A run through the queue in progress: the cards it has opened so far. */
-  queueRun: { seen: string[] } | null;
+  queueRun: { seen: string[]; skipped: string[] } | null;
   /** The last run just ended: how many cards it went through (shown briefly). */
-  queueClear: { handled: number; at: number } | null;
+  queueClear: { handled: number; skipped: number; at: number } | null;
   /** Photo mode: the HUD hidden, the map alone with a title card (P). */
   photo: boolean;
   /** Orders the Command server will send when a busy crew member's turn ends (every device's). */

@@ -148,8 +148,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   through everything waiting on you, one card at a time — every approval and question, longest
   wait first (anything new that starts waiting mid-run goes next), then every unread report,
   oldest first — ending on a **Queue clear** card with how many you handled. Esc (or tapping
-  outside on a phone) stops the run and leaves the rest as it was. On a phone the cards are bottom
-  sheets with full-size choices, so a whole queue clears with one thumb.
+  outside on a phone) stops the run and leaves the rest as it was. **Later** (**S**) leaves a card
+  waiting and moves on; the run won't bring it back, and the clear card says how many you left. On a
+  phone the cards are bottom sheets with full-size choices, and you can swipe: left for later,
+  right on a report to mark it read. A swipe never approves anything.
 - **Mission board** (**B**, or the palette): every mission in flight as a card in the column for
   what it needs next: **Needs you** (approvals, questions, failed turns), **Planning** (plan mode),
   **Building**, **Report ready**, and **In review** (report read, PR still open). Cards show the
@@ -161,7 +163,9 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   hours, 24 hours or 3 days, one lane each, grouped by project. Bars are coloured and named by
   outcome (done, failed, interrupted), and the right edge is live: what's running, or waiting on
   your approval or answer, right now. Hover a bar for its times, model, agent time and time spent
-  waiting on you; click a lane to go to that crew member. Served by `GET /api/history/timeline`.
+  waiting on you; click a lane to go to that crew member. Time a turn spent waiting on your
+  approvals and answers is hatched over its bar (recorded as spans for turns watched live). Served
+  by `GET /api/history/timeline`.
 - **Posture and plan-first**: the crew panel shows what a crew member may do without asking (Ask
   before acting, Auto-accept edits, Auto, Full access; raising it to full access asks first) and a
   **Plan first** toggle (T3's plan mode). Recruits can start in plan mode ("Plan first: propose

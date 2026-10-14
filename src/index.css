@@ -2257,3 +2257,12 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
   .board { grid-template-columns: 1fr; }
   .board-cards { max-height: none; }
 }
+/* Time a turn spent waiting on you: hatched in the approval colour over the bar, so it reads without colour too. */
+.tl-wait, .tl-wait-swatch { background: repeating-linear-gradient(135deg, var(--alert) 0 2px, transparent 2px 4px); }
+.tl-wait { position: absolute; top: 0; bottom: 0; min-width: 2px; pointer-events: none; box-shadow: inset 0 0 0 1px var(--alert); }
+.tl-wait-swatch { box-shadow: inset 0 0 0 1px var(--alert); }
+.queue-skip { margin-left: var(--space-2); font-size: var(--fs-sm); }
+.swipe-hint { position: absolute; top: 50%; transform: translateY(-50%); padding: var(--space-1) var(--space-2); background: var(--frame); color: var(--ink); font-size: var(--fs-sm); letter-spacing: 1px; text-transform: uppercase; pointer-events: none; z-index: 1; }
+.swipe-hint.left { right: var(--space-2); }
+.swipe-hint.right { left: var(--space-2); }
+.event { touch-action: pan-y; }

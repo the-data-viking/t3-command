@@ -144,6 +144,7 @@ test("turns record the model they started on and exclude time spent waiting on t
   history.observe("env", projects, [thread("a", { id: "t1", state: "completed", started: T0, done: T0 + 300_000 }, { modelSelection: { instanceId: "codex", model: "gpt-7" } })]);
   const [r] = recorded(history);
   assert.deepEqual([r.model, r.durationMs, r.waitMs], ["gpt-6.1-sol", 300_000, 120_000]);
+  assert.deepEqual(r.waits, [[T0 + 60_000, T0 + 180_000]], "each wait is kept as a span for the timeline");
   assert.equal(history.summary(1, "UTC").totals.medianMs, 180_000, "typical turn time is the agent's own work");
 });
 

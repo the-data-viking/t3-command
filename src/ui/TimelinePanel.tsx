@@ -98,6 +98,7 @@ export function TimelinePanel() {
           {(Object.keys(TONES) as BarTone[]).map((t) => (
             <span key={t} className="tl-legend-item"><i className="tl-swatch" style={{ background: TONES[t].color }} />{TONES[t].mark} {TONES[t].label}</span>
           ))}
+          <span className="tl-legend-item"><i className="tl-swatch tl-wait-swatch" />Waiting on you (within a turn)</span>
         </div>
         {error && <p className="small" role="alert">Could not load the timeline: {error}</p>}
         {!view && !error && <p className="muted">Loading…</p>}
@@ -127,7 +128,14 @@ export function TimelinePanel() {
                           onPointerEnter={(e) => setHover({ lane, bar, ...place(e.clientX, e.clientY) })}
                           onFocus={(e) => { const b = e.currentTarget.getBoundingClientRect(); setHover({ lane, bar, ...place(b.left, b.bottom) }); }}
                           onBlur={() => setHover(undefined)}
-                          onClick={() => open(lane)} />
+                          onClick={() => open(lane)}>
+                          {(bar.record?.waits ?? []).map(([w0, w1], j) => {
+                            const len = bar.end - bar.start;
+                            if (len <= 0 || w1 <= bar.start) return null;
+                            const a = Math.max(0, (w0 - bar.start) / len), b = Math.min(1, (w1 - bar.start) / len);
+                            return <i key={j} className="tl-wait" style={{ left: `${a * 100}%`, width: `${(b - a) * 100}%` }} />;
+                          })}
+                        </button>
                       ))}
                     </div>
                   </div>

@@ -10,14 +10,15 @@ import { waitQueue } from "./queue";
 type Item = { envId: string; threadId: string };
 const key = (i: Item) => `${i.envId}:${i.threadId}`;
 
-/** Approvals and questions plus unread reports: what a run would go through. */
+/** Approvals and questions plus unread reports: what a run would go through (less what it skipped). */
 export function queueLength(): number {
   const s = useGame.getState();
-  return waitQueue(s.envs, s.details).length + unreadReports().length;
+  const skipped = new Set(s.queueRun?.skipped ?? []);
+  return [...waitQueue(s.envs, s.details), ...unreadReports()].filter((i) => !skipped.has(key(i))).length;
 }
 
 export function startQueue(): void {
-  useGame.setState({ queueRun: { seen: [] }, queueClear: null });
+  useGame.setState({ queueRun: { seen: [], skipped: [] }, queueClear: null });
   if (!advanceQueue(null)) finishQueue();
 }
 
@@ -26,16 +27,17 @@ export function advanceQueue(skip: string | null): boolean {
   const s = useGame.getState();
   const run = s.queueRun;
   if (!run) return false;
-  const seen = (i: Item) => useGame.setState((st) => (st.queueRun && !st.queueRun.seen.includes(key(i)) ? { queueRun: { seen: [...st.queueRun.seen, key(i)] } } : {}));
+  const seen = (i: Item) => useGame.setState((st) => (st.queueRun && !st.queueRun.seen.includes(key(i)) ? { queueRun: { ...st.queueRun, seen: [...st.queueRun.seen, key(i)] } } : {}));
   // One already handled in this run whose request is answered but whose summary still says
   // "waiting" (the shell update lags the decision) is not opened again.
   const answered = (i: Item) => {
     const detail = s.details[key(i)];
     return run.seen.includes(key(i)) && !!detail?.synced && pendingRequests(detail.thread).length === 0;
   };
-  const waiting = waitQueue(s.envs, s.details).find((i) => key(i) !== skip && !answered(i));
+  const passed = (i: Item) => key(i) === skip || run.skipped.includes(key(i));
+  const waiting = waitQueue(s.envs, s.details).find((i) => !passed(i) && !answered(i));
   if (waiting) { seen(waiting); openDebrief(null); openEvent(waiting); return true; }
-  const report = unreadReports().find((i) => key(i) !== skip);
+  const report = unreadReports().find((i) => !passed(i));
   if (report) { seen(report); openEvent(null); openDebrief(report); return true; }
   return false;
 }
@@ -45,7 +47,15 @@ export function finishQueue(): void {
   const run = useGame.getState().queueRun;
   openEvent(null);
   openDebrief(null);
-  useGame.setState({ queueRun: null, queueClear: run ? { handled: run.seen.length, at: Date.now() } : null });
+  useGame.setState({ queueRun: null, queueClear: run ? { handled: run.seen.length - run.skipped.length, skipped: run.skipped.length, at: Date.now() } : null });
+}
+
+/** Leave this card for later: the run moves on and won't bring it back; it stays waiting. */
+export function skipInQueue(current: Item): void {
+  const run = useGame.getState().queueRun;
+  if (!run) return;
+  useGame.setState({ queueRun: { ...run, skipped: [...run.skipped, key(current)] } });
+  if (!advanceQueue(key(current))) finishQueue();
 }
 
 /** You stepped out of the run (Esc, or went to a crew log): leave everything as it is. */
