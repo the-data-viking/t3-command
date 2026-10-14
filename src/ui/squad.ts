@@ -105,13 +105,14 @@ export async function orderCrew(targets: SquadMember[], orderFor: (m: SquadMembe
   await Promise.all(targets.map(async (m) => {
     const thread = envs[m.envId].threads[m.threadId];
     const own = part?.(m)?.trim();
-    const receipt = { envId: m.envId, threadId: m.threadId, title: thread.title || "Untitled", baseTurnId: thread.latestTurn?.turnId ?? null, ...(own ? { part: own } : {}) };
+    const brief = orderFor(m);
+    const receipt = { envId: m.envId, threadId: m.threadId, title: thread.title || "Untitled", baseTurnId: thread.latestTurn?.turnId ?? null, brief, ...(own ? { part: own } : {}) };
     try {
-      if (queueBusy(m)) { await queueFollowUp(m.envId, m.threadId, orderFor(m)); result.queued++; byKey.set(unitKey(m.envId, m.threadId), { ...receipt, how: "queued" }); }
+      if (queueBusy(m)) { await queueFollowUp(m.envId, m.threadId, brief); result.queued++; byKey.set(unitKey(m.envId, m.threadId), { ...receipt, how: "queued" }); }
       else {
         const client = envClient(m.envId);
         if (!client) throw new Error("not connected");
-        await client.order(m.threadId, orderFor(m));
+        await client.order(m.threadId, brief);
         result.sent++;
         byKey.set(unitKey(m.envId, m.threadId), { ...receipt, how: "sent" });
       }
@@ -123,4 +124,20 @@ export async function orderCrew(targets: SquadMember[], orderFor: (m: SquadMembe
   }));
   result.receipts = targets.map((m) => byKey.get(unitKey(m.envId, m.threadId))!);
   return result;
+}
+
+/**
+ * Before an order queues for busy crew: the titles of those who already have a follow-up or
+ * standing order queued, which it would replace. Callers ask before going ahead.
+ */
+export function wouldReplace(targets: SquadMember[], queueBusy: (m: SquadMember) => boolean): string[] {
+  const { envs, followUps } = useGame.getState();
+  return targets.filter((m) => queueBusy(m) && followUps.queued.some((f) => f.envId === m.envId && f.threadId === m.threadId))
+    .map((m) => envs[m.envId]?.threads[m.threadId]?.title || "Untitled");
+}
+
+/** Ask before replacing queued orders; true to go ahead. */
+export function confirmReplacing(titles: string[]): boolean {
+  if (!titles.length) return true;
+  return window.confirm(`${titles.length === 1 ? `"${titles[0]}" already has` : `${titles.length} crew already have`} an order queued for after their turn${titles.length > 1 ? ` (${titles.join(", ")})` : ""}. Replace it with this one?`);
 }

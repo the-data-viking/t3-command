@@ -17,7 +17,18 @@ export interface DispatchMember {
   part?: string;
   /** Queued, then dropped by the Command server without being sent (cancelled, failed, replaced…). */
   dropped?: boolean;
+  /** The turn this order started, once the Command server saw it: later turns aren't this order's. */
+  turnId?: string;
+  /** How that turn ended, as the server saw it ("superseded": another turn started before it saw it end). */
+  result?: TurnResult;
+  /** Exactly what this crew member was sent, so a resend sends the same. */
+  brief?: string;
 }
+
+export type TurnResult = "completed" | "error" | "interrupted" | "superseded";
+const RESULTS = new Set<TurnResult>(["completed", "error", "interrupted", "superseded"]);
+/** The longest brief kept per member (the order limit). */
+const BRIEF_MAX = 8_000;
 
 export interface MissionInfo {
   name: string;
@@ -52,13 +63,15 @@ export function sanitizeMembers(input: unknown): DispatchMember[] {
   const out: DispatchMember[] = [];
   for (const m of input) {
     if (!m || typeof m !== "object") continue;
-    const { envId, threadId, title, how, baseTurnId, part, dropped } = m as Partial<DispatchMember>;
+    const { envId, threadId, title, how, baseTurnId, part, dropped, turnId, result, brief } = m as Partial<DispatchMember>;
     if (typeof envId !== "string" || !envId || typeof threadId !== "string" || !threadId || !HOW.has(how as DispatchHow)) continue;
     const key = `${envId}:${threadId}`;
     if (seen.has(key)) continue;
     seen.add(key);
     const ownPart = typeof part === "string" ? part.trim().slice(0, 500) : "";
-    out.push({ envId, threadId, title: String(title ?? "").slice(0, 120), how: how as DispatchHow, baseTurnId: typeof baseTurnId === "string" ? baseTurnId : null, ...(ownPart ? { part: ownPart } : {}), ...(dropped === true && how === "queued" ? { dropped: true } : {}) });
+    out.push({ envId, threadId, title: String(title ?? "").slice(0, 120), how: how as DispatchHow, baseTurnId: typeof baseTurnId === "string" ? baseTurnId : null, ...(ownPart ? { part: ownPart } : {}), ...(dropped === true && how === "queued" ? { dropped: true } : {}),
+      ...(typeof turnId === "string" && turnId ? { turnId } : {}), ...(RESULTS.has(result as TurnResult) ? { result: result as TurnResult } : {}),
+      ...(typeof brief === "string" && brief.trim() ? { brief: brief.slice(0, BRIEF_MAX) } : {}) });
     if (out.length >= DISPATCH_MAX_MEMBERS) break;
   }
   return out;

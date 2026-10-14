@@ -1,6 +1,6 @@
-// Missions: several crew on one goal, each with their own part. The brief each one gets names the
-// mission, the goal, who else is on it and what their own part is, so they can work as a team
-// (and say in their report what the others need to know).
+// Missions: several crew on one goal, each with their own part. The brief each one gets leads with
+// their part, names the goal and every teammate with their part and where they work, and sets the
+// conventions that keep many agents' reports comparable (BLOCKED, a closing STATUS line).
 
 import type { SquadMember } from "../store";
 
@@ -11,20 +11,40 @@ export interface MissionPlan {
   parts: Record<string, string>;
 }
 
-/** The order a crew member on a mission receives. `crew` is everyone on it, `me` this member's key. */
-export function missionBrief(plan: MissionPlan, crew: Array<{ key: string; title: string }>, me: string, part?: string): string {
+/** Someone on a mission, as their teammates see them. */
+export interface MissionMember {
+  key: string;
+  title: string;
+  part?: string;
+  /** Machine, and branch or worktree when known: where they work, so overlaps can be spotted. */
+  where?: string;
+}
+
+/**
+ * The order a crew member on a mission receives: their own part first, then each teammate with
+ * their part and where they work, and the conventions that make many agents' reports usable
+ * (stay in your lane, say BLOCKED, end with a status line). `me` is this member's key.
+ */
+export function missionBrief(plan: MissionPlan, crew: MissionMember[], me: string, part?: string): string {
   // By key, not title: two crew can share a title ("Untitled") and must still see each other.
-  const others = crew.filter((c) => c.key !== me).map((c) => c.title);
-  return [
+  const others = crew.filter((c) => c.key !== me);
+  const lines = [
     `Mission "${plan.name.trim()}": ${crew.length} crew working on one goal.`,
     "",
-    `Goal: ${plan.goal.trim()}`,
-    "",
     part?.trim() ? `Your part: ${part.trim()}` : "Your part: whatever of the goal fits the work you're already doing in this thread.",
-    others.length ? `Also on it: ${others.join("; ")}.` : "",
     "",
-    "Stay within your part. When you're done, report what you did, how you verified it, and anything the others on this mission need to know.",
-  ].filter((line, i, all) => line !== "" || (all[i - 1] !== "" && i > 0)).join("\n");
+    `Goal: ${plan.goal.trim()}`,
+  ];
+  if (others.length) {
+    lines.push("", "The others on it:");
+    for (const o of others) lines.push(`- ${o.title}${o.part?.trim() ? ` — part: ${o.part.trim()}` : ""}${o.where ? ` (${o.where})` : ""}`);
+  }
+  lines.push("", "How to work on it:",
+    "- Stay within your part. If you need to change something in another's area, stop and say so instead.",
+    "- If you're blocked, start your reply with \"BLOCKED:\" and say what you need.",
+    `- If you open a pull request, put "[${plan.name.trim()}]" at the start of its title.`,
+    "- End your report with one line: STATUS: done | partial | blocked · FILES: the files you changed · PR: its number, or none.");
+  return lines.join("\n");
 }
 
 export const missionKey = (m: SquadMember): string => `${m.envId}:${m.threadId}`;

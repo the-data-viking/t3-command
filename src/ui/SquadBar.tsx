@@ -2,11 +2,11 @@ import { useDraft } from "./drafts";
 import { useState } from "react";
 import { expandPlaybook } from "../../shared/playbooks";
 import { sfx } from "../game/sfx";
-import { setSquad, useGame } from "../store";
+import { setSquad, useGame, type SquadMember } from "../store";
 import { isSettled, turnBusy } from "../t3/derive";
 import { logError } from "../t3/environment";
 import { recordDispatch, updateDispatch } from "./dispatch";
-import { batchSettle, liveMembers, orderCrew } from "./squad";
+import { batchSettle, confirmReplacing, liveMembers, orderCrew, wouldReplace } from "./squad";
 import { MissionDialog } from "./MissionDialog";
 
 /**
@@ -42,7 +42,9 @@ export function SquadBar() {
     if (!order || sending) return;
     setSending(true);
     const targets = retry ? orderable.filter((m) => retry.includes(`${m.envId}:${m.threadId}`)) : orderable;
-    const { receipts, sent, queued, failed, failedKeys } = await orderCrew(targets, () => order, (m) => queueBusy && busy.includes(m));
+    const queueFor = (m: SquadMember) => queueBusy && busy.includes(m);
+    if (!confirmReplacing(wouldReplace(targets, queueFor))) { setSending(false); return; }
+    const { receipts, sent, queued, failed, failedKeys } = await orderCrew(targets, () => order, queueFor);
     const tracked = retry && dispatchId ? updateDispatch(dispatchId, receipts)
       : targets.length >= 2 ? recordDispatch(order, receipts).then((d) => { setDispatchId(d.id); return d; }) : undefined;
     // Recorded before a retry is offered, so a quick retry updates this dispatch, not a new one.

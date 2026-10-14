@@ -59,3 +59,13 @@ test("an order sent now that never starts a turn reads 'didn't start' after thre
   assert.equal(receiptOf(m("waiting"), envs, 0, 200_000), "unstarted");
   assert.equal(receiptOf(m("waiting", "queued"), envs, 0, 200_000), "queued", "queued orders wait for the turn they follow");
 });
+
+test("a pinned member's receipt and reply come from its own turn, not whatever ran later", () => {
+  const pinned = { ...m("done"), turnId: "t1", result: "error" as const };
+  assert.equal(receiptOf(pinned, envs), "failed", "the server saw its own turn fail; t2 completing doesn't change that");
+  assert.equal(receiptOf({ ...m("working"), turnId: "t1" }, envs), "superseded", "its turn was replaced before the server saw it end");
+  const thread = shell("done", "t2", "completed");
+  const msg = (text: string, turnId: string) => ({ id: text, role: "assistant", text, turnId, streaming: false, createdAt: "", updatedAt: "" });
+  const detail = { synced: true, thread: { messages: [msg("its own answer", "t1"), msg("a later turn's", "t2")] } } as never;
+  assert.equal(replyOf("failed", thread, detail, pinned), "its own answer");
+});

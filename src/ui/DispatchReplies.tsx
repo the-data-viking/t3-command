@@ -11,10 +11,11 @@ import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
 import { envClient, logError } from "../t3/environment";
 import { turnBusy } from "../t3/derive";
-import { closeDispatch, dispatchTitle, progressOf, RECEIPT, recordDispatch, replyOf, type ReceiptStatus } from "./dispatch";
+import { closeDispatch, dispatchTitle, progressOf, RECEIPT, recordDispatch, replyOf, updateDispatch, type ReceiptStatus } from "./dispatch";
+import type { DispatchMember } from "../../shared/dispatches";
 import { useDraft } from "./drafts";
 import { debriefMarkdown, followUpBrief, type SharedReply } from "./mission";
-import { orderCrew } from "./squad";
+import { confirmReplacing, orderCrew, wouldReplace } from "./squad";
 import { MessageMarkdown } from "./MessageMarkdown";
 import { PixelLabel } from "./PixelArt";
 
@@ -24,10 +25,14 @@ const WAITING: Partial<Record<ReceiptStatus, string>> = {
   "needs-you": "Waiting on you before it can answer.",
   failed: "The turn failed before it replied.",
   stopped: "The turn was interrupted.",
+  superseded: "Another turn started before this one was seen to end, so its reply isn't known here.",
 };
 
+/** Parts that went wrong before they produced anything: the same brief can be sent again. */
+const RESENDABLE = new Set<ReceiptStatus>(["unsent", "undelivered", "unstarted", "failed", "stopped"]);
+
 /** Replies you can read first, then what's waiting on you, still going, and what went wrong. */
-const RANK: ReceiptStatus[] = ["reported", "needs-you", "working", "sent", "queued", "stopped", "failed", "undelivered", "unsent", "gone"];
+const RANK: ReceiptStatus[] = ["reported", "needs-you", "working", "sent", "queued", "superseded", "stopped", "failed", "unstarted", "undelivered", "unsent", "gone"];
 
 export function DispatchReplies() {
   const id = useGame((s) => s.replies);
@@ -53,8 +58,8 @@ function Replies({ id }: { id: string }) {
 
   const cards = progress.receipts.map(({ member, status }) => {
     const thread = envs[member.envId]?.threads[member.threadId];
-    const reply = replyOf(status, thread, details[unitKey(member.envId, member.threadId)]);
-    const turnId = thread?.latestTurn?.turnId;
+    const reply = replyOf(status, thread, details[unitKey(member.envId, member.threadId)], member);
+    const turnId = member.turnId ?? thread?.latestTurn?.turnId;
     const unread = status === "reported" && !!turnId && readReports[unitKey(member.envId, member.threadId)] !== turnId;
     return { member, status, thread, reply, turnId, unread };
   }).sort((a, b) => RANK.indexOf(a.status) - RANK.indexOf(b.status));
@@ -75,9 +80,11 @@ function Replies({ id }: { id: string }) {
     const byKey = new Map(cards.map((c) => [unitKey(c.member.envId, c.member.threadId), c]));
     const targets = reachable.map((c) => ({ envId: c.member.envId, threadId: c.member.threadId }));
     const others = (key: string) => share ? shared.filter((_, i) => unitKey(cards[i].member.envId, cards[i].member.threadId) !== key) : [];
+    const queueFor = (m: { envId: string; threadId: string }) => turnBusy(envs[m.envId].threads[m.threadId]);
+    if (!confirmReplacing(wouldReplace(targets, queueFor))) { setBusy(false); return; }
     const { receipts, failed } = await orderCrew(targets,
       (m) => followUpBrief({ mission: dispatch.mission, text, part: byKey.get(unitKey(m.envId, m.threadId))?.member.part, others: others(unitKey(m.envId, m.threadId)) }),
-      (m) => turnBusy(envs[m.envId].threads[m.threadId]),
+      queueFor,
       (m) => byKey.get(unitKey(m.envId, m.threadId))?.member.part);
     try {
       // Read what's been answered: the follow-up is the response to it.
@@ -89,6 +96,24 @@ function Replies({ id }: { id: string }) {
       // Follow the new round from here; the earlier one stays on the board until closed.
       useGame.setState({ replies: next.id });
     } catch (err) { sfx.error(); logError("Couldn't record the follow-up", err); }
+    finally { setBusy(false); }
+  };
+  /**
+   * Send one crew member exactly what they were sent before (a failed send, a follow-up that never
+   * went, a turn that failed or never started), recorded on this same order or mission.
+   */
+  const resend = async (member: DispatchMember) => {
+    if (busy) return;
+    const target = { envId: member.envId, threadId: member.threadId };
+    const queueFor = () => turnBusy(envs[member.envId].threads[member.threadId]);
+    if (!confirmReplacing(wouldReplace([target], queueFor))) return;
+    setBusy(true);
+    try {
+      const { receipts, failed } = await orderCrew([target], () => member.brief ?? dispatch.text, queueFor, () => member.part);
+      await updateDispatch(dispatch.id, receipts);
+      (failed ? sfx.error : sfx.order)();
+      setNote(failed ? `Couldn't resend to ${member.title}.` : `Resent to ${member.title}.`);
+    } catch (err) { sfx.error(); logError("Couldn't resend", err); }
     finally { setBusy(false); }
   };
   const copyDebrief = async () => {
@@ -129,6 +154,9 @@ function Replies({ id }: { id: string }) {
                 {status === "gone" ? <span className="muted">{member.title}</span>
                   : <button className="receipt-crew" onClick={() => go(member.envId, member.threadId)} title="Go to this crew member">{thread?.title || member.title}</button>}
                 <span className="receipt-status">{RECEIPT[status].label}</span>
+                {RESENDABLE.has(status) && thread && !thread.archivedAt && envs[member.envId]?.connection === "live" && (
+                  <button className="btn small" disabled={busy} title="Send exactly what was sent before, on this same order" onClick={() => void resend(member)}>Resend</button>
+                )}
               </header>
               <p className="muted small">{envs[member.envId]?.summary.label ?? member.envId}{member.part ? ` · part: ${member.part}` : ""}</p>
               {reply ? <div className="reply-body"><MessageMarkdown text={reply} envId={member.envId} threadId={member.threadId} /></div>
