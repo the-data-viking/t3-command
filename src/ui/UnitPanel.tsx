@@ -322,8 +322,9 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
   const phone = usePhone();
 
   useEffect(() => {
-    // Focusing on a phone would raise the keyboard over the reports.
-    if (!isPhone()) input.current?.focus();
+    // Focusing on a phone would raise the keyboard over the reports; after a hotkey jump it would
+    // swallow the next hotkey (O or Enter comes here instead).
+    if (!isPhone() && performance.now() - useGame.getState().jumpedAt > 1000) input.current?.focus();
   }, [envId, threadId]);
 
   // A standing order tells the agent how to stop it.
@@ -391,6 +392,7 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
     <div className="order-box">
       <textarea
         ref={input}
+        data-order-box
         value={text}
         placeholder={working ? "Busy: an order sent now starts a new turn (After turn ↻ waits)…" : phone ? "Give orders…" : "Give orders… (Enter to send, Shift+Enter for newline)"}
         disabled={disabled || sending}

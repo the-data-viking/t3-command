@@ -90,7 +90,8 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
     { label: "Open the crew log to revise the plan.", run: openLog },
     { label: "Mark read (decide later in its panel).", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
   ] : [
-    { label: "Review the changes and checks.", run: () => { stopQueue(); openReview({ envId, threadId }); } },
+    // In a queue run, the run waits: closing the review comes back here, or moves on once it's read.
+    { label: "Review the changes and checks.", run: () => openReview({ envId, threadId }) },
     { label: "Open the crew log.", run: openLog },
     { label: "Give follow-up orders.", run: openLog },
     { label: "Mark read.", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },

@@ -235,7 +235,11 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   and keep every choice. It's a heuristic reading of the request, not a sandbox.
 - **Attention**: an always-on **Inbox** of everything waiting on you (approvals, questions, failed
   turns, reports), edge-of-screen arrows for off-screen alerts, and RTS hotkeys: **Space** next
-  alert, **.** next report, **W** next active crew, **F** fit the fleet, **L** comms log, **Esc** deselect.
+  alert, **.** next report, **W** next active crew, **X** next failed turn, **F** fit the fleet, **L** comms log, **Esc** deselect.
+  A jump lands at 1× and leaves the keyboard on the map, so the same key cycles on; **O** or
+  **Enter** goes to the selected crew member's order box. A request card that arrives mid-pan or
+  mid-drag is announced instead of popping up under the pointer (**Space** opens it), and
+  **Review** from a queue run comes back to the run when it closes.
   The tab title shows how many crew are waiting on you, and the bell turns on desktop alerts for
   approvals and questions while the tab isn't in view.
   Waiting badges use the oldest unanswered request timestamp when available; crew show running

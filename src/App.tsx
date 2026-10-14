@@ -25,7 +25,7 @@ import { registerServiceWorker } from "./t3/push";
 import { loadPlaybooks } from "./t3/playbooks";
 import { loadMemory, MEMORY_REFRESH_MS } from "./t3/memory";
 import { scheduleT3Latest } from "./t3/t3-update";
-import { mayAutoOpen, noteKey } from "./ui/event-guard";
+import { mayAutoOpen, noteKey, notePointer } from "./ui/event-guard";
 import { CommandPalette } from "./ui/CommandPalette";
 import { HelpOverlay } from "./ui/HelpOverlay";
 import { LibraryPanel } from "./ui/LibraryPanel";
@@ -58,8 +58,8 @@ function announceTransitions(): () => void {
       if (to === "alert") sfx.alert(); else sfx.question();
       notifyAttention(envId, thread, to);
       // FTL-style: pop the event, unless you're busy typing or already looking at one. If you just
-      // pressed a number key (a control group, say), announce it instead: popping the card under
-      // that keypress could turn it into "Approve".
+      // pressed a number key (a control group, say), or are mid-pan or mid-drag, announce it
+      // instead: popping the card under that keypress or click could turn it into "Approve".
       const active = document.activeElement?.tagName;
       const s = useGame.getState();
       if (!s.event && active !== "TEXTAREA" && active !== "INPUT") {
@@ -119,6 +119,7 @@ export default function App() {
     const memoryTimer = setInterval(() => void loadMemory(), MEMORY_REFRESH_MS);
     const offT3Latest = scheduleT3Latest();
     window.addEventListener("keydown", noteKey, true);
+    for (const type of ["pointerdown", "pointermove", "wheel"] as const) window.addEventListener(type, notePointer, { capture: true, passive: true });
     const offTransitions = announceTransitions();
     const offTitle = installTitleBadge();
     const offWatches = installActiveWatches();
@@ -132,6 +133,7 @@ export default function App() {
       offT3Latest();
       offHotkeys();
       window.removeEventListener("keydown", noteKey, true);
+      for (const type of ["pointerdown", "pointermove", "wheel"] as const) window.removeEventListener(type, notePointer, { capture: true });
       offTransitions();
       offTitle();
       offWatches();

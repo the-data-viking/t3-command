@@ -40,12 +40,15 @@ function summary(p: DispatchProgress): string {
 export function DispatchChip() {
   const open = useProgress().filter((d) => d.progress.done < d.progress.total);
   if (!open.length) return null;
-  const { dispatch, progress } = open[0];
+  const { dispatch } = open[0];
+  // Every open order's crew together: reported of all, so "ORDERS 2 · 1/5" never reads as 1 of 2 orders.
+  const sum = (k: "reported" | "total" | "needsYou" | "trouble") => open.reduce((n, d) => n + d.progress[k], 0);
   const title = open.map((d) => `"${dispatchTitle(d.dispatch, 50)}": ${summary(d.progress)}`).join("\n");
+  const label = open.length > 1 ? `${open.length} orders: ${sum("reported")} of ${sum("total")} crew reported` : `${dispatchTitle(dispatch)}: ${summary(open[0].progress)}`;
   return (
     <button className="resource dispatch-chip" title={`${title}\nOn the work board (B)`} onClick={() => useGame.setState({ showBoard: true })}>
       <span className="res-key">{open.length > 1 ? `ORDERS ${open.length}` : dispatch.mission ? "MISSION" : "ORDER"}</span>
-      <span className={`res-val${progress.needsYou ? " st-alert" : progress.trouble ? " st-error" : ""}`} aria-label={`${dispatchTitle(dispatch)}: ${summary(progress)}`}>{progress.reported}/{progress.total}</span>
+      <span className={`res-val${sum("needsYou") ? " st-alert" : sum("trouble") ? " st-error" : ""}`} aria-label={label}>{sum("reported")}/{sum("total")}</span>
     </button>
   );
 }

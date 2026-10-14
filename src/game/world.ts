@@ -539,7 +539,9 @@ export class World {
     requestAnimationFrame(() => {
       if (this.destroyed) return;
       const area = this.visibleArea();
-      const z = clampZoom(Math.max(this.zoom, 2));
+      // A jump lands at 1× (the art at two screen pixels a pixel), not closer: near enough to read
+      // the crew, far enough to keep their neighbours and the station in view.
+      const z = clampZoom(Math.max(this.zoom, 1));
       this.moveCamera(area.x + area.w / 2 - target.x * z, area.y + area.h / 2 + 20 - target.y * z, z);
     });
   }

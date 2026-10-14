@@ -9,6 +9,7 @@ import type { UnitState } from "../t3/derive";
 import { allUnits, reportRead } from "./util";
 import { byWait, waitingSince } from "./queue";
 import { openDebrief } from "./debrief";
+import { openReview } from "./review";
 
 export type JumpGroup = "attention" | "done" | "working" | "monitoring" | "error";
 
@@ -40,12 +41,19 @@ export function jumpTo(group: JumpGroup): void {
   const next = units[(current + 1) % units.length];
   const sel = { kind: "unit" as const, envId: next.envId, threadId: next.thread.id };
   sfx.select();
+  // Keep the keyboard on the map, so the same key cycles on (O or Enter goes to the order box).
+  useGame.setState({ jumpedAt: performance.now() });
   setSelection(sel);
   worldRef.current?.focus(sel);
   if (group === "attention") openEvent({ envId: next.envId, threadId: next.thread.id });
   // A report opens as its debrief card: what was done, what changed, then accept or follow up.
   // (Hermes operators acknowledge reports in their own panel.)
   if (group === "done" && envs[next.envId]?.summary.kind !== "hermes") openDebrief({ envId: next.envId, threadId: next.thread.id });
+}
+
+/** Put the cursor in the selected crew member's order box (after a hotkey jump left it on the map). */
+function focusOrderBox(): void {
+  document.querySelector<HTMLTextAreaElement>("textarea[data-order-box]")?.focus();
 }
 
 function typing(target: EventTarget | null): boolean {
@@ -66,7 +74,7 @@ export function installHotkeys(): () => void {
     if (e.key === "Escape") {
       if (state.photo) useGame.setState({ photo: false });
       else if (state.event) { stopQueue(); openEvent(null); }
-      else if (state.review) useGame.setState({ review: null });
+      else if (state.review) openReview(null);
       else if (state.replies) useGame.setState({ replies: null });
       else if (state.planningMission) useGame.setState({ planningMission: false });
       // Dialogs, topmost first: Saved orders opens over a crew panel; the rest are full panels.
@@ -109,6 +117,9 @@ export function installHotkeys(): () => void {
       l: () => useGame.setState((s) => ({ showLog: !s.showLog })),
       h: () => useGame.setState((s) => ({ showHistory: !s.showHistory })),
       t: () => useGame.setState((s) => ({ showTimeline: !s.showTimeline })),
+      x: () => jumpTo("error"),
+      o: () => focusOrderBox(),
+      Enter: () => focusOrderBox(),
       b: () => useGame.setState((s) => ({ showBoard: !s.showBoard })),
       d: () => useGame.setState((s) => ({ showDock: !s.showDock })),
       p: () => useGame.setState((s) => ({ photo: !s.photo })),
