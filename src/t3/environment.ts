@@ -4,6 +4,7 @@
 import { DEMO, demoFetch } from "../demo";
 import type { EnvSummary } from "../../shared/api";
 import { addLog, unitKey, updateEnv, useGame, type Connection, type EnvWorld } from "../store";
+import { withPrStates } from "../../shared/pr-states";
 import { unitState, type UnitState } from "./derive";
 import { applyThreadEvent } from "./reducer";
 import { RpcConnection, RpcError } from "./rpc";
@@ -308,7 +309,7 @@ export class EnvironmentClient {
               }
             }
             projects = Object.fromEntries(item.snapshot.projects.map((p) => [p.id, p]));
-            threads = Object.fromEntries(item.snapshot.threads.map((t) => [t.id, t]));
+            threads = Object.fromEntries(item.snapshot.threads.map((t) => [t.id, withPrStates(t, useGame.getState().prStates)]));
             this.shellSequence = item.snapshot.snapshotSequence;
             break;
           case "synchronized":
@@ -333,7 +334,7 @@ export class EnvironmentClient {
               const to = unitState(item.thread);
               if (from !== to || !prev) transitions.push({ envId: this.id, thread: item.thread, from, to });
             }
-            threads = { ...threads, [item.thread.id]: item.thread };
+            threads = { ...threads, [item.thread.id]: withPrStates(item.thread, useGame.getState().prStates) };
             this.shellSequence = item.sequence;
             break;
           }

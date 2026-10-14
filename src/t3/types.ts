@@ -105,6 +105,8 @@ export interface ThreadPullRequest {
     changedFiles?: number;
     reviewDecision?: string | null;
     checksState?: string | null;
+    /** When it merged, if Command read that from GitHub (T3's snapshot doesn't carry it). */
+    mergedAt?: string | null;
   } | null;
 }
 

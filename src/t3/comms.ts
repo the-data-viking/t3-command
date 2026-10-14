@@ -4,7 +4,8 @@
 import type { CommsEntry } from "../../shared/comms";
 import type { Dispatch } from "../../shared/dispatches";
 import type { FollowUpsView } from "../../shared/followups";
-import { mergeReadMarks, mergeServerLog, setReadSink, useGame } from "../store";
+import type { PrStates } from "../../shared/pr-states";
+import { applyPrStates, mergeReadMarks, mergeServerLog, setReadSink, useGame } from "../store";
 import { fetchJson } from "./environment";
 
 export function connectComms(): () => void {
@@ -24,6 +25,10 @@ export function connectComms(): () => void {
   // Squad orders being followed: the list on connect, then the whole list on each change.
   source.addEventListener("dispatches", (event) => {
     try { useGame.setState({ dispatches: JSON.parse((event as MessageEvent).data) as Dispatch[] }); } catch { /* Skip a bad frame. */ }
+  });
+  // What GitHub says of PRs T3 still calls open: all of them on connect, then each change.
+  source.addEventListener("prs", (event) => {
+    try { applyPrStates(JSON.parse((event as MessageEvent).data) as PrStates); } catch { /* Skip a bad frame. */ }
   });
   // Report read marks are shared through the server: every mark on connect, then each change.
   source.addEventListener("read", (event) => {

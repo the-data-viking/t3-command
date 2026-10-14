@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { FleetMemory } from "../shared/memory";
 import type { CommsKind } from "../shared/comms";
 import type { Dispatch } from "../shared/dispatches";
+import { withPrStates, type PrStates } from "../shared/pr-states";
 import type { FollowUpsView } from "../shared/followups";
 import { DEFAULT_PLAYBOOKS, type Playbook } from "../shared/playbooks";
 import type { EnvSummary, MeResponse, T3Latest } from "../shared/api";
@@ -118,6 +119,8 @@ export interface GameState {
   followUps: FollowUpsView;
   /** Squad orders being followed (the Command server's list). */
   dispatches: Dispatch[];
+  /** What GitHub says of PRs T3's snapshots still call open (read by the Command server); applied to threads as they arrive. */
+  prStates: PrStates;
   /** Saved orders, typed as /name in any order box (from the Command server). */
   playbooks: Playbook[];
   showPlaybooks: boolean;
@@ -294,6 +297,7 @@ export const useGame = create<GameState>()(() => ({
   photo: false,
   followUps: { paused: false, queued: [] },
   dispatches: [],
+  prStates: {},
   playbooks: DEFAULT_PLAYBOOKS,
   showPlaybooks: false,
   memory: {},
@@ -301,6 +305,25 @@ export const useGame = create<GameState>()(() => ({
 }));
 
 /** Returning the same env from `fn` is a no-op: subscribers (the map, panels) are not notified. */
+/** New PR corrections from the Command server: kept, and applied to every thread already here. */
+export function applyPrStates(prStates: PrStates): void {
+  useGame.setState((s) => {
+    let changed = false;
+    const envs = Object.fromEntries(Object.entries(s.envs).map(([id, env]) => {
+      let touched = false;
+      const threads = Object.fromEntries(Object.entries(env.threads).map(([tid, t]) => {
+        const next = withPrStates(t, prStates);
+        if (next !== t) touched = true;
+        return [tid, next];
+      }));
+      if (!touched) return [id, env];
+      changed = true;
+      return [id, { ...env, threads }];
+    }));
+    return changed ? { prStates, envs } : { prStates };
+  });
+}
+
 export function updateEnv(envId: string, fn: (env: EnvWorld) => EnvWorld): void {
   useGame.setState((s) => {
     const env = s.envs[envId];
