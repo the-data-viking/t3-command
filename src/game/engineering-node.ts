@@ -53,6 +53,8 @@ export class EnvironmentNodeSprite {
   private callsign?: PixelText;
   private callsignBack?: Graphics;
   private callsignText = "";
+  /** The deck's team color, for its callsign plate. */
+  private color = 0;
 
   constructor(envId: string) {
     this.envId = envId;
@@ -94,6 +96,7 @@ export class EnvironmentNodeSprite {
     this.overflowText.text = hidden ? `+${hidden}` : "";
     this.overflowText.position.copyFrom(at(ENGINEERING_SPOTS.bayCount));
     this.callsignText = (state.envs[node.envId]?.summary.label ?? "?").toUpperCase();
+    this.color = node.color;
     this.callsignBack = new Graphics();
     this.callsign = label(18, node.color);
     this.callsign.anchor.set(0.5, 0.5);
@@ -248,14 +251,17 @@ export class EnvironmentNodeSprite {
   setZoom(zoom: number): void {
     const legible = zoom >= 0.8;
     for (const text of [this.name, this.cpuText, this.memoryText, this.caption, this.diskText, this.overflowText]) if (text) text.visible = legible;
-    // Zoomed out, the callsign takes over on a dark band so five decks aren't told apart by color alone.
+    // Zoomed out, the callsign takes over on a plate in the deck's own colours (its team color
+    // round the world's darkest ink), so five decks aren't told apart by color alone.
     if (this.callsign && this.callsignBack && this.hull) {
       this.callsign.visible = !legible;
       const g = this.callsignBack.clear();
       if (!legible) {
         fitLabel(this.callsign, this.callsignText, this.hull.w - 24, zoom, true);
         const w = this.callsign.width, hh = this.callsign.height;
-        g.rect(this.callsign.x - w / 2 - 6 / zoom, this.callsign.y - hh / 2 - 4 / zoom, w + 12 / zoom, hh + 8 / zoom).fill({ color: 0x05080c, alpha: 0.82 });
+        const x = this.callsign.x - w / 2 - 6 / zoom, y = this.callsign.y - hh / 2 - 4 / zoom, edge = 2 / zoom;
+        g.rect(x - edge, y - edge, w + 12 / zoom + 2 * edge, hh + 8 / zoom + 2 * edge).fill(this.color);
+        g.rect(x, y, w + 12 / zoom, hh + 8 / zoom).fill(currentStyle().colors.k);
       }
     }
   }
