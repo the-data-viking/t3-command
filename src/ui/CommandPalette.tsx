@@ -10,6 +10,7 @@ import { isSettled } from "../t3/derive";
 import { prState } from "../t3/changes";
 import { envClient, logError } from "../t3/environment";
 import { openDebrief } from "./debrief";
+import { openReview } from "./review";
 import { startQueue } from "./queue-run";
 import { pauseFollowUps } from "../t3/followups";
 import { fuzzyFilter } from "./fuzzy";
@@ -112,6 +113,8 @@ function buildItems(state: GameState): Item[] {
   }
   // Verbs on crew: read a report, give an order, open a PR.
   for (const u of unread) {
+    items.push({ id: `review:${u.envId}:${u.thread.id}`, group: "Report", label: `Review "${u.thread.title || "Untitled"}"`, detail: "changes and checks",
+      run: () => openReview({ envId: u.envId, threadId: u.thread.id }) });
     items.push({ id: `report:${u.envId}:${u.thread.id}`, group: "Report", label: u.thread.title || "Untitled", detail: "Debrief",
       run: () => openDebrief({ envId: u.envId, threadId: u.thread.id }) });
   }

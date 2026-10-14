@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import type { EnvWorld } from "../store";
 import type { UnitState } from "../t3/derive";
 import { parseDiff, type ParsedDiff } from "../t3/diff";
+import { DiffFiles } from "./DiffFiles";
 import { envClient, logError } from "../t3/environment";
 import type { Checkpoint, OrchestrationThread, ThreadShell } from "../t3/types";
 import { timeAgo } from "./util";
@@ -166,18 +167,7 @@ function DiffViewer({ envId, threadId, turn, onClose }: { envId: string; threadI
         </header>
         {!parsed && !error && <p className="muted">Loading diff…</p>}
         {error && <p className="small" role="alert">Could not load the diff: {error}</p>}
-        {parsed && parsed.files.length === 0 && <p className="muted">No file changes in this turn.</p>}
-        {parsed?.files.map((file, index) => (
-          <details key={file.path} className="diff-file" open={index < 3}>
-            <summary><span className="file-path">{file.path}</span> <span className="diff-add">+{file.additions}</span> <span className="diff-del">−{file.deletions}</span></summary>
-            {file.binary ? <p className="muted small">Binary file</p> : (
-              <pre className="diff-body">{file.lines.map((line, i) => (
-                <span key={i} className={`diff-line diff-${line.kind}`}>{line.kind === "add" ? "+" : line.kind === "del" ? "−" : line.kind === "ctx" ? " " : ""}{line.text}{"\n"}</span>
-              ))}</pre>
-            )}
-          </details>
-        ))}
-        {parsed?.truncated && <p className="muted small">Long diff: only the first lines are shown.</p>}
+        {parsed && <DiffFiles parsed={parsed} empty="No file changes in this turn." />}
       </div>
     </div>,
     document.body,

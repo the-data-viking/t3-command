@@ -168,6 +168,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   new release never wipes it. Unsent drafts are kept for 14 days. When a new release goes live
   while you're typing, the page waits: a banner says it's ready, and it reloads once you leave
   the field (or the tab is in the background), or when you click **Reload now**.
+- **Review** ("is this done?"): a report's first choice, the board's **Review** button, and the
+  palette open a review of a crew member's latest turn. Its report (what it claims) sits beside what
+  Command can observe: its PR's checks from the host, the test and lint commands it actually ran
+  this turn and how each ended, and the PR against its base (conflicts, commits behind, reviewers).
+  Below that, the whole branch's changes, file by file. Verdicts: **Accept** (marks it read),
+  **Request changes** (your notes go to the agent as an order; drafts are kept), **Open PR**, or
+  accept and send to camp. Merging stays on GitHub: it can't be undone from here.
 - **One "Needs you"**: the top bar's **▶ Needs you N**, the roster's Needs you group, the mission
   board's column, the queue run and the tab title all count the same list, in the same order:
   approvals and questions (longest wait first), plans waiting for approval, failed turns, then

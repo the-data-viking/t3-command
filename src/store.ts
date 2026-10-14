@@ -91,6 +91,8 @@ export interface GameState {
   incoming: { envId: string; threadId: string; at: number } | null;
   /** The finished job shown as a report card ("." opens the oldest unread). */
   debrief: { envId: string; threadId: string } | null;
+  /** The review panel: a crew member's latest turn, claims beside evidence. */
+  review: { envId: string; threadId: string } | null;
   /** A run through the queue in progress: the cards it has opened so far. */
   queueRun: { seen: string[]; skipped: string[] } | null;
   /** The last run just ended: how many cards it went through (shown briefly). */
@@ -263,6 +265,7 @@ export const useGame = create<GameState>()(() => ({
   event: null,
   incoming: null,
   debrief: null,
+  review: null,
   queueRun: null,
   queueClear: null,
   photo: false,
@@ -293,7 +296,7 @@ export function openHost(envId: string): void {
 
 export function openEvent(event: GameState["event"]): void {
   // One card at a time: a request card replaces a report card, so their number keys never overlap.
-  useGame.setState(event ? { event, incoming: null, debrief: null } : { event });
+  useGame.setState(event ? { event, incoming: null, debrief: null, review: null } : { event });
 }
 
 function loadVolume(): number {

@@ -19,6 +19,7 @@ import type {
   ApprovalDecision,
   InteractionMode,
   ModelSelection,
+  PullRequestDetail,
   Provider,
   RuntimeMode,
   ServerConfig,
@@ -575,6 +576,19 @@ export class EnvironmentClient {
     const summary = await this.rpc.request<UsageSummary>("server.getUsageSummary", window, 90_000);
     if (!supportedUsage(summary)) throw new Error(`Unsupported usage contract v${summary.contractVersion}`);
     return summary;
+  }
+
+  /** Unified diff of everything the thread changed, up to turn `toTurnCount`. */
+  async fullThreadDiff(threadId: string, toTurnCount: number): Promise<string> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    const result = await this.rpc.request<{ diff: string }>("orchestration.getFullThreadDiff", { threadId, toTurnCount }, 60_000);
+    return result.diff;
+  }
+
+  /** A pull request's detail as T3 reads it from the host: checks, mergeability, reviewers. */
+  async pullRequestDetail(projectId: string, repository: string, number: number, host?: string): Promise<PullRequestDetail> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    return this.rpc.request<PullRequestDetail>("pullRequests.detail", { projectId, repository, number, ...(host ? { host } : {}), allowStale: true }, 30_000);
   }
 
   /** Unified diff of what turns (from, to] changed in the agent's workspace. */
