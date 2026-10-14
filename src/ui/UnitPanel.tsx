@@ -254,6 +254,8 @@ const DEFAULT_APPROVAL_OPTIONS: Array<{ decision: ApprovalDecision; label: strin
 
 function PendingCard({ request, envId, threadId }: { request: PendingRequest; envId: string; threadId: string }) {
   const [busy, setBusy] = useState(false);
+  // The request card is open for this crew member: one set of buttons, not two.
+  const deciding = useGame((s) => s.event?.envId === envId && s.event?.threadId === threadId);
   const p = request.activity.payload ?? {};
   const client = envClient(envId);
 
@@ -275,7 +277,7 @@ function PendingCard({ request, envId, threadId }: { request: PendingRequest; en
       <div className="pending-summary">{request.activity.summary}</div>
       {risk && <RiskBanner risk={risk} />}
       {detail && <pre className={`pending-detail ${risk ? `risk-${risk.level}` : ""}`}>{detail}</pre>}
-      <div className="pending-actions">
+      {deciding ? <p className="muted small">Deciding in the request card.</p> : <div className="pending-actions">
         {options.map((o) => (
           <button
             key={o.decision}
@@ -291,7 +293,7 @@ function PendingCard({ request, envId, threadId }: { request: PendingRequest; en
             {o.label}
           </button>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

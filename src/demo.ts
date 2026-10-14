@@ -157,9 +157,17 @@ export function demoFetch(path: string): unknown {
 
 /** Thread details for the crew waiting on you, so their requests show in the roster and event card. */
 function demoDetails(envs: Record<string, EnvWorld>): GameState["details"] {
-  const detail = (envId: string, threadId: string, minutesAgo: number, kind: "approval" | "user-input", payload: Record<string, unknown>) => {
+  const detail = (envId: string, threadId: string, minutesAgo: number, kind: "approval" | "user-input", payload: Record<string, unknown>, transcript: { order?: string; said?: string; tools?: string[] } = {}) => {
     const shell = envs[envId].threads[threadId];
-    const thread = { ...shell, messages: [], checkpoints: [], activities: [
+    const turnId = shell.latestTurn?.turnId ?? null;
+    const at = (m: number) => ago(minutesAgo + m);
+    const messages = [
+      ...(transcript.order ? [{ id: `${threadId}-u`, role: "user", text: transcript.order, turnId, streaming: false, createdAt: at(30), updatedAt: at(30) }] : []),
+      ...(transcript.said ? [{ id: `${threadId}-a`, role: "assistant", text: transcript.said, turnId, streaming: false, createdAt: at(1), updatedAt: at(1) }] : []),
+    ];
+    const tools = (transcript.tools ?? []).map((t, i) => ({ id: `${threadId}-tool${i}`, tone: "tool", kind: "tool.completed", summary: t, createdAt: at(10 - i * 3), turnId, payload: { toolCallId: `call${i}`, detail: t } }));
+    const thread = { ...shell, messages, checkpoints: [], activities: [
+      ...tools,
       { id: `${threadId}-req`, tone: "approval", kind: `${kind}.requested`, summary: "", createdAt: ago(minutesAgo), turnId: shell.latestTurn?.turnId ?? null, payload: { requestId: `${threadId}-req`, ...payload } },
     ] } as unknown as OrchestrationThread;
     return [`${envId}:${threadId}`, { thread, synced: true }] as const;
@@ -173,7 +181,11 @@ function demoDetails(envs: Record<string, EnvWorld>): GameState["details"] {
       { path: "docs/worktrees.md", kind: "modified", additions: 0, deletions: 212 } ] }] } as unknown as OrchestrationThread;
   return Object.fromEntries([
     ["mini:a3", { thread: report, synced: true }] as const,
-    detail("mini", "a2", 22, "approval", { requestKind: "command", detail: "pnpm migrate --force" }),
+    detail("mini", "a2", 22, "approval", { requestKind: "command", detail: "pnpm migrate --force" }, {
+      order: "Restore the Glassrun Gorge Canyon level data from last week's backup and make sure the game loads it.",
+      said: "The backup restored cleanly, but the save schema is two versions behind. I need to run the pending migrations against the local dev database before the loader will accept it.",
+      tools: ["cp backups/glassrun-2026-10-06.db data/levels.db", "pnpm test -- levels/loader", "cat prisma/migrations/0042_canyon_props/migration.sql"],
+    }),
     detail("agent1", "b2", 9, "user-input", { questions: [{ id: "env", question: "Which environment should the client build target?", options: [{ label: "Staging" }, { label: "Production" }] }] }),
   ]);
 }

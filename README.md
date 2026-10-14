@@ -203,6 +203,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   before building" in the recruit form). A plan-mode crew member whose turn finishes reads
   **Plan ready** (and **PLAN** in the roster); **Approve plan and build** switches it to building
   and tells it to go ahead, or reply with changes to revise the plan.
+- **Approvals with context**: the request card shows why the agent is asking, from its own turn:
+  what it said just before asking, the order that started the turn, its last three tool calls, and
+  where it runs (machine, workspace, branch). While the card is open, the crew panel behind it
+  says "Deciding in the request card" instead of showing a second set of buttons.
 - **Risk lens**: an approval whose command or files look dangerous is marked ⚠ in the roster, the
   event card and the crew panel, with the reasons ("deletes files recursively", "force-pushes",
   "drops or empties database data", "reads secrets or keys", "runs a script straight from the

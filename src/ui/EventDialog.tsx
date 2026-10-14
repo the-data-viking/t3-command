@@ -12,6 +12,7 @@ import { advanceQueue, finishQueue, queueLength, skipInQueue, stopQueue } from "
 import { useSwipe } from "./useSwipe";
 import { isPhone } from "./phone";
 import { RiskBanner } from "./RiskBanner";
+import { requestContext, type RequestContext } from "./request-context";
 import { allowedDecisions, assessRisk, RISK_ARM_MS } from "./risk";
 import type { ApprovalDecision, PendingRequest } from "../t3/types";
 
@@ -183,6 +184,7 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
               </p>
               {risk && <RiskBanner risk={risk} />}
               {detailText && <pre className={`event-detail ${risk ? `risk-${risk.level}` : ""}`}>{detailText}</pre>}
+              <RequestContextView context={requestContext(env, thread, detail?.thread, request)} />
             </>
           ) : (
             <>
@@ -212,5 +214,19 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Why the agent is asking, from its own turn: the order, its last words, where, and what it just did. */
+function RequestContextView({ context }: { context: RequestContext }) {
+  const { order, intent, where, recent } = context;
+  if (!order && !intent && !recent.length && !where.length) return null;
+  return (
+    <dl className="request-context">
+      {intent && <><dt>It said</dt><dd className="request-intent">“{intent}”</dd></>}
+      {order && <><dt>Your order</dt><dd>{order}</dd></>}
+      {recent.length > 0 && <><dt>This turn</dt><dd><ol>{recent.map((r, i) => <li key={i}><code>{r}</code></li>)}</ol></dd></>}
+      {where.length > 0 && <><dt>Where</dt><dd className="muted">{where.join(" · ")}</dd></>}
+    </dl>
   );
 }
