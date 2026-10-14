@@ -63,7 +63,12 @@ export function installDeepLinks(): () => void {
   // A finished squad order's notification: its replies, once the server's list has arrived.
   let replies: string | undefined;
   const openReplies = () => {
-    if (replies && useGame.getState().dispatches.some((d) => d.id === replies)) { useGame.setState({ replies }); replies = undefined; }
+    if (replies && useGame.getState().dispatches.some((d) => d.id === replies)) {
+      useGame.setState({ replies });
+      replies = undefined;
+      // Clear the address, so a second notice for the same order opens it again.
+      history.replaceState(null, "", `${location.pathname}${location.search}`);
+    }
   };
   const apply = () => {
     const m = /^#replies\/(.+)$/.exec(location.hash);

@@ -10,7 +10,7 @@ import { worldRef } from "../game/world";
 import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
 import { envClient, logError } from "../t3/environment";
-import { unitState } from "../t3/derive";
+import { turnBusy } from "../t3/derive";
 import { closeDispatch, dispatchTitle, progressOf, RECEIPT, recordDispatch, replyOf, type ReceiptStatus } from "./dispatch";
 import { useDraft } from "./drafts";
 import { debriefMarkdown, followUpBrief, type SharedReply } from "./mission";
@@ -39,10 +39,9 @@ export function DispatchReplies() {
 function Replies({ id }: { id: string }) {
   const dispatch = useGame((s) => s.dispatches.find((d) => d.id === id))!;
   const envs = useGame((s) => s.envs);
-  const followUps = useGame((s) => s.followUps);
   const details = useGame((s) => s.details);
   const readReports = useGame((s) => s.readReports);
-  const progress = useMemo(() => progressOf(dispatch, envs, followUps), [dispatch, envs, followUps]);
+  const progress = useMemo(() => progressOf(dispatch, envs), [dispatch, envs]);
   const close = () => useGame.setState({ replies: null });
 
   // Follow every recipient's thread while the panel is open, so their replies load and update.
@@ -78,7 +77,7 @@ function Replies({ id }: { id: string }) {
     const others = (key: string) => share ? shared.filter((_, i) => unitKey(cards[i].member.envId, cards[i].member.threadId) !== key) : [];
     const { receipts, failed } = await orderCrew(targets,
       (m) => followUpBrief({ mission: dispatch.mission, text, part: byKey.get(unitKey(m.envId, m.threadId))?.member.part, others: others(unitKey(m.envId, m.threadId)) }),
-      (m) => { const st = unitState(envs[m.envId].threads[m.threadId]); return st === "working" || st === "alert" || st === "question"; },
+      (m) => turnBusy(envs[m.envId].threads[m.threadId]),
       (m) => byKey.get(unitKey(m.envId, m.threadId))?.member.part);
     try {
       // Read what's been answered: the follow-up is the response to it.

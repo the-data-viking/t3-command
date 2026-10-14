@@ -123,3 +123,57 @@ test("a standing order whose send never starts a turn is dropped, not left waiti
   assert.equal(followUps.view().queued.length, 0);
   assert.ok(comms.since().some((e) => /didn't start a turn/.test(e.text)));
 });
+
+test("a send that errors isn't sent twice if it landed, is retried with backoff if not, and gives up loudly", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "fu-"));
+  const comms = new CommsLog(dir);
+  let fail = true;
+  const sent: string[] = [];
+  const followUps = new FollowUps(dir, comms, async (_e, _t, text) => { sent.push(text); if (fail) throw new Error("socket closed"); }, () => "Box");
+  followUps.observe("e", [shell("a", "running")]);
+  followUps.add("e", "t", "Ship it");
+  followUps.observe("e", [shell("a", "completed")]);
+  await tick();
+  assert.equal(sent.length, 1);
+  assert.equal(followUps.view().queued[0].uncertain?.attempts, 1);
+  assert.ok(comms.since().some((e) => /didn't go through \(socket closed\); trying again shortly/.test(e.text)));
+  followUps.observe("e", [shell("a", "completed")]);
+  await tick();
+  assert.equal(sent.length, 1, "not again before the backoff");
+  // It had landed after all: its turn shows up, so it counts as sent, and nothing is resent.
+  followUps.observe("e", [shell("b", "running")]);
+  await tick();
+  assert.equal(sent.length, 1);
+  assert.equal(followUps.view().queued.length, 0);
+  assert.ok(comms.since().some((e) => e.text.startsWith("Sent by follow-up to \"Fix CI\"")));
+  assert.ok(!comms.since().some((e) => /another order started/.test(e.text)), "not mistaken for someone else's order");
+  fail = false;
+  await comms.flush(); await followUps.flush();
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
+test("decide: an errored send waits out its backoff, resends, and is dropped after five tries", async () => {
+  const { decide } = await import("./followups.ts");
+  const f = { id: "f", envId: "e", threadId: "t", afterTurnId: "a", text: "x", createdAt: 0, expiresAt: 10_000_000 };
+  assert.deepEqual(decide({ ...f, uncertain: { attempts: 1, retryAt: 500 } }, shell("a", "completed"), 100), { action: "wait" });
+  assert.deepEqual(decide({ ...f, uncertain: { attempts: 1, retryAt: 500 } }, shell("a", "completed"), 600), { action: "send" });
+  assert.deepEqual(decide({ ...f, uncertain: { attempts: 5, retryAt: 0 } }, shell("a", "completed"), 600), { action: "drop", reason: "sending failed 5 times" });
+  assert.deepEqual(decide({ ...f, uncertain: { attempts: 2, retryAt: 9e9 } }, shell("b", "running"), 600), { action: "landed", turnId: "b" });
+});
+
+test("replacing or cancelling a queued follow-up is said, and reported as dropped", async () => {
+  const { comms, followUps } = await setup();
+  const dropped: string[] = [];
+  followUps.onDrop((f) => dropped.push(f.text));
+  followUps.observe("e", [shell("a", "running")]);
+  followUps.add("e", "t", "Keep going", Date.now(), { times: 5 });
+  const second = followUps.add("e", "t", "Status?");
+  assert.ok(comms.since().some((e) => e.text === "Standing order for \"Fix CI\" replaced by a newer one: Keep going"));
+  followUps.cancel(second.id);
+  assert.deepEqual(dropped, ["Keep going", "Status?"]);
+  followUps.add("e", "t", "Third");
+  followUps.forget("e");
+  assert.deepEqual(dropped, ["Keep going", "Status?", "Third"]);
+  assert.equal(followUps.view().queued.length, 0);
+  assert.ok(comms.since().some((e) => /1 follow-up dropped: the machine was removed/.test(e.text)));
+});

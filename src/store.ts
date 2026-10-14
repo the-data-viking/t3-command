@@ -98,6 +98,8 @@ export interface GameState {
   review: { envId: string; threadId: string } | null;
   /** The replies to a squad order, side by side: the dispatch's id. */
   replies: string | null;
+  /** The squad bar's mission dialog is open (Esc closes it before touching the squad). */
+  planningMission: boolean;
   /** A run through the queue in progress: the cards it has opened so far. */
   queueRun: { seen: string[]; skipped: string[] } | null;
   /** The last run just ended: how many cards it went through (shown briefly). */
@@ -126,7 +128,8 @@ export function toggleSquad(member: SquadMember): void {
   useGame.setState((s) => {
     const key = unitKey(member.envId, member.threadId);
     const inSquad = s.squad.some((m) => unitKey(m.envId, m.threadId) === key);
-    return { squad: inSquad ? s.squad.filter((m) => unitKey(m.envId, m.threadId) !== key) : [...s.squad, member] };
+    const squad = inSquad ? s.squad.filter((m) => unitKey(m.envId, m.threadId) !== key) : [...s.squad, member];
+    return squad.length ? { squad } : { squad, planningMission: false };
   });
 }
 
@@ -173,7 +176,8 @@ export function mergeReadMarks(marks: Record<string, string>): void {
 }
 
 export function setSquad(squad: SquadMember[]): void {
-  useGame.setState({ squad });
+  // No squad, no mission being planned for it.
+  useGame.setState(squad.length ? { squad } : { squad, planningMission: false });
 }
 
 /** Map styles in menu order: Night Shift by night and by day, Kestrel, Pastel, then High Contrast (an accessibility mode). */
@@ -274,6 +278,7 @@ export const useGame = create<GameState>()(() => ({
   debrief: null,
   review: null,
   replies: null,
+  planningMission: false,
   queueRun: null,
   queueClear: null,
   photo: false,

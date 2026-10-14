@@ -15,6 +15,8 @@ export interface DispatchMember {
   baseTurnId: string | null;
   /** On a mission: this crew member's own part of it. */
   part?: string;
+  /** Queued, then dropped by the Command server without being sent (cancelled, failed, replaced…). */
+  dropped?: boolean;
 }
 
 export interface MissionInfo {
@@ -48,13 +50,13 @@ export function sanitizeMembers(input: unknown): DispatchMember[] {
   const out: DispatchMember[] = [];
   for (const m of input) {
     if (!m || typeof m !== "object") continue;
-    const { envId, threadId, title, how, baseTurnId, part } = m as Partial<DispatchMember>;
+    const { envId, threadId, title, how, baseTurnId, part, dropped } = m as Partial<DispatchMember>;
     if (typeof envId !== "string" || !envId || typeof threadId !== "string" || !threadId || !HOW.has(how as DispatchHow)) continue;
     const key = `${envId}:${threadId}`;
     if (seen.has(key)) continue;
     seen.add(key);
     const ownPart = typeof part === "string" ? part.trim().slice(0, 500) : "";
-    out.push({ envId, threadId, title: String(title ?? "").slice(0, 120), how: how as DispatchHow, baseTurnId: typeof baseTurnId === "string" ? baseTurnId : null, ...(ownPart ? { part: ownPart } : {}) });
+    out.push({ envId, threadId, title: String(title ?? "").slice(0, 120), how: how as DispatchHow, baseTurnId: typeof baseTurnId === "string" ? baseTurnId : null, ...(ownPart ? { part: ownPart } : {}), ...(dropped === true && how === "queued" ? { dropped: true } : {}) });
     if (out.length >= DISPATCH_MAX_MEMBERS) break;
   }
   return out;

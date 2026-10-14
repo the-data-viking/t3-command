@@ -12,7 +12,7 @@ import type { CommsLog } from "./comms.ts";
 
 /** How a member's part ended, or undefined while it's still going (or hasn't started). */
 export function outcome(m: DispatchMember, thread: ThreadShell | undefined, queued: boolean): "reported" | "failed" | "stopped" | "gone" | "unsent" | undefined {
-  if (m.how === "failed") return "unsent";
+  if (m.how === "failed" || m.dropped) return "unsent";
   if (!thread || thread.archivedAt) return "gone";
   const turn = thread.latestTurn;
   if (!turn || turn.turnId === m.baseTurnId) return undefined;
@@ -82,7 +82,10 @@ export class Dispatches {
     const dispatch = this.list.find((d) => d.id === id);
     if (!dispatch) return undefined;
     const changes = new Map(sanitizeMembers(members).map((m) => [`${m.envId}:${m.threadId}`, m]));
+    const retried = dispatch.members.some((m) => m.how === "failed" && changes.has(`${m.envId}:${m.threadId}`) && changes.get(`${m.envId}:${m.threadId}`)!.how !== "failed");
     dispatch.members = dispatch.members.map((m) => changes.get(`${m.envId}:${m.threadId}`) ?? m);
+    // A retry that reached someone reopens it: their part is still to come, and will be announced.
+    if (retried) delete dispatch.finishedAt;
     this.changed();
     return dispatch;
   }
@@ -95,6 +98,28 @@ export class Dispatches {
     return true;
   }
 
+  /** A follow-up that went unsent: the member it was queued for will never get this order. */
+  followUpDropped(envId: string, threadId: string, afterTurnId: string | null): void {
+    let changed = false;
+    for (const d of this.list) {
+      if (d.finishedAt) continue;
+      for (const m of d.members) {
+        if (m.envId !== envId || m.threadId !== threadId || m.how !== "queued" || m.dropped || m.baseTurnId !== afterTurnId) continue;
+        m.dropped = true;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    this.changed();
+    const threads = this.threads.get(envId);
+    if (threads) this.observe(envId, [...threads.values()]);
+  }
+
+  /** A machine removed from the fleet: its crew are gone from every order still playing out. */
+  forget(envId: string): void {
+    this.observe(envId, []);
+  }
+
   /** A machine's latest threads: announce any order whose crew have all finished with it. */
   observe(envId: string, threads: ThreadShell[], now = Date.now()): void {
     this.threads.set(envId, new Map(threads.map((t) => [t.id, t])));
@@ -105,6 +130,8 @@ export class Dispatches {
       if (d.members.some((m) => !this.threads.has(m.envId))) continue;
       const ends = d.members.map((m) => outcome(m, this.threads.get(m.envId)!.get(m.threadId), this.queued(m.envId, m.threadId)));
       if (ends.some((e) => e === undefined)) continue;
+      // Every send failed just now: give a retry a couple of minutes before calling it.
+      if (ends.every((e) => e === "unsent") && now - d.at < 120_000) continue;
       d.finishedAt = now;
       changed = true;
       const reported = ends.filter((e) => e === "reported").length;

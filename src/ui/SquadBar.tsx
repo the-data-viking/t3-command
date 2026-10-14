@@ -3,7 +3,7 @@ import { useState } from "react";
 import { expandPlaybook } from "../../shared/playbooks";
 import { sfx } from "../game/sfx";
 import { setSquad, useGame } from "../store";
-import { isSettled, unitState } from "../t3/derive";
+import { isSettled, turnBusy } from "../t3/derive";
 import { logError } from "../t3/environment";
 import { recordDispatch, updateDispatch } from "./dispatch";
 import { batchSettle, liveMembers, orderCrew } from "./squad";
@@ -28,13 +28,14 @@ export function SquadBar() {
   const [retry, setRetry] = useState<string[]>();
   /** The dispatch the last send recorded, so a retry updates its receipts instead of starting another. */
   const [dispatchId, setDispatchId] = useState<string>();
-  const [planning, setPlanning] = useState(false);
+  const planning = useGame((s) => s.planningMission);
+  const setPlanning = (on: boolean) => useGame.setState({ planningMission: on });
   const members = liveMembers(squad, envs);
   if (!members.length) return null;
   const settled = members.filter((m) => isSettled(envs[m.envId].threads[m.threadId])).length;
   // Orders go only to crew on a connected T3 station; the count on the button is who gets it.
   const orderable = members.filter((m) => envs[m.envId].connection === "live" && envs[m.envId].summary.kind !== "hermes");
-  const busy = orderable.filter((m) => { const s = unitState(envs[m.envId].threads[m.threadId]); return s === "working" || s === "alert" || s === "question"; });
+  const busy = orderable.filter((m) => turnBusy(envs[m.envId].threads[m.threadId]));
 
   const send = async () => {
     const order = expandPlaybook(text.trim(), playbooks);
@@ -44,7 +45,8 @@ export function SquadBar() {
     const { receipts, sent, queued, failed, failedKeys } = await orderCrew(targets, () => order, (m) => queueBusy && busy.includes(m));
     const tracked = retry && dispatchId ? updateDispatch(dispatchId, receipts)
       : targets.length >= 2 ? recordDispatch(order, receipts).then((d) => { setDispatchId(d.id); return d; }) : undefined;
-    void tracked?.catch((err) => logError("Couldn't record the dispatch", err));
+    // Recorded before a retry is offered, so a quick retry updates this dispatch, not a new one.
+    await tracked?.catch((err) => logError("Couldn't record the dispatch", err));
     (failed ? sfx.error : sfx.order)();
     setResult([sent && `Sent to ${sent}`, queued && `queued for ${queued}`, failed && `${failed} failed`, tracked && "receipts on the board (B)"].filter(Boolean).join(" · "));
     setSending(false);

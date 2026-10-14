@@ -74,11 +74,12 @@ await playbooks.load();
 const dispatches = new Dispatches(config.dataDir);
 await dispatches.load();
 dispatches.announceTo(comms, (envId, threadId) => followUps.view().queued.some((f) => f.envId === envId && f.threadId === threadId));
+followUps.onDrop((f) => dispatches.followUpDropped(f.envId, f.threadId, f.afterTurnId));
 recorder.listen({
   observe: (envId, threads) => { comms.observe(envId, threads); followUps.observe(envId, threads); dispatches.observe(envId, threads); },
   connected: (envId, label) => comms.connected(envId, label),
   disconnected: (envId, label) => comms.disconnected(envId, label),
-  removed: (envId) => comms.forget(envId),
+  removed: (envId) => { comms.forget(envId); followUps.forget(envId); dispatches.forget(envId); },
 });
 setInterval(() => void comms.prune().catch((err) => console.warn("[comms] prune failed", (err as Error).message)), 6 * 3_600_000).unref();
 recorder.start();
