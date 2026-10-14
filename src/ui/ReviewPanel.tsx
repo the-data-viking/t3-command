@@ -38,6 +38,8 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
   const [diff, setDiff] = useState<ParsedDiff>();
   /** What the diff covers: the whole branch, or (when T3 can't produce that) the latest turn. */
   const [diffScope, setDiffScope] = useState<"branch" | "turn">("branch");
+  const [branchError, setBranchError] = useState<string>();
+  const [turnFailed, setTurnFailed] = useState(false);
   const [diffError, setDiffError] = useState<string>();
   const [pr, setPr] = useState<PullRequestDetail>();
   const [prError, setPrError] = useState<string>();
@@ -56,13 +58,15 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
     const client = envClient(envId);
     if (!client) { setDiffError("this station is not connected"); return; }
     let live = true;
-    // The whole branch; if T3 can't produce that (long threads with pruned checkpoints), every
-    // turn's diff from the start; failing that, just the latest turn's, labelled as such.
-    client.fullThreadDiff(threadId, latest)
-      .catch(() => client.turnDiff(threadId, 0, latest))
-      .then((d) => { if (live) setDiff(parseDiff(d)); })
-      .catch(() => client.turnDiff(threadId, latest - 1, latest).then((d) => { if (live) { setDiffScope("turn"); setDiff(parseDiff(d)); } }))
-      .catch((err: unknown) => { if (live) setDiffError(err instanceof Error ? err.message : String(err)); });
+    // Show the latest turn's changes right away, then the whole branch's once T3 produces it (long
+    // threads can be slow or unable to); whichever the panel shows is labelled.
+    let branch = false;
+    client.turnDiff(threadId, latest - 1, latest)
+      .then((d) => { if (live && !branch) { setDiffScope("turn"); setDiff(parseDiff(d)); } })
+      .catch(() => { if (live) setTurnFailed(true); });
+    Promise.race([client.fullThreadDiff(threadId, latest), new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timed out")), 25_000))])
+      .then((d) => { if (live) { branch = true; setDiffScope("branch"); setDiff(parseDiff(d)); } })
+      .catch((err: unknown) => { if (live) setBranchError(err instanceof Error ? err.message : String(err)); });
     return () => { live = false; };
   }, [envId, threadId, latest]);
 
@@ -166,9 +170,12 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
 
         <section className="review-changes" aria-label="Changes">
           <h3>{diffScope === "turn" ? "Changes in the latest turn" : "Changes on the branch"}{diff ? ` · ${diff.files.length} files` : ""}</h3>
-          {diffScope === "turn" && <p className="muted small">T3 couldn't produce the whole branch's diff for this thread; this is its latest turn only.</p>}
+          {diffScope === "turn" && <p className="muted small">{branchError ? `T3 couldn't produce the whole branch's diff (${branchError}); this is the latest turn only.` : "Loading the whole branch's diff…"}</p>}
           {!latest && <p className="muted">No checkpoints yet.</p>}
-          {latest > 0 && !diff && !diffError && <p className="muted">Loading the diff…</p>}
+          {latest > 0 && !diff && !diffError && !branchError && <p className="muted">Loading the diff…</p>}
+          {latest > 0 && !diff && branchError && (turnFailed
+            ? <p className="small" role="alert">Could not load the diff: {branchError}</p>
+            : <p className="muted">The whole branch's diff didn't come ({branchError}); loading the latest turn's…</p>)}
           {diffError && <p className="small" role="alert">Could not load the diff: {diffError}</p>}
           {diff && <DiffFiles parsed={diff} open={2} />}
         </section>
