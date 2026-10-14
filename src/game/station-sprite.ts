@@ -4,6 +4,7 @@ import { Container, Graphics, Rectangle, Sprite, TilingSprite, type FederatedPoi
 import { PixelText } from "./pixel-text";
 import * as A from "../art/sprites";
 import { setSelection, useGame, type GameState } from "../store";
+import { skyLight } from "./backdrop";
 import { QUARTERS_SHOWN, stationDrawKey, systemFixtureX, TILE, type Room, type RoomKind, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
@@ -78,6 +79,13 @@ export class StationSprite {
     const hullBottom = s.hull[11];
     g.rect(hx + cut, hullTop + 2, hw - 2 * cut, 4).fill(c.h);
     g.rect(hx + cut, hullBottom - 6, hw - 2 * cut, 4).fill(c.D);
+    // The sky body's light catching the hull: a one-art-pixel rim along the top and the right
+    // side (the body hangs upper right), in its glow colour, faint. Material light, never status.
+    const rim = skyLight(style.id);
+    if (rim !== undefined) {
+      g.rect(hx + cut, hy, hw - 2 * cut, PX).fill({ color: rim, alpha: 0.35 });
+      g.rect(hx + hw - PX, hy + cut, PX, hh - 2 * cut).fill({ color: rim, alpha: 0.35 });
+    }
     for (let x = i.x + 48; x < i.x + i.w; x += 96) {
       g.rect(x, hullTop + 10, 2, i.y - hullTop - 14).fill(c.D);
       g.rect(x, i.y + i.h + 4, 2, hullBottom - i.y - i.h - 12).fill(c.D);
@@ -312,13 +320,14 @@ export class StationSprite {
     }
     // Belly stripe in the deck's warm tone, between the corners.
     g.rect(h.x + 44, s.hull[11] - 12, h.w - 88, 4).fill(c.q);
-    // Glass dome on the roof, mid-right, clear of the nameplate and antenna.
+    // Glass dome on the roof, mid-right, clear of the nameplate and antenna. (The world lights it
+    // pink from inside while the bridge under it is lit.)
     const dx = i.x + Math.round((i.w * 0.62) / 2) * 2;
-    const R = 18;
+    const R = DOME_R;
     const half = (row: number) => Math.round(Math.sqrt(R * R - (R - row - 1) ** 2) / 2) * 2;
     // Outline first (one row up and one cell out), then the glass inside it.
     for (let row = 0; row < R; row += 2) g.rect(dx - half(row) - 2, hullTop - R + row - 2, half(row) * 2 + 4, 4).fill(c.k);
-    for (let row = 2; row < R; row += 2) g.rect(dx - half(row) + 2, hullTop - R + row, half(row) * 2 - 4, 2).fill(row < 8 ? c.W : c.b);
+    for (const [k, glass] of domeGlass(s).entries()) g.rect(glass.x, glass.y, glass.w, glass.h).fill(k < 3 ? c.W : c.b);
     // A glint on the glass.
     g.rect(dx - 8, hullTop - R + 6, 4, 2).fill(c.w);
     // A rounded engine pod away from the network port.
@@ -447,6 +456,18 @@ function roundedPlate(g: Graphics, x: number, y: number, w: number, h: number, r
 }
 
 /** A filled pixel disc of radius `r`, in 2-px rows. */
+const DOME_R = 18;
+
+/** Pastel's roof dome: its glass, row by row (world px), for the hull art and the light inside it. */
+export function domeGlass(s: StationLayout): Array<{ x: number; y: number; w: number; h: number }> {
+  const i = s.interior, hullTop = s.hull[1], R = DOME_R;
+  const dx = i.x + Math.round((i.w * 0.62) / 2) * 2;
+  const half = (row: number) => Math.round(Math.sqrt(R * R - (R - row - 1) ** 2) / 2) * 2;
+  const rows = [];
+  for (let row = 2; row < R; row += 2) rows.push({ x: dx - half(row) + 2, y: hullTop - R + row, w: half(row) * 2 - 4, h: 2 });
+  return rows;
+}
+
 /** The roof dish, 10×4 art pixels: outline (k) and gear metal (g), opening upward. */
 const DISH = ["kg......gk", ".kggggggk.", "..kkkkkk..", "....kk...."];
 

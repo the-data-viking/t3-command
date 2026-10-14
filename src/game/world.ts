@@ -37,7 +37,7 @@ import { HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
 import { BROKEN_LINK, FLEET_VIEW_ZOOM, fitLabel, linkPath, pixelStamp, SIGNAL_GREY, UNPLUGGED, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
-import { hullWindows, nacelles, pixelDisc, roomUnder, StationSprite } from "./station-sprite";
+import { domeGlass, hullWindows, nacelles, pixelDisc, roomUnder, StationSprite } from "./station-sprite";
 import { EnvironmentNodeSprite } from "./engineering-node";
 
 // ---- World -----------------------------------------------------------------------------
@@ -80,8 +80,13 @@ export class World {
   private stationLayer = new Container();
   private environmentLayer = new Container();
   private lights = new Graphics();
-  /** Additive light: lamp cones, console pools, the spotlight on whoever waits on you. */
+  /** Additive light: console pools and the spotlight on whoever waits on you. */
   private glow = new LightLayer();
+  /** Each room's lamps as last seen (and since when), for switch-on and lights-out (see lampView). */
+  private lampSeen = new Map<string, { lit: boolean; at: number; delay: number }>();
+  private lampsMoving = false;
+  private wasAwake = false;
+  private lightsOutAt = -Infinity;
   /** Unlit rooms, multiplied by a theme-tinted dim tone. */
   private shade = Object.assign(new Graphics(), { blendMode: "multiply" as const });
   private crewLayer = new Container();
@@ -871,10 +876,37 @@ export class World {
    * A room's ceiling strip, in the world's lamp colour: lit with a dithered bloom falling from it,
    * dark when the room is, or catching for a frame in a brownout.
    */
-  private ceilingLight(g: Graphics, r: { x: number; y: number; w: number; h: number }, mode: "on" | "off" | "flicker"): number[] {
+  /**
+   * A room's lamps as seen: the real state (`lit`), shown through the world's switch-on: Night
+   * Shift's tubes stutter (on, off, on, off, hold at 60 ms), Kestrel's sodium lamps warm up through
+   * three colours over 0.6 s. A room going dark can wait `outDelay` s first (the fleet's lights-out).
+   * Nothing plays on first sight of a room or with reduced motion.
+   */
+  private lampView(key: string, lit: boolean, outDelay: number): { on: boolean; mode: "on" | "off"; color?: number } {
+    const settled = { on: lit, mode: lit ? "on" as const : "off" as const };
+    const seen = this.lampSeen.get(key);
+    if (!seen) { this.lampSeen.set(key, { lit, at: -Infinity, delay: 0 }); return settled; }
+    if (seen.lit !== lit) Object.assign(seen, { lit, at: reducedMotion() ? -Infinity : this.time, delay: lit ? 0 : outDelay });
+    if (seen.at === -Infinity) return settled;
+    const since = this.time - seen.at - seen.delay;
+    if (since < 0) { this.lampsMoving = true; return { on: !lit, mode: lit ? "off" : "on" }; }
+    if (!lit) return settled;
+    const style = currentStyle();
+    if ((style.id === "nightshift" || style.id === "flightdeck-nightshift") && since < 0.24) {
+      this.lampsMoving = true;
+      return { on: true, mode: Math.floor(since / 0.06) % 2 ? "off" : "on" };
+    }
+    if (style.id === "flightdeck" && since < 0.6) {
+      this.lampsMoving = true;
+      return { on: true, mode: "on", color: [0x7a4a20, 0xc28e52, style.light ?? 0xffd49a][Math.floor(since / 0.2)] };
+    }
+    return settled;
+  }
+
+  private ceilingLight(g: Graphics, r: { x: number; y: number; w: number; h: number }, mode: "on" | "off" | "flicker", color?: number): number[] {
     const tubes: number[] = [];
     const style = currentStyle();
-    const lamp = style.light ?? 0xe8f0f8;
+    const lamp = color ?? style.light ?? 0xe8f0f8;
     const y0 = r.y + 2;
     // Tubes of 20 px with gaps, centred along the ceiling.
     const count = Math.max(1, Math.floor((r.w - 12) / 28));
@@ -976,7 +1008,7 @@ export class World {
       pixelFrame(this.edge, Math.round(b.x), Math.round(b.y), Math.round(b.w), Math.round(b.h), SELECTION, 0.9, 1);
     }
     if (still) return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || [...this.crew.values()].some((crew) => crew.animated);
-    const moving = panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || this.launches.length > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
+    const moving = panning || !!this.fade || this.doorsOpen || this.lampsMoving || this.departing.size > 0 || this.launches.length > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
     // Nothing moving: the fleet still breathes at a low rate (deck lights and fins, sleepers' z's,
     // glances at consoles, twinkling stars) instead of freezing until the next input.
@@ -1080,6 +1112,14 @@ export class World {
     // Unlit rooms are multiplied by the theme's own dim tone, not veiled in black.
     const shade = this.shade.clear();
     const dim = shadeColor(currentStyle().colors.F ?? 0x404040);
+    // The whole fleet standing down (the last crew on duty settles): lights go out station by
+    // station, bow to stern, and the sky deepens while it sleeps.
+    const awake = onDuty.size > 0;
+    if (this.wasAwake && !awake && !reducedMotion()) this.lightsOutAt = this.time;
+    this.wasAwake = awake;
+    this.backdrop?.setAsleep(!awake);
+    const sternward = [...this.layout.stations.values()].sort((a, b) => a.interior.x - b.interior.x).map((s) => s.key);
+    this.lampsMoving = false;
     const offline = new Set([...this.layout.stations.values()]
       .filter((s) => s.members.length && s.members.every((m) => state.envs[m.envId]?.connection !== "live")).map((s) => s.key));
     for (const s of this.layout.stations.values()) {
@@ -1099,17 +1139,25 @@ export class World {
         const r = room.rect;
         // A brownout on a station whose machines have all dropped off: its lamps catch now and then.
         const flicker = !lit && kind === "bridge" && offline.has(s.key) && !reducedMotion() && hash(`${s.key}:${frame}`) > 0.86;
-        lamps[kind] = lit ? "on" : flicker ? "flicker" : "off";
+        // What the room's lamps look like now: its real state, through the world's switch-on and
+        // the fleet's lights-out (a bridge going dark in it waits its turn, 150 ms a station).
+        const outDelay = kind === "bridge" && this.lightsOutAt === this.time ? sternward.indexOf(s.key) * 0.15 : 0;
+        const view = this.lampView(`${s.key}:${kind}`, lit, outDelay);
+        lamps[kind] = view.on ? view.mode : flicker ? "flicker" : "off";
         // Lit rooms: the tubes and their short bloom. (Cones falling from them dithered over the
         // console screens below, whose few pixels are the state cue: the light stays up top.)
-        this.ceilingLight(g, r, lamps[kind]);
-        if (!lit) { shade.rect(r.x, r.y, r.w, r.h).fill(dim); continue; }
+        this.ceilingLight(g, r, lamps[kind], view.color);
+        if (!view.on) { shade.rect(r.x, r.y, r.w, r.h).fill(dim); continue; }
         if (kind === "bridge") continue;
         // Screen light spilling from the system's fixture into its room, dithered.
         const glow = kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.working;
         lightSpill(g, systemFixtureX(r), r.y + r.h - 30, glow);
       }
       this.litWindows(g, s, (x) => { const kind = roomUnder(s, x); return (kind && lamps[kind]) || "off"; });
+      // Pastel's dome glows lamp-pink from inside while the bridge under it is lit.
+      if (currentStyle().hull === "soft" && lamps.bridge === "on") {
+        for (const glass of domeGlass(s)) g.rect(glass.x, glass.y, glass.w, glass.h).fill({ color: currentStyle().light ?? 0xffdcec, alpha: 0.45 });
+      }
       // System screens show use, like the bridge consoles: lit and flickering while crew work
       // there, violet on comms when only background tasks are being watched, dark otherwise.
       for (const [kind, fixture] of this.stations.get(s.key)?.systems ?? []) {
