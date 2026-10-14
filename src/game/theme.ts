@@ -13,10 +13,10 @@ export const STATUS: Record<UnitState, number> = {
   monitoring: 0xb48cff,
   error: 0xff7a3d,
   done: 0x5dff9a,
-  idle: 0x9aa7bd,
-  // Lifted from #4a5266 so "asleep" reads on the dark glyph tiles (4.8:1, not 2.5:1), with pill
-  // text still at 4.5:1.
-  sleeping: 0x747e98,
+  // Idle and asleep are told apart by hue, not only lightness: idle a cool grey, asleep a dusk
+  // violet (well clear of monitoring's), both clear of muted text and readable on dark panels.
+  idle: 0xb3bdcc,
+  sleeping: 0x8b85b3,
 };
 
 /** Selection on the map: the picked crew member and the box-select, in a colour no status uses. */

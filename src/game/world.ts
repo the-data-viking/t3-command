@@ -37,7 +37,7 @@ import { HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
 import { BROKEN_LINK, FLEET_VIEW_ZOOM, fitLabel, linkPath, pixelStamp, SIGNAL_GREY, UNPLUGGED, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
-import { nacelles, StationSprite } from "./station-sprite";
+import { hullWindows, nacelles, pixelDisc, roomUnder, StationSprite } from "./station-sprite";
 import { EnvironmentNodeSprite } from "./engineering-node";
 
 // ---- World -----------------------------------------------------------------------------
@@ -831,6 +831,27 @@ export class World {
     }
   }
 
+  /**
+   * Viewports lit from inside: each window on the hull's top band shows the lamp of the room under
+   * it, so from outside you can tell which rooms are in use. Lamp colour, never a status colour.
+   */
+  private litWindows(g: Graphics, s: StationLayout, lampAt: (x: number) => "on" | "flicker" | "off"): void {
+    const style = currentStyle(), lamp = style.light ?? 0xe8f0f8;
+    for (const w of hullWindows(s, style.hull ?? "industrial")) {
+      const mode = lampAt(w.x + w.w / 2);
+      if (mode === "off") continue;
+      const alpha = mode === "flicker" ? 0.5 : 1;
+      if (w.round) pixelDisc(g, w.x + 4, w.y + 4, 4, lamp, alpha);
+      else g.rect(w.x, w.y, w.w, w.h).fill({ color: lamp, alpha });
+      if (mode !== "on" || !this.glowing) continue;
+      // A faint dithered halo on the plating just outside the frame: every other art pixel.
+      for (let x = w.x - 4; x < w.x + w.w + 4; x += 4) {
+        g.rect(x, w.y - 4 - (w.round ? 2 : 0), 2, 2).fill({ color: lamp, alpha: 0.22 });
+        g.rect(x + 2, w.y + w.h + 2 + (w.round ? 2 : 0), 2, 2).fill({ color: lamp, alpha: 0.22 });
+      }
+    }
+  }
+
   /** Kestrel's nacelle exhaust: a dithered glow trailing from each nozzle in the lamp colour, flickering a little. */
   private exhaust(g: Graphics, s: StationLayout, strength: number, frame: number): void {
     const lamp = currentStyle().light ?? 0xffffff;
@@ -1064,6 +1085,7 @@ export class World {
         if (burn) this.exhaust(g, s, burn, frame);
       }
       const bridge = s.rooms.bridge?.rect;
+      const lamps: Partial<Record<RoomKind, "on" | "flicker" | "off">> = {};
       // Lighting follows observed use: the bridge while crew are on duty, a system room while
       // someone works there. Everything else (idle rooms, quarters, archive) sits in shadow.
       for (const [kind, room] of Object.entries(s.rooms) as Array<[RoomKind, StationLayout["rooms"][RoomKind]]>) {
@@ -1072,7 +1094,8 @@ export class World {
         const r = room.rect;
         // A brownout on a station whose machines have all dropped off: its lamps catch now and then.
         const flicker = !lit && kind === "bridge" && offline.has(s.key) && !reducedMotion() && hash(`${s.key}:${frame}`) > 0.86;
-        const tubes = this.ceilingLight(g, r, lit ? "on" : flicker ? "flicker" : "off");
+        lamps[kind] = lit ? "on" : flicker ? "flicker" : "off";
+        const tubes = this.ceilingLight(g, r, lamps[kind]);
         // Lit rooms: a dithered cone of lamp light falling from every tube.
         if (lit && this.glowing) for (const x of tubes) this.glow.add("cone", currentStyle().light ?? 0xe8f0f8, x, r.y + 4);
         if (!lit) { shade.rect(r.x, r.y, r.w, r.h).fill(dim); continue; }
@@ -1081,6 +1104,7 @@ export class World {
         const glow = kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.working;
         lightSpill(g, systemFixtureX(r), r.y + r.h - 30, glow);
       }
+      this.litWindows(g, s, (x) => { const kind = roomUnder(s, x); return (kind && lamps[kind]) || "off"; });
       // System screens show use, like the bridge consoles: lit and flickering while crew work
       // there, violet on comms when only background tasks are being watched, dark otherwise.
       for (const [kind, fixture] of this.stations.get(s.key)?.systems ?? []) {
@@ -1291,6 +1315,17 @@ export class World {
             if (((x - r.x) / cell + row) % (row + 1) !== 0) continue;
             g.rect(x, y, cell, cell).fill({ color: lamp, alpha: 0.32 - row * 0.05 });
           }
+        }
+      }
+      // Lit windows from orbit: every viewport on the hull's top band, a lamp-coloured light while the
+      // room under it is lit and dark otherwise, at least two screen-cells wide so a row of them
+      // reads as the station's signature from far away.
+      if (!highContrast) {
+        for (const w of hullWindows(s, currentStyle().hull ?? "industrial")) {
+          const kind = roomUnder(s, w.x + w.w / 2);
+          const lit = !!kind && (byRoom.get(kind) ?? []).some((c) => !c.offline);
+          const ww = Math.max(w.w, 2 * cell);
+          g.rect(Math.round(w.x + w.w / 2 - ww / 2), Math.round(w.y + w.h / 2 - cell / 2), ww, cell).fill(lit ? lamp : c.k);
         }
       }
       // Each glyph sits in the room its crew member is in; a station whose rooms are too small

@@ -95,7 +95,7 @@ export function HelpOverlay() {
                 <div key={mark}><dt><LegendMark color={color} mark={mark} />{mark}</dt><dd>{what}</dd></div>
               ))}
             </dl>
-            <p className="muted small">Zoomed far out, the map becomes the fleet view: each station a block of its rooms (lit while occupied), each awake crew member and Hermes operator one status glyph in the room they're in, most urgent first.</p>
+            <p className="muted small">Zoomed far out, the map becomes the fleet view: each station a block of its rooms (lit while occupied, with a row of hull windows lit over them), each awake crew member and Hermes operator one status glyph in the room they're in, most urgent first.</p>
             <p className="muted small">The map only shows what T3 reports: consoles light for real turns, crew walk for real tool calls.</p>
           </section>
         </div>

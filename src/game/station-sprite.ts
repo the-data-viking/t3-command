@@ -4,7 +4,7 @@ import { Container, Graphics, Rectangle, Sprite, TilingSprite, type FederatedPoi
 import { PixelText } from "./pixel-text";
 import * as A from "../art/sprites";
 import { setSelection, useGame, type GameState } from "../store";
-import { QUARTERS_SHOWN, stationDrawKey, systemFixtureX, TILE, type StationLayout, type SystemRoom } from "./layout";
+import { QUARTERS_SHOWN, stationDrawKey, systemFixtureX, TILE, type Room, type RoomKind, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { currentStyle, PX, tex } from "./textures";
@@ -231,16 +231,12 @@ export class StationSprite {
     if (style.hull === "soft") return this.drawSoftExterior(g, s, h, hullTop, i);
     const c = style.colors;
     const seed = hash(s.key);
-    const band = i.y - hullTop;
-    // Viewports: small dark windows with a lit pixel, in the hull band above the interior.
-    if (band >= 14) {
-      const spacing = seed > 0.5 ? 40 : 56;
-      const wy = hullTop + Math.round((band - 6) / 2 / 2) * 2;
-      for (let x = i.x + 72 + Math.round(seed * 8) * 2; x < i.x + i.w - 72; x += spacing) {
-        g.rect(x, wy, 10, 6).fill(c.k);
-        g.rect(x + 2, wy + 2, 6, 2).fill(c.b);
-        if (hash(`${s.key}${x}`) > 0.45) g.rect(x + 2, wy + 2, 2, 2).fill(c.h);
-      }
+    // Viewports: small dark windows with a glint, in the hull band above the interior. The world
+    // lights them from inside while the room under them is lit.
+    for (const w of hullWindows(s, "industrial")) {
+      g.rect(w.x - 2, w.y - 2, w.w + 4, w.h + 4).fill(c.k);
+      g.rect(w.x, w.y, w.w, w.h).fill(c.b);
+      if (hash(`${s.key}${w.x - 2}`) > 0.45) g.rect(w.x, w.y, 2, 2).fill(c.h);
     }
     // Engine block on the side away from the network port, with three exhaust vents.
     const right = s.port.x < h.x + h.w / 2;
@@ -272,14 +268,10 @@ export class StationSprite {
    */
   private drawFtlExterior(g: Graphics, s: StationLayout, h: { x: number; y: number; w: number; h: number }, hullTop: number, i: { x: number; y: number; w: number; h: number }): void {
     const style = currentStyle(), c = style.colors;
-    const band = i.y - hullTop;
-    if (band >= 14) {
-      const wy = hullTop + Math.round((band - 6) / 2 / 2) * 2;
-      for (let x = i.x + 64; x + 28 < i.x + i.w - 64; x += 40) {
-        g.rect(x, wy, 28, 6).fill(c.k);
-        g.rect(x + 2, wy + 2, 24, 2).fill(c.b);
-        g.rect(x + 2, wy + 2, 6, 2).fill(c.h);
-      }
+    for (const w of hullWindows(s, "ftl")) {
+      g.rect(w.x - 2, w.y - 2, w.w + 4, w.h + 4).fill(c.k);
+      g.rect(w.x, w.y, w.w, w.h).fill(c.b);
+      g.rect(w.x, w.y, 6, 2).fill(c.h);
     }
     // Dorsal spine: a stepped plate with ribs along it.
     const sx = i.x + Math.round((i.w * 0.46) / 4) * 4, sw = Math.round((i.w * 0.36) / 4) * 4;
@@ -309,14 +301,11 @@ export class StationSprite {
   private drawSoftExterior(g: Graphics, s: StationLayout, h: { x: number; y: number; w: number; h: number }, hullTop: number, i: { x: number; y: number; w: number; h: number }): void {
     const c = currentStyle().colors;
     const seed = hash(s.key);
-    const band = i.y - hullTop;
-    if (band >= 14) {
-      const cy = hullTop + Math.round(band / 2 / 2) * 2;
-      for (let x = i.x + 72 + Math.round(seed * 4) * 2; x < i.x + i.w - 72; x += 36) {
-        pixelDisc(g, x, cy, 6, c.k);
-        pixelDisc(g, x, cy, 4, c.b);
-        g.rect(x - 2, cy - 2, 2, 2).fill(c.w);
-      }
+    for (const w of hullWindows(s, "soft")) {
+      const x = w.x + 4, cy = w.y + 4;
+      pixelDisc(g, x, cy, 6, c.k);
+      pixelDisc(g, x, cy, 4, c.b);
+      g.rect(x - 2, cy - 2, 2, 2).fill(c.w);
     }
     // Belly stripe in the deck's warm tone, between the corners.
     g.rect(h.x + 44, s.hull[11] - 12, h.w - 88, 4).fill(c.q);
@@ -455,10 +444,40 @@ function roundedPlate(g: Graphics, x: number, y: number, w: number, h: number, r
 }
 
 /** A filled pixel disc of radius `r`, in 2-px rows. */
-function pixelDisc(g: Graphics, cx: number, cy: number, r: number, color: number): void {
+/** A viewport's glass on a station's top hull band (world px); round ones are portholes of radius 4. */
+export interface HullWindow { x: number; y: number; w: number; h: number; round: boolean }
+
+/**
+ * Where each hull style puts its viewports along the band above the interior: the hull art draws
+ * them dark, and the world lights them from inside while the room under them is lit.
+ */
+export function hullWindows(s: StationLayout, hull: "industrial" | "ftl" | "soft"): HullWindow[] {
+  const i = s.interior, hullTop = s.hull[1], band = i.y - hullTop;
+  if (band < 14) return [];
+  const out: HullWindow[] = [];
+  if (hull === "ftl") {
+    const wy = hullTop + Math.round((band - 6) / 2 / 2) * 2;
+    for (let x = i.x + 64; x + 28 < i.x + i.w - 64; x += 40) out.push({ x: x + 2, y: wy + 2, w: 24, h: 2, round: false });
+  } else if (hull === "soft") {
+    const seed = hash(s.key), cy = hullTop + Math.round(band / 2 / 2) * 2;
+    for (let x = i.x + 72 + Math.round(seed * 4) * 2; x < i.x + i.w - 72; x += 36) out.push({ x: x - 4, y: cy - 4, w: 8, h: 8, round: true });
+  } else {
+    const seed = hash(s.key), spacing = seed > 0.5 ? 40 : 56;
+    const wy = hullTop + Math.round((band - 6) / 2 / 2) * 2;
+    for (let x = i.x + 72 + Math.round(seed * 8) * 2; x < i.x + i.w - 72; x += spacing) out.push({ x: x + 2, y: wy + 2, w: 6, h: 2, round: false });
+  }
+  return out;
+}
+
+/** The room along the top of the interior under a point on the hull band: whose lamp its window shows. */
+export function roomUnder(s: StationLayout, x: number): RoomKind | undefined {
+  return (Object.values(s.rooms) as Room[]).find((r) => r.rect.y === s.interior.y && x >= r.rect.x && x < r.rect.x + r.rect.w)?.kind;
+}
+
+export function pixelDisc(g: Graphics, cx: number, cy: number, r: number, color: number, alpha = 1): void {
   for (let y = -r; y < r; y += 2) {
     const half = Math.round(Math.sqrt(Math.max(0, r * r - (y + 1) ** 2)) / 2) * 2;
-    if (half > 0) g.rect(cx - half, cy + y, half * 2, 2).fill(color);
+    if (half > 0) g.rect(cx - half, cy + y, half * 2, 2).fill({ color, alpha });
   }
 }
 

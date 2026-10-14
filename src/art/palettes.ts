@@ -75,7 +75,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     light: 0xffd49a,
     memoryInk: 0x19212a,
     hull: "ftl",
-    mapInk: { text: 0xf1e6d0, muted: 0xb9a88c },
+    mapInk: { text: 0xf1e6d0, muted: 0xa39e95 },
     blurb: "FTL's warm hull over an amber desert world: ivory plating, walnut decks, a ringed giant overhead.",
     // Warm space: a brown-black void, so the ivory hull reads warm against it.
     space: 0x110d0b, wall: 0x1f1813,
@@ -83,8 +83,11 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     hud: {
       frame: 0xc28e52, ink: 0x1a120b, surface: 0x2a2018, deep: 0x18120d, slot: 0x211912,
       edge: 0x4a3a2a, edgeStrong: 0x6a5238, control: 0x3a2c1f, meter: 0x4a3a2a, bright: 0xfbf0d8,
-      text: 0xf1e6d0, muted: 0xb9a88c,
+      // Muted is a warm grey, not tan, so tan means Hermes.
+      text: 0xf1e6d0, muted: 0xa39e95,
       chrome: { corner: "bevel", radius: 6, width: 3 },
+      // The shared approval red and asleep violet are lifted a touch to read at 4.5:1 on the leather buttons.
+      tokens: { alert: 0xff6470, sleeping: 0x9d97c4 },
     },
     colors: {
       k: 0x19212a, w: 0xf6eedc, W: 0xd7d3c4, s: 0x919c9b,
@@ -92,7 +95,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       // Walnut decks: dark enough that status lights and white suits read on them (the old pale
       // decks held statuses at 1–2:1 and made Kestrel look like Pastel).
       m: 0xb99a75, M: 0x756c61, f: 0x3b342c, F: 0x2f2a24,
-      p: 0x313c41, P: 0x283135, q: 0x4a3d32, Q: 0x3b3128,
+      // A warm bridge deck, so the warm world isn't cool underfoot.
+      p: 0x3a3530, P: 0x2e2a25, q: 0x4a3d32, Q: 0x3b3128,
       a: 0xf0a33a, r: 0xff4655, n: 0x5dff9a, c: 0x59e1ff, b: 0x527589,
     },
   },
@@ -114,10 +118,11 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       plating: { surface: 0x112032, slot: 0x0e1a2a, edge: 0x2a3d52, edgeStrong: 0x3a5068, control: 0x1a2b3f },
       // Status on pale slate, each at least 4.5:1 on every panel and well apart from each other.
       tokens: {
-        // Question olive-gold, well apart from caution amber (gauge-high); idle apart from asleep.
-        alert: 0xb3243a, question: 0x6b5f00, working: 0x0b6589, monitoring: 0x6a43b8, error: 0x9a3e0b,
-        done: 0x166b3d, idle: 0x3e4a59, sleeping: 0x5a6272,
-        "gauge-ok": 0x166b3d, "gauge-high": 0x855300, "gauge-critical": 0x9c2486, hermes: 0x6e5a48,
+        // Question olive, well apart from caution amber (gauge-high) and failed orange; idle a slate
+        // ink and asleep a dusk violet, apart from each other and from muted text.
+        alert: 0xb3243a, question: 0x5f6400, working: 0x0b6589, monitoring: 0x6a43b8, error: 0xa8410a,
+        done: 0x166b3d, idle: 0x2f3b4a, sleeping: 0x5d5584,
+        "gauge-ok": 0x166b3d, "gauge-high": 0x8c5200, "gauge-critical": 0x9c2486, hermes: 0x6e5a48,
       },
     },
     colors: {
@@ -140,7 +145,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     // Cool gray FTL frames around near-black wells.
     hud: {
       frame: 0xaeb7be, ink: 0x0d1114, surface: 0x161b20, deep: 0x080b10, slot: 0x11161a,
-      edge: 0x2c343b, edgeStrong: 0x3a444d, control: 0x20272d, meter: 0x2a3036, bright: 0xeef2f5,
+      edge: 0x2c343b, edgeStrong: 0x3a444d, control: 0x1b2126, meter: 0x2a3036, bright: 0xeef2f5,
       chrome: { corner: "bevel", radius: 8, width: 3 },
     },
     colors: {
@@ -189,7 +194,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       // Status on cream, each at least 4.5:1 on every panel; a plum accent instead of a muddied amber.
       tokens: {
         alert: 0xb8263a, question: 0x6e6000, working: 0x0d6890, monitoring: 0x7046c0, error: 0xa0420c,
-        done: 0x1a7240, idle: 0x5f6675, sleeping: 0x635a74,
+        // Muted text is plum here, so asleep goes slate-blue and idle a near-neutral charcoal.
+        done: 0x1a7240, idle: 0x3f434d, sleeping: 0x4a6280,
         "gauge-ok": 0x1a7240, "gauge-high": 0x8a5600, "gauge-critical": 0xa8288f,
         hermes: 0x6e5a48,
       },
@@ -233,8 +239,9 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       edge: 0x8a8a8a, edgeStrong: 0xd0d0d0, control: 0x1a1a1a, meter: 0x4a4a4a, bright: 0xffffff,
       text: 0xffffff, muted: 0xc8ced6,
       chrome: { corner: "square", radius: 0, width: 2 },
-      // "Asleep" lifted to 5.7:1 on black (the shared slate is 2.7:1); a grey RAM line beside white CPU.
-      tokens: { sleeping: 0x7d8597, "chart-ram": 0x8a8a8a },
+      // Idle a step darker than muted text so the two never match; asleep a brighter violet (7:1 on
+      // buttons); a grey RAM line beside white CPU.
+      tokens: { idle: 0x9aa7bd, sleeping: 0xa39ee0, "chart-ram": 0x8a8a8a },
     },
     colors: {
       k: 0x000000, w: 0xffffff, W: 0xe8e8e8, s: 0xa8a8a8,
