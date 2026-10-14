@@ -144,7 +144,7 @@ export function flightCrew(silhouette: Silhouette, tier: Tier, legs: Legs = 'idl
       : panel(16, 22, [[1, 10, 4, 4, 'k'], [2, 11, 2, 2, 'T'], [11, 10, 4, 4, 'k'], [12, 11, 2, 2, 't']]);
   const pack = tier === 'heavy' ? S.PACK_HEAVY : tier === 'light' ? S.PACK_LIGHT : S.PACK_STANDARD;
   const feet = legs === 'walkA' ? S.LEGS_WALK_A : legs === 'walkB' ? S.LEGS_WALK_B : legs === 'walkC' ? S.LEGS_WALK_C : legs === 'sit' ? S.LEGS_SIT : S.LEGS_IDLE;
-  const hands = arms === 'typeA' ? S.ARMS_TYPE_A : arms === 'typeB' ? S.ARMS_TYPE_B : S.ARMS_IDLE;
+  const hands = arms === 'typeA' ? S.ARMS_TYPE_A : arms === 'typeB' ? S.ARMS_TYPE_B : arms === 'swingA' ? S.ARMS_SWING_A : arms === 'swingB' ? S.ARMS_SWING_B : S.ARMS_IDLE;
   return compose(pack, feet, body, shoulders, head, hands, ...(tier === 'reviewer' ? [S.SCANNER] : []));
 }
 
@@ -160,9 +160,13 @@ function flightCrewBehind(silhouette: Silhouette, tier: Tier, arms: Arms, head: 
   const shift = (boxes: PixelBox[]): PixelBox[] => boxes.map(([x, y, w, h, c]) => [x + dx, y + dy, w, h, c]);
   const helmet = silhouette === 'round'
     ? panel(16, 22, shift([[6, 2, 4, 1, 'k'], [4, 3, 8, 1, 'k'], [3, 4, 10, 5, 'k'], [4, 9, 8, 1, 'k'],
-      [5, 3, 6, 1, 'W'], [4, 4, 8, 5, 'W'], [5, 3, 3, 1, 'w'], [4, 4, 1, 3, 'w'], [11, 4, 1, 5, 's'], [8, 8, 3, 1, 's']]))
+      [5, 3, 6, 1, 'W'], [4, 4, 8, 5, 'W'], [5, 3, 3, 1, 'w'], [4, 4, 1, 3, 'w'], [11, 4, 1, 5, 's'], [8, 8, 3, 1, 's'],
+      // The wide visor wraps round the right side: a sliver of glass shows from behind.
+      [12, 5, 1, 2, 'V']]))
     : panel(16, 22, shift([[7, 1, 3, 2, 'k'], [8, 1, 1, 1, 'T'], [3, 3, 10, 7, 'k'], [4, 4, 8, 5, 'W'], [4, 4, 8, 1, 'w'],
-      [4, 5, 1, 3, 'w'], [11, 4, 1, 5, 's'], [9, 8, 2, 1, 's']]));
+      [4, 5, 1, 3, 'w'], [11, 4, 1, 5, 's'], [9, 8, 2, 1, 's'],
+      // The visor slit's end, a single cell on the right edge.
+      [12, 6, 1, 1, 'V']]));
   // Tiers read apart by mass from behind: light crew have a narrow back and a slim pack; heavy
   // crew a deep pack that reaches the chair; standard and reviewer sit between.
   const torso: PixelBox[] = tier === 'light'
@@ -182,8 +186,9 @@ function flightCrewBehind(silhouette: Silhouette, tier: Tier, arms: Arms, head: 
     // Typing: one elbow up while the other is down, swapping each beat.
     ? [[0, arms === 'typeB' ? 11 : 13, 2, 2, 'k'], [1, arms === 'typeB' ? 11 : 13, 1, 1, 'W'], [14, arms === 'typeA' ? 11 : 13, 2, 2, 'k'], [14, arms === 'typeA' ? 11 : 13, 1, 1, 'W']]
     : arms === 'raise' || arms === 'raiseB'
-      // A hand up beside the helmet, waving a pixel higher every other beat.
-      ? [[0, 13, 2, 2, 'k'], [13, arms === 'raiseB' ? 2 : 3, 3, 10, 'k'], [14, arms === 'raiseB' ? 3 : 4, 1, 8, 'W'], [14, arms === 'raiseB' ? 2 : 3, 1, 1, 'w']]
+      // A hand up beside the helmet, waving a pixel higher every other beat: a lit glove with a
+      // thumb out, a dark cuff, then the sleeve down to the shoulder.
+      ? ((y: number): PixelBox[] => [[0, 13, 2, 2, 'k'], [13, y, 3, 11 - y + 2, 'k'], [14, y, 1, 2, 'w'], [13, y + 1, 1, 1, 'w'], [14, y + 3, 1, 12 - y - 3, 'W']])(arms === 'raiseB' ? 2 : 3)
       : arms === 'relax'
         // Leaning back, hands behind the head: elbows out level with the helmet.
         ? [[0, 6, 4, 2, 'k'], [1, 6, 2, 1, 'W'], [12, 6, 4, 2, 'k'], [13, 6, 2, 1, 'W']]

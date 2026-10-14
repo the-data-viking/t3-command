@@ -112,6 +112,21 @@ export const ARMS_IDLE = rows(13, [
   "............kk..",
 ]);
 
+/** Walking: the arm swings forward with one stride and back with the other (not held still). */
+export const ARMS_SWING_A = rows(13, [
+  "............kwk.",
+  "............kWk.",
+  ".............ksk",
+  "..............k.",
+]);
+
+export const ARMS_SWING_B = rows(13, [
+  "............kwk.",
+  "...........kWk..",
+  "..........ksk...",
+  "..........kk....",
+]);
+
 export const ARMS_TYPE_A = rows(13, [
   "............kWWk",
   "............kkwk",
@@ -366,6 +381,8 @@ export const ALL: Record<string, Grid> = {
   LEGS_WALK_B,
   LEGS_WALK_C,
   ARMS_IDLE,
+  ARMS_SWING_A,
+  ARMS_SWING_B,
   ARMS_TYPE_A,
   ARMS_TYPE_B,
   CONSOLE,
