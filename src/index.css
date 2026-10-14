@@ -501,7 +501,7 @@ code {
 .btn[aria-pressed="true"] { background: var(--frame); border-color: var(--frame); color: var(--ink); }
 
 /* A disabled primary is an outline in waiting, not a dimmed slab. */
-.btn.primary:disabled { opacity: 1; background: transparent; border-style: dashed; border-color: var(--edge-strong); color: var(--muted); }
+.btn.primary:disabled, :root[data-art] .btn.primary:disabled { opacity: 1; background: transparent; border-style: dashed; border-color: var(--edge-strong); color: var(--muted); }
 
 .btn.approve {
   border-color: var(--done);
