@@ -60,6 +60,20 @@ export function shouldPush(rules: PushRules, kind: CommsKind | undefined, at: Da
   return !inQuietHours(rules, at) || rules.quiet.allow.includes(k);
 }
 
+/** One device's own filter on top of the fleet's rules: only these kinds (none mutes it), or all. */
+export type DeviceKinds = PushKind[] | null;
+
+export function sanitizeDeviceKinds(input: unknown): DeviceKinds | undefined {
+  if (input === null) return null;
+  if (!Array.isArray(input)) return undefined;
+  return PUSH_KINDS.filter((k) => input.includes(k));
+}
+
+/** Does a device's own filter let this kind through? (The fleet's rules are checked first.) */
+export function deviceWants(kinds: DeviceKinds | undefined, kind: CommsKind | undefined): boolean {
+  return !kinds || (!!kind && (kinds as string[]).includes(kind));
+}
+
 /** Validate rules from a client: unknown fields dropped, defaults filled in. */
 export function sanitizeRules(input: unknown): PushRules | undefined {
   if (!input || typeof input !== "object") return undefined;
