@@ -2,7 +2,7 @@ import type { Activity } from "../t3/types";
 
 export function ActivityView({ activity }: { activity: Activity }) {
   const failed = activity.tone === "error" || activity.payload?.status === "failed";
-  const icon = failed ? "✖" : activity.tone === "approval" ? "⚑" : activity.kind.startsWith("task.") ? "◆" : "⚒";
+  const icon = failed ? "✖" : activity.tone === "approval" ? "▲" : activity.kind.startsWith("task.") ? "▪" : "⚒";
   return (
     <div className={`activity tone-${failed ? "error" : activity.tone}`} title={activity.kind}>
       <span className="activity-icon">{icon}</span> {activity.summary}

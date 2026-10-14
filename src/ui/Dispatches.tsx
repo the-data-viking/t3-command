@@ -1,5 +1,5 @@
-// Dispatch receipts in the HUD: a top-bar chip while a squad order is still playing out, and the
-// mission board's list of every order being followed, one row per crew member it went to.
+// Order and mission receipts in the HUD: a top-bar chip while one is still playing out, and the
+// work board's list of every order being followed, one row per crew member it went to.
 
 import { useMemo } from "react";
 import { worldRef } from "../game/world";
@@ -30,8 +30,8 @@ export function DispatchChip() {
   const { dispatch, progress } = open[0];
   const title = open.map((d) => `"${dispatchTitle(d.dispatch, 50)}": ${summary(d.progress)}`).join("\n");
   return (
-    <button className="resource dispatch-chip" title={`${title}\nReceipts on the mission board (B)`} onClick={() => useGame.setState({ showBoard: true })}>
-      <span className="res-key">{open.length > 1 ? `DISPATCHES ${open.length}` : dispatch.mission ? "MISSION" : "DISPATCH"}</span>
+    <button className="resource dispatch-chip" title={`${title}\nOn the work board (B)`} onClick={() => useGame.setState({ showBoard: true })}>
+      <span className="res-key">{open.length > 1 ? `ORDERS ${open.length}` : dispatch.mission ? "MISSION" : "ORDER"}</span>
       <span className={`res-val${progress.needsYou ? " st-alert" : progress.trouble ? " st-error" : ""}`} aria-label={`${dispatchTitle(dispatch)}: ${summary(progress)}`}>{progress.reported}/{progress.total}</span>
     </button>
   );
@@ -56,7 +56,7 @@ export function DispatchList({ onGo }: { onGo: () => void }) {
   };
   return (
     <section className="dispatches" aria-label="Missions and squad orders">
-      <h3 className="board-col-head">{list.some((d) => d.dispatch.mission) ? "Missions and squad orders" : "Squad orders"} <span className="board-count">{list.length}</span></h3>
+      <h3 className="board-col-head">{list.some((d) => d.dispatch.mission) ? "Missions and orders" : "Orders to several crew"} <span className="board-count">{list.length}</span></h3>
       {list.map(({ dispatch, progress }) => {
         const finished = progress.done === progress.total;
         return (
@@ -68,7 +68,7 @@ export function DispatchList({ onGo }: { onGo: () => void }) {
                 <button className="btn small dispatch-read" title="Every reply to this order, side by side"
                   onClick={(e) => { e.preventDefault(); useGame.setState({ replies: dispatch.id }); }}>Read replies{progress.reported ? ` (${progress.reported})` : ""}</button>
               )}
-              <button className="icon-btn small" aria-label="Stop following this order" title="Stop following (the order itself stands)"
+              <button className="icon-btn small" aria-label={dispatch.mission ? "Close mission" : "Close order"} title={`${dispatch.mission ? "Close mission" : "Close order"}: stop following it (nothing is sent)`}
                 onClick={(e) => { e.preventDefault(); void closeDispatch(dispatch.id).catch((err) => logError("Couldn't close the dispatch", err)); }}>✕</button>
             </summary>
             {dispatch.mission && <p className="dispatch-goal small"><strong>Goal:</strong> {dispatch.mission.goal}</p>}

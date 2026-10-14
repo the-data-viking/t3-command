@@ -66,9 +66,9 @@ export function progressOf(d: Dispatch, envs: Record<string, EnvWorld>): Dispatc
   };
 }
 
-/** The order's first line (a mission's name), short enough for a row. */
+/** The order's first line (a mission's name, after ⚑: ◆ means a question), short enough for a row. */
 export function dispatchTitle(d: Dispatch, max = 80): string {
-  const line = d.mission ? `◆ ${d.mission.name}` : d.text.split("\n").find((l) => l.trim())?.trim() ?? "";
+  const line = d.mission ? `⚑ ${d.mission.name}` : d.text.split("\n").find((l) => l.trim())?.trim() ?? "";
   return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 

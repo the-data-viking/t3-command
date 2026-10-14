@@ -155,8 +155,7 @@ function Replies({ id }: { id: string }) {
           {asking
             ? <button className="btn primary" disabled={busy || !text.trim() || !reachable.length} onClick={() => void followUp()}>{busy ? "…" : `Send to ${reachable.length}`}</button>
             : <button className="btn" disabled={!reachable.length} title="Order the same crew again; busy ones get it after their turn" onClick={() => setAsking(true)}>Follow up…</button>}
-          <button className="btn" title="Mark the replies read and stop following it (nothing is sent)" onClick={finish}>{dispatch.mission ? "Close mission" : "Done"}</button>
-          <button className="btn" onClick={close}>Close</button>
+          <button className="btn" title="Mark the replies read and stop following it (nothing is sent)" onClick={finish}>{dispatch.mission ? "Close mission" : "Close order"}</button>
         </div>
       </div>
     </div>,

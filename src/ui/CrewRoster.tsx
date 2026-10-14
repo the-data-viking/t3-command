@@ -8,12 +8,12 @@ import { squadKeys } from "./squad";
 import { followUpFor, followUpLabel } from "../t3/followups";
 import { requestSummary } from "./queue";
 import { assessRisk } from "./risk";
-import { needsYou as needsYouList } from "./needs-you";
+import { needsYou as needsYouList, needsYouCounts } from "./needs-you";
 import type { PendingRequest } from "../t3/types";
 import { pendingRequests } from "../t3/derive";
 import type { UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
-import { allUnits, fleetCounts, isBackground, reportRead, stateLabel, type UnitRef } from "./util";
+import { allUnits, isBackground, reportRead, stateLabel, type UnitRef } from "./util";
 import { ThreadTiming } from "./ThreadTiming";
 import { PlanLine } from "./TurnTelemetry";
 import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
@@ -71,8 +71,9 @@ export function CrewRoster() {
     const timer = setTimeout(() => setMoved((m) => new Set([...m].filter((k) => !changed.includes(k)))), 1600);
     return () => clearTimeout(timer);
   }, [crew]);
-  const waiting = fleetCounts(envs).waiting;
+  // The same count as the top bar's Needs you: everything waiting on you, reports included.
   const readReports = useGame((s) => s.readReports);
+  const waiting = useMemo(() => needsYouCounts(needsYouList({ envs, details, readReports })).total, [envs, details, readReports]);
   // A report or failure you've seen waits with the crew on duty until its thread's next turn.
   const read = (u: UnitRef) => (u.state === "done" || u.state === "error") && reportRead(readReports, u.envId, u.thread);
   // The same list, in the same order, as the top bar, board and queue (needs-you.ts): approvals
@@ -123,7 +124,7 @@ export function CrewRoster() {
               <RosterAsk state={u.state} request={pendingRequests(detail.thread)[0]} />
             )}
             {(() => { const f = followUpFor(followUps, u.envId, u.thread.id); return f && <span className="crew-queued">↻ {f.total ? followUpLabel(f) : "Follow-up queued"}{followUps.paused ? " (paused)" : ""}</span>; })()}
-            {missions.has(`${u.envId}:${u.thread.id}`) && <span className="crew-queued crew-mission" title="On this mission (mission board, B)">◆ {missions.get(`${u.envId}:${u.thread.id}`)}</span>}
+            {missions.has(`${u.envId}:${u.thread.id}`) && <span className="crew-queued crew-mission" title="On this mission (work board, B)">⚑ {missions.get(`${u.envId}:${u.thread.id}`)}</span>}
             <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
             <PlanLine thread={u.thread} detail={detail?.thread} />
             {ctx !== undefined && (
@@ -143,7 +144,7 @@ export function CrewRoster() {
     <aside className={`crew-roster ftl-frame ${collapsed ? "collapsed" : ""}`}>
       <button className="ftl-tab roster-tab" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
         {/* On the phone dock what needs you comes first, so it's never the part cut off. */}
-        {phone && waiting > 0 && <span className="needs-count hot">{waiting} waiting · </span>}
+        {phone && waiting > 0 && <span className="needs-count hot">{waiting} need{waiting === 1 ? "s" : ""} you · </span>}
         {/* The tab's name in the map's pixel font, like every other frame tab. */}
         <PixelLabel text="Crew" /> <span className={urgent ? "count hot" : "count"}>{crew.length}</span>{operators.length > 0 && <span className="operator-count"> · {operators.length} operators</span>}
         {" "}{phone ? (collapsed ? "▴" : "▾") : collapsed ? "▸" : "▾"}

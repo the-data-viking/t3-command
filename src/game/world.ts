@@ -34,7 +34,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
-import { BROKEN_LINK, FLEET_VIEW_ZOOM, linkPath, pixelStamp, SIGNAL_GREY, UNPLUGGED, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
+import { BROKEN_LINK, FLEET_VIEW_ZOOM, fitLabel, linkPath, pixelStamp, SIGNAL_GREY, UNPLUGGED, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { nacelles, StationSprite } from "./station-sprite";
@@ -1341,21 +1341,48 @@ export class World {
     if (failing) parts.push([`${failing} FAILING`, offline ? ink.muted : STATUS.error]);
     if (parts.length === (offline ? 1 : 0)) parts.push(["QUIET", ink.muted]);
     // Two short lines rather than one long one: what the crew are doing, then the station's PRs.
+    // Each fits the station's width and the room above the next station down (its nameplate):
+    // parts that don't fit are dropped from the end, and lines that don't fit aren't drawn, so a
+    // rollup never runs into a neighbour at any zoom.
     const crewParts = parts.length - (prs.length ? 1 : 0) - (failing ? 1 : 0);
     const texts = this.fleetRollups.get(s.key) ?? [];
-    let x = s.interior.x, y = s.interior.y + s.interior.h + 24;
-    parts.forEach(([value, color], k) => {
-      if (k === crewParts && k > 0) { x = s.interior.x; y += texts[0].height + Math.round(3 / this.zoom); }
-      let text = texts[k];
-      if (!text) { text = new PixelText(10, color); texts[k] = text; this.fleetLabels.addChild(text); }
-      text.visible = true;
-      text.fill = color;
-      const lastOnLine = k === parts.length - 1 || k === crewParts - 1;
-      text.text = lastOnLine ? value : `${value} · `;
-      text.scale.set(crispScale(text.unit, this.zoom));
-      text.position.set(Math.round(x), Math.round(y));
-      x += text.width;
-    });
+    const lines = [parts.slice(0, crewParts), parts.slice(crewParts)].filter((l) => l.length);
+    const top = s.interior.y + s.interior.h + 24;
+    const below = [...this.layout.stations.values()]
+      .filter((o) => o !== s && o.nameplate.y > s.bounds.y + s.bounds.h - 1 && o.bounds.x < s.bounds.x + s.bounds.w && o.bounds.x + o.bounds.w > s.bounds.x)
+      .reduce((m, o) => Math.min(m, o.nameplate.y), Infinity);
+    const right = s.interior.x + s.bounds.w;
+    let k = 0, y = top;
+    const gap = Math.round(3 / this.zoom);
+    for (const line of lines) {
+      let x = s.interior.x, lineH = 0, placed: PixelText | undefined;
+      for (let j = 0; j < line.length; j++, k++) {
+        const [value, color] = line[j];
+        let text = texts[k];
+        if (!text) { text = new PixelText(10, color); texts[k] = text; this.fleetLabels.addChild(text); }
+        text.fill = color;
+        text.text = j === line.length - 1 ? value : `${value} · `;
+        text.scale.set(crispScale(text.unit, this.zoom));
+        lineH = Math.max(lineH, text.height);
+        // No room for this line above the next station: it, and anything after, isn't drawn.
+        if (y + text.height > below - gap) { text.visible = false; continue; }
+        if (x + text.width > right) {
+          if (!placed) { fitLabel(text, value, right - x, this.zoom); }
+          else {
+            // Drop this part and the rest of the line; the last one placed loses its separator.
+            text.visible = false;
+            placed.text = placed.text.replace(/ · $/, "");
+            for (j++, k++; j < line.length; j++, k++) if (texts[k]) texts[k].visible = false;
+            break;
+          }
+        }
+        text.visible = true;
+        text.position.set(Math.round(x), Math.round(y));
+        x += text.width;
+        placed = text;
+      }
+      y += lineH + gap;
+    }
     for (let k = parts.length; k < texts.length; k++) texts[k].visible = false;
     this.fleetRollups.set(s.key, texts);
   }

@@ -389,7 +389,7 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
       <textarea
         ref={input}
         value={text}
-        placeholder={working ? "Unit is busy — new orders will start a new turn when sent…" : phone ? "Give orders…" : "Give orders… (Enter to send, Shift+Enter for newline)"}
+        placeholder={working ? "Busy: an order sent now starts a new turn (After turn ↻ waits)…" : phone ? "Give orders…" : "Give orders… (Enter to send, Shift+Enter for newline)"}
         disabled={disabled || sending}
         rows={3}
         onChange={(e) => { setText(e.target.value); setPick(0); }}
