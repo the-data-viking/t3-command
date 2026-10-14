@@ -88,3 +88,10 @@ test("a device's filter is saved, survives a restart and a re-subscribe, and unk
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("a finished squad order's notification opens its replies", () => {
+  const n = notificationFor({ id: 1, at: 0, tone: "good", kind: "mission", text: "Mission \"Ship it\": 3 of 3 reported.", dispatchId: "d 1" });
+  assert.equal(n.title, "Squad order finished");
+  assert.equal(n.url, "/#replies/d%201");
+  assert.equal(shouldPush(DEFAULT_PUSH_RULES, "mission", new Date()), true, "on by default");
+});

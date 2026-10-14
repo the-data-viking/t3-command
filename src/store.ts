@@ -50,6 +50,8 @@ export interface LogEntry {
   text: string;
   envId?: string;
   threadId?: string;
+  /** A squad order or mission the entry is about. */
+  dispatchId?: string;
 }
 
 export interface GameState {

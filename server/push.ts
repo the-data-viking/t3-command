@@ -24,6 +24,7 @@ const TITLES: Partial<Record<NonNullable<CommsEntry["kind"]>, string>> = {
   "long-turn": "Long-running turn",
   merged: "PR merged",
   done: "Job finished",
+  mission: "Squad order finished",
   offline: "Machine offline",
   disk: "Disk running low",
 };
@@ -34,10 +35,11 @@ export function notificationFor(entry: CommsEntry, machine?: string): { title: s
   const body = machine ? `${entry.text} · ${machine}` : entry.text;
   // Something to decide (approve, answer, triage a failure, read a report) opens straight to its card.
   const decide = entry.kind === "approval" || entry.kind === "question" || entry.kind === "failed" || entry.kind === "done";
-  const url = entry.envId && entry.threadId ? `/#${decide ? "decide" : "crew"}/${encodeURIComponent(entry.envId)}/${encodeURIComponent(entry.threadId)}`
+  const url = entry.dispatchId ? `/#replies/${encodeURIComponent(entry.dispatchId)}`
+    : entry.envId && entry.threadId ? `/#${decide ? "decide" : "crew"}/${encodeURIComponent(entry.envId)}/${encodeURIComponent(entry.threadId)}`
     : entry.envId ? `/#host/${encodeURIComponent(entry.envId)}` : "/";
   // One notification per crew member and kind: a newer one replaces the older on the lock screen.
-  const tag = `${entry.kind ?? "info"}:${entry.envId ?? ""}:${entry.threadId ?? ""}`;
+  const tag = `${entry.kind ?? "info"}:${entry.envId ?? ""}:${entry.threadId ?? ""}${entry.dispatchId ? `:${entry.dispatchId}` : ""}`;
   return { title, body, url, tag };
 }
 

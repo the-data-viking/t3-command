@@ -9,7 +9,7 @@ export type CommsTone = "info" | "good" | "alert" | "bad";
  */
 export type CommsKind =
   | "approval" | "question" | "failed" | "done" | "started" | "monitoring" | "merged" | "quiet"
-  | "offline" | "online" | "disk" | "long-turn" | "update" | "info";
+  | "offline" | "online" | "disk" | "long-turn" | "update" | "mission" | "info";
 
 /** Routine entries a log can fold away: work starting and background watching. */
 export const ROUTINE_KINDS: ReadonlySet<CommsKind> = new Set(["started", "monitoring"]);
@@ -23,6 +23,8 @@ export interface CommsEntry {
   text: string;
   envId?: string;
   threadId?: string;
+  /** A squad order or mission the entry is about (its replies open from it). */
+  dispatchId?: string;
 }
 
 /** Days of comms kept on the server. */

@@ -56,6 +56,7 @@ export function EventLog() {
 export function CommsLog() {
   const all = useGame((s) => s.log);
   const envs = useGame((s) => s.envs);
+  const dispatches = useGame((s) => s.dispatches);
   // Routine lines (work starting, background watching) are folded away unless asked for.
   const [routine, setRoutine] = useState(false);
   const hidden = all.filter((e) => ROUTINE_KINDS.has(entryKind(e))).length;
@@ -74,8 +75,10 @@ export function CommsLog() {
         {log.length === 0 && <li className="muted small">Nothing yet.</li>}
         {[...log].reverse().map((e) => (
           <li key={e.id}>
-            <button className={`comms-log-row tone-${e.tone}`} disabled={!e.envId || !e.threadId || !envs[e.envId]?.threads[e.threadId]}
+            <button className={`comms-log-row tone-${e.tone}`} disabled={e.dispatchId ? !dispatches.some((d) => d.id === e.dispatchId) : !e.envId || !e.threadId || !envs[e.envId]?.threads[e.threadId]}
               onClick={() => {
+                // A finished squad order or mission: its replies.
+                if (e.dispatchId) { sfx.select(); useGame.setState({ replies: e.dispatchId }); return; }
                 if (!e.envId || !e.threadId) return;
                 const sel = { kind: "unit" as const, envId: e.envId, threadId: e.threadId };
                 sfx.select();

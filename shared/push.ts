@@ -3,7 +3,7 @@
 import type { CommsKind } from "./comms.ts";
 
 /** The comms kinds that can be pushed, in the order the settings list them. */
-export const PUSH_KINDS = ["approval", "question", "failed", "quiet", "long-turn", "merged", "done", "offline", "disk"] as const satisfies readonly CommsKind[];
+export const PUSH_KINDS = ["approval", "question", "failed", "quiet", "long-turn", "merged", "done", "mission", "offline", "disk"] as const satisfies readonly CommsKind[];
 export type PushKind = (typeof PUSH_KINDS)[number];
 
 export const PUSH_LABELS: Record<PushKind, string> = {
@@ -14,6 +14,7 @@ export const PUSH_LABELS: Record<PushKind, string> = {
   "long-turn": "A turn is running long",
   merged: "A PR merged",
   done: "A job finished",
+  mission: "A squad order or mission finished",
   offline: "A machine went offline",
   disk: "A disk is running low",
 };
@@ -25,7 +26,7 @@ export interface PushRules {
 }
 
 export const DEFAULT_PUSH_RULES: PushRules = {
-  kinds: { approval: true, question: true, failed: true, quiet: true, "long-turn": true, merged: true, done: false, offline: true, disk: true },
+  kinds: { approval: true, question: true, failed: true, quiet: true, "long-turn": true, merged: true, done: false, mission: true, offline: true, disk: true },
   quiet: { enabled: false, start: "22:00", end: "07:00", timeZone: "UTC", allow: ["approval"] },
 };
 

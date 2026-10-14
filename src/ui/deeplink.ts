@@ -60,15 +60,23 @@ function open(target: Target): void {
 
 export function installDeepLinks(): () => void {
   let pending: Target | undefined;
+  // A finished squad order's notification: its replies, once the server's list has arrived.
+  let replies: string | undefined;
+  const openReplies = () => {
+    if (replies && useGame.getState().dispatches.some((d) => d.id === replies)) { useGame.setState({ replies }); replies = undefined; }
+  };
   const apply = () => {
+    const m = /^#replies\/(.+)$/.exec(location.hash);
+    if (m) { try { replies = decodeURIComponent(m[1]); } catch { replies = undefined; } openReplies(); return; }
     pending = parseHash(location.hash);
     if (pending && ready(pending, useGame.getState())) { open(pending); pending = undefined; }
   };
   apply();
   // Wait for the machine to connect; give up quietly after a minute.
-  const giveUp = setTimeout(() => { pending = undefined; }, 60_000);
+  const giveUp = setTimeout(() => { pending = undefined; replies = undefined; }, 60_000);
   let writing = false;
   const off = useGame.subscribe((s, prev) => {
+    if (replies && s.dispatches !== prev.dispatches) openReplies();
     if (pending && s.envs !== prev.envs && ready(pending, s)) { const t = pending; pending = undefined; open(t); }
     if (s.selection === prev.selection && s.hostPanel === prev.hostPanel) return;
     const hash = formatHash(s.selection, s.hostPanel);
