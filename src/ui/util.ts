@@ -84,8 +84,9 @@ export function fleetCounts(envs: Record<string, EnvWorld>, readReports: Record<
     if (u.state === "working") { if (isBackground(u.thread, u.state)) c.background++; else c.working++; }
     else if (u.state === "monitoring") c.monitoring++;
     else if (u.state === "alert" || u.state === "question") c.waiting++;
-    else if (u.state === "done") { if (!reportRead(readReports, u.envId, u.thread)) c.reports++; }
-    else if (u.state === "error") c.failed++;
+    // Reports and failures count as needs-you.ts does: not once seen, not Hermes sessions.
+    else if (u.state === "done") { if (!reportRead(readReports, u.envId, u.thread) && envs[u.envId]?.summary.kind !== "hermes") c.reports++; }
+    else if (u.state === "error") { if (!reportRead(readReports, u.envId, u.thread) && envs[u.envId]?.summary.kind !== "hermes") c.failed++; }
   }
   return c;
 }

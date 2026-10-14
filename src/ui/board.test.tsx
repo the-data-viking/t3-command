@@ -11,8 +11,9 @@ const plain = { interactionMode: "default" } as ThreadShell;
 
 test("each mission sits in the column for what it needs next", () => {
   for (const state of ["alert", "question", "error"] as const) assert.equal(columnOf(plain, state, false), "needs-you");
-  assert.equal(columnOf(plan, "working", false), "planning");
-  assert.equal(columnOf(plan, "done", false), "planning", "a finished plan waits for approval");
+  assert.equal(columnOf(plan, "working", false), "building", "drafting a plan is work in progress");
+  assert.equal(columnOf(plan, "done", false), "needs-you", "a finished plan waits for your approval");
+  assert.equal(columnOf(plain, "error", true), undefined, "a seen failure leaves the board");
   assert.equal(columnOf(plain, "working", false), "building");
   assert.equal(columnOf(plain, "monitoring", false), "building");
   assert.equal(columnOf(pr("open"), "done", false), "report", "read the report before the PR");

@@ -6,8 +6,9 @@ import { worldRef } from "../game/world";
 import { openEvent, setSelection, toggleSquad, unitKey, useGame } from "../store";
 import { squadKeys } from "./squad";
 import { followUpFor } from "../t3/followups";
-import { byWait, requestSummary, waitingSince } from "./queue";
+import { requestSummary } from "./queue";
 import { assessRisk } from "./risk";
+import { needsYou as needsYouList } from "./needs-you";
 import type { PendingRequest } from "../t3/types";
 import { pendingRequests } from "../t3/derive";
 import type { UnitState } from "../t3/derive";
@@ -65,16 +66,13 @@ export function CrewRoster() {
   }, [crew]);
   const waiting = fleetCounts(envs).waiting;
   const readReports = useGame((s) => s.readReports);
-  // A report marked read waits with the crew on duty until its thread's next turn.
-  const read = (u: UnitRef) => u.state === "done" && reportRead(readReports, u.envId, u.thread);
-  // Waiting on you (approval or question) comes first, longest wait at the top; then failures and
-  // reports, which don't block an agent. Other groups keep their stable order.
-  const blocked = (u: UnitRef) => u.state === "alert" || u.state === "question";
-  const since = (u: UnitRef) => waitingSince(u.thread, details[unitKey(u.envId, u.thread.id)]?.thread);
-  const needsYou = [
-    ...crew.filter((u) => blocked(u)).map((u) => ({ u, since: since(u), key: unitKey(u.envId, u.thread.id) })).sort(byWait).map(({ u }) => u),
-    ...crew.filter((u) => NEEDS_YOU.includes(u.state) && !blocked(u) && !read(u)),
-  ];
+  // A report or failure you've seen waits with the crew on duty until its thread's next turn.
+  const read = (u: UnitRef) => (u.state === "done" || u.state === "error") && reportRead(readReports, u.envId, u.thread);
+  // The same list, in the same order, as the top bar, board and queue (needs-you.ts): approvals
+  // and questions by longest wait, then plans, failures and reports.
+  const order = new Map(needsYouList({ envs, readReports, details }).map((n, i) => [unitKey(n.envId, n.threadId), i]));
+  const needsYou = crew.filter((u) => order.has(unitKey(u.envId, u.thread.id)))
+    .sort((a, b) => order.get(unitKey(a.envId, a.thread.id))! - order.get(unitKey(b.envId, b.thread.id))!);
   const onDuty = crew.filter((u) => ON_DUTY.includes(u.state) || read(u));
   const urgent = crew.filter((u) => u.state === "alert" || u.state === "question").length
     + operators.filter(b => b.state === 'alert' || b.state === 'question').length;

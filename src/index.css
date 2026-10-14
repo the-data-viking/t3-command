@@ -2259,7 +2259,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 
 /* ---- Mission board ---- */
 .board-modal { width: min(1320px, 100%); }
-.board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); align-items: start; }
+.board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); align-items: start; }
 .board-col { display: flex; flex-direction: column; gap: var(--space-1h); min-width: 0; padding: var(--space-1h); background: var(--wash); border: 1px solid var(--hairline); border-radius: var(--radius-control); }
 .board-col-head { margin: 0; display: flex; align-items: center; gap: var(--space-1h); font-size: var(--fs-2xs); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
 .board-count { padding: 0 var(--space-1); border: 1px solid var(--hairline-strong); border-radius: 2px; color: var(--text); }
@@ -2296,3 +2296,5 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 
 /* ---- New release ready (waiting for typing to stop) ---- */
 .update-ready { position: fixed; left: 50%; top: 104px; transform: translateX(-50%); z-index: var(--z-alert); display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1h) var(--space-2); font-size: var(--fs-sm); max-width: calc(100vw - 32px); }
+
+.event-detail.failure-detail { border-color: var(--error); }

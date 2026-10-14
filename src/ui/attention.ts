@@ -3,6 +3,7 @@
 
 import { worldRef } from "../game/world";
 import { addLog, setSelection, useGame, type EnvWorld } from "../store";
+import { needsYou } from "./needs-you";
 import { isHistory, unitState } from "../t3/derive";
 import { contextWarning, quietness } from "../t3/progress";
 import { telemetry } from "../t3/telemetry";
@@ -30,9 +31,9 @@ export function titleFor(count: number): string {
 
 /** Keep the tab title showing how many crew are waiting. Returns a function to stop. */
 export function installTitleBadge(): () => void {
-  const update = () => { document.title = titleFor(attentionCount(useGame.getState().envs)); };
+  const update = () => { document.title = titleFor(needsYou(useGame.getState()).length); };
   update();
-  return useGame.subscribe((s, prev) => { if (s.envs !== prev.envs) update(); });
+  return useGame.subscribe((s, prev) => { if (s.envs !== prev.envs || s.readReports !== prev.readReports) update(); });
 }
 
 /** A desktop notification for an approval or question, if enabled and the tab isn't in view. */
