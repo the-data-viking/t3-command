@@ -63,6 +63,14 @@
 }
 
 /* On a light HUD the same shading is drawn in ink on cream. */
+/* High Contrast: opaque surfaces and structural lines you can actually see. */
+[data-art="highcontrast"] {
+  --frame-bg: var(--surface);
+  --hairline: #666666;
+  --hairline-strong: #a6a6a6;
+  --wash: #1a1a1a;
+}
+
 [data-hud="light"] {
   --hairline: color-mix(in srgb, var(--text) 16%, transparent);
   --hairline-strong: color-mix(in srgb, var(--text) 30%, transparent);
@@ -138,8 +146,10 @@ code {
 .violet {
   color: var(--monitoring);
 }
+/* Warnings and cautions (waiting long, stale, quiet, invalid input): the caution gauge colour.
+   Failure orange is only for things that failed (.st-error). */
 .orange {
-  color: var(--error);
+  color: var(--gauge-high);
 }
 
 /* ---- Frames: bevelled FTL panels; title tabs sit on the top edge ---- */
@@ -223,7 +233,7 @@ code {
 }
 
 .logo-slash {
-  color: var(--done);
+  color: var(--frame);
   margin: 0 2px;
 }
 
@@ -235,7 +245,7 @@ code {
 
 .spend-menu > summary { list-style: none; }
 .spend-menu > summary::-webkit-details-marker { display: none; }
-.spend-menu[open] > summary { border-color: var(--done); }
+.spend-menu[open] > summary { border-color: var(--frame); }
 /* "2/8": only part of the fleet reports quotas, so the headline isn't the whole picture. */
 .res-partial { margin-left: 4px; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--gauge-high); }
 .res-reset { margin-left: 4px; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--muted); }
@@ -452,14 +462,26 @@ code {
   cursor: not-allowed;
 }
 
+/* The main action and the selected option: the frame colour, never a status colour. Green is
+   kept for approving and accepting (.btn.approve), where it means what it says. */
 .btn.primary {
+  border-color: var(--frame);
+  color: var(--bright);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--frame);
+  color: var(--ink);
+}
+
+.btn.approve {
   border-color: var(--done);
   color: var(--done);
 }
 
-.btn.primary:hover:not(:disabled) {
+.btn.approve:hover:not(:disabled) {
   background: var(--done);
-  color: var(--ink);
+  color: var(--on-done);
 }
 
 .btn.danger {
@@ -2212,8 +2234,13 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .tl-grid { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--hairline); }
 .tl-bar { position: absolute; top: 4px; height: 10px; padding: 0; border: none; border-radius: 2px 4px 4px 2px; cursor: pointer; }
 .tl-bar:hover, .tl-bar:focus-visible { outline: 2px solid var(--selected); outline-offset: 1px; }
-.tl-bar.live { border-radius: 2px; animation: blink var(--pulse); }
-@media (prefers-reduced-motion: reduce) { .tl-bar.live { animation: none; } }
+/* Steady bars (never blinking out); a live one has a pulsing leading edge at "now". Time spent
+   waiting on you is hatched in the waiting state's colour. */
+.tl-bar { --tone: var(--working); background: var(--tone); }
+.tl-bar.waiting { background: repeating-linear-gradient(135deg, var(--tone) 0 3px, color-mix(in srgb, var(--tone) 35%, transparent) 3px 6px); box-shadow: inset 0 0 0 1px var(--tone); }
+.tl-bar.live { border-radius: 2px; }
+.tl-bar.live::after { content: ""; position: absolute; right: -2px; top: -2px; bottom: -2px; width: 2px; background: var(--tone); animation: blink var(--pulse); }
+@media (prefers-reduced-motion: reduce) { .tl-bar.live::after { animation: none; } }
 .tl-group { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-2); }
 .tl-group-name { margin: 0; font-size: var(--fs-2xs); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
 .tl-tooltip { position: absolute; z-index: var(--z-alert); display: flex; flex-direction: column; gap: 2px; padding: var(--space-1h) var(--space-2); max-width: 320px; pointer-events: none; font-size: var(--fs-sm); background: var(--deep); }

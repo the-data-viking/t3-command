@@ -41,3 +41,11 @@ test("ticks land on whole hours, sparser for longer windows", () => {
   assert.ok(three.length >= 5 && three.length <= 6);
   for (const t of [...six, ...day, ...three]) assert.equal(new Date(t).getMinutes(), 0);
 });
+
+test("a crew member waiting on you now shows the agent's working time, then only the wait in the waiting colour", () => {
+  const waiting = { e: { ...envs.e, threads: { t1: { ...envs.e.threads.t1, hasPendingApprovals: true, session: { status: "running" } } } } } as unknown as Record<string, EnvWorld>;
+  const askedAt = now - 0.5 * H;
+  const details = { "e:t1": { thread: { activities: [{ kind: "approval.requested", createdAt: new Date(askedAt).toISOString(), payload: { requestId: "r" } }] } } } as never;
+  const lane = buildTimeline({ from: now - 24 * H, to: now, turns: [] }, waiting, now, details)[0].lanes[0];
+  assert.deepEqual(lane.bars.map((b) => [b.tone, b.waiting ?? false, Math.round((b.end - b.start) / 60_000)]), [["working", false, 90], ["alert", true, 30]]);
+});

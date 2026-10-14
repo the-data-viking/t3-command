@@ -189,3 +189,23 @@ test("every theme is its own place: no two share a HUD or a map, and Hermes stan
     assert.ok(deltaE(hex(t["--hermes"]), hex(t["--frame"])) >= 25, `${id}: Hermes tan blends into the frame`);
   }
 });
+
+test("in every theme, no status reads as a caution or critical gauge (the risk lens's colours)", () => {
+  for (const style of LIVE_STYLES) {
+    const t = hudTokens(style);
+    for (const state of ["alert", "question", "working", "monitoring", "error", "done"]) {
+      for (const gauge of ["--gauge-high", "--gauge-critical"]) {
+        assert.ok(deltaE(hex(t[`--${state}`]), hex(t[gauge])) >= 15, `${style} ${state} vs ${gauge}`);
+      }
+    }
+  }
+});
+
+test("station colours stay clear of every world's chrome and of Hermes", () => {
+  for (const style of LIVE_STYLES) {
+    const t = hudTokens(style);
+    for (const team of TEAM_COLORS) {
+      for (const name of ["--frame", "--hermes"]) assert.ok(deltaE(team, hex(t[name])) >= 15, `${style} team #${team.toString(16)} vs ${name}`);
+    }
+  }
+});

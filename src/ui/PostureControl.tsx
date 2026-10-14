@@ -60,7 +60,7 @@ export function PlanReady({ envId, thread }: { envId: string; thread: ThreadShel
   return (
     <div className="plan-ready" role="note">
       <span><strong>Plan ready.</strong> Read it above, then approve it to start building, or reply with changes to revise it.</span>
-      <button className="btn primary" disabled={busy || !client} onClick={() => void approve()}>{busy ? "Starting…" : "Approve plan and build"}</button>
+      <button className="btn approve" disabled={busy || !client} onClick={() => void approve()}>{busy ? "Starting…" : "Approve plan and build"}</button>
     </div>
   );
 }

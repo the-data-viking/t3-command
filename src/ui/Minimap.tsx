@@ -30,7 +30,8 @@ export function Minimap() {
       // Status reads by shape; the attention blink is skipped under reduced motion.
       const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
       const blink = !still && frame % 4 < 2;
-      const signature = JSON.stringify([data, data?.dots.some((d) => d.big) ? blink : false]);
+      // The world is part of it: switching worlds repaints even when nothing on the map moved.
+      const signature = JSON.stringify([useGame.getState().artStyle, data, data?.dots.some((d) => d.big) ? blink : false]);
       if (signature === previous) return;
       previous = signature;
       ctx.clearRect(0, 0, W, H);

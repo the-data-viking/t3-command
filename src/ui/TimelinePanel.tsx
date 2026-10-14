@@ -37,6 +37,7 @@ export function TimelinePanel() {
   const [error, setError] = useState<string>();
   const [hover, setHover] = useState<{ lane: Lane; bar: Bar; x: number; y: number }>();
   const envs = useGame((s) => s.envs);
+  const details = useGame((s) => s.details);
   const now = useClock();
   const box = useRef<HTMLDivElement>(null);
 
@@ -53,7 +54,7 @@ export function TimelinePanel() {
 
   // The window ends now and slides with the clock between fetches.
   const to = now, from = to - hours * 3_600_000;
-  const groups = useMemo(() => (view ? buildTimeline({ ...view, from, to }, envs, now) : []), [view, envs, now, from, to]);
+  const groups = useMemo(() => (view ? buildTimeline({ ...view, from, to }, envs, now, details) : []), [view, envs, now, from, to, details]);
   const lanes = groups.reduce((n, g) => n + g.lanes.length, 0);
   const turns = groups.reduce((n, g) => n + g.lanes.reduce((m, l) => m + l.bars.filter((b) => !b.live).length, 0), 0);
   const live = groups.reduce((n, g) => n + g.lanes.filter((l) => l.bars.some((b) => b.live)).length, 0);
@@ -114,8 +115,8 @@ export function TimelinePanel() {
                     <div className="tl-track">
                       {axis.map((t) => <i key={t} className="tl-grid" style={{ left: `${pct(t)}%` }} />)}
                       {lane.bars.map((bar, k) => (
-                        <button key={k} className={`tl-bar ${bar.live ? "live" : ""}`} aria-label={`${TONES[bar.tone].label}: ${clock(bar.start, true)} to ${bar.live ? "now" : clock(bar.end, true)}`}
-                          style={{ left: `${pct(bar.start)}%`, width: `max(4px, calc(${pct(bar.end) - pct(bar.start)}% - 2px))`, background: TONES[bar.tone].color }}
+                        <button key={k} className={`tl-bar ${bar.live ? "live" : ""} ${bar.waiting ? "waiting" : ""}`} aria-label={`${TONES[bar.tone].label}: ${clock(bar.start, true)} to ${bar.live ? "now" : clock(bar.end, true)}`}
+                          style={{ left: `${pct(bar.start)}%`, width: `max(4px, calc(${pct(bar.end) - pct(bar.start)}% - 2px))`, ["--tone" as string]: TONES[bar.tone].color }}
                           onPointerEnter={(e) => setHover({ lane, bar, ...place(e.clientX, e.clientY) })}
                           onFocus={(e) => { const b = e.currentTarget.getBoundingClientRect(); setHover({ lane, bar, ...place(b.left, b.bottom) }); }}
                           onBlur={() => setHover(undefined)}
