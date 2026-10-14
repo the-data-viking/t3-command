@@ -1,6 +1,6 @@
 import { useDraft } from "./drafts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { cancelFollowUp, followUpFor, queueFollowUp } from "../t3/followups";
+import { cancelFollowUp, followUpFor, followUpLabel, queueFollowUp } from "../t3/followups";
 import { expandPlaybook } from "../../shared/playbooks";
 import { RiskBanner } from "./RiskBanner";
 import { PlanReady, PostureControl } from "./PostureControl";
@@ -306,6 +306,8 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
   // Kept as a draft per crew member, so a reload or a new release never loses it.
   const [text, setText, clearText] = useDraft(`order:${envId}:${threadId}`);
   const [sending, setSending] = useState(false);
+  /** Standing order: how many times in all, counting this one (1 is a plain order). */
+  const [times, setTimes] = useState(1);
   const followUps = useGame((s) => s.followUps);
   const queued = followUpFor(followUps, envId, threadId);
   // Saved orders: "/" at the start lists them; picking one puts its text in the box to edit or send.
@@ -327,10 +329,17 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
     const order = expandPlaybook(text.trim(), playbooks);
     if (!order || sending) return;
     setSending(true);
+    // The turn before this order: the repeats wait on the turn the order starts, whichever it is.
+    const before = useGame.getState().envs[envId]?.threads[threadId]?.latestTurn?.turnId ?? null;
     try {
       await envClient(envId)?.order(threadId, order);
+      if (times > 1) {
+        try { await queueFollowUp(envId, threadId, order, { times: times - 1, startedAfter: before }); }
+        catch (err) { logError("Sent once; couldn't set it to repeat", err); }
+      }
       sfx.order();
       clearText();
+      setTimes(1);
     } catch (err) {
       sfx.error();
       logError("Order failed", err);
@@ -345,9 +354,10 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
     if (!order || sending) return;
     setSending(true);
     try {
-      await queueFollowUp(envId, threadId, order);
+      await queueFollowUp(envId, threadId, order, times > 1 ? { times } : {});
       sfx.order();
       clearText();
+      setTimes(1);
     } catch (err) {
       sfx.error();
       logError("Couldn't queue the follow-up", err);
@@ -360,7 +370,8 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
     <>
     {queued && (
       <div className="follow-up">
-        <span className="follow-up-text"><strong>Queued for when this turn ends{followUps.paused ? " (follow-ups paused)" : ""}:</strong> {queued.text}</span>
+        <span className="follow-up-text" title={queued.total ? `Given again after each turn that ends cleanly; stops at a failure, an interruption, or your next order.\n\n${queued.text}` : queued.text}>
+          <strong>{queued.total ? followUpLabel(queued) : "Queued for when this turn ends"}{followUps.paused ? " (follow-ups paused)" : ""}:</strong> {queued.text}</span>
         <button className="btn small" onClick={() => void cancelFollowUp(queued.id).catch((err) => logError("Couldn't cancel", err))}>Cancel</button>
       </div>
     )}
@@ -411,6 +422,11 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
             After turn ↻
           </button>
         )}
+        <select className="order-times" value={times} disabled={disabled || sending} aria-label="Times to give this order"
+          title="Standing order: the Command server gives it again after each turn that ends cleanly, and stops at a failure, an interruption, or your next order"
+          onChange={(e) => setTimes(Number(e.target.value))}>
+          {[1, 2, 3, 5, 10].map((n) => <option key={n} value={n}>{n === 1 ? "Once" : `×${n}`}</option>)}
+        </select>
       </div>
     </div>
     </>

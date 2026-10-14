@@ -222,6 +222,9 @@ export function loadDemoFleet(): void {
     log: demoLog(),
     hosts: Object.fromEntries(Object.keys(envs).map((id, i) => [id, { history: [], snapshot: { sampledAt: Date.now(), cpuUtilization: 0.2 + i * 0.25, cpuCount: 8, availableMemoryBytes: 8 * GB, totalMemoryBytes: 24 * GB } }])),
     dispatches: demoDispatches(envs),
+    // A standing order: the 2D reimagining keeps going, two more turns after this one.
+    followUps: { paused: false, queued: [{ id: "demo-standing", envId: "agent1", threadId: "b1", afterTurnId: envs.agent1.threads.b1.latestTurn?.turnId ?? null,
+      text: "Keep going with the next step of your plan; stop and report if you're blocked.", createdAt: NOW - 3_600_000, expiresAt: NOW + 8 * 3_600_000, left: 2, total: 4 }] },
   });
 }
 
