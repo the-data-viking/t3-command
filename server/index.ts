@@ -57,7 +57,7 @@ await comms.load();
 const readState = new ReadState(config.dataDir);
 await readState.load();
 // Fleet events pushed to subscribed devices, filtered by the push rules and quiet hours.
-const push = new PushNotifier(config.dataDir);
+const push = new PushNotifier(config.dataDir, process.env.T3C_PUSH_SUBJECT || undefined);
 await push.load();
 // An approval's push says what's being asked (the server reads the request itself), and an
 // unflagged one can be approved or denied from the notification.
@@ -327,7 +327,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (pathname === "/api/push/test" && method === "POST") {
     const body = await readJson<{ endpoint?: string }>(req);
-    return sendJson(res, 200, { sent: await push.test(body?.endpoint) });
+    return sendJson(res, 200, await push.test(body?.endpoint));
   }
   if (pathname === "/api/read" && method === "PUT") {
     const body = await readJson<{ marks?: Record<string, string> }>(req);

@@ -68,8 +68,10 @@ export async function disablePush(): Promise<PushStatus> {
   return fetchJson<PushStatus>("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) });
 }
 
-export async function testPush(endpoint?: string): Promise<number> {
-  return (await fetchJson<{ sent: number }>("/api/push/test", { method: "POST", body: JSON.stringify({ endpoint }) })).sent;
+/** Send a test push; how many went, and the push service's reason for any that didn't. */
+export async function testPush(endpoint?: string): Promise<{ sent: number; errors: string[] }> {
+  const out = await fetchJson<{ sent: number; errors?: string[] }>("/api/push/test", { method: "POST", body: JSON.stringify({ endpoint }) });
+  return { sent: out.sent, errors: out.errors ?? [] };
 }
 
 /** One device's own filter: only these kinds, or null for everything the fleet's rules allow. */

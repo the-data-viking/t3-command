@@ -459,6 +459,7 @@ npm start
 | `T3C_PORT` | `4773` | Local port the server listens on (always `127.0.0.1`). |
 | `T3C_DATA_DIR` | `~/.t3-command` | Environment registry and T3 tokens. Created with owner-only permissions on Linux/macOS; on Windows it relies on your user profile's permissions. |
 | `T3C_ALLOWED_USERS` | *(required)* | Comma-separated Tailscale login names allowed to use the UI. Requests without a matching `Tailscale-User-Login` header are rejected. |
+| `T3C_PUSH_SUBJECT` | `https://github.com/the-data-viking/t3-command` | Contact URL (or `mailto:` with a real address) that push notifications are signed with. Apple's push service rejects non-routable ones such as `mailto:…@localhost`. |
 
 To keep it running on Linux, use a systemd unit like this:
 
