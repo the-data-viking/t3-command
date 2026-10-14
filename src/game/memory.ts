@@ -57,3 +57,27 @@ export function dockedPrs(state: GameState, s: StationLayout): DockedPr[] {
 
 /** Pods shown under a hull; more fold into a "+N". */
 export const MAX_PODS = 4;
+
+type Box = { x: number; y: number; w: number; h: number };
+
+/** The hull's tally band under the interior, or undefined if the hull is too shallow for marks. */
+export function tallyBand(i: Box, hullBottom: number): { top: number; y: number } | undefined {
+  const bandTop = i.y + i.h + 4, bandH = hullBottom - 6 - bandTop;
+  return bandH >= 10 ? { top: bandTop, y: bandTop + Math.floor((bandH - 8) / 4) * 2 } : undefined;
+}
+
+/** Where the `n`th tally mark (1-based) sits: groups of five from the left of the band. */
+export function tallyMark(i: Box, hullBottom: number, n: number): { x: number; y: number } | undefined {
+  const band = tallyBand(i, hullBottom);
+  if (!band || n < 1) return undefined;
+  const group = Math.floor((n - 1) / 5), k = (n - 1) % 5;
+  if (group >= Math.floor((i.w * 0.5) / 24)) return undefined;
+  const x0 = i.x + 10 + group * 24;
+  // The fifth is the stroke across the group.
+  return k === 4 ? { x: x0 + 6, y: band.y } : { x: x0 + k * 4, y: band.y };
+}
+
+/** Where open PR pod `k` (newest first) hangs: its capsule's top-left. */
+export function podSpot(i: Box, hullBottom: number, k: number): { x: number; y: number } {
+  return { x: i.x + i.w - 30 - Math.min(k, MAX_PODS - 1) * 28, y: hullBottom + 10 };
+}
