@@ -247,6 +247,17 @@ export class EnvironmentNodeSprite {
     });
   }
 
+  /** The bottom of the zoomed-out callsign plate, in world px, while it's shown. */
+  callsignBottom(): number | undefined {
+    if (!this.callsign?.visible) return undefined;
+    return this.callsign.y + this.callsign.height / 2 + 4 / this.callsignZoom;
+  }
+  private callsignZoom = 1;
+  /** A disk about to fill (critical and fresh): what the fleet view frames as a hazard. */
+  get diskInTrouble(): boolean {
+    return this.diskCritical;
+  }
+
   /** Deck text can't grow past its sprite, so it hides once it would turn sub-pixel. */
   setZoom(zoom: number): void {
     const legible = zoom >= 0.8;
@@ -257,6 +268,7 @@ export class EnvironmentNodeSprite {
       this.callsign.visible = !legible;
       const g = this.callsignBack.clear();
       if (!legible) {
+        this.callsignZoom = zoom;
         fitLabel(this.callsign, this.callsignText, this.hull.w - 24, zoom, true);
         const w = this.callsign.width, hh = this.callsign.height;
         const x = this.callsign.x - w / 2 - 6 / zoom, y = this.callsign.y - hh / 2 - 4 / zoom, edge = 2 / zoom;

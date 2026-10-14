@@ -52,7 +52,9 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   Zoomed out past half size, the map switches to a fleet view: stations become flat blocks of
   their rooms (lit while occupied), and each awake crew member and Hermes operator a status glyph
   in the room they're in (most urgent first), so a large fleet stays readable instead of breaking
-  up; a working turn gone quiet shows an ellipsis, and a room with more crew than fit ends in a
+  up. Its glyphs are controls: click one to select that crew member (an asking one opens their
+  request), double-click to go to them. Deck callsigns keep a glyph-free row, and a deck whose disk
+  is about to fill wears a hazard frame. A working turn gone quiet shows an ellipsis, and a room with more crew than fit ends in a
   "+" tile (nobody is dropped silently). Crew seated at a console are drawn from behind, facing its screen.
   Each station there carries a one-line summary (who's waiting and for how long, who's working,
   open PRs), and a waiting crew member's glyph gets a frame that thickens with the wait. Close in,
@@ -261,7 +263,7 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   and keep every choice. It's a heuristic reading of the request, not a sandbox.
 - **Attention**: an always-on **Inbox** of everything waiting on you (approvals, questions, failed
   turns, reports), edge-of-screen arrows for off-screen alerts, and RTS hotkeys: **Space** next
-  alert, **.** next report, **W** next active crew, **X** next failed turn, **F** fit the fleet, **L** comms log, **Esc** deselect.
+  alert, **.** next report, **W** next active crew, **X** next failed turn, **F** fit the fleet, **Z** up to the whole fleet and back down to where you were, **L** comms log, **Esc** deselect.
   A jump lands at 1× and leaves the keyboard on the map, so the same key cycles on; **O** or
   **Enter** goes to the selected crew member's order box. A request card that arrives mid-pan or
   mid-drag is announced instead of popping up under the pointer (**Space** opens it), and

@@ -14,7 +14,7 @@
 import { Application, Container, Graphics, Rectangle, Sprite, type FederatedPointerEvent } from "pixi.js";
 import { cells, MORE_GLYPH, QUIET_GLYPH, STATUS_GLYPHS } from "../art/pixelfont";
 import * as A from "../art/sprites";
-import { setSelection, setSquad, unitKey, useGame, type GameState, type Selection, type SquadMember } from "../store";
+import { openEvent, setSelection, setSquad, unitKey, useGame, type GameState, type Selection, type SquadMember } from "../store";
 import { isHistory, unitState, type UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { computeFleetLayout, fingerprint, systemFixtureX, type CrewLayout, type FleetLayout, type Point, type Rect, type RoomKind, type StationLayout, type SystemRoom } from "./layout";
@@ -77,6 +77,9 @@ export class World {
   private packets = new Graphics();
   /** The fleet view's room blocks and crew glyphs, drawn only when zoomed far out. */
   private fleetView = new Graphics();
+  /** Each fleet-view crew glyph's tile, in world px, so a click on one selects that crew member. */
+  private fleetHits: Array<Rect & { envId: string; threadId: string }> = [];
+  private fleetTap?: { key: string; at: number };
   private stationLayer = new Container();
   private environmentLayer = new Container();
   private lights = new Graphics();
@@ -176,6 +179,28 @@ export class World {
     this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.shade, this.glow.root, this.lights, this.fleetView, this.fleetLabels, this.crewLayer, this.crewLabels, this.overlay);
     this.app.stage.addChild(this.backdrop.root, this.camera, this.edge, this.edgeHits);
     this.setupCamera();
+    // Fleet-view glyphs are controls: click one to select that crew member (asking: open their
+    // request), double-click to go to them. Clicks anywhere else fall through to the station.
+    const hitAt = (x: number, y: number) => this.zoom < FLEET_VIEW_ZOOM
+      ? this.fleetHits.find((h) => x >= h.x && x < h.x + h.w && y >= h.y && y < h.y + h.h) : undefined;
+    this.fleetView.eventMode = "static";
+    this.fleetView.cursor = "pointer";
+    this.fleetView.hitArea = { contains: (x: number, y: number) => !!hitAt(x, y) };
+    this.fleetView.on("pointertap", (e: FederatedPointerEvent) => {
+      const p = e.getLocalPosition(this.fleetView);
+      const hit = hitAt(p.x, p.y);
+      if (!hit || gesturing()) return;
+      e.stopPropagation();
+      const key = unitKey(hit.envId, hit.threadId);
+      const sel = { kind: "unit" as const, envId: hit.envId, threadId: hit.threadId };
+      const again = this.fleetTap?.key === key && performance.now() - this.fleetTap.at < 400;
+      this.fleetTap = { key, at: performance.now() };
+      sfx.select();
+      setSelection(sel);
+      if (again) { this.focus(sel); return; }
+      const state = this.crew.get(key)?.state;
+      if (state === "alert" || state === "question") openEvent(sel);
+    });
 
     this.renderLoop = new RenderLoop((dt) => {
       this.sync(useGame.getState());
@@ -394,6 +419,34 @@ export class World {
   fitAll(): void {
     if (!this.initialized) return;
     this.frame(this.layout.bounds, 1.2);
+  }
+
+  /** Where Z went up from, and the view it went up to (so a second Z, with nothing moved, comes back). */
+  private altitude?: { from: CameraView; to: CameraView };
+
+  /**
+   * Z: two altitudes on one key. Up to the whole fleet, remembering where you were; Z again (if the
+   * camera hasn't moved since) comes back down there. From the fleet view with nothing to come back
+   * to, down to whoever is selected, or to 1× where you're looking.
+   */
+  toggleAltitude(): void {
+    if (!this.initialized) return;
+    const here = this.tween?.to ?? this.view();
+    const a = this.altitude;
+    const still = (v: CameraView) => Math.abs(v.cx - here.cx) < 2 && Math.abs(v.cy - here.cy) < 2 && v.zoom === here.zoom;
+    const { width, height } = this.app.screen;
+    const go = (v: CameraView) => this.moveCamera(width / 2 - v.cx * v.zoom, height / 2 - v.cy * v.zoom, v.zoom, !reducedMotion());
+    this.userMoved = true;
+    if (a && still(a.to)) { this.altitude = undefined; go(a.from); return; }
+    if (this.zoom < FLEET_VIEW_ZOOM) {
+      const sel = useGame.getState().selection;
+      if (sel) this.focus(sel);
+      else go({ cx: here.cx, cy: here.cy, zoom: 1 });
+      return;
+    }
+    const from = here;
+    this.fitAll();
+    this.altitude = { from, to: this.tween?.to ?? this.view() };
   }
 
   focusRect(rect: Rect): void {
@@ -1303,8 +1356,15 @@ export class World {
       const far = this.zoom < FLEET_VIEW_ZOOM;
       const gc = far ? Math.round(3 / this.zoom) : 2, pitch = 6 * gc;
       const fit = Math.max(1, Math.min(8, Math.floor((p.w - 32) / pitch)));
+      // Zoomed out, the glyphs sit below the callsign plate, never over its letters; a deck too
+      // small for both keeps its callsign (its crew show in their stations' glyphs anyway).
+      // A deck in trouble (its disk about to fill) gets a hazard frame you can see from orbit.
+      if (far && deck?.diskInTrouble) pixelFrame(g, node.hull.x - 2 * gc, node.hull.y - 2 * gc, node.hull.w + 4 * gc, node.hull.h + 4 * gc, GAUGE.critical, 1, gc);
+      const below = far ? deck?.callsignBottom() : undefined;
+      const glyphY = far ? Math.max(p.y + p.h - 6 * gc, (below ?? -Infinity) + gc) : p.y + 5;
+      if (far && glyphY + 6 * gc > node.hull.y + node.hull.h) continue;
       states.slice(0, fit).forEach((st, k) => {
-        const x = p.x + p.w - 24 - (Math.min(fit, states.length) - k) * pitch, y = far ? p.y + p.h - 6 * gc : p.y + 5;
+        const x = p.x + p.w - 24 - (Math.min(fit, states.length) - k) * pitch, y = glyphY;
         if (far) g.rect(x - gc, y - gc, 7 * gc, 7 * gc).fill({ color: platingMaterials(state.artStyle).slot, alpha: 0.85 });
         for (const [cx, cy] of cells(STATUS_GLYPHS[st])) g.rect(x + cx * gc, y + cy * gc, gc, gc).fill(STATUS[st]);
       });
@@ -1326,6 +1386,7 @@ export class World {
    */
   private drawFleetView(state: GameState, sel: Selection): void {
     const g = this.fleetView.clear();
+    this.fleetHits = [];
     const far = this.zoom < FLEET_VIEW_ZOOM;
     this.crewLayer.visible = !far;
     this.crewLabels.visible = !far;
@@ -1385,6 +1446,7 @@ export class World {
           sprite.state === "working" && sprite.isQuiet && !sprite.offline ? QUIET_GLYPH : STATUS_GLYPHS[sprite.state]);
         // May be stuck: an amber underline across the tile's foot.
         if (sprite.isSpinning && !sprite.offline) g.rect(r.x + cell + (k % cols) * pitch, r.y + 6 * cell + Math.floor(k / cols) * pitch, 6 * cell, cell).fill(GAUGE.high);
+        this.fleetHits.push({ x: r.x + cell + (k % cols) * pitch, y: r.y + cell + Math.floor(k / cols) * pitch, w: 6 * cell, h: 6 * cell, envId: sprite.envId, threadId: sprite.threadId });
       });
       return true;
     };
