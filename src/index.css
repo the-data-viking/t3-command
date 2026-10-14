@@ -2287,8 +2287,14 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .dock-lanes { display: flex; flex-direction: column; gap: var(--space-3); }
 .dock-list { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 .dock-pr { display: flex; align-items: center; gap: var(--space-2); background: var(--slot); border: 1px solid var(--edge); border-left-width: 3px; border-radius: var(--radius-control); padding: var(--space-1) var(--space-1h); }
+/* Approval red is for approvals: failing checks are failures, behind/conflicts are cautions. */
 .lane-ready .dock-pr { border-left-color: var(--done); }
-.lane-attention .dock-pr { border-left-color: var(--alert); }
+.dock-pr.tone-error { border-left-color: var(--error); }
+.dock-pr.tone-caution { border-left-color: var(--gauge-high); }
+.why-ready { color: var(--done); }
+.why-error { color: var(--error); }
+.why-caution { color: var(--gauge-high); }
+.why-waiting, .why-unverified { color: var(--muted); }
 .dock-pr-main { flex: 1 1 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .dock-pr-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dock-crew { background: none; border: 0; padding: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; text-decoration: underline dotted; }
@@ -2333,6 +2339,10 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .r-working .receipt-mark, .r-working .receipt-status { color: var(--working); }
 .r-needs-you .receipt-mark, .r-needs-you .receipt-status { color: var(--alert); }
 .r-failed .receipt-mark, .r-failed .receipt-status, .r-unsent .receipt-mark, .r-unsent .receipt-status, .r-undelivered .receipt-mark, .r-undelivered .receipt-status { color: var(--error); }
+/* A report that says it's blocked went wrong; partly done is a caution; an offline machine is unknown. */
+.r-blocked .receipt-mark, .r-blocked .receipt-status { color: var(--error); }
+.r-partial .receipt-mark, .r-partial .receipt-status { color: var(--gauge-high); }
+.r-offline .receipt-mark, .r-offline .receipt-status { color: var(--muted); }
 .board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); align-items: start; }
 .board-col { display: flex; flex-direction: column; gap: var(--space-1h); min-width: 0; padding: var(--space-1h); background: var(--wash); border: 1px solid var(--hairline); border-radius: var(--radius-control); }
 .board-col-head { margin: 0; display: flex; align-items: center; gap: var(--space-1h); font-size: var(--fs-2xs); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
@@ -2407,7 +2417,8 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .reply { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-1h) var(--space-2); background: var(--slot); border: 1px solid var(--edge); border-left: 3px solid var(--edge-strong); border-radius: var(--radius-control); min-width: 0; }
 .reply.unread { border-left-color: var(--done); }
 .reply.r-needs-you { border-left-color: var(--alert); }
-.reply.r-failed, .reply.r-unsent, .reply.r-undelivered { border-left-color: var(--error); }
+.reply.r-failed, .reply.r-unsent, .reply.r-undelivered, .reply.r-blocked { border-left-color: var(--error); }
+.reply.r-partial { border-left-color: var(--gauge-high); }
 .reply-head { display: flex; align-items: baseline; gap: var(--space-1h); min-width: 0; }
 .reply-body { max-height: 36vh; overflow-y: auto; font-size: var(--fs-md); text-transform: none; letter-spacing: 0; font-weight: 400; margin: 0; }
 .review-title { font-weight: 700; color: var(--bright); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

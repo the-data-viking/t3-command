@@ -39,12 +39,17 @@ export function missionBrief(plan: MissionPlan, crew: MissionMember[], me: strin
     lines.push("", "The others on it:");
     for (const o of others) lines.push(`- ${o.title}${o.part?.trim() ? ` — part: ${o.part.trim()}` : ""}${o.where ? ` (${o.where})` : ""}`);
   }
-  lines.push("", "How to work on it:",
+  lines.push("", ...missionRules(plan.name));
+  return lines.join("\n");
+}
+
+/** The conventions every mission brief carries, each round, so reports stay comparable. */
+function missionRules(name: string): string[] {
+  return ["How to work on it:",
     "- Stay within your part. If you need to change something in another's area, stop and say so instead.",
     "- If you're blocked, start your reply with \"BLOCKED:\" and say what you need.",
-    `- If you open a pull request, put "[${plan.name.trim()}]" at the start of its title.`,
-    "- End your report with one line: STATUS: done | partial | blocked · FILES: the files you changed · PR: its number, or none.");
-  return lines.join("\n");
+    `- If you open a pull request, put "[${name.trim()}]" at the start of its title.`,
+    "- End your report with one line: STATUS: done | partial | blocked · FILES: the files you changed · PR: its number, or none."];
 }
 
 export const missionKey = (m: SquadMember): string => `${m.envId}:${m.threadId}`;
@@ -57,16 +62,24 @@ export const SHARED_REPLY_MAX = 1_500;
 /** …and of all of them together, so a follow-up stays well inside the 8,000-character order limit. */
 export const SHARED_TOTAL_MAX = 6_000;
 
-const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
+/**
+ * Clip a reply from the middle: its opening says what was done, and its end carries the STATUS
+ * line the brief asks for, so both survive.
+ */
+export function clipMiddle(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const tail = Math.min(400, Math.floor(max / 3));
+  return `${s.slice(0, max - tail - 3).trimEnd()}\n…\n${s.slice(-tail).trimStart()}`;
+}
 
 /**
  * The follow-up order for one crew member: the mission (if any) and their part, your instruction,
  * and, when shared, what everyone else on it reported last time, so they can build on it.
  */
-export function followUpBrief(opts: { mission?: { name: string; goal: string }; text: string; part?: string; others?: SharedReply[] }): string {
+export function followUpBrief(opts: { mission?: { name: string; goal: string }; text: string; part?: string; others?: SharedReply[]; round?: number }): string {
   const lines: string[] = [];
   if (opts.mission) {
-    lines.push(`Mission "${opts.mission.name}", follow-up.`, `Goal: ${opts.mission.goal}`);
+    lines.push(`Mission "${opts.mission.name}", ${opts.round ? `round ${opts.round}` : "follow-up"}.`, `Goal: ${opts.mission.goal}`);
     if (opts.part?.trim()) lines.push(`Your part: ${opts.part.trim()}`);
     lines.push("");
   }
@@ -75,9 +88,9 @@ export function followUpBrief(opts: { mission?: { name: string; goal: string }; 
   const each = Math.min(SHARED_REPLY_MAX, Math.floor(SHARED_TOTAL_MAX / Math.max(1, shared.length)));
   if (shared.length) {
     lines.push("", opts.mission ? "What the others on this mission reported last time:" : "What the others given this order reported last time:");
-    for (const o of shared) lines.push("", `--- ${o.title}${o.part ? ` (part: ${o.part})` : ""} ---`, clip(o.reply!.trim(), each));
+    for (const o of shared) lines.push("", `--- ${o.title}${o.part ? ` (part: ${o.part})` : ""} ---`, clipMiddle(o.reply!.trim(), each));
   }
-  if (opts.mission) lines.push("", "When you're done, report what you did, how you verified it, and anything the others need to know.");
+  if (opts.mission) lines.push("", "When you're done, report what you did, how you verified it, and anything the others need to know.", "", ...missionRules(opts.mission.name));
   return lines.join("\n");
 }
 

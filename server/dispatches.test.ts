@@ -232,3 +232,38 @@ test("a mission's next round joins it: numbered, announced as that round, closed
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("a mission's reports are read for their STATUS line, and the notice says what came back", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dispatches-"));
+  try {
+    const store = new Dispatches(dir);
+    const comms = new CommsLog(dir);
+    store.announceTo(comms, () => false);
+    const replies: Record<string, string | Error> = {
+      a: "Renderer in.\nSTATUS: done · FILES: a.ts · PR: #61",
+      b: "BLOCKED: needs the staging DB password\nTried the vault, no access.",
+      c: "I looked around and changed a few things.",
+      d: new Error("link down"),
+    };
+    store.readReportsWith(async (_e, threadId) => { const r = replies[threadId]; if (r instanceof Error) throw r; return r; });
+    store.add("Go", ["a", "b", "c", "d"].map((t) => member(t)), Date.now(), { name: "Ship it", goal: "Done." });
+    store.observe("e", ["a", "b", "c", "d"].map((t) => shell(t, "t2")));
+    await new Promise((r) => setTimeout(r, 10));
+    const said = comms.since();
+    assert.equal(said.length, 1, "announced once, after the reads");
+    assert.equal(said[0].text, `Mission "Ship it": 1 done, 1 blocked (needs the staging DB password), 1 reported without a status line, 1 reported (couldn't read it). Replies are ready to read.`);
+    assert.equal(said[0].tone, "alert", "not all done");
+    assert.deepEqual(store.all()[0].members.map((m) => m.report?.status), ["done", "blocked", "none", "unread"]);
+    await store.flush(); await comms.flush();
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("parseReport reads the brief's conventions, leniently", async () => {
+  const { parseReport } = await import("../shared/dispatches.ts");
+  assert.deepEqual(parseReport("Done.\n**STATUS: partial** · FILES: x · PR: none"), { status: "partial", note: "STATUS: partial · FILES: x · PR: none" });
+  assert.equal(parseReport("All good.\nstatus: Done · files: a").status, "done");
+  assert.equal(parseReport("BLOCKED: no creds\n...\nSTATUS: done").status, "blocked", "a BLOCKED line wins");
+  assert.equal(parseReport("Status: we're nearly there").status, "none");
+});

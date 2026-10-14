@@ -32,13 +32,15 @@ test("a mission needs both a name and a goal; anything else is an ordinary squad
 test("a follow-up keeps the mission and the crew member's part, and can pass on what the others said", () => {
   const mission = { name: "Ship it", goal: "Tiles at 60 fps." };
   const others = [{ title: "Importer", reply: "Map import done; tiles are 16 px.", status: "reported", part: "Importer" }, { title: "Lighting", status: "working" }];
-  const brief = followUpBrief({ mission, text: " Now wire the importer into the renderer. ", part: "Renderer", others });
-  assert.match(brief, /^Mission "Ship it", follow-up\.\nGoal: Tiles at 60 fps\.\nYour part: Renderer\n\nNow wire the importer into the renderer\.\n/);
+  const brief = followUpBrief({ mission, text: " Now wire the importer into the renderer. ", part: "Renderer", others, round: 2 });
+  assert.match(brief, /^Mission "Ship it", round 2\.\nGoal: Tiles at 60 fps\.\nYour part: Renderer\n\nNow wire the importer into the renderer\.\n/);
   assert.match(brief, /What the others on this mission reported last time:\n\n--- Importer \(part: Importer\) ---\nMap import done; tiles are 16 px\./);
   assert.doesNotMatch(brief, /Lighting/, "no reply, nothing to pass on");
-  assert.match(brief, /report what you did, how you verified it, and anything the others need to know\.$/);
-  const long = followUpBrief({ text: "Next.", others: [{ title: "A", reply: "x".repeat(5_000), status: "reported" }] });
+  assert.match(brief, /report what you did, how you verified it, and anything the others need to know\.\n\nHow to work on it:/, "every round restates the rules");
+  assert.match(brief, /End your report with one line: STATUS: done \| partial \| blocked/);
+  const long = followUpBrief({ text: "Next.", others: [{ title: "A", reply: `${"x".repeat(5_000)}\nSTATUS: partial · FILES: a.ts · PR: none`, status: "reported" }] });
   assert.ok(long.length < 1_700, "each shared reply is clipped");
+  assert.match(long, /\n…\n[\s\S]*STATUS: partial · FILES: a\.ts · PR: none$/, "from the middle, so its STATUS line survives");
   assert.equal(followUpBrief({ text: "Next." }), "Next.", "a plain squad follow-up is just the order");
 });
 

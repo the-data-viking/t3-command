@@ -39,10 +39,18 @@ export const STANDING_START_MS = 3 * 60_000;
 /** What an agent replies when a standing order has nothing left to do; the repeats then stop. */
 export const NOTHING_LEFT = "NOTHING LEFT";
 /**
- * A standing order's repeat waits this long after a clean turn, so a Command browser that sees
- * the agent say NOTHING LEFT can cancel it first.
+ * A standing order's repeat waits this long after a clean turn, so the agent's last message has
+ * settled before the Command server reads it for NOTHING LEFT.
  */
 export const STANDING_GRACE_MS = 20_000;
+/** Reads of a finished turn's reply that may fail before a standing order stops rather than repeat blind. */
+export const STANDING_READ_ATTEMPTS = 3;
+
+/** The agent's reply ends with NOTHING LEFT on its own line (quoting the instruction mid-reply doesn't count). */
+export function saysNothingLeft(text: string): boolean {
+  const lines = text.trim().split("\n").map((l) => l.replace(/[*_`.!"'\s]/g, "").toUpperCase()).filter(Boolean);
+  return lines[lines.length - 1] === NOTHING_LEFT.replace(/\s/g, "");
+}
 
 /** The line a standing order carries, so the agent knows how to stop it. */
 export function standingNote(times: number): string {

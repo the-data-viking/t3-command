@@ -6,7 +6,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { FOLLOW_UP_MAX_CHARS, FOLLOW_UP_TTL_MS, SEND_ATTEMPTS, SEND_BACKOFF_MS, STANDING_GRACE_MS, STANDING_MAX, STANDING_START_MS, type FollowUp, type FollowUpsView } from "../shared/followups.ts";
+import { FOLLOW_UP_MAX_CHARS, FOLLOW_UP_TTL_MS, saysNothingLeft, SEND_ATTEMPTS, SEND_BACKOFF_MS, STANDING_GRACE_MS, STANDING_MAX, STANDING_READ_ATTEMPTS, STANDING_START_MS, type FollowUp, type FollowUpsView } from "../shared/followups.ts";
 import type { ThreadShell } from "../src/t3/types.ts";
 import type { CommsLog } from "./comms.ts";
 
@@ -33,8 +33,8 @@ export function decide(f: FollowUp, thread: ThreadShell | undefined, now: number
   if (!turn) return { action: "wait" };
   if (turn.turnId !== f.afterTurnId) return { action: "drop", reason: "another order started a new turn first" };
   if (turn.state === "running" || thread.hasPendingApprovals || thread.hasPendingUserInput) return { action: "wait" };
-  // A standing order's repeat waits a moment after a clean turn: a browser that sees the agent
-  // say NOTHING LEFT cancels it in that window.
+  // A standing order's repeat waits a moment after a clean turn, for the agent's last message to
+  // settle: the server reads it for NOTHING LEFT before sending again.
   if (turn.state === "completed" && f.total && turn.completedAt && now - Date.parse(turn.completedAt) < STANDING_GRACE_MS) return { action: "wait" };
   if (turn.state === "completed") return { action: "send" };
   return { action: "drop", reason: `the turn ${turn.state === "error" ? "failed" : "was interrupted"}` };
@@ -42,6 +42,8 @@ export function decide(f: FollowUp, thread: ThreadShell | undefined, now: number
 
 /** Sends an order (thread.turn.start) to a thread on a machine; provided by the server's T3 link. */
 export type SendOrder = (envId: string, thread: ThreadShell, text: string) => Promise<void>;
+/** The agent's last message in a finished turn (undefined if it wrote none); provided by the server's T3 link. */
+export type ReadReply = (envId: string, threadId: string, turnId: string) => Promise<string | undefined>;
 
 export class FollowUps {
   private readonly file: string;
@@ -56,14 +58,18 @@ export class FollowUps {
   private readonly comms: CommsLog;
   private readonly send: SendOrder;
   private readonly label: (envId: string) => string | undefined;
+  private readonly readReply: ReadReply | undefined;
+  /** Failed reads of a standing order's last reply, by follow-up id (in memory: a restart retries). */
+  private readFailures = new Map<string, number>();
   /** Told when a queued follow-up goes without being sent (dropped, cancelled, replaced, forgotten). */
   private dropListeners = new Set<(f: FollowUp) => void>();
 
-  constructor(dataDir: string, comms: CommsLog, send: SendOrder, label: (envId: string) => string | undefined) {
+  constructor(dataDir: string, comms: CommsLog, send: SendOrder, label: (envId: string) => string | undefined, readReply?: ReadReply) {
     this.file = path.join(dataDir, "followups.json");
     this.comms = comms;
     this.send = send;
     this.label = label;
+    this.readReply = readReply;
   }
 
   async load(): Promise<void> {
@@ -143,6 +149,7 @@ export class FollowUps {
     const gone = this.queued.find((f) => f.id === id);
     if (!gone) return false;
     this.queued = this.queued.filter((f) => f.id !== id);
+    this.readFailures.delete(id);
     this.dropped(gone);
     this.changed();
     return true;
@@ -228,10 +235,43 @@ export class FollowUps {
     this.changed();
   }
 
+  /**
+   * Before a standing order goes again: did the agent end its last turn with NOTHING LEFT? Read by
+   * the server itself, so the repeats stop with or without a browser open. A reply that can't be
+   * read is retried on the next tick, and after a few failures the order stops rather than repeat blind.
+   */
+  private async standingVerdict(envId: string, f: FollowUp, thread: ThreadShell): Promise<"send" | "wait" | { stop: string }> {
+    const turn = thread.latestTurn;
+    // Its first send follows a turn some other order started: that reply isn't an answer to this one.
+    const first = f.left === f.total;
+    if (!f.total || first || f.uncertain || !this.readReply || !turn || turn.turnId !== f.afterTurnId || turn.state !== "completed") return "send";
+    try {
+      const reply = await this.readReply(envId, thread.id, turn.turnId);
+      this.readFailures.delete(f.id);
+      return reply && saysNothingLeft(reply) ? { stop: "it said there's nothing left to do" } : "send";
+    } catch {
+      const failures = (this.readFailures.get(f.id) ?? 0) + 1;
+      this.readFailures.set(f.id, failures);
+      return failures >= STANDING_READ_ATTEMPTS ? { stop: "its last reply couldn't be read to check for NOTHING LEFT" } : "wait";
+    }
+  }
+
   private dispatch(envId: string, f: FollowUp, thread: ThreadShell): void {
     if (this.paused) return;
     this.sending.add(f.id);
-    void this.send(envId, thread, f.text).then(() => this.delivered(envId, f, thread)).catch((err) => {
+    void this.standingVerdict(envId, f, thread).then((verdict) => {
+      if (verdict === "send") return this.sendNow(envId, f, thread);
+      if (verdict === "wait" || !this.queued.some((q) => q.id === f.id)) return;
+      this.readFailures.delete(f.id);
+      this.queued = this.queued.filter((q) => q.id !== f.id);
+      this.comms.add({ tone: "info", kind: "info", envId, threadId: f.threadId, text: `Standing order for "${thread.title || "Untitled"}" stopped: ${verdict.stop}` });
+      this.dropped(f);
+      this.changed();
+    }).finally(() => this.sending.delete(f.id));
+  }
+
+  private sendNow(envId: string, f: FollowUp, thread: ThreadShell): Promise<void> {
+    return this.send(envId, thread, f.text).then(() => this.delivered(envId, f, thread)).catch((err) => {
       // It may have landed anyway (a timeout, a dropped link): wait to see whether its turn shows
       // up before trying again, backing off, and give up (saying so) after a few tries.
       const current = this.queued.find((q) => q.id === f.id);
@@ -242,7 +282,7 @@ export class FollowUps {
       if (attempts === 1) this.comms.add({ tone: "alert", kind: "info", envId, threadId: f.threadId,
         text: `Follow-up for "${thread.title || "Untitled"}" didn't go through (${(err as Error).message}); trying again shortly` });
       this.changed();
-    }).finally(() => this.sending.delete(f.id));
+    });
   }
 
   async flush(): Promise<void> {

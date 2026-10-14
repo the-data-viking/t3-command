@@ -195,3 +195,47 @@ test("a standing order waits a moment after a clean turn before going again (tim
   assert.deepEqual(decide(f, done(1_000_000), 1_025_000), { action: "send" });
   assert.deepEqual(decide({ ...f, left: undefined, total: undefined }, done(1_000_000), 1_005_000), { action: "send" }, "a plain follow-up goes straight away");
 });
+
+test("the server stops a standing order whose last reply ends NOTHING LEFT, with no browser open", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "fu-"));
+  const comms = new CommsLog(dir);
+  const sent: string[] = [];
+  const replies: Record<string, string | Error> = { a: "Fixed two more call sites.", b: "Checked every module again.\n\n**NOTHING LEFT**" };
+  const followUps = new FollowUps(dir, comms, async (_e, _t, text) => { sent.push(text); }, () => "Box", async (_e, _t, turnId) => {
+    const r = replies[turnId];
+    if (r instanceof Error) throw r;
+    return r;
+  });
+  const dropped: string[] = [];
+  followUps.onDrop((f) => dropped.push(f.text));
+  followUps.observe("e", [shell("a", "running")]);
+  followUps.add("e", "t", "Keep going", Date.now(), { times: 3 });
+  followUps.observe("e", [shell("a", "completed")]);
+  await tick(); await tick();
+  assert.deepEqual(sent, ["Keep going"], "the first repeat follows a turn another order started: not read");
+  followUps.observe("e", [shell("b", "running")]);
+  followUps.observe("e", [shell("b", "completed")]);
+  await tick(); await tick();
+  assert.deepEqual(sent, ["Keep going"], "NOTHING LEFT: no repeat");
+  assert.equal(followUps.view().queued.length, 0);
+  assert.deepEqual(dropped, ["Keep going"]);
+  assert.ok(comms.since().some((e) => e.text === "Standing order for \"Fix CI\" stopped: it said there's nothing left to do"));
+  await comms.flush(); await followUps.flush();
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
+test("a standing order whose reply can't be read waits, then stops rather than repeat blind", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "fu-"));
+  const comms = new CommsLog(dir);
+  const sent: string[] = [];
+  const followUps = new FollowUps(dir, comms, async (_e, _t, text) => { sent.push(text); }, () => "Box", async () => { throw new Error("link down"); });
+  // Sent from the browser just now (turn "z" before it), so turn "a" is its own.
+  followUps.observe("e", [shell("z", "completed")]);
+  followUps.add("e", "t", "Keep going", Date.now(), { times: 3, startedAfter: "z" });
+  for (let i = 0; i < 3; i++) { followUps.observe("e", [shell("a", "completed")]); await tick(); await tick(); }
+  assert.deepEqual(sent, []);
+  assert.equal(followUps.view().queued.length, 0);
+  assert.ok(comms.since().some((e) => /stopped: its last reply couldn't be read/.test(e.text)));
+  await comms.flush(); await followUps.flush();
+  await fs.rm(dir, { recursive: true, force: true });
+});

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { saysNothingLeft } from "./watch";
+import { saysNothingLeft } from "../../shared/followups";
 
 test("a standing order stops only when the reply ends with NOTHING LEFT on its own line", () => {
   assert.equal(saysNothingLeft("NOTHING LEFT"), true);

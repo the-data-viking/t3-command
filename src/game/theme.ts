@@ -15,7 +15,8 @@ export const STATUS: Record<UnitState, number> = {
   done: 0x5dff9a,
   // Idle and asleep are told apart by hue, not only lightness: idle a cool grey, asleep a dusk
   // violet (well clear of monitoring's), both clear of muted text and readable on dark panels.
-  idle: 0xb3bdcc,
+  // A blue-grey: clear of the Night frame and the default visor, which a plain light grey matched.
+  idle: 0xa3b8d6,
   sleeping: 0x8b85b3,
 };
 
@@ -109,11 +110,11 @@ export function hudTokens(styleId: StyleId): Record<string, string> {
   return tokens;
 }
 
-/** Mix a colour toward black until it has at least 4.5:1 contrast with `surface`. */
-export function deepen(color: number, surface: number): number {
+/** Mix a colour toward black until it has at least `ratio` contrast with `surface` (4.5:1, text). */
+export function deepen(color: number, surface: number, ratio = 4.5): number {
   for (let k = 0; k <= 1; k += 0.05) {
     const c = mixColor(color, 0x000000, k);
-    if (contrastRatio(c, surface) >= 4.5) return c;
+    if (contrastRatio(c, surface) >= ratio) return c;
   }
   return 0x000000;
 }
@@ -157,12 +158,13 @@ export function applyHudTheme(styleId: StyleId): void {
 export const TEAM_COLORS = [0x3ec7b3, 0x5b7cff, 0xa8d65a, 0x2fa36b, 0x8a8f3c, 0x1f9fd6];
 
 /**
- * A station or bot colour as the HUD should show it: as is on dark HUDs, deepened to readable
- * text on light ones (lime on cream is 1.5:1).
+ * A station or bot colour as the HUD should show it: as is on dark HUDs, deepened on light ones
+ * (lime on cream is 1.5:1) only as far as a stripe or border needs (3:1, not text's 4.5:1), so it
+ * keeps its hue and never darkens into a status colour.
  */
 export function hudAccent(color: number, styleId: StyleId): number {
   const m = hudMaterials(styleId);
-  return m.light ? deepen(color, m.surface) : color;
+  return m.light ? deepen(color, m.surface, 3) : color;
 }
 
 /** Text and line colours for labels drawn on the map (over space or dark plating), per style. */

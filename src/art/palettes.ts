@@ -118,10 +118,10 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       plating: { surface: 0x112032, slot: 0x0e1a2a, edge: 0x2a3d52, edgeStrong: 0x3a5068, control: 0x1a2b3f },
       // Status on pale slate, each at least 4.5:1 on every panel and well apart from each other.
       tokens: {
-        // Question olive, well apart from caution amber (gauge-high) and failed orange; idle a slate
-        // ink and asleep a dusk violet, apart from each other and from muted text.
+        // Question olive, well apart from caution amber (gauge-high) and failed orange; idle a warm
+        // graphite (a slate one read as body text) and asleep a dusk violet, apart from each other.
         alert: 0xb3243a, question: 0x5f6400, working: 0x0b6589, monitoring: 0x6a43b8, error: 0xa8410a,
-        done: 0x166b3d, idle: 0x2f3b4a, sleeping: 0x5d5584,
+        done: 0x166b3d, idle: 0x52504c, sleeping: 0x5d5584,
         "gauge-ok": 0x166b3d, "gauge-high": 0x8c5200, "gauge-critical": 0x9c2486, hermes: 0x6e5a48,
       },
     },
@@ -194,8 +194,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       // Status on cream, each at least 4.5:1 on every panel; a plum accent instead of a muddied amber.
       tokens: {
         alert: 0xb8263a, question: 0x6e6000, working: 0x0d6890, monitoring: 0x7046c0, error: 0xa0420c,
-        // Muted text is plum here, so asleep goes slate-blue and idle a near-neutral charcoal.
-        done: 0x1a7240, idle: 0x3f434d, sleeping: 0x4a6280,
+        // Muted text is plum here, so asleep goes slate-blue and idle a neutral grey (clear of body text).
+        done: 0x1a7240, idle: 0x555555, sleeping: 0x4a6280,
         "gauge-ok": 0x1a7240, "gauge-high": 0x8a5600, "gauge-critical": 0xa8288f,
         hermes: 0x6e5a48,
       },
