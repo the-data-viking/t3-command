@@ -162,12 +162,20 @@ function flightCrewBehind(silhouette: Silhouette, tier: Tier, arms: Arms, head: 
       [5, 3, 6, 1, 'W'], [4, 4, 8, 5, 'W'], [5, 3, 3, 1, 'w'], [4, 4, 1, 3, 'w'], [11, 4, 1, 5, 's'], [8, 8, 3, 1, 's']]))
     : panel(16, 22, shift([[7, 1, 3, 2, 'k'], [8, 1, 1, 1, 'T'], [3, 3, 10, 7, 'k'], [4, 4, 8, 5, 'W'], [4, 4, 8, 1, 'w'],
       [4, 5, 1, 3, 'w'], [11, 4, 1, 5, 's'], [9, 8, 2, 1, 's']]));
+  // Tiers read apart by mass from behind: light crew have a narrow back and a slim pack; heavy
+  // crew a deep pack that reaches the chair; standard and reviewer sit between.
+  const torso: PixelBox[] = tier === 'light'
+    ? [[3, 10, 10, 5, 'k'], [4, 10, 8, 4, 'W'], [4, 10, 3, 1, 'w'], [11, 10, 1, 4, 's'],
+      [6, 10, 4, 4, 'k'], [7, 11, 2, 2, 'G'], [7, 11, 2, 1, 'g']]
+    : [[2, 10, 12, 5, 'k'], [3, 10, 10, 4, 'W'], [3, 10, 3, 1, 'w'], [12, 10, 1, 4, 's'],
+      ...(tier === 'heavy'
+        ? [[5, 10, 6, 6, 'k'], [6, 11, 4, 4, 'G'], [6, 11, 4, 1, 'g'], [6, 13, 4, 1, 'k']] as PixelBox[]
+        : [[5, 10, 6, 4, 'k'], [6, 11, 4, 2, 'G'], [6, 11, 4, 1, 'g']] as PixelBox[])];
   const back = panel(16, 22, [
-    [2, 10, 12, 5, 'k'], [3, 10, 10, 4, 'W'], [3, 10, 3, 1, 'w'], [12, 10, 1, 4, 's'],
-    // Pack between the shoulder blades.
-    [5, 10, 6, 4, 'k'], [6, 11, 4, 2, 'G'], [6, 11, 4, 1, 'g'],
+    ...torso,
     // Chair back.
     [3, 15, 10, 5, 'k'], [4, 16, 8, 3, 'G'], [4, 16, 8, 1, 'g'],
+    ...(tier === 'heavy' ? [[5, 15, 6, 1, 'k'], [6, 15, 4, 1, 'G']] as PixelBox[] : []),
   ]);
   const limbs: PixelBox[] = arms === 'typeA' || arms === 'typeB'
     // Typing: one elbow up while the other is down, swapping each beat.
@@ -182,7 +190,12 @@ function flightCrewBehind(silhouette: Silhouette, tier: Tier, arms: Arms, head: 
   const patches = tier === 'heavy'
     ? panel(16, 22, [[0, 9, 4, 4, 'k'], [1, 10, 2, 2, 'T'], [12, 9, 4, 4, 'k'], [13, 10, 2, 2, 'T']])
     : tier === 'light'
-      ? panel(16, 22, [[3, 11, 1, 1, 'T'], [12, 11, 1, 1, 'T']])
+      ? panel(16, 22, [[4, 11, 1, 1, 'T'], [11, 11, 1, 1, 'T']])
       : panel(16, 22, [[3, 11, 2, 2, 'T'], [11, 11, 2, 2, 'T']]);
-  return compose(back, patches, helmet, panel(16, 22, limbs), ...(tier === 'reviewer' ? [panel(16, 22, shift([[13, 7, 2, 3, 'k'], [13, 8, 1, 1, 'm']]))] : []));
+  // Reviewers wear a scanner on the helmet's right: a 2×3 housing with a lit lens, above the
+  // typing elbow so the hands never cover it.
+  const scanner = panel(16, 22, shift([[12, 5, 3, 5, 'k'], [13, 6, 1, 3, 'm'], [13, 6, 1, 1, 'w']]));
+  // Light crew's narrower back brings their arms in a pixel each side, so the hands stay attached.
+  const arms2: PixelBox[] = tier === 'light' ? limbs.map(([x, y, w, h, c]) => [x < 3 ? x + 1 : x >= 12 ? x - 1 : x, y, w, h, c]) : limbs;
+  return compose(back, patches, helmet, panel(16, 22, arms2), ...(tier === 'reviewer' ? [scanner] : []));
 }
