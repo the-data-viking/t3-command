@@ -49,3 +49,10 @@ test("connection marks are 7×7 stamps, ringed one cell wide so they read on any
   assert.deepEqual(cells.filter((c) => c.color === 1), [{ x: 10, y: 10, color: 1 }]);
   assert.equal(cells.filter((c) => c.color === 2).length, 8, "a lone cell gets its eight neighbours as outline");
 });
+
+test("a crew member facing left is mirrored but still lit from the left: side highlights and shades swap", async () => {
+  const { mirrorLit } = await import("../art/render");
+  // A left highlight column (w), a right shade column (s), a top highlight row (ww) and a bottom shade row (ss).
+  const grid = ["kwwk..", "kwWs..", "kwWs..", "kssk.."];
+  assert.deepEqual(mirrorLit(grid), ["..kwwk", "..wWsk", "..wWsk", "..kssk"]);
+});

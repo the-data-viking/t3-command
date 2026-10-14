@@ -81,3 +81,17 @@ export function rasterize(grid: Grid, style: Style, fill: Fill = {}, mirror = fa
   cache.set(key, canvas);
   return canvas;
 }
+
+/**
+ * A crew grid facing the other way, still lit from the upper left: mirrored, then each vertical
+ * run of highlight (w) or shade (s) swaps, so the lit edge is on the left again. Horizontal runs
+ * (a top highlight, a bottom shade) keep their letter.
+ */
+export function mirrorLit(grid: readonly string[]): string[] {
+  const m = grid.map((row) => [...row].reverse());
+  return m.map((row) => row.map((c, x) => {
+    if (c !== "w" && c !== "s") return c;
+    const horizontal = row[x - 1] === c || row[x + 1] === c;
+    return horizontal ? c : c === "w" ? "s" : "w";
+  }).join(""));
+}

@@ -989,7 +989,7 @@ export class World {
     this.drawLaunches(o);
 
     // Per-station and per-node tallies from the crew.
-    const stationUse = new Map<string, Record<SystemRoom, boolean> & { attention: boolean; monitoringOnly: boolean }>();
+    const stationUse = new Map<string, Record<SystemRoom, boolean> & { attention: boolean; approval: boolean; monitoringOnly: boolean }>();
     const environmentStates = new Map<string, UnitState[]>();
     const workingAt = new Set<string>(); // envId|stationKey with crew working
     let doorsOpen = false;
@@ -1007,7 +1007,7 @@ export class World {
       }
       if (!lay.sleeping && state.envs[sprite.envId]?.connection === "live") onDuty.add(lay.stationKey);
       if (sprite.moving) walkers.set(lay.stationKey, [...(walkers.get(lay.stationKey) ?? []), sprite]);
-      const u = stationUse.get(lay.stationKey) ?? { terminal: false, files: false, comms: false, attention: false, monitoringOnly: true };
+      const u = stationUse.get(lay.stationKey) ?? { terminal: false, files: false, comms: false, attention: false, approval: false, monitoringOnly: true };
       if (sprite.atStation) {
         if (sprite.state === "monitoring") u.comms = true;
         else if (sprite.info?.workstation && sprite.info.workstation !== "console") {
@@ -1017,9 +1017,11 @@ export class World {
       }
       if (sprite.state === "alert" || sprite.state === "question") {
         u.attention = true;
+        if (sprite.state === "alert") u.approval = true;
         if (lay.console && !lay.sleeping && sprite.atConsole) asking.push({ ...lay.console, color: STATUS[sprite.state] });
         // A spotlight from the ceiling onto whoever is waiting on you: stage light, not another red.
-        if (!lay.sleeping && !sprite.offline && this.glowing) this.glow.add("spot", currentStyle().light ?? 0xe8f0f8, sprite.pos.x, sprite.pos.y - 66);
+        // It starts below the console screen, so the ▲ or ◆ on the screen stays clean.
+        if (!lay.sleeping && !sprite.offline && this.glowing) this.glow.add("spot", currentStyle().light ?? 0xe8f0f8, sprite.pos.x, sprite.pos.y - 40);
       }
       stationUse.set(lay.stationKey, u);
       if (!lay.sleeping) {
@@ -1088,15 +1090,18 @@ export class World {
         if (fixture.sprite.texture !== next) fixture.sprite.texture = next;
       }
       if (bridge && u?.attention) {
-        // Alert beacons on the roof corners, sweeping a short beam left and right.
+        // Beacons on the roof corners, sweeping a short beam left and right: approval red when
+        // anyone needs an approval, question yellow when only questions are waiting.
+        const beam = u.approval ? STATUS.alert : STATUS.question;
+        const dim = mixColor(beam, 0x000000, 0.55);
         const i = s.interior;
         for (const bx of [i.x + 12, i.x + i.w - 20]) {
           const by = i.y - 18;
           g.rect(bx, by, 8, 6).fill(0x101418);
-          g.rect(bx + 2, by - 4, 4, 4).fill(frame % 2 ? STATUS.alert : 0x7a1820);
+          g.rect(bx + 2, by - 4, 4, 4).fill(frame % 2 ? beam : dim);
           if (!reducedMotion()) {
             const dir = frame % 4 < 2 ? -1 : 1;
-            for (let k = 1; k <= 4; k++) g.rect(bx + 2 + dir * k * 6, by - 4 + (k % 2) * 2, 4, 2).fill({ color: STATUS.alert, alpha: 0.5 - k * 0.1 });
+            for (let k = 1; k <= 4; k++) g.rect(bx + 2 + dir * k * 6, by - 4 + (k % 2) * 2, 4, 2).fill({ color: beam, alpha: 0.5 - k * 0.1 });
           }
         }
       }
@@ -1164,7 +1169,8 @@ export class World {
         deck.setActivity(states, live, frame, [...bayStates, ...overflow]);
       }
       const p = node.plate;
-      const lightColor = live ? STATUS.done : env?.connection === "reconnecting" || env?.connection === "connecting" ? STATUS.question : 0x59626c;
+      // Reconnecting is a neutral grey, not question yellow (yellow means an agent asking you).
+      const lightColor = live ? STATUS.done : env?.connection === "reconnecting" || env?.connection === "connecting" ? SIGNAL_GREY : 0x59626c;
       g.rect(p.x + p.w - 13, p.y + p.h / 2 - 4, 8, 8).fill({ color: lightColor, alpha: live || frame % 2 ? 1 : 0.4 });
       // One glyph per crew member: shape and color both carry the state. In the fleet view the
       // cells grow to three screen pixels like the stations' glyphs, on dark tiles over the deck.
@@ -1216,7 +1222,8 @@ export class World {
       g.rect(x - cell, y - cell, 6 * cell, 6 * cell).fill({ color: 0x0b0d10, alpha: 0.8 });
       // Someone waiting on you gets a frame in their colour that thickens with the wait: from
       // 2 minutes, thicker from 15. The rollup line under the station gives the minutes.
-      if (waitedMs >= 120_000) pixelFrame(g, x - cell, y - cell, 6 * cell, 6 * cell, color, 1, Math.max(1, Math.round(cell * (waitedMs >= 900_000 ? 0.5 : 0.25))));
+      // `cell` is three screen pixels: one or two of them, never a sub-pixel line that shimmers.
+      if (waitedMs >= 120_000) pixelFrame(g, x - cell, y - cell, 6 * cell, 6 * cell, color, 1, Math.max(1, Math.round(cell * (waitedMs >= 900_000 ? 2 : 1) / 3)));
       if (selected) pixelFrame(g, x - cell, y - cell, 6 * cell, 6 * cell, SELECTION, 1, cell);
       // In the squad: a dashed white frame (every other cell), so a box-select shows what it caught.
       else if (inSquad) {
