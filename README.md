@@ -190,14 +190,17 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   palette open a review of a crew member's latest turn. Its report (what it claims) sits beside what
   Command can observe: its PR's checks from the host, the test and lint commands it actually ran
   this turn and how each ended, and the PR against its base (conflicts, commits behind, reviewers).
-  Below that, the whole branch's changes, file by file. Verdicts: **Mark reviewed** (marks the
-  report read; it isn't an acceptance of the outcome), **Request changes** (your notes go to the
-  agent as an order; drafts are kept), **Open PR**, or mark reviewed and send to camp. Merging stays on GitHub: it can't be undone from here.
+  Below that, the whole branch's changes, file by file. Verdicts: **Mark report read** (reading
+  isn't approving the outcome), **Request changes** (your notes go to the agent as an order;
+  drafts are kept), **Open PR**, or mark it read and send to camp. Merging stays on GitHub: it can't be undone from here.
 - **One "Needs you"**: the top bar's **▶ Needs you N** (its only urgent count: approvals,
   questions, failures and reports are all in it; Space and . still jump), the phone dock, the
-  roster's Needs you group, the work board's column, the queue run and the tab title all count the same list, in the same order:
-  approvals and questions (longest wait first), plans waiting for approval, failed turns, then
-  reports. A failed turn is a triage card: ask the crew member to find and fix the cause, open
+  roster's Needs you group, the work board's Blocked on you column (with reports in their own), the queue run and the tab title all count the same list, in the same order:
+  approvals and questions (longest wait first), plans waiting for approval, failed turns, turns
+  that may be stuck, then reports. A turn that may be stuck (the same command failing three times,
+  or an hour with no file change) gets an amber ↻ on the map and an amber underline in the fleet
+  view, and its card offers Halt, Halt and ask what's blocking, Open the crew log, or It's fine:
+  that sign leaves Needs you until a new one shows up. A failed turn is a triage card: ask the crew member to find and fix the cause, open
   its log, dismiss it ("I've seen it"), or send it to camp; a dismissed failure or read report
   stops needing you until that crew member's next turn. Push notifications for something to
   decide open straight to its card (`#decide/<machine>/<thread>`).

@@ -9,6 +9,7 @@ import { followUpFor, followUpLabel } from "../t3/followups";
 import { requestSummary } from "./queue";
 import { assessRisk } from "./risk";
 import { needsYou as needsYouList, needsYouCounts } from "./needs-you";
+import { useClock } from "./useClock";
 import type { OrchestrationThread, PendingRequest } from "../t3/types";
 import { elapsed } from "../t3/timing";
 import { pulseOf, pulseText } from "./pulse";
@@ -78,7 +79,9 @@ export function CrewRoster() {
   }, [crew]);
   // The same count as the top bar's Needs you: everything waiting on you, reports included.
   const readReports = useGame((s) => s.readReports);
-  const waiting = useMemo(() => needsYouCounts(needsYouList({ envs, details, readReports })).total, [envs, details, readReports]);
+  const stuckOk = useGame((s) => s.stuckOk);
+  const now = useClock(true, 10000);
+  const waiting = useMemo(() => needsYouCounts(needsYouList({ envs, details, readReports, stuckOk }, now)).total, [envs, details, readReports, stuckOk, now]);
   useEffect(() => {
     if (!phone || openedForYou.current || waiting === 0) return;
     openedForYou.current = true;
@@ -87,11 +90,12 @@ export function CrewRoster() {
   // A report or failure you've seen waits with the crew on duty until its thread's next turn.
   const read = (u: UnitRef) => (u.state === "done" || u.state === "error") && reportRead(readReports, u.envId, u.thread);
   // The same list, in the same order, as the top bar, board and queue (needs-you.ts): approvals
-  // and questions by longest wait, then plans, failures and reports.
-  const order = new Map(needsYouList({ envs, readReports, details }).map((n, i) => [unitKey(n.envId, n.threadId), i]));
+  // and questions by longest wait, then plans, failures, turns that may be stuck, and reports.
+  const order = new Map(needsYouList({ envs, readReports, details, stuckOk }, now).map((n, i) => [unitKey(n.envId, n.threadId), i]));
   const needsYou = crew.filter((u) => order.has(unitKey(u.envId, u.thread.id)))
     .sort((a, b) => order.get(unitKey(a.envId, a.thread.id))! - order.get(unitKey(b.envId, b.thread.id))!);
-  const onDuty = crew.filter((u) => ON_DUTY.includes(u.state) || read(u));
+  // A turn that may be stuck is listed under Needs you, not twice.
+  const onDuty = crew.filter((u) => !order.has(unitKey(u.envId, u.thread.id)) && (ON_DUTY.includes(u.state) || read(u)));
   const urgent = crew.filter((u) => u.state === "alert" || u.state === "question").length
     + operators.filter(b => b.state === 'alert' || b.state === 'question').length;
 

@@ -33,7 +33,7 @@ import { dockedPrs, podSpot, stationMemory, tallyMark } from "./memory";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
-import { HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
+import { GAUGE, HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
 import { BROKEN_LINK, FLEET_VIEW_ZOOM, fitLabel, linkPath, pixelStamp, SIGNAL_GREY, UNPLUGGED, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkLength, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
@@ -1386,6 +1386,8 @@ export class World {
         glyph(r.x + 2 * cell + (k % cols) * pitch, r.y + 2 * cell + Math.floor(k / cols) * pitch, sprite.state,
           sprite.offline ? 0x59626c : STATUS[sprite.state], selected, waited, sprite.inSquad, !!sprite.mission,
           sprite.state === "working" && sprite.isQuiet && !sprite.offline ? QUIET_GLYPH : STATUS_GLYPHS[sprite.state]);
+        // May be stuck: an amber underline across the tile's foot.
+        if (sprite.isSpinning && !sprite.offline) g.rect(r.x + cell + (k % cols) * pitch, r.y + 6 * cell + Math.floor(k / cols) * pitch, 6 * cell, cell).fill(GAUGE.high);
       });
       return true;
     };
