@@ -10,7 +10,7 @@ import { logError } from "../t3/environment";
 import { recordDispatch, updateDispatch } from "./dispatch";
 import { useDraft } from "./drafts";
 import { missionBrief, type MissionMember, type MissionPlan } from "./mission";
-import { PixelLabel } from "./PixelArt";
+import { PixelLabel, PixelIcon } from "./PixelArt";
 import { confirmReplacing, orderCrew, wouldReplace } from "./squad";
 
 export function MissionDialog({ crew, busy, onClose }: { crew: SquadMember[]; busy: SquadMember[]; onClose: () => void }) {
@@ -88,7 +88,7 @@ export function MissionDialog({ crew, busy, onClose }: { crew: SquadMember[]; bu
         <label className="mission-field"><span>Goal</span>
           <textarea rows={3} value={goal} placeholder="What done looks like, for all of them together." onChange={(e) => { setGoal(e.target.value); setRetry(undefined); }} /></label>
         {shared.map((s) => (
-          <p key={`${s.machine}${s.path}`} className="small orange" role="note">⚠ {s.who.join(" and ")} share one checkout ({s.path} on {s.machine}): give them parts that won't touch the same files, or put one in a fresh worktree.</p>
+          <p key={`${s.machine}${s.path}`} className="small orange" role="note"><PixelIcon name="warn" scale={1} /> {s.who.join(" and ")} share one checkout ({s.path} on {s.machine}): give them parts that won't touch the same files, or put one in a fresh worktree.</p>
         ))}
         <h3 className="alerts-heading">Parts</h3>
         <ul className="mission-crew">

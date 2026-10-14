@@ -14,7 +14,7 @@ import type { PullRequestDetail } from "../t3/types";
 import { DiffFiles } from "./DiffFiles";
 import { useDraft } from "./drafts";
 import { MessageMarkdown } from "./MessageMarkdown";
-import { PixelLabel } from "./PixelArt";
+import { PixelLabel, PixelIcon } from "./PixelArt";
 import { changesOrder, checksSummary, doubts, openReview, reviewPullRequest, testsRun } from "./review";
 import { batchSettle } from "./squad";
 import { DEMO, demoReview } from "../demo";
@@ -121,7 +121,7 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
 
         {doubtful.length > 0 && (
           <div className="review-doubts" role="note">
-            <strong>⚠ Doesn't add up</strong>
+            <strong><PixelIcon name="warn" /> Doesn't add up</strong>
             <ul>{doubtful.map((d) => <li key={d.claim}>{d.claim}, but {d.evidence}.</li>)}</ul>
             <span className="muted small">Pattern matching on the report: a reason to look, not a verdict.</span>
           </div>

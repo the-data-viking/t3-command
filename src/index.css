@@ -1329,7 +1329,6 @@ select:focus {
 .panel.hermes-control { width: min(510px, calc(100vw - 16px)); height: auto; top: var(--topbar-bottom, 62px); border-color: color-mix(in srgb, var(--hermes) 44%, transparent); background: linear-gradient(150deg, color-mix(in srgb, var(--hermes) 8%, var(--surface)), var(--deep)); }
 .hermes-control::before, .hermes-chat::before { border-color: var(--hermes); }
 .hermes-control::after, .hermes-chat::after { border-color: var(--hermes); }
-.ops-eyebrow { text-transform: uppercase; font-size: var(--fs-xs); letter-spacing: 2px; color: var(--hermes); margin-bottom: 5px; }
 .ops-summary { display: flex; gap: var(--space-3); flex-wrap: wrap; border-block: 1px solid color-mix(in srgb, var(--hermes) 19%, transparent); padding: var(--space-3) 0; color: var(--muted); font-size: var(--fs-xs); }
 .ops-summary strong { color: var(--text); }
 .ops-scroll { overflow: auto; min-height: 0; padding-right: var(--space-1); }
@@ -1350,7 +1349,6 @@ select:focus {
 .operator-row .bot-portrait span { font-size: var(--fs-xs); }
 .operator-count { font-size: inherit; font-family: inherit; letter-spacing: inherit; color: var(--hermes); }
 /* On a frame-colored title tab the sand accent washes out; use the tab's ink. */
-.ftl-tab .operator-count { color: var(--ink); opacity: 0.75; }
 .ops-back { align-self: flex-start; color: var(--hermes); border-color: color-mix(in srgb, var(--hermes) 25%, transparent); }
 .hermes-connection { border: 1px solid color-mix(in srgb, var(--hermes) 25%, transparent); padding: var(--space-3); margin: 16px 0; }
 @media (max-width: 700px) { .panel.hermes-control { top: var(--topbar-bottom, 100px); bottom: 8px; max-height: none; } .operator-list { grid-template-columns: 1fr; } }
@@ -2428,7 +2426,10 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 }
 
 /* Dialog titles wear the same pixel title tab as the roster and the event cards. */
-.panel-head h2.title-tab { display: inline-flex; align-items: center; margin: 0; padding: var(--space-1) var(--space-3); background: var(--frame); color: var(--ink); border: 2px solid var(--ink); border-radius: var(--radius-control); }
+/* One title tab for every panel and dialog, in the map's pixel font: a dialog's tab is its title;
+   a side panel's says what it is (crew, station, machine) over the thing's own name. */
+.panel-head .title-tab { display: inline-flex; align-items: center; margin: 0; padding: var(--space-1) var(--space-3); background: var(--frame); color: var(--ink); border: 2px solid var(--ink); border-radius: var(--radius-control); }
+.panel-title .title-tab.panel-kind { margin-bottom: var(--space-1h); padding: var(--space-0) var(--space-2); }
 
 /* Approval context: why it's asking, from its own turn. */
 .request-context { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-3); margin: 0 0 var(--space-3); font-size: var(--fs-md); }

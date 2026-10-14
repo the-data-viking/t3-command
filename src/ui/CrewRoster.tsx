@@ -20,7 +20,7 @@ import { ThreadTiming } from "./ThreadTiming";
 import { PlanLine } from "./TurnTelemetry";
 import { botOperators, BOT_STATE_LABELS } from '../t3/bots';
 import { BotPortrait } from './HermesControlCenter';
-import { CrewPortrait, PixelLabel } from "./PixelArt";
+import { CrewPortrait, PixelLabel, PixelIcon } from "./PixelArt";
 import { isPhone, usePhone } from "./phone";
 
 const NEEDS_YOU: UnitState[] = ["alert", "question", "error", "done"];
@@ -133,8 +133,8 @@ export function CrewRoster() {
             {(u.state === "alert" || u.state === "question") && detail && (
               <RosterAsk state={u.state} request={pendingRequests(detail.thread)[0]} />
             )}
-            {(() => { const f = followUpFor(followUps, u.envId, u.thread.id); return f && <span className="crew-queued">↻ {f.total ? followUpLabel(f) : "Follow-up queued"}{followUps.paused ? " (paused)" : ""}</span>; })()}
-            {missions.has(`${u.envId}:${u.thread.id}`) && <span className="crew-queued crew-mission" title="On this mission (work board, B)">⚑ {missions.get(`${u.envId}:${u.thread.id}`)}</span>}
+            {(() => { const f = followUpFor(followUps, u.envId, u.thread.id); return f && <span className="crew-queued"><PixelIcon name="repeat" scale={1} /> {f.total ? followUpLabel(f) : "Follow-up queued"}{followUps.paused ? " (paused)" : ""}</span>; })()}
+            {missions.has(`${u.envId}:${u.thread.id}`) && <span className="crew-queued crew-mission" title="On this mission (work board, B)"><PixelIcon name="flag" scale={1} /> {missions.get(`${u.envId}:${u.thread.id}`)}</span>}
             {u.state === "working" && detail && <SpinLine thread={detail.thread} />}
             <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
             <PlanLine thread={u.thread} detail={detail?.thread} />
@@ -173,14 +173,14 @@ export function CrewRoster() {
       ) : (
         <button className="ftl-tab roster-tab" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
           {/* The tab's name in the map's pixel font, like every other frame tab. */}
-          <PixelLabel text="Crew" /> <span className={urgent ? "count hot" : "count"}>{crew.length}</span>{operators.length > 0 && <span className="operator-count"> · {operators.length} operators</span>}
+          <PixelLabel text="Crew" /> <span className={urgent ? "count hot" : "count"}>{crew.length}</span>
           {" "}{collapsed ? "▸" : "▾"}
         </button>
       )}
       {!collapsed && (
         <div className="roster-body">
           {phone && needsBlock}
-          {operators.length > 0 && <><div className="roster-heading hermes-roster-heading">Hermes operators</div>
+          {operators.length > 0 && <><div className="roster-heading hermes-roster-heading">Hermes operators · {operators.length}</div>
             <ol className="crew-list">{operators.map(bot => <li key={bot.name}><button className={`crew-row operator-row row-${bot.state} ${selection?.kind === 'hermes' && selection.profile === bot.name ? 'active' : ''}`} onClick={() => {
               const pending = bot.sessions.find(s => envs[s.envId]?.connection === 'live' && (s.state === 'alert' || s.state === 'question'));
               if (pending) { open(pending); return; }
@@ -204,7 +204,7 @@ function RosterAsk({ state, request }: { state: string; request: PendingRequest 
   const risk = assessRisk(request);
   return (
     <span className={`crew-ask st-${state} ${risk ? `risk-${risk.level}` : ""}`} title={risk ? `${risk.level === "danger" ? "Dangerous" : "Careful"}: ${risk.reasons.join("; ")}` : undefined}>
-      {risk && <span className="risk-mark" aria-label={risk.level === "danger" ? "Dangerous" : "Careful"}>⚠</span>}
+      {risk && <span className="risk-mark" aria-label={risk.level === "danger" ? "Dangerous" : "Careful"}><PixelIcon name="warn" scale={1} /></span>}
       {risk ? requestSummary(request, 44)?.replace(/^▲ /, "") : requestSummary(request, 44)}
     </span>
   );
@@ -218,5 +218,5 @@ function SpinLine({ thread }: { thread: OrchestrationThread }) {
   const p = pulseOf(thread, Date.now());
   if (!p?.repeatFail && !p?.noChangeMs) return null;
   const why = p.repeatFail ? `${p.repeatFail.command} failed ${p.repeatFail.count}×` : `no file changes in ${elapsed(p.noChangeMs!)}`;
-  return <span className="crew-spin" title={`May be spinning: ${pulseText(p, Date.now())}`}>⟳ may be spinning: {why}</span>;
+  return <span className="crew-spin" title={`May be spinning: ${pulseText(p, Date.now())}`}><PixelIcon name="repeat" scale={1} /> may be spinning: {why}</span>;
 }

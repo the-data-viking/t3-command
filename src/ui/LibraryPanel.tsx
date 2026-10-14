@@ -5,6 +5,7 @@ import { setSelection, useGame } from "../store";
 import { isHistory } from "../t3/derive";
 import type { ThreadShell } from "../t3/types";
 import { timeAgo } from "./util";
+import { PixelLabel } from "./PixelArt";
 
 interface Volume {
   title: string;
@@ -57,6 +58,7 @@ export function LibraryPanel({ envId, projectId }: { envId: string; projectId: s
       <header className="panel-head">
         <div className="portrait library" />
         <div className="panel-title">
+          <span className="title-tab panel-kind"><PixelLabel text="Archive" /></span>
           <h2>{project.title} archive</h2>
           <div className="muted small">
             {total} imported conversation{total === 1 ? "" : "s"} · {volumes.length} unique
