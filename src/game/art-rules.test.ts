@@ -35,3 +35,17 @@ test("sprite art never paints with a status colour code (a, c, r, n); only badge
   const offenders = grids.filter(([, grid]) => /[acrn]/.test(grid.join(""))).map(([name]) => name);
   assert.deepEqual(offenders, []);
 });
+
+test("connection marks are 7×7 stamps, ringed one cell wide so they read on any backdrop", async () => {
+  const { BROKEN_LINK, UNPLUGGED, pixelStamp } = await import("./map-common");
+  for (const grid of [UNPLUGGED, BROKEN_LINK]) {
+    assert.equal(grid.length, 7);
+    for (const row of grid) assert.match(row, /^[.#]{7}$/);
+  }
+  const cells: Array<{ x: number; y: number; color: number }> = [];
+  let last = { x: 0, y: 0 };
+  const g = { rect: (x: number, y: number) => { last = { x, y }; return g; }, fill: (color: number) => { cells.push({ ...last, color }); return g; } };
+  pixelStamp(g as never, ["#"], 10, 10, 1, 2, 2);
+  assert.deepEqual(cells.filter((c) => c.color === 1), [{ x: 10, y: 10, color: 1 }]);
+  assert.equal(cells.filter((c) => c.color === 2).length, 8, "a lone cell gets its eight neighbours as outline");
+});

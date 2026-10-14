@@ -290,6 +290,27 @@ export function pixelArrow(g: Graphics, cx: number, cy: number, dir: number, col
   for (const [x, y] of filled) g.rect(x0 + x * cell, y0 + y * cell, cell, cell).fill(color);
 }
 
+/** 7×7 connection marks: a pulled plug for a machine that's unreachable, a parted chain link
+ * while it's reconnecting or its readings are stale. Neutral grey, never a status colour. */
+export const UNPLUGGED = ["..#.#..", "..#.#..", ".#####.", ".#####.", "..###..", "...#...", "...#..."];
+export const BROKEN_LINK = ["###....", "#.#....", "###.#..", ".......", "..#.###", "....#.#", "....###"];
+export const SIGNAL_GREY = 0x8a919a;
+
+/** A small stamp: the grid's "#" cells in `fill`, ringed one cell wide in `outline` so it reads on
+ * any backdrop. `x, y` is the grid's top-left; the ring reaches one cell beyond it. */
+export function pixelStamp(g: Graphics, grid: string[], x: number, y: number, fill: number, outline: number, cell = PX): void {
+  const on = (cx: number, cy: number) => grid[cy]?.[cx] === "#";
+  for (let cy = -1; cy <= grid.length; cy++) {
+    for (let cx = -1; cx <= grid[0].length; cx++) {
+      if (on(cx, cy)) continue;
+      let near = false;
+      for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1 && !near; dx++) near = on(cx + dx, cy + dy);
+      if (near) g.rect(x + cx * cell, y + cy * cell, cell, cell).fill(outline);
+    }
+  }
+  grid.forEach((row, cy) => [...row].forEach((ch, cx) => { if (ch === "#") g.rect(x + cx * cell, y + cy * cell, cell, cell).fill(fill); }));
+}
+
 /** A filled box with a `width`-thick outline inside its edge (instead of a centred stroke). */
 export function pixelBox(g: Graphics, x: number, y: number, w: number, h: number, fill: number, outline: number, width = PX): void {
   g.rect(x, y, w, h).fill(outline);

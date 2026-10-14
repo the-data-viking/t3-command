@@ -34,7 +34,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
-import { FLEET_VIEW_ZOOM, linkPath, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
+import { BROKEN_LINK, FLEET_VIEW_ZOOM, linkPath, pixelStamp, SIGNAL_GREY, UNPLUGGED, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { nacelles, StationSprite } from "./station-sprite";
@@ -643,7 +643,7 @@ export class World {
         this.drawGrid();
       }
       const links = fingerprint(state.artStyle, this.layout.controlCenter?.links,
-        [...this.layout.environmentNodes.values()].map((n) => [n.color, n.links, state.envs[n.envId]?.connection === "live"]),
+        [...this.layout.environmentNodes.values()].map((n) => [n.color, n.links, state.envs[n.envId]?.connection]),
         this.layout.controlCenter?.links.map((l) => state.envs[l.envId]?.connection === "live"));
       if (links !== this.drawnLinks) {
         this.drawnLinks = links;
@@ -739,6 +739,14 @@ export class World {
         const path = linkPath(link.from, link.to, link.via);
         const reaching = live || state.envs[node.envId]?.connection === "connecting" || state.envs[node.envId]?.connection === "reconnecting";
         pixelPath(g, path, 2, node.color, live ? 0.6 : reaching ? 0.2 : 0.25, reaching ? 0 : 8);
+        // Where a line that isn't carrying anything meets the station: a pulled plug, or a parted
+        // link while the machine reconnects, just outside the port.
+        if (!live && state.envs[node.envId]?.connection !== "needs-update") {
+          const prev = path[path.length - 2] ?? link.from;
+          const side = Math.sign(link.to.x - prev.x) || 1;
+          const x = link.to.x - side * 14 - 7, y = link.to.y - 7;
+          pixelStamp(g, reaching ? BROKEN_LINK : UNPLUGGED, x, y, SIGNAL_GREY, c.k);
+        }
       }
     }
   }
