@@ -12,7 +12,7 @@ import { currentStyle, PX, tex } from "./textures";
 import { mapInk, STATUS } from "./theme";
 import { fitLabel, FLEET_VIEW_ZOOM, hash, pixelFrame, roundedPlate, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
 import { worldRef } from "./world-ref";
-import { dockedPrs, JOBS_PER_SHELF, MAX_PATCHES, MAX_PODS, podSpot, stationMemory, tallyBand, type DockedPr, type StationMemory } from "./memory";
+import { dockedPrs, JOBS_PER_SHELF, MAX_PATCHES, MAX_PODS, podSpot, stationMemory, type DockedPr, type StationMemory } from "./memory";
 
 // ---- Stations --------------------------------------------------------------------------
 
@@ -347,26 +347,12 @@ export class StationSprite {
   }
 
   /**
-   * Memory on the hull: a painted tally for every merged PR (groups of five, from the left of the
-   * bottom band) and a riveted patch plate for every failed turn (up to eight, on the right of the
-   * bottom band and the free ends of the top band, placed by the station's seed).
+   * Memory on the hull: a riveted patch plate for every failed turn (up to eight, on the right of
+   * the bottom band and the free ends of the top band, placed by the station's seed).
    */
   private drawMemory(g: Graphics, s: StationLayout, m: StationMemory, hullTop: number, hullBottom: number, i: { x: number; y: number; w: number; h: number }): void {
     const c = currentStyle().colors;
-    const ink = currentStyle().memoryInk ?? c.w;
-    const band = tallyBand(i, hullBottom);
     const bandTop = i.y + i.h + 4, bandH = hullBottom - 6 - bandTop;
-    if (band) {
-      const y = band.y;
-      const groups = Math.min(Math.ceil(m.merged / 5), Math.floor((i.w * 0.5) / 24));
-      for (let gi = 0; gi < groups; gi++) {
-        const x0 = i.x + 10 + gi * 24;
-        const marks = Math.min(5, m.merged - gi * 5);
-        for (let k = 0; k < Math.min(4, marks); k++) g.rect(x0 + k * 4, y, 2, 8).fill(ink);
-        // The fifth strikes through the four, as a stepped diagonal.
-        if (marks === 5) for (let k = 0; k < 9; k++) g.rect(x0 - 2 + k * 2, y + 6 - Math.floor(k / 2) * 2, 2, 2).fill(ink);
-      }
-    }
     const patches = Math.min(m.failed, MAX_PATCHES);
     if (!patches) return;
     const slots: Array<{ x: number; y: number; h: number }> = [];

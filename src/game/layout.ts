@@ -142,9 +142,9 @@ export interface ControlCenterLayout {
 export const TILE = 32;
 /** How many settled crew each station keeps aboard, most recently settled first. */
 export const QUARTERS_SHOWN = 3;
-/** Where the cryo bay's k-th stasis pod stands: its centre, the 48-px-tall pod's foot on the floor. */
+/** Where the cryo bay's k-th stasis pod stands: its centre, the row centred in the room, 52 px apart, the 48-px-tall pod's foot on the floor. */
 export function podAt(q: Rect, k: number): Point {
-  return { x: q.x + TILE * 1.5 + k * TILE * 1.5, y: q.y + q.h - 28 };
+  return { x: q.x + q.w / 2 + (k - (QUARTERS_SHOWN - 1) / 2) * 52, y: q.y + q.h - 28 };
 }
 const HULL_PAD = 22;
 export const ENV_NODE_W = 288;
