@@ -82,7 +82,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     // Leather and bronze: bronze frames (well clear of Hermes tan), oiled-leather panels, cream text.
     hud: {
       frame: 0xc28e52, ink: 0x1a120b, surface: 0x2a2018, deep: 0x18120d, slot: 0x211912,
-      edge: 0x4a3a2a, edgeStrong: 0x6a5238, control: 0x3a2c1f, meter: 0x4a3a2a, bright: 0xfbf0d8,
+      edge: 0x4a3a2a, edgeStrong: 0x8a6d4c, control: 0x3a2c1f, meter: 0x4a3a2a, bright: 0xfbf0d8,
       // Muted is a warm grey, not tan, so tan means Hermes.
       text: 0xf1e6d0, muted: 0xa39e95,
       chrome: { corner: "bevel", radius: 6, width: 3 },
@@ -112,7 +112,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     // The cool light HUD, counterpart to Pastel's warm one: slate frames on pale panels.
     hud: {
       frame: 0x2a3540, ink: 0xf3f6f8, surface: 0xe9eef1, deep: 0xdde4e9, slot: 0xf7f9fa,
-      edge: 0xc3ced6, edgeStrong: 0x9aabb8, control: 0xdfe6eb, meter: 0xcfd8df, bright: 0x0f1d2a,
+      edge: 0xc3ced6, edgeStrong: 0x7a8d9c, control: 0xdfe6eb, meter: 0xcfd8df, bright: 0x0f1d2a,
       text: 0x1d2b38, muted: 0x4f6070, light: true,
       chrome: { corner: "round", radius: 12, width: 2 },
       plating: { surface: 0x112032, slot: 0x0e1a2a, edge: 0x2a3d52, edgeStrong: 0x3a5068, control: 0x1a2b3f },
@@ -145,7 +145,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     // Cool gray FTL frames around near-black wells.
     hud: {
       frame: 0xaeb7be, ink: 0x0d1114, surface: 0x161b20, deep: 0x080b10, slot: 0x11161a,
-      edge: 0x2c343b, edgeStrong: 0x3a444d, control: 0x1b2126, meter: 0x2a3036, bright: 0xeef2f5,
+      edge: 0x2c343b, edgeStrong: 0x56616b, control: 0x1b2126, meter: 0x2a3036, bright: 0xeef2f5,
       chrome: { corner: "bevel", radius: 8, width: 3 },
     },
     colors: {
@@ -187,7 +187,7 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     // A light HUD to match the cream decks: plum frames around cream panels, plum ink.
     hud: {
       frame: 0x5a4566, ink: 0xfaf3e8, surface: 0xf6efe4, deep: 0xeee4d6, slot: 0xfffaf2,
-      edge: 0xd9c9b8, edgeStrong: 0xb7a392, control: 0xefe3d4, meter: 0xe2d4c4, bright: 0x2b2034,
+      edge: 0xd9c9b8, edgeStrong: 0x9a8574, control: 0xefe3d4, meter: 0xe2d4c4, bright: 0x2b2034,
       text: 0x3a2e3f, muted: 0x6b5d73, light: true,
       chrome: { corner: "round", radius: 14, width: 3 },
       plating: { surface: 0x3a2a48, slot: 0x2f2240, edge: 0x5a4470, edgeStrong: 0x6e5788, control: 0x44325a },

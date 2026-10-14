@@ -1,23 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { STYLES } from "../art/palettes";
-import { applyHudTheme, css, hudMaterials } from "../game/theme";
+import { css, hudMaterials } from "../game/theme";
 import { setArtStyle, setHighContrast, useGame, type ArtStyle } from "../store";
 import { themeThumbnail } from "./theme-thumbnail";
 import { THEME_NAMES, WORLDS } from "./themes";
 
 /**
  * The world the fleet lives in: three worlds, each with its own station, sky and light (Night
- * Shift also by day), and High Contrast as an accessibility mode over them. Hovering previews the HUD.
+ * Shift also by day), and High Contrast as an accessibility mode over them. Each thumbnail shows
+ * its world; hovering doesn't restyle the app (a new HUD over the old map was neither, and could
+ * override High Contrast).
  */
 export function ThemePicker() {
   const artStyle = useGame((s) => s.artStyle);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-
-  // Hovering or focusing a theme previews its HUD; leaving the menu puts the chosen one back.
-  useEffect(() => {
-    if (!open) applyHudTheme(artStyle);
-  }, [open, artStyle]);
 
   useEffect(() => {
     if (!open) return;
@@ -38,7 +35,7 @@ export function ThemePicker() {
         <img className="theme-icon" src={themeThumbnail(artStyle)} alt="" width={26} height={15} draggable={false} /><span className="phone-label">{THEME_NAMES[artStyle]}</span>
       </button>
       {open && (
-        <div className="theme-list hud-frame" role="menu" aria-label="World" onPointerLeave={() => applyHudTheme(artStyle)}>
+        <div className="theme-list hud-frame" role="menu" aria-label="World">
           <div className="theme-head">World</div>
           {WORLDS.map((world) => {
             const current = world.variants.find((v) => v.style === artStyle);
@@ -46,16 +43,14 @@ export function ThemePicker() {
             const m = hudMaterials(shown);
             return (
               <div key={world.id} className={`theme-world ${current ? "active" : ""}`}>
-                <button role="menuitemradio" aria-checked={!!current} className="theme-option"
-                  onPointerEnter={() => applyHudTheme(shown)} onFocus={() => applyHudTheme(shown)} onClick={() => choose(shown)}>
+                <button role="menuitemradio" aria-checked={!!current} className="theme-option" onClick={() => choose(shown)}>
                   <img className="theme-thumb" src={themeThumbnail(shown)} alt="" width={104} height={60} draggable={false} style={{ outline: `2px solid ${css(m.frame)}` }} />
                   <span className="theme-option-text"><span>{world.name}{current && world.variants.length > 1 ? ` · ${current.label}` : ""}</span><span className="muted small">{STYLES[shown].blurb}</span></span>
                 </button>
                 {world.variants.length > 1 && (
                   <div className="theme-variants" role="group" aria-label={`${world.name}: time of day`}>
                     {world.variants.map((v) => (
-                      <button key={v.style} className={`btn small ${artStyle === v.style ? "active" : ""}`} aria-pressed={artStyle === v.style}
-                        onPointerEnter={() => applyHudTheme(v.style)} onFocus={() => applyHudTheme(v.style)} onClick={() => choose(v.style)}>
+                      <button key={v.style} className={`btn small ${artStyle === v.style ? "active" : ""}`} aria-pressed={artStyle === v.style} onClick={() => choose(v.style)}>
                         {v.label}
                       </button>
                     ))}
@@ -64,7 +59,7 @@ export function ThemePicker() {
               </div>
             );
           })}
-          <label className="theme-hc" onPointerEnter={() => applyHudTheme("highcontrast")}>
+          <label className="theme-hc">
             <input type="checkbox" checked={highContrast} onChange={(e) => { setHighContrast(e.target.checked); setOpen(false); }} />
             <span className="theme-option-text"><span>High contrast</span><span className="muted small">Accessibility: black wells, white frames, the brightest status colours. Turn off to return to your world.</span></span>
           </label>

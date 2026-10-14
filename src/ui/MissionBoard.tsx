@@ -53,7 +53,7 @@ export function MissionBoard() {
         <div className="board">
           {COLUMNS.map((col) => (
             <section key={col.id} className={`board-col col-${col.id}`} aria-label={`${col.title}: ${board[col.id].length}`}>
-              <h3 className="board-col-head" title={col.hint}>{col.title} <span className="board-count">{board[col.id].length}</span></h3>
+              <h3 className="board-col-head" title={col.hint}>{col.title} <span className={`board-count${board[col.id].length ? "" : " zero"}`}>{board[col.id].length}</span></h3>
               <div className="board-cards">
                 {board[col.id].length === 0 && <p className="muted small board-empty">Nothing here.</p>}
                 {board[col.id].map((card) => <BoardCard key={unitKey(card.envId, card.thread.id)} card={card} onGo={close} />)}

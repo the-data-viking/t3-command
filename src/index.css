@@ -25,13 +25,15 @@
   --wash: #ffffff08;
   --shade: rgba(0, 0, 0, 0.42);
   --chart-neutral: color-mix(in srgb, var(--frame) 70%, var(--surface));
-  /* Type scale: use these, not new pixel sizes. Body text is 13px. */
+  /* Type scale: use these, not new pixel sizes. One step each: labels and ticks at the small end,
+     reading text (reports, replies, review) at --fs-md, the same as body text. */
   --fs-2xs: 10px; /* the floor: 9px uppercase didn't hold up on 1× screens */
   --fs-xs: 11px;
-  --fs-sm: 11px;
-  --fs-md: 12px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
   --fs-lg: 14px;
   --fs-xl: 16px;
+  --fs-body: var(--fs-md);
   /* Spacing steps; 6px is the HUD's working rhythm. */
   --space-0: 2px;
   --space-1: 4px;
@@ -92,7 +94,7 @@ body,
   background: var(--space);
   color: var(--text);
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--fs-body);
   /* Ticking counts and timers keep their width, so neighbours don't shuffle as digits change. */
   font-variant-numeric: tabular-nums;
 }
@@ -172,6 +174,16 @@ code {
 .hud-frame,
 .ftl-frame {
   position: absolute;
+}
+
+/* What you read and decide on is opaque: the map mustn't show through a request, a dialog, a
+   panel or the top bar. Only the small floating HUD pieces (roster, minimap) let it through. */
+.panel,
+.modal,
+.event,
+.topbar,
+.theme-list {
+  background: var(--surface);
 }
 
 .hud-label {
@@ -395,9 +407,10 @@ code {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--alert) 60%, transparent);
 }
 
+/* Not connected: a dashed stripe and the name in muted ink, never faded out (it stays readable). */
 .station-chip:not(.conn-live) {
-  opacity: 0.55;
   border-left-style: dashed;
+  border-left-color: color-mix(in srgb, var(--team) 45%, transparent);
 }
 
 .chip-name {
@@ -419,13 +432,15 @@ code {
 .base-chip.conn-live {
   color: var(--done);
 }
+/* Not connected yet is unknown (muted, like the map's signal grey); needing pairing or an update
+   is a caution (amber), not a question or a failure. */
 .conn-connecting,
 .conn-reconnecting {
-  color: var(--question);
+  color: var(--muted);
 }
 .conn-needs-pairing,
 .conn-needs-update {
-  color: var(--error);
+  color: var(--gauge-high);
 }
 .conn-offline {
   color: var(--muted);
@@ -449,6 +464,7 @@ code {
   font-size: var(--fs-sm);
   letter-spacing: 1.5px;
   text-transform: uppercase;
+  text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1578,7 +1594,7 @@ button.ftl-tab {
 .event-backdrop {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--space) 55%, transparent);
+  background: color-mix(in srgb, var(--space) 75%, transparent);
   display: grid;
   place-items: center;
   padding: var(--space-4);
@@ -2030,8 +2046,13 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
   .resources, .stations { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
   .resources::-webkit-scrollbar, .stations::-webkit-scrollbar { display: none; }
   .resource, .station-chip { flex: none; }
-  /* Dialog heads wrap their controls under the title rather than squeezing it onto two lines. */
+  /* Dialog heads: the title and the close button share the first row, everything else goes under. */
   .modal .panel-head { flex-wrap: wrap; }
+  .modal .panel-head > h2 { flex: 1 0 calc(100% - 56px); min-width: 0; }
+  .modal .panel-head > :last-child { order: 1; }
+  .modal .panel-head > :not(h2):not(:last-child) { order: 2; }
+  .modal .panel-head > .spacer { display: none; }
+  .dispatches { max-height: none; }
   /* One row: logo, the counters that matter, and a menu holding everything else. */
   .topbar { top: 0; left: 0; right: 0; flex-wrap: nowrap; gap: var(--space-1h); padding: max(6px, env(safe-area-inset-top)) 8px 6px; border-radius: 0; }
   .topbar .logo { flex: none; margin-right: 0; }
@@ -2136,8 +2157,13 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 
 /* Finger-sized controls on touch screens. */
 @media (pointer: coarse) {
+  /* A request's context scrolls above its choices: fade its last line so it's clear there's more. */
+  .event-body { mask-image: linear-gradient(#000 calc(100% - 28px), transparent); padding-bottom: var(--space-4); }
   .btn { min-height: var(--touch-target); }
   .icon-btn { min-width: var(--touch-target); min-height: var(--touch-target); }
+  /* Crew names that act as links (receipts, the dock) and the roster's tab are tapped too. */
+  .receipt-crew, .dock-crew { min-height: var(--touch-target); display: inline-flex; align-items: center; }
+  .roster-tab { min-height: var(--touch-target); }
 }
 
 /* ---- Controls: one height, a pressed state, pixel meters ---- */
@@ -2347,7 +2373,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .board-col { display: flex; flex-direction: column; gap: var(--space-1h); min-width: 0; padding: var(--space-1h); background: var(--wash); border: 1px solid var(--hairline); border-radius: var(--radius-control); }
 .board-col-head { margin: 0; display: flex; align-items: center; gap: var(--space-1h); font-size: var(--fs-2xs); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
 .board-count { padding: 0 var(--space-1); border: 1px solid var(--hairline-strong); border-radius: 2px; color: var(--text); }
-.col-needs-you .board-count { border-color: var(--alert); color: var(--alert); }
+.col-needs-you .board-count:not(.zero) { border-color: var(--alert); color: var(--alert); }
 .board-cards { display: flex; flex-direction: column; gap: var(--space-1h); max-height: 62vh; overflow-y: auto; }
 .board-empty { margin: var(--space-1) 0; }
 .board-card { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-1h); background: var(--slot); border: 1px solid var(--edge); border-left: 3px solid var(--edge-strong); border-radius: var(--radius-control); }
@@ -2442,5 +2468,4 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .review-changes { max-height: 40vh; overflow-y: auto; }
 .review-changes-box textarea { width: 100%; box-sizing: border-box; }
 .review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.review-actions a.btn { text-decoration: none; }
 @media (max-width: 700px) { .review-columns { grid-template-columns: 1fr; } .review-report { max-height: none; } .review-changes { max-height: none; } }

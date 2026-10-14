@@ -110,7 +110,8 @@ export function TimelinePanel() {
             <div className="tl-row tl-axis">
               <span className="tl-label-col" />
               <div className="tl-track" ref={axisTrack}>
-                {axis.map((t) => <span key={t} className="tl-tick" style={{ left: `${pct(t)}%` }}>{clock(t, hours > 24)}</span>)}
+                {/* A time label too close to "now" would print over it: the right edge keeps its own label. */}
+                {axis.filter((t) => ((100 - pct(t)) / 100) * trackWidth >= 56).map((t) => <span key={t} className="tl-tick" style={{ left: `${pct(t)}%` }}>{clock(t, hours > 24)}</span>)}
                 <span className="tl-tick tl-tick-now" style={{ left: "100%" }}>now</span>
               </div>
             </div>
