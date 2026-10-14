@@ -26,7 +26,7 @@ import { hudInsets } from "../ui/hud-insets";
 import { waitingSince } from "../ui/queue";
 import { doorState } from "./crew-motion";
 import { RenderLoop, type DrawResult } from "./render-loop";
-import { Backdrop } from "./backdrop";
+import { Backdrop, HORIZON_AT } from "./backdrop";
 import { consoleScreen, terminalScreen } from "./screens";
 import { BAYER, LightLayer, mixColor } from "./light";
 import { dockedPrs, podSpot, stationMemory, tallyMark } from "./memory";
@@ -401,24 +401,30 @@ export class World {
     return { x: inset.left, y: inset.top, w, h };
   }
 
-  private frame(rect: Rect, maxZoom: number): void {
+  private frame(rect: Rect, maxZoom: number, art = false): void {
     requestAnimationFrame(() => {
       if (this.destroyed) return;
       const area = this.visibleArea();
-      // Frame above the planet's horizon (at 80% of the screen), so the lowest station doesn't
-      // sit half-landed on it.
-      const horizon = this.app.screen.height * 0.8 - 8;
+      // Frame above the planet's horizon, so the lowest station doesn't sit half-landed on it.
+      const horizon = this.app.screen.height * HORIZON_AT - 8;
       const h = Math.max(120, Math.min(area.y + area.h, horizon) - area.y);
       const margin = isPhone() ? 40 : 80;
-      const z = floorZoom(clampZoom(Math.min(maxZoom, Math.min(area.w / (rect.w + margin), h / (rect.h + margin)))));
-      this.moveCamera(area.x + area.w / 2 - (rect.x + rect.w / 2) * z, area.y + h / 2 - (rect.y + rect.h / 2) * z, z, this.framed);
+      let z = floorZoom(clampZoom(Math.min(maxZoom, Math.min(area.w / (rect.w + margin), h / (rect.h + margin)))));
+      // For a picture (photo mode): if the ship fits at half size using the whole screen, down
+      // over the planet, draw it there, in its art, rather than as the flat fleet view.
+      const full = this.app.screen.height - area.y - 8;
+      const tall = art && z < FLEET_VIEW_ZOOM && rect.w * FLEET_VIEW_ZOOM <= area.w - 16 && rect.h * FLEET_VIEW_ZOOM <= full;
+      if (tall) z = FLEET_VIEW_ZOOM;
+      const span = tall ? full : h;
+      this.moveCamera(area.x + area.w / 2 - (rect.x + rect.w / 2) * z, area.y + span / 2 - (rect.y + rect.h / 2) * z, z, this.framed);
       this.framed = true;
     });
   }
 
-  fitAll(): void {
+  /** Frame the whole fleet; `art` (photo mode) prefers half size, where the art draws, if it fits. */
+  fitAll(art = false): void {
     if (!this.initialized) return;
-    this.frame(this.layout.bounds, 1.2);
+    this.frame(this.layout.bounds, 1.2, art);
   }
 
   /** Where Z went up from, and the view it went up to (so a second Z, with nothing moved, comes back). */
@@ -953,6 +959,15 @@ export class World {
       for (let x = w.x - 4; x < w.x + w.w + 4; x += 4) {
         g.rect(x, w.y - 4 - (w.round ? 2 : 0), 2, 2).fill({ color: lamp, alpha: 0.22 });
         g.rect(x + 2, w.y + w.h + 2 + (w.round ? 2 : 0), 2, 2).fill({ color: lamp, alpha: 0.22 });
+      }
+      // And a little of it spills off the hull into space: three ordered-dither rows above the
+      // hull's edge, widening and thinning, so a lit station glows against the dark.
+      const top = s.hull[1];
+      for (let r = 1; r <= 3; r++) {
+        for (let x = w.x - 2 * r; x < w.x + w.w + 2 * r; x += 2) {
+          if (BAYER[r & 3][(x / 2) & 3] / 16 >= [0, 0.45, 0.25, 0.12][r]) continue;
+          g.rect(x, top - 2 * r, 2, 2).fill({ color: lamp, alpha: 0.24 - r * 0.05 });
+        }
       }
     }
   }

@@ -59,7 +59,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   Each station there carries a one-line summary (who's waiting and for how long, who's working,
   open PRs), and a waiting crew member's glyph gets a frame that thickens with the wait. Close in,
   crew wear a short tag; the one you point at or select shows their full title. **P** is photo
-  mode: the HUD goes away, the map stands alone over a planet's horizon with a pixel-type title,
+  mode: the HUD goes away, the map stands alone over a planet's horizon with a pixel-type title
+  (framed at half size, in its art, whenever the whole ship fits the screen there),
   and **Save PNG** exports it at twice screen size.
   Zoomed out, each engineering deck shows its machine's callsign in large type on a plate in its team color, and
   Hermes operators keep their names. A crew member whose turn has run past 2, 6, 12 and 24 hours
@@ -150,9 +151,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   and whoever is waiting on you lights their own console. Zoomed out, the fleet view is night lights
   from orbit: rooms with crew in them glow under their lamps, empty rooms go dark, and an
   unreachable machine's rooms stay dark. Each hull's row of windows is drawn large enough to read
-  there, lit over occupied rooms: a station's signature from far away. High Contrast skips the light. The layout is compact
-  enough that a typical fleet opens at 0.5 zoom on a 1440×900 screen, where the art shows
-  one-to-one, rather than in the flat fleet view.
+  there, lit over occupied rooms: a station's signature from far away. High Contrast skips the light. The layout is compact,
+  and the planet's horizon low (88% down the screen), so a typical fleet opens at 0.5 zoom on a
+  1440×900 screen, where the art shows one-to-one, rather than in the flat fleet view. Lit windows
+  spill a little dithered light off the hull into space.
 - **Screens**: a crew member writing at their console types lines that scroll, with a blinking
   cursor; a terminal in use runs a prompt over scrolling output; a console waiting on you or
   reporting back shows its status shape (▲ ◆ ✓ ✕) dark on the lit screen, matching the badges.
