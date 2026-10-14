@@ -57,6 +57,16 @@ interface CameraView { cx: number; cy: number; zoom: number }
 /** How long a merged PR's pod takes to launch away. */
 const LAUNCH_MS = 2200;
 
+/** 7×7 stamps saying what a room is, for the fleet view's flat rooms. */
+const ROOM_STAMPS: Record<RoomKind, string[]> = {
+  bridge: ["#######", "#.....#", "#.....#", "#######", "...#...", "..###..", "......."],
+  terminal: ["#######", "#.....#", "#.#...#", "#..#..#", "#.#.###", "#.....#", "#######"],
+  files: [".#####.", ".#...#.", ".#####.", ".#...#.", ".#####.", ".#...#.", ".#####."],
+  comms: ["#.....#", "#.....#", ".#...#.", "..###..", "...#...", "...#...", "..###.."],
+  quarters: [".......", "#......", "#######", "#.....#", "#######", "#.....#", "......."],
+  archive: ["#######", "##.#.##", "##.#.##", "#######", "#.##.##", "#.##.##", "#######"],
+};
+
 export class World {
   private app = new Application();
   private backdrop?: Backdrop;
@@ -1192,6 +1202,7 @@ export class World {
     const tone: Record<RoomKind, number> = { bridge: c.f, terminal: c.p, files: c.p, comms: c.p, quarters: c.q, archive: c.F };
     const lamp = currentStyle().light ?? 0xe8f0f8;
     const highContrast = state.artStyle === "highcontrast";
+    const stampInk = mapInk(state.artStyle).muted;
     const urgency: UnitState[] = ["alert", "question", "error", "done", "working", "monitoring", "idle", "sleeping"];
     // Glyphs are 5 cells on a 6-cell dark tile, packed edge to edge so a room holds as many as it can.
     const pitch = 6 * cell;
@@ -1251,6 +1262,14 @@ export class World {
         const lit = (byRoom.get(kind) ?? []).some((c) => !c.offline);
         const r = { x: room.rect.x + cell, y: room.rect.y + cell, w: room.rect.w - 2 * cell, h: room.rect.h - 2 * cell };
         g.rect(r.x, r.y, r.w, r.h).fill({ color: tone[kind], alpha: lit ? 1 : 0.22 });
+        // What the room is, as a faint stamp in its far corner: glyphs fill from the near corner,
+        // so they only meet in a full room, and cover it then.
+        if (r.w >= 14 * cell && r.h >= 12 * cell) {
+          const sx = r.x + r.w - 9 * cell, sy = r.y + r.h - 9 * cell;
+          ROOM_STAMPS[kind].forEach((row, cy) => [...row].forEach((ch, cx) => {
+            if (ch === "#") g.rect(sx + cx * cell, sy + cy * cell, cell, cell).fill({ color: stampInk, alpha: lit ? 0.55 : 0.35 });
+          }));
+        }
         if (!lit || highContrast) continue;
         g.rect(r.x + cell, r.y, r.w - 2 * cell, cell).fill(lamp);
         for (let y = r.y + cell; y < r.y + Math.min(r.h, 6 * cell); y += cell) {
@@ -1308,16 +1327,20 @@ export class World {
     if (prs.length) parts.push([`${prs.length} PR${prs.length === 1 ? "" : "S"}`, ink.muted]);
     if (failing) parts.push([`${failing} FAILING`, offline ? ink.muted : STATUS.error]);
     if (parts.length === (offline ? 1 : 0)) parts.push(["QUIET", ink.muted]);
+    // Two short lines rather than one long one: what the crew are doing, then the station's PRs.
+    const crewParts = parts.length - (prs.length ? 1 : 0) - (failing ? 1 : 0);
     const texts = this.fleetRollups.get(s.key) ?? [];
-    let x = s.interior.x;
+    let x = s.interior.x, y = s.interior.y + s.interior.h + 24;
     parts.forEach(([value, color], k) => {
+      if (k === crewParts && k > 0) { x = s.interior.x; y += texts[0].height + Math.round(3 / this.zoom); }
       let text = texts[k];
       if (!text) { text = new PixelText(10, color); texts[k] = text; this.fleetLabels.addChild(text); }
       text.visible = true;
       text.fill = color;
-      text.text = k < parts.length - 1 ? `${value} · ` : value;
+      const lastOnLine = k === parts.length - 1 || k === crewParts - 1;
+      text.text = lastOnLine ? value : `${value} · `;
       text.scale.set(crispScale(text.unit, this.zoom));
-      text.position.set(Math.round(x), s.interior.y + s.interior.h + 24);
+      text.position.set(Math.round(x), Math.round(y));
       x += text.width;
     });
     for (let k = parts.length; k < texts.length; k++) texts[k].visible = false;
