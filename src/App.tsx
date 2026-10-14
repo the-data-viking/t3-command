@@ -56,8 +56,11 @@ function announceTransitions(): () => void {
       // pressed a number key (a control group, say), announce it instead: popping the card under
       // that keypress could turn it into "Approve".
       const active = document.activeElement?.tagName;
-      if (!useGame.getState().event && active !== "TEXTAREA" && active !== "INPUT") {
-        if (mayAutoOpen()) openEvent(at);
+      const s = useGame.getState();
+      if (!s.event && active !== "TEXTAREA" && active !== "INPUT") {
+        // Never over a report card or a dialog: the card's number keys would land on it too.
+        const covered = !!s.debrief || s.showPalette || s.showHelp || s.showPlaybooks || s.showBoard || s.showTimeline || s.showHistory;
+        if (mayAutoOpen() && !covered) openEvent(at);
         else useGame.setState({ incoming: { ...at, at: Date.now() } });
       }
     } else if (to === "error") {

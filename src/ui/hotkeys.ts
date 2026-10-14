@@ -66,6 +66,11 @@ export function installHotkeys(): () => void {
     if (e.key === "Escape") {
       if (state.photo) useGame.setState({ photo: false });
       else if (state.event) { stopQueue(); openEvent(null); }
+      // Dialogs, topmost first: Saved orders opens over a crew panel; the rest are full panels.
+      else if (state.showPlaybooks) useGame.setState({ showPlaybooks: false });
+      else if (state.showBoard) useGame.setState({ showBoard: false });
+      else if (state.showTimeline) useGame.setState({ showTimeline: false });
+      else if (state.showHistory) useGame.setState({ showHistory: false });
       else if (state.showEnvManager) useGame.setState({ showEnvManager: false });
       else if (state.showLog) useGame.setState({ showLog: false });
       else if (state.squad.length) setSquad([]);

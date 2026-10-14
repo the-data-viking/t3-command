@@ -21,6 +21,8 @@ export function SquadBar() {
   const [queueBusy, setQueueBusy] = useState(true);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<string>();
+  /** After a partial failure: only these get the order again, so nobody receives it twice. */
+  const [retry, setRetry] = useState<string[]>();
   const members = liveMembers(squad, envs);
   if (!members.length) return null;
   const settled = members.filter((m) => isSettled(envs[m.envId].threads[m.threadId])).length;
@@ -33,7 +35,9 @@ export function SquadBar() {
     if (!order || sending) return;
     setSending(true);
     let sent = 0, queued = 0, failed = 0;
-    await Promise.all(orderable.map(async (m) => {
+    const failedKeys: string[] = [];
+    const targets = retry ? orderable.filter((m) => retry.includes(`${m.envId}:${m.threadId}`)) : orderable;
+    await Promise.all(targets.map(async (m) => {
       try {
         if (queueBusy && busy.includes(m)) { await queueFollowUp(m.envId, m.threadId, order); queued++; }
         else {
@@ -42,11 +46,12 @@ export function SquadBar() {
           await client.order(m.threadId, order);
           sent++;
         }
-      } catch { failed++; }
+      } catch { failed++; failedKeys.push(`${m.envId}:${m.threadId}`); }
     }));
     (failed ? sfx.error : sfx.order)();
     setResult([sent && `Sent to ${sent}`, queued && `queued for ${queued}`, failed && `${failed} failed`].filter(Boolean).join(" · "));
     setSending(false);
+    setRetry(failed ? failedKeys : undefined);
     if (!failed) { setText(""); setOrdering(false); }
   };
 
@@ -56,12 +61,13 @@ export function SquadBar() {
       {ordering ? (
         <>
           <input className="squad-order" autoFocus value={text} placeholder="Order for all of them… (or /saved)" disabled={sending}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } if (e.key === "Escape") { e.stopPropagation(); setOrdering(false); } }} />
+            onChange={(e) => { setText(e.target.value); setRetry(undefined); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } if (e.key === "Escape") { e.stopPropagation(); setOrdering(false); setRetry(undefined); } }} />
+          {result && <span className="small squad-hint" role="status">{result}</span>}
           {busy.length > 0 && (
             <label className="squad-queue small"><input type="checkbox" checked={queueBusy} onChange={(e) => setQueueBusy(e.target.checked)} /> {busy.length} busy: after their turn</label>
           )}
-          <button className="btn primary" disabled={!text.trim() || sending || !orderable.length} onClick={() => void send()}>{sending ? "…" : `Send to ${orderable.length}`}</button>
+          <button className="btn primary" disabled={!text.trim() || sending || !orderable.length} onClick={() => void send()}>{sending ? "…" : retry ? `Retry ${retry.length} failed` : `Send to ${orderable.length}`}</button>
         </>
       ) : (
         <>

@@ -46,6 +46,9 @@ export function freeLabel(bytes: number): string {
 }
 
 const RANK = { unknown: 0, ok: 0, high: 1, critical: 2 } as const;
+/** A fill-rate estimate is noisy near its thresholds: announce it at most this often per machine. */
+const ETA_NOTICE_MS = 12 * 3_600_000;
+const etaNoticed = new Map<string, number>();
 
 /**
  * A desktop notification (if enabled) when a machine's disk gets worse; quiet on the first load.
@@ -58,6 +61,11 @@ export function announceStorage(prev: Record<string, StorageView>, next: Storage
     const before = storageSummary(prev[view.envId]);
     const after = storageSummary(view);
     if (after.stale || RANK[after.level] <= RANK[before.level] || !after.volume) continue;
+    // Raised only by the estimate (space alone is fine): throttle, so it can't flap.
+    if (after.eta !== undefined && RANK[diskLevel(after.volume)] < RANK[after.level]) {
+      if (Date.now() - (etaNoticed.get(view.envId) ?? 0) < ETA_NOTICE_MS) continue;
+      etaNoticed.set(view.envId, Date.now());
+    }
     const machine = useGame.getState().envs[view.envId]?.summary.label ?? "A machine";
     const free = `${freeLabel(after.volume.availableBytes)}B free on ${after.volume.mount}`;
     const text = after.eta !== undefined

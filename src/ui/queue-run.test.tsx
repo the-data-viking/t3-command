@@ -48,3 +48,13 @@ test("leaving a card for later moves on without it and doesn't count it as handl
   const clear = useGame.getState().queueClear;
   assert.deepEqual([clear?.handled, clear?.skipped], [1, 2]);
 });
+
+test("one card at a time: a request card replaces a report card and back", async () => {
+  const { openEvent } = await import("../store");
+  const { openDebrief } = await import("./debrief");
+  openDebrief({ envId: "mini", threadId: "a3" });
+  openEvent({ envId: "mini", threadId: "a2" });
+  assert.equal(useGame.getState().debrief, null);
+  openDebrief({ envId: "mini", threadId: "a3" });
+  assert.equal(useGame.getState().event, null);
+});

@@ -206,7 +206,7 @@ export class Backdrop {
 
   /** (Re)build every layer for a theme. */
   build(style: StyleId, width: number, height: number): void {
-    for (const l of this.layers) { l.sprite.destroy({ texture: true }); }
+    for (const l of this.layers) { l.sprite.destroy({ texture: true, textureSource: true }); }
     this.layers = [];
     const sky = SKY[style] ?? SKY["flightdeck-nightshift"];
     const space = STYLES[style].space;
@@ -250,7 +250,7 @@ export class Backdrop {
     // One hero body: a planet's horizon along the bottom of the frame, over the stars (none shows
     // through it), hazed toward space so it sits behind the fleet rather than competing with it.
     // The world's light, behind the horizon: it sets low behind the planet only at the frame's edge.
-    this.body?.sprite.destroy({ texture: true });
+    this.body?.sprite.destroy({ texture: true, textureSource: true });
     this.body = undefined;
     if (sky.body) {
       const sprite = new Sprite(bodyTexture(sky.body, space));
@@ -258,7 +258,7 @@ export class Backdrop {
       this.root.addChild(sprite);
       this.body = { sprite, x: sky.body.x, y: sky.body.y };
     }
-    this.horizon?.destroy({ texture: true });
+    this.horizon?.destroy({ texture: true, textureSource: true });
     this.horizon = undefined;
     if (sky.planet) {
       this.horizon = new Sprite(horizonTexture(sky.planet, space));
@@ -287,9 +287,9 @@ export class Backdrop {
   }
 
   destroy(): void {
-    for (const l of this.layers) l.sprite.destroy({ texture: true });
-    this.horizon?.destroy({ texture: true });
-    this.body?.sprite.destroy({ texture: true });
+    for (const l of this.layers) l.sprite.destroy({ texture: true, textureSource: true });
+    this.horizon?.destroy({ texture: true, textureSource: true });
+    this.body?.sprite.destroy({ texture: true, textureSource: true });
     this.root.destroy();
   }
 }

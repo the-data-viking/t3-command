@@ -7,6 +7,8 @@ import { DEFAULT_PLAYBOOKS, sanitizePlaybooks, type Playbook } from "../shared/p
 export class Playbooks {
   private readonly file: string;
   private books: Playbook[] = DEFAULT_PLAYBOOKS;
+  /** Saves run one at a time, so two at once can't interleave on the temp file. */
+  private writes: Promise<unknown> = Promise.resolve();
 
   constructor(dataDir: string) {
     this.file = path.join(dataDir, "playbooks.json");
@@ -28,9 +30,13 @@ export class Playbooks {
     const books = sanitizePlaybooks(input);
     if (!books) throw new Error("Playbooks must be a list of { name, text }");
     this.books = books;
-    const tmp = `${this.file}.tmp`;
-    await fs.writeFile(tmp, JSON.stringify(books, null, 2), { mode: 0o600 });
-    await fs.rename(tmp, this.file);
+    const write = this.writes.then(async () => {
+      const tmp = `${this.file}.${process.pid}.tmp`;
+      await fs.writeFile(tmp, JSON.stringify(this.books, null, 2), { mode: 0o600 });
+      await fs.rename(tmp, this.file);
+    });
+    this.writes = write.catch(() => {});
+    await write;
     return this.all();
   }
 }
