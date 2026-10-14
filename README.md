@@ -125,13 +125,15 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   jump to its crew member.
 - **Light**: every room has ceiling tubes in its world's lamp colour (cold fluorescent for Night
   Shift, warm white by day, sodium for Kestrel, candy pink for Pastel), lit with a dithered bloom
-  while the room is in use and dark otherwise. A station whose machines have all dropped off
-  browns out: its bridge lamps catch now and then.
+  while the room is in use and dark otherwise. The viewports along the top of each hull show the
+  lamp of the room under them, so from outside you can tell which rooms are in use. A station
+  whose machines have all dropped off browns out: its bridge lamps (and windows) catch now and then.
   Light is drawn additively in dithered pixels: a cone falls from every lit tube, a working
   console throws a pool onto the floor (lamp-coloured, only a quarter toward its screen's hue),
   and whoever is waiting on you stands in a spotlight. Zoomed out, the fleet view is night lights
   from orbit: rooms with crew in them glow under their lamps, empty rooms go dark, and an
-  unreachable machine's rooms stay dark. High Contrast skips the light. The layout is compact
+  unreachable machine's rooms stay dark. Each hull's row of windows is drawn large enough to read
+  there, lit over occupied rooms: a station's signature from far away. High Contrast skips the light. The layout is compact
   enough that a typical fleet opens at 0.5 zoom on a 1440×900 screen, where the art shows
   one-to-one, rather than in the flat fleet view.
 - **Screens**: a crew member writing at their console types lines that scroll, with a blinking

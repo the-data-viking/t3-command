@@ -209,3 +209,27 @@ test("station colours stay clear of every world's chrome and of Hermes", () => {
     }
   }
 });
+
+test("idle and asleep are told apart, from each other and from muted text, in every theme", () => {
+  for (const style of LIVE_STYLES) {
+    const t = hudTokens(style);
+    assert.ok(deltaE(hex(t["--idle"]), hex(t["--sleeping"])) >= 15, `${style}: idle vs asleep`);
+    for (const state of ["idle", "sleeping"]) {
+      assert.ok(deltaE(hex(t[`--${state}`]), hex(t["--muted"])) >= 12, `${style}: ${state} reads as muted text`);
+      assert.ok(deltaE(hex(t[`--${state}`]), hex(t["--monitoring"])) >= 25, `${style}: ${state} vs monitoring`);
+      for (const panel of ["--surface", "--slot", "--control"]) assert.ok(contrast(t[`--${state}`], t[panel]) >= 4.5, `${style}: ${state} on ${panel}`);
+    }
+  }
+});
+
+test("muted text never reads as a status, and Hermes tan stays Hermes's own", () => {
+  for (const style of LIVE_STYLES) {
+    const t = hudTokens(style);
+    for (const state of ["alert", "question", "working", "monitoring", "error", "done"]) {
+      assert.ok(deltaE(hex(t[`--${state}`]), hex(t["--muted"])) >= 15, `${style}: ${state} vs muted`);
+    }
+    assert.ok(deltaE(hex(t["--hermes"]), hex(t["--muted"])) >= 20, `${style}: muted text reads as Hermes`);
+    assert.ok(deltaE(hex(t["--hermes"]), hex(t["--text"])) >= 15, `${style}: body text reads as Hermes`);
+    for (const panel of ["--surface", "--control"]) assert.ok(contrast(t["--alert"], t[panel]) >= 4.5, `${style}: approval red on ${panel}`);
+  }
+});
