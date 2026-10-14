@@ -3,7 +3,7 @@ import test from "node:test";
 import type { Dispatch, DispatchMember } from "../../shared/dispatches";
 import type { EnvWorld } from "../store";
 import type { ThreadShell } from "../t3/types";
-import { dispatchTitle, progressOf, receiptOf } from "./dispatch";
+import { dispatchTitle, progressOf, receiptOf, replyOf } from "./dispatch";
 
 const shell = (id: string, turnId: string, state: string, extra: Partial<ThreadShell> = {}) =>
   ({ id, title: id, latestTurn: { turnId, state }, session: null, hasPendingApprovals: false, hasPendingUserInput: false, ...extra }) as unknown as ThreadShell;
@@ -44,4 +44,13 @@ test("progress counts what's over, what was reported, what needs you and what we
   assert.deepEqual({ done: p.done, reported: p.reported, needsYou: p.needsYou, trouble: p.trouble, total: p.total }, { done: 3, reported: 1, needsYou: 1, trouble: 2, total: 5 });
   assert.equal(dispatchTitle({ ...d, text: "\n  Status please.\nMore detail" }), "Status please.");
   assert.equal(dispatchTitle({ ...d, text: "x".repeat(100) }, 10), `${"x".repeat(9)}…`);
+});
+
+test("a reply is the crew member's last message in its latest turn, once the order reached them", () => {
+  const thread = shell("done", "t2", "completed");
+  const msg = (text: string, turnId: string, role = "assistant") => ({ id: text, role, text, turnId, streaming: false, createdAt: "", updatedAt: "" });
+  const detail = { synced: true, thread: { messages: [msg("old answer", "t1"), msg("Status please.", "t2", "user"), msg("first half", "t2"), msg("All green, PR #9 open.", "t2"), msg("  ", "t2")] } } as never;
+  assert.equal(replyOf("reported", thread, detail), "All green, PR #9 open.");
+  assert.equal(replyOf("sent", thread, detail), undefined, "not reached yet: the latest turn isn't the order's");
+  assert.equal(replyOf("reported", thread, undefined), undefined, "not loaded");
 });

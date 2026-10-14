@@ -65,6 +65,10 @@ export function DispatchList({ onGo }: { onGo: () => void }) {
             <summary>
               <span className="dispatch-title" title={dispatch.text}>{dispatchTitle(dispatch)}</span>
               <span className="muted small">{ago(now - dispatch.at)} · {summary(progress)}</span>
+              {progress.total - progress.trouble > 0 && (
+                <button className="btn small dispatch-read" title="Every reply to this order, side by side"
+                  onClick={(e) => { e.preventDefault(); useGame.setState({ replies: dispatch.id }); }}>Read replies{progress.reported ? ` (${progress.reported})` : ""}</button>
+              )}
               <button className="icon-btn small" aria-label="Stop following this order" title="Stop following (the order itself stands)"
                 onClick={(e) => { e.preventDefault(); void closeDispatch(dispatch.id).catch((err) => logError("Couldn't close the dispatch", err)); }}>✕</button>
             </summary>

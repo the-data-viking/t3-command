@@ -94,6 +94,8 @@ export interface GameState {
   debrief: { envId: string; threadId: string } | null;
   /** The review panel: a crew member's latest turn, claims beside evidence. */
   review: { envId: string; threadId: string } | null;
+  /** The replies to a squad order, side by side: the dispatch's id. */
+  replies: string | null;
   /** A run through the queue in progress: the cards it has opened so far. */
   queueRun: { seen: string[]; skipped: string[] } | null;
   /** The last run just ended: how many cards it went through (shown briefly). */
@@ -269,6 +271,7 @@ export const useGame = create<GameState>()(() => ({
   incoming: null,
   debrief: null,
   review: null,
+  replies: null,
   queueRun: null,
   queueClear: null,
   photo: false,
