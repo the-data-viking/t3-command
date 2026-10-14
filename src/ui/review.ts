@@ -69,3 +69,35 @@ export function changesOrder(notes: string): string {
 export function openReview(at: { envId: string; threadId: string } | null): void {
   useGame.setState({ review: at, ...(at ? { event: null, debrief: null } : {}) });
 }
+
+/** Where a report's claim and Command's evidence disagree: a doubt, not a verdict. */
+export interface Doubt { claim: string; evidence: string }
+
+const CLAIMS = {
+  checks: /\b(checks?|ci)\b[^.\n]{0,40}\b(green|pass(ed|ing)?|succeed(ed|ing)?)\b|\bgreen (checks|ci)\b/i,
+  tests: /\b(all |the )?tests?\b[^.\n]{0,30}\b(pass(ed|ing|es)?|green|succeed(ed)?)\b/i,
+  pr: /\b(?:opened|created|raised|pushed)\b[^.\n]{0,30}\bPR\s*#(\d+)/i,
+};
+
+/**
+ * Claims in a report that the evidence doesn't back up: checks said to be green while some are
+ * pending or failing, tests said to pass when none ran this turn (or one failed), a PR said to be
+ * opened that this crew member doesn't have. Plain pattern matching, so these are doubts to look
+ * at, never a ruling on the work.
+ */
+export function doubts(report: string | undefined, tests: TestRun[], checks: ChecksSummary, prNumbers: number[]): Doubt[] {
+  if (!report) return [];
+  const out: Doubt[] = [];
+  if (CLAIMS.checks.test(report)) {
+    if (checks.verdict === "failing") out.push({ claim: "Says checks are green", evidence: `${checks.failing} failing` });
+    else if (checks.verdict === "pending") out.push({ claim: "Says checks are green", evidence: `${checks.pending} still pending` });
+  }
+  if (CLAIMS.tests.test(report)) {
+    const failed = tests.filter((t) => t.outcome === "failed");
+    if (!tests.length) out.push({ claim: "Says tests pass", evidence: "no test command ran this turn" });
+    else if (failed.length) out.push({ claim: "Says tests pass", evidence: `${failed[0].command} failed this turn` });
+  }
+  const pr = CLAIMS.pr.exec(report);
+  if (pr && !prNumbers.includes(Number(pr[1]))) out.push({ claim: `Says it opened PR #${pr[1]}`, evidence: "no such PR is linked to this crew member" });
+  return out;
+}

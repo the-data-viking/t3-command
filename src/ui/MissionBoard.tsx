@@ -15,6 +15,7 @@ import type { ThreadShell } from "../t3/types";
 import { requestSummary, waitingSince } from "./queue";
 import { startQueue } from "./queue-run";
 import { useClock } from "./useClock";
+import { pulseOf, pulseText } from "./pulse";
 import { modelName, stateLabel } from "./util";
 
 /** Each state's shape, so a card's state never rests on colour alone. */
@@ -76,6 +77,8 @@ function BoardCard({ card, onGo }: { card: Card; onGo: () => void }) {
     : state === "working" && turn?.startedAt ? `for ${span(now - Date.parse(turn.startedAt))}`
     : turn?.completedAt ? `${span(now - Date.parse(turn.completedAt))} ago` : "";
   const ask = (state === "alert" || state === "question") && detail ? requestSummary(pendingRequests(detail.thread)[0], 70) : undefined;
+  // A long-running turn's pulse: is it moving, and is anything worth a look.
+  const pulse = state === "working" && detail ? pulseOf(detail.thread, now) : undefined;
   const go = () => {
     const sel = { kind: "unit" as const, envId, threadId: thread.id };
     setSelection(sel);
@@ -93,6 +96,7 @@ function BoardCard({ card, onGo }: { card: Card; onGo: () => void }) {
         <span className="board-card-title">{thread.title || "Untitled"}</span>
         <span className="muted small">{project} · {env?.summary.label} · {modelName(env, thread)}</span>
         {ask && <span className={`board-card-ask st-${state}`}>{ask}</span>}
+        {pulse && <span className={`board-card-pulse small${pulse.repeatFail || pulse.noChangeMs ? " orange" : " muted"}`}>{pulseText(pulse, now)}</span>}
         {state === "error" && thread.session?.lastError && <span className="board-card-ask st-error">{thread.session.lastError.split("\n")[0].slice(0, 90)}</span>}
       </button>
       <OpenPrs thread={thread} />
