@@ -88,6 +88,12 @@ export interface GameState {
   showBoard: boolean;
   /** The shipping dock: every open PR, by how ready it is to merge. */
   showDock: boolean;
+  /**
+   * When a hotkey last jumped to a crew member (performance.now()). Selecting one puts the cursor
+   * in their order box, except just after a jump, so the next hotkey still works; O or Enter (or a
+   * click) goes to the box.
+   */
+  jumpedAt: number;
   /** Desktop notifications for approvals and questions while the tab isn't in view. */
   notify: boolean;
   /** The crew member whose pending approval/question is shown as an event dialog. */
@@ -275,6 +281,7 @@ export const useGame = create<GameState>()(() => ({
   showTimeline: false,
   showBoard: false,
   showDock: false,
+  jumpedAt: -Infinity,
   notify: loadNotify(),
   event: null,
   incoming: null,

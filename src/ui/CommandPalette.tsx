@@ -89,6 +89,7 @@ function buildItems(state: GameState): Item[] {
     { id: "act:queue", group: "Action", label: "Work through the queue: approvals, questions, then reports", detail: "Q", run: () => startQueue() },
     { id: "act:alert", group: "Action", label: "Next crew waiting on you", detail: "Space", run: () => jumpTo("attention") },
     { id: "act:report", group: "Action", label: "Next report ready", detail: ".", run: () => jumpTo("done") },
+    { id: "act:failed", group: "Action", label: "Next failed turn", detail: "X", run: () => jumpTo("error") },
     { id: "act:sound", group: "Action", label: state.muted ? "Turn sound on" : "Mute sound", run: () => setMuted(!state.muted) },
     { id: "act:notify", group: "Action", label: state.notify ? "Turn off desktop alerts" : "Turn on desktop alerts", run: () => void setNotify(!state.notify) },
   );

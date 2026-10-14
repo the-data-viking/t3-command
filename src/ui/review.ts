@@ -4,6 +4,9 @@
 // evidence. Pure functions over the thread and PR detail; the panel lays them side by side.
 
 import { useGame } from "../store";
+import { openDebrief } from "./debrief";
+import { advanceQueue, finishQueue } from "./queue-run";
+import { reportRead } from "./util";
 import type { OrchestrationThread, PullRequestDetail, ThreadPullRequest, ThreadShell } from "../t3/types";
 
 /** Commands that run tests or checks, by the usual runners. */
@@ -65,9 +68,19 @@ export function changesOrder(notes: string): string {
   return `Review feedback on your last turn. Please address all of it, then summarize what you changed and how you verified it:\n\n${notes.trim()}`;
 }
 
-/** Open (or close) the review of a crew member's latest turn; it replaces any open card. */
+/**
+ * Open (or close) the review of a crew member's latest turn; it replaces any open card. Opened
+ * from a queue run, the run carries on when it closes: back to that report's card, or on to the
+ * next one if the review marked it read.
+ */
 export function openReview(at: { envId: string; threadId: string } | null): void {
+  const { review, queueRun } = useGame.getState();
   useGame.setState({ review: at, ...(at ? { event: null, debrief: null } : {}) });
+  if (at || !review || !queueRun) return;
+  const { envs, readReports } = useGame.getState();
+  const thread = envs[review.envId]?.threads[review.threadId];
+  if (thread && reportRead(readReports, review.envId, thread)) { if (!advanceQueue(`${review.envId}:${review.threadId}`)) finishQueue(); }
+  else openDebrief(review);
 }
 
 /** Where a report's claim and Command's evidence disagree: a doubt, not a verdict. */

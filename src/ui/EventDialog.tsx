@@ -214,7 +214,7 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
         <div className="event-foot muted">
           {request?.kind === "user-input" ? "Select or type your answers" : isPhone() ? "Tap a choice" : "Press a number to choose"}
           {running ? ` · ${left > 0 ? `${left} more in the queue` : "last one"} · ${isPhone() ? "tap outside to stop" : "Esc stops"}`
-            : queue.length > 0 ? ` · ${queue.length} more waiting, next after this · Esc stops` : " · Esc to decide later"}
+            : queue.length > 0 ? ` · ${queue.length} more waiting, next after this${isPhone() ? "" : " · Esc stops"}` : isPhone() ? "" : " · Esc to decide later"}
           {running && <button className="link-button queue-skip" onClick={skip}>{isPhone() ? "Later (or swipe left)" : "Later (S)"}</button>}
         </div>
       </div>
