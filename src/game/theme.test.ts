@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_VISOR, GAUGE, hudMaterials, hudTokens, PROVIDER_VISOR, STATUS, TEAM_COLORS } from "./theme";
+import { DEFAULT_VISOR, GAUGE, hudAccent, hudMaterials, hudTokens, PROVIDER_VISOR, STATUS, TEAM_COLORS } from "./theme";
 import { BADGES } from "./map-common";
 import { ART_STYLES } from "../store";
 import { STYLES } from "../art/palettes";
@@ -231,5 +231,25 @@ test("muted text never reads as a status, and Hermes tan stays Hermes's own", ()
     assert.ok(deltaE(hex(t["--hermes"]), hex(t["--muted"])) >= 20, `${style}: muted text reads as Hermes`);
     assert.ok(deltaE(hex(t["--hermes"]), hex(t["--text"])) >= 15, `${style}: body text reads as Hermes`);
     for (const panel of ["--surface", "--control"]) assert.ok(contrast(t["--alert"], t[panel]) >= 4.5, `${style}: approval red on ${panel}`);
+  }
+});
+
+test("idle never reads as body text, the frame or a visor, in any theme", () => {
+  for (const style of LIVE_STYLES) {
+    const t = hudTokens(style);
+    assert.ok(deltaE(hex(t["--idle"]), hex(t["--text"])) >= 12, `${style}: idle vs body text`);
+    assert.ok(deltaE(hex(t["--idle"]), hex(t["--frame"])) >= 10, `${style}: idle vs frame`);
+    assert.ok(deltaE(hex(t["--idle"]), DEFAULT_VISOR) >= 8, `${style}: idle vs the default visor`);
+  }
+});
+
+test("station colours as the HUD draws them stay clear of every status and gauge, light themes included", () => {
+  const meanings = ["alert", "question", "working", "monitoring", "error", "done", "gauge-high", "gauge-critical"];
+  for (const style of LIVE_STYLES) {
+    const t = hudTokens(style);
+    for (const team of TEAM_COLORS) {
+      const shown = hudAccent(team, style);
+      for (const name of meanings) assert.ok(deltaE(shown, hex(t[`--${name}`])) >= 15, `${style} team #${team.toString(16)} (#${shown.toString(16)}) vs ${name}`);
+    }
   }
 });

@@ -7,7 +7,7 @@ import { dispatchTitle, progressOf, receiptOf, replyOf } from "./dispatch";
 
 const shell = (id: string, turnId: string, state: string, extra: Partial<ThreadShell> = {}) =>
   ({ id, title: id, latestTurn: { turnId, state }, session: null, hasPendingApprovals: false, hasPendingUserInput: false, ...extra }) as unknown as ThreadShell;
-const envs = { e: { threads: {
+const envs = { e: { connection: "live", threads: {
   working: shell("working", "t2", "running"),
   asking: shell("asking", "t2", "running", { hasPendingApprovals: true }),
   done: shell("done", "t2", "completed"),
@@ -68,4 +68,19 @@ test("a pinned member's receipt and reply come from its own turn, not whatever r
   const msg = (text: string, turnId: string) => ({ id: text, role: "assistant", text, turnId, streaming: false, createdAt: "", updatedAt: "" });
   const detail = { synced: true, thread: { messages: [msg("its own answer", "t1"), msg("a later turn's", "t2")] } } as never;
   assert.equal(replyOf("failed", thread, detail, pinned), "its own answer");
+});
+
+test("a mission report's own STATUS shows on its receipt, and an offline machine is said to be offline", () => {
+  const done = { ...m("done"), turnId: "t2", result: "completed" as const };
+  assert.equal(receiptOf({ ...done, report: { status: "blocked", note: "needs creds" } }, envs), "blocked");
+  assert.equal(receiptOf({ ...done, report: { status: "partial" } }, envs), "partial");
+  assert.equal(receiptOf({ ...done, report: { status: "done" } }, envs), "reported");
+  assert.equal(receiptOf(done, envs), "reported", "a plain order has no report line");
+  const offline = { e: { ...envs.e, connection: "reconnecting" } } as unknown as Record<string, EnvWorld>;
+  assert.equal(receiptOf(m("working"), offline), "offline", "not \"working\" or \"didn't start\": unknown");
+  assert.equal(receiptOf(done, offline), "reported", "what was already seen to end stays");
+  const d = { id: "d", text: "Go", at: Date.now(), members: [{ ...done, report: { status: "blocked" as const } }, done] } as Dispatch;
+  const p = progressOf(d, envs);
+  assert.equal(p.reported, 2, "a blocked report still came back");
+  assert.equal(p.trouble, 1, "and counts as trouble");
 });

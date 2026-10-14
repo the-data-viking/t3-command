@@ -15,23 +15,27 @@ const detail = (d: Partial<PullRequestDetail>): PullRequestDetail => ({
 });
 const check = (status: PullRequestDetail["checks"][number]["status"]) => ({ name: status, status, description: null, url: null });
 
-test("a PR's lane comes from what T3 and the host report", () => {
-  assert.deepEqual(readiness(pr({ checksState: "passing" })), { lane: "ready", reasons: ["checks passing"], rebase: false });
+test("a PR's lane comes from what T3 and the host report, and only the host's word makes it ready", () => {
+  assert.deepEqual(readiness(pr({ checksState: "passing" })), { lane: "unverified", reasons: ["host not read (T3's snapshot says checks pass)"], rebase: false },
+    "a passing snapshot isn't the host's word");
+  assert.deepEqual(readiness(pr({})).reasons, ["host not read"]);
   assert.equal(readiness(pr({ checksState: "failing" })).lane, "attention");
   assert.equal(readiness(pr({ isDraft: true })).lane, "waiting");
   assert.equal(readiness(pr({ checksState: "pending" })).lane, "waiting");
-  assert.deepEqual(readiness(pr({}), detail({})).reasons, ["no checks reported"], "no checks isn't the same as passing");
-  assert.deepEqual(readiness(pr({ reviewDecision: "APPROVED" }), detail({ checks: [check("success")] })).reasons, ["checks passing", "approved"]);
+  assert.deepEqual(readiness(pr({}), detail({})), { lane: "unverified", reasons: ["no checks reported"], rebase: false }, "no checks isn't the same as passing");
+  assert.deepEqual(readiness(pr({}), detail({ checks: [check("success")], mergeability: "unknown" })).reasons, ["mergeability not known yet"]);
+  assert.deepEqual(readiness(pr({ reviewDecision: "APPROVED" }), detail({ checks: [check("success")] })), { lane: "ready", reasons: ["checks passing", "merges cleanly", "approved"], rebase: false });
 });
 
 test("the host's detail outranks the snapshot, and says why it needs attention", () => {
   const r = readiness(pr({ checksState: "passing" }), detail({ checks: [check("success"), check("failure"), check("cancelled")], mergeability: "conflicting" }));
   assert.equal(r.lane, "attention");
+  assert.equal(r.tone, "error", "failing checks are a failure, not an approval");
   assert.deepEqual(r.reasons, ["2 failing checks", "conflicts with main"]);
   assert.ok(r.rebase, "a conflict wants a rebase");
   const behind = readiness(pr({}), detail({ baseComparison: "behind", behindBy: 3 }));
-  assert.deepEqual(behind, { lane: "attention", reasons: ["3 commits behind main"], rebase: true });
-  assert.equal(readiness(pr({ isDraft: true }), detail({ isDraft: false })).lane, "ready", "marked ready on the host since");
+  assert.deepEqual(behind, { lane: "attention", reasons: ["3 commits behind main"], rebase: true, tone: "caution" });
+  assert.equal(readiness(pr({ isDraft: true }), detail({ isDraft: false, checks: [check("success")] })).lane, "ready", "marked ready on the host since");
   assert.equal(readiness(pr({ reviewDecision: "CHANGES_REQUESTED" })).lane, "attention");
   assert.deepEqual(readiness(pr({}), detail({ checks: [check("pending"), check("success")] })).reasons, ["1 check running"]);
 });
@@ -40,5 +44,5 @@ test("the demo fleet's dock: open PRs once each, newest first", () => {
   loadDemoFleet();
   const prs = openPrs(useGame.getState().envs);
   assert.deepEqual(prs.map((p) => p.pr.number), [72, 63, 62, 61], "merged PRs stay off the dock");
-  assert.deepEqual(prs.map((p) => readiness(p.pr).lane), ["ready", "waiting", "attention", "ready"]);
+  assert.deepEqual(prs.map((p) => readiness(p.pr).lane), ["unverified", "waiting", "attention", "unverified"], "nothing is ready before the host is read");
 });

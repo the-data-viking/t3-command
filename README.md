@@ -201,9 +201,11 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   report** act from the card, and clicking one goes to its crew member. Crew at camp or idle
   are off the board. A **mission** (⚑) is only ever several crew on one named goal.
 - **Shipping dock** (**D**, the palette, or the work board's header): every open PR in the fleet,
-  once each, in three lanes: **Ready to merge** (checks passing, not a draft, no conflicts, up to
-  date with its base), **Needs attention** (failing checks, conflicts, commits behind, changes
-  requested) and **In progress** (drafts, checks running), each with the reasons. It reads each
+  once each, in four lanes: **Ready to merge** (the host reports checks that ran and passed and a
+  clean merge; not a draft, not behind its base), **Needs attention** (failing checks, conflicts,
+  commits behind, changes requested), **In progress** (drafts, checks running) and **Not
+  verified** (nothing bad is known, but the host wasn't read, no checks ran, or mergeability isn't
+  known yet: silence is never taken for clearance), each with the reasons. It reads each
   PR's detail from the host, a few at a time. **Review** opens the crew member's review panel,
   **Rebase** sends them your saved `/rebase` order (queued if they're busy), and **Open ↗** goes to
   the host. Merging stays on the host.
@@ -676,7 +678,9 @@ logged too.
 
 **Standing orders**: the ×N picker beside Send gives an order 2–10 times. It goes now (or after
 this turn), and the server gives it again after each turn it starts that ends cleanly; it stops at
-a failure, an interruption, your next order, or a send that never starts a turn. A send that
+a failure, an interruption, your next order, a send that never starts a turn, or a reply that ends
+**NOTHING LEFT** (the server reads each reply itself before repeating, so this works with every
+browser closed; if it can't read the reply after a few tries, it stops rather than repeat blind). A send that
 errors waits to see whether its turn shows up before retrying (with backoff, up to five tries), so
 it's never sent twice.
 
@@ -684,15 +688,20 @@ it's never sent twice.
 
 An order to two or more picked crew is followed as an **order**: the work board and a top-bar
 **ORDER n/N** chip show each recipient's receipt (sent, queued for after its turn, didn't start,
-working, needs you, reported, failed, or never delivered), worked out from their own turns.
-**Read replies** puts every crew member's answer side by side; **Copy debrief** copies them as
-markdown; **Close order** stops following it.
+working, needs you, reported, failed, never delivered, or machine offline), worked out from their
+own turns. **Read replies** puts every crew member's answer side by side; **Copy debrief** copies
+them as markdown; **Close order** stops following it, and if crew still have it queued for after
+their turn it says so and cancels those sends too.
 
 A **mission** (⚑, **Mission…** in the squad bar) is several crew on one named goal, each with
-their own part. Each gets a brief with the mission, the goal, their part and who else is on it.
+their own part. Each gets a brief with the mission, the goal, their part and who else is on it,
+and the rules every round repeats: stay in your lane, start with `BLOCKED:` if blocked, end with
+`STATUS: done | partial | blocked`. The server reads that line from each finished report, so a
+receipt says **blocked** (with what they need) or **partly done** rather than just "reported".
 **Follow up…** in its replies orders the same crew again, optionally passing each one what the
-others reported. The server watches every order and mission and says once in the comms log (and
-by push, if you allow it) when everyone's part is over: "Mission "Ship it": 3 of 3 reported".
+others reported (clipped from the middle, so each one's STATUS line survives). The server watches
+every order and mission and says once in the comms log (and by push, if you allow it) when
+everyone's part is over: "Mission "Ship it": 2 done, 1 blocked (needs the staging DB password)".
 Mission crew carry ⚑ on the map and in the roster.
 
 ## Saved orders

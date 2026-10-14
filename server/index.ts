@@ -22,6 +22,7 @@ import { PushNotifier } from "./push.ts";
 import { FollowUps } from "./followups.ts";
 import { Decisions } from "./decide.ts";
 import { Dispatches } from "./dispatches.ts";
+import type { OrchestrationThread } from "../src/t3/types.ts";
 import { Playbooks } from "./playbooks.ts";
 import { randomUUID } from "node:crypto";
 import { HostHistoryRecorder } from "./host-history.ts";
@@ -69,6 +70,18 @@ comms.onEntry((entry) => {
   const decision = asks ? decisions.prepare(entry.envId!, entry.threadId!, title).catch(() => undefined) : Promise.resolve(undefined);
   void decision.then((d) => push.notify(entry, machine, d)).catch((err) => console.warn("[push]", (err as Error).message));
 });
+/** A thread's latest turn as T3 has it now, messages included: a one-off look over the server's own link. */
+async function readThread(envId: string, threadId: string): Promise<OrchestrationThread> {
+  const items = await recorder.peek<{ kind: string; snapshot?: { thread: OrchestrationThread } }>(envId, "orchestration.subscribeThread", { threadId, turnLimit: 1, requestCompletionMarker: true });
+  const thread = items.find((i) => i.kind === "snapshot")?.snapshot?.thread;
+  if (!thread) throw new Error("T3 sent no snapshot of that thread");
+  return thread;
+}
+/** The agent's last message in a turn, if it wrote one. */
+async function readReply(envId: string, threadId: string, turnId: string): Promise<string | undefined> {
+  const thread = await readThread(envId, threadId);
+  return [...thread.messages].reverse().find((m) => m.role === "assistant" && m.turnId === turnId && m.text.trim())?.text;
+}
 // Follow-ups go out over the server's own link to each machine, as the browser would send them.
 const followUps = new FollowUps(config.dataDir, comms, async (envId, thread, text) => {
   await recorder.request(envId, "orchestration.dispatchCommand", {
@@ -77,12 +90,13 @@ const followUps = new FollowUps(config.dataDir, comms, async (envId, thread, tex
     modelSelection: thread.modelSelection, runtimeMode: thread.runtimeMode, interactionMode: thread.interactionMode,
     createdAt: new Date().toISOString(),
   });
-}, (envId) => registry.get(envId)?.label);
+}, (envId) => registry.get(envId)?.label, readReply);
 await followUps.load();
 const playbooks = new Playbooks(config.dataDir);
 await playbooks.load();
 const dispatches = new Dispatches(config.dataDir);
 await dispatches.load();
+dispatches.readReportsWith(readReply);
 dispatches.announceTo(comms, (envId, threadId) => followUps.view().queued.some((f) => f.envId === envId && f.threadId === threadId));
 followUps.onDrop((f) => dispatches.followUpDropped(f.envId, f.threadId, f.afterTurnId));
 recorder.listen({
@@ -280,8 +294,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: "No such dispatch" });
   }
   if (pathname === "/api/dispatches/close" && method === "POST") {
-    const body = await readJson<{ id?: string }>(req);
-    return sendJson(res, dispatches.close(String(body?.id ?? "")) ? 200 : 404, dispatches.all());
+    // `cancel`: the follow-ups still queued for it, which the operator agreed to cancel with it.
+    const body = await readJson<{ id?: string; cancel?: unknown }>(req);
+    const closed = dispatches.close(String(body?.id ?? ""));
+    if (closed && Array.isArray(body?.cancel)) for (const fid of body.cancel) if (typeof fid === "string") followUps.cancel(fid);
+    return sendJson(res, closed ? 200 : 404, dispatches.all());
   }
   if (pathname === "/api/followups" && method === "GET") return sendJson(res, 200, followUps.view());
   if (pathname === "/api/followups" && method === "POST") {

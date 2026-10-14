@@ -23,6 +23,31 @@ export interface DispatchMember {
   result?: TurnResult;
   /** Exactly what this crew member was sent, so a resend sends the same. */
   brief?: string;
+  /** On a mission: what their report said of itself (its STATUS or BLOCKED line), read by the server when the turn ended. */
+  report?: MissionReport;
+}
+
+/**
+ * A mission member's own verdict on their part: the closing STATUS line the brief asks for, or a
+ * reply that starts BLOCKED. "none": no such line; "unread": the reply couldn't be read.
+ */
+export interface MissionReport {
+  status: "done" | "partial" | "blocked" | "none" | "unread";
+  /** What a blocked member says they need, or the status line itself, clipped. */
+  note?: string;
+}
+const REPORT_STATUSES = new Set(["done", "partial", "blocked", "none", "unread"]);
+
+/** Read the STATUS / BLOCKED convention from a mission reply. */
+export function parseReport(text: string): MissionReport {
+  const lines = text.split("\n").map((l) => l.replace(/[*_`]/g, "").trim()).filter(Boolean);
+  const clip = (s: string) => (s.length > 160 ? `${s.slice(0, 159)}…` : s);
+  const blocked = lines.find((l) => /^BLOCKED\s*:/i.test(l));
+  const statusLine = [...lines].reverse().find((l) => /\bSTATUS\s*:\s*(done|partial|blocked)\b/i.test(l));
+  const status = statusLine?.match(/\bSTATUS\s*:\s*(done|partial|blocked)\b/i)?.[1].toLowerCase() as "done" | "partial" | "blocked" | undefined;
+  if (blocked || status === "blocked") return { status: "blocked", note: clip((blocked ?? statusLine!).replace(/^BLOCKED\s*:\s*/i, "")) };
+  if (status) return { status, note: clip(statusLine!) };
+  return { status: "none" };
 }
 
 export type TurnResult = "completed" | "error" | "interrupted" | "superseded";
@@ -69,7 +94,7 @@ export function sanitizeMembers(input: unknown): DispatchMember[] {
   const out: DispatchMember[] = [];
   for (const m of input) {
     if (!m || typeof m !== "object") continue;
-    const { envId, threadId, title, how, baseTurnId, part, dropped, turnId, result, brief } = m as Partial<DispatchMember>;
+    const { envId, threadId, title, how, baseTurnId, part, dropped, turnId, result, brief, report } = m as Partial<DispatchMember>;
     if (typeof envId !== "string" || !envId || typeof threadId !== "string" || !threadId || !HOW.has(how as DispatchHow)) continue;
     const key = `${envId}:${threadId}`;
     if (seen.has(key)) continue;
@@ -77,7 +102,8 @@ export function sanitizeMembers(input: unknown): DispatchMember[] {
     const ownPart = typeof part === "string" ? part.trim().slice(0, 500) : "";
     out.push({ envId, threadId, title: String(title ?? "").slice(0, 120), how: how as DispatchHow, baseTurnId: typeof baseTurnId === "string" ? baseTurnId : null, ...(ownPart ? { part: ownPart } : {}), ...(dropped === true && how === "queued" ? { dropped: true } : {}),
       ...(typeof turnId === "string" && turnId ? { turnId } : {}), ...(RESULTS.has(result as TurnResult) ? { result: result as TurnResult } : {}),
-      ...(typeof brief === "string" && brief.trim() ? { brief: brief.slice(0, BRIEF_MAX) } : {}) });
+      ...(typeof brief === "string" && brief.trim() ? { brief: brief.slice(0, BRIEF_MAX) } : {}),
+      ...(report && typeof report === "object" && REPORT_STATUSES.has(report.status) ? { report: { status: report.status, ...(typeof report.note === "string" ? { note: report.note.slice(0, 160) } : {}) } } : {}) });
     if (out.length >= DISPATCH_MAX_MEMBERS) break;
   }
   return out;

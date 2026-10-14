@@ -1,12 +1,13 @@
 // Squad orders being followed, on the Command server (owner-only dispatches.json): every device
 // sees the same receipts. The newest 30 are kept; each is dropped after three days or when closed.
 // The server also watches each order's crew, and says once in the comms log (and so by push) when
-// everyone's part of it is over: "Mission "Ship it": 3 of 3 reported".
+// everyone's part of it is over. On a mission it first reads each report's own STATUS or BLOCKED
+// line, so the notice says what came back: "Mission "Ship it": 2 done, 1 blocked".
 
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { clipText, DISPATCH_MAX, DISPATCH_START_MS, DISPATCH_TTL_MS, sanitizeMembers, sanitizeMission, type Dispatch, type DispatchMember } from "../shared/dispatches.ts";
+import { clipText, DISPATCH_MAX, DISPATCH_START_MS, DISPATCH_TTL_MS, parseReport, sanitizeMembers, sanitizeMission, type Dispatch, type DispatchMember, type MissionReport } from "../shared/dispatches.ts";
 import type { ThreadShell } from "../src/t3/types.ts";
 import type { CommsLog } from "./comms.ts";
 
@@ -34,6 +35,32 @@ export class Dispatches {
   private queued: (envId: string, threadId: string) => boolean = () => false;
   /** Saves run one at a time, so two at once can't interleave on the temp file. */
   private writes: Promise<unknown> = Promise.resolve();
+  /** Reads a finished turn's reply (the server's own T3 link), for a mission member's report. */
+  private readReply?: (envId: string, threadId: string, turnId: string) => Promise<string | undefined>;
+  private reading = new Set<string>();
+
+  /** How to read a mission member's reply once their turn is over. */
+  readReportsWith(read: (envId: string, threadId: string, turnId: string) => Promise<string | undefined>): void {
+    this.readReply = read;
+  }
+
+  /** Read and record what a mission member's finished report says of itself, then re-judge the mission. */
+  private readReport(d: Dispatch, m: DispatchMember): void {
+    const key = `${d.id}:${m.envId}:${m.threadId}`;
+    if (!this.readReply || !m.turnId || m.report || this.reading.has(key)) return;
+    this.reading.add(key);
+    void this.readReply(m.envId, m.threadId, m.turnId)
+      .then((text): MissionReport => (text?.trim() ? parseReport(text) : { status: "none" }), (): MissionReport => ({ status: "unread" }))
+      .then((report) => {
+        this.reading.delete(key);
+        const live = this.list.find((x) => x.id === d.id)?.members.find((x) => x.envId === m.envId && x.threadId === m.threadId);
+        if (!live || live.report) return;
+        live.report = report;
+        this.changed();
+        const threads = this.threads.get(m.envId);
+        if (threads) this.observe(m.envId, [...threads.values()]);
+      });
+  }
 
   /** Where to announce finished orders, and which crew still have a follow-up queued. */
   announceTo(comms: CommsLog, queued: (envId: string, threadId: string) => boolean): void {
@@ -168,6 +195,10 @@ export class Dispatches {
     for (const d of this.all(now)) {
       if (d.finishedAt || !d.members.some((m) => m.envId === envId)) continue;
       if (this.pin(d, envId, byId)) changed = true;
+      // A mission's finished reports are read for their STATUS line before it's announced.
+      const unread = d.mission && this.readReply ? d.members.filter((m) => m.result === "completed" && !m.report) : [];
+      for (const m of unread) this.readReport(d, m);
+      if (unread.length) continue;
       // A machine not seen yet can't be judged: wait for it.
       if (d.members.some((m) => !this.threads.has(m.envId))) continue;
       const ends = d.members.map((m) => outcome(m, this.threads.get(m.envId)!.get(m.threadId), this.queued(m.envId, m.threadId), d.at, now));
@@ -180,8 +211,12 @@ export class Dispatches {
       const rest = (["failed", "stopped", "superseded", "unsent", "unstarted", "gone"] as const).map((k) => [k, ends.filter((e) => e === k).length] as const).filter(([, n]) => n);
       const words = { failed: "failed", stopped: "interrupted", superseded: "taken over by a later turn", unsent: "never sent", unstarted: "didn't start", gone: "gone" };
       const what = d.mission ? `Mission "${d.mission.name}"${d.round ? `, round ${d.round}` : ""}` : `Squad order "${preview(d.text)}"`;
-      this.comms?.add({ tone: rest.length ? "alert" : "good", kind: "mission", dispatchId: d.id,
-        text: `${what}: ${reported} of ${d.members.length} reported${rest.map(([k, n]) => `, ${n} ${words[k]}`).join("")}. Replies are ready to read.` });
+      // On a mission, "reported" splits by what each report said of itself.
+      const reports = d.members.filter((_, i) => ends[i] === "reported").map((m) => m.report);
+      const said = d.mission && this.readReply ? reportWords(reports) : [];
+      const allDone = said.length ? reports.every((r) => r?.status === "done") : true;
+      this.comms?.add({ tone: rest.length || !allDone ? "alert" : "good", kind: "mission", dispatchId: d.id,
+        text: `${what}: ${said.length ? said.join(", ") : `${reported} of ${d.members.length} reported`}${rest.map(([k, n]) => `, ${n} ${words[k]}`).join("")}. Replies are ready to read.` });
     }
     if (changed) this.changed();
   }
@@ -200,6 +235,19 @@ export class Dispatches {
     this.writes = write.catch((err) => console.warn("[dispatches] write failed", (err as Error).message));
     for (const listener of this.listeners) listener(list);
   }
+}
+
+/** What a mission's reports said of themselves, most hopeful first: "2 done, 1 blocked (needs creds)". */
+export function reportWords(reports: Array<MissionReport | undefined>): string[] {
+  const count = (s: MissionReport["status"]) => reports.filter((r) => (r?.status ?? "none") === s).length;
+  const blocked = reports.filter((r) => r?.status === "blocked");
+  return [
+    count("done") && `${count("done")} done`,
+    count("partial") && `${count("partial")} partly done`,
+    blocked.length && `${blocked.length} blocked${blocked.length === 1 && blocked[0]!.note ? ` (${blocked[0]!.note})` : ""}`,
+    count("none") && `${count("none")} reported without a status line`,
+    count("unread") && `${count("unread")} reported (couldn't read ${count("unread") === 1 ? "it" : "them"})`,
+  ].filter((w): w is string => !!w);
 }
 
 function preview(text: string): string {

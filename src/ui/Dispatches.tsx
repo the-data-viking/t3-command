@@ -6,7 +6,7 @@ import { worldRef } from "../game/world";
 import { setSelection, useGame } from "../store";
 import { groupOf, type Dispatch } from "../../shared/dispatches";
 import { logError } from "../t3/environment";
-import { closeDispatch, dispatchTitle, progressOf, RECEIPT, type DispatchProgress } from "./dispatch";
+import { closeDispatch, dispatchTitle, progressOf, RECEIPT, receiptLabel, type DispatchProgress } from "./dispatch";
 import { useClock } from "./useClock";
 
 /**
@@ -81,7 +81,7 @@ export function DispatchList({ onGo }: { onGo: () => void }) {
                 <button className="btn small dispatch-read" title="Every reply to this order, side by side"
                   onClick={(e) => { e.preventDefault(); useGame.setState({ replies: dispatch.id }); }}>Read replies{progress.reported ? ` (${progress.reported})` : ""}</button>
               )}
-              <button className="icon-btn small" aria-label={dispatch.mission ? "Close mission" : "Close order"} title={`${dispatch.mission ? "Close mission" : "Close order"}: stop following it (nothing is sent)`}
+              <button className="icon-btn small" aria-label={dispatch.mission ? "Close mission" : "Close order"} title={`${dispatch.mission ? "Close mission" : "Close order"}: stop following it (nothing is sent; anything still queued is cancelled, after asking)`}
                 onClick={(e) => { e.preventDefault(); void closeDispatch(dispatch.id).catch((err) => logError("Couldn't close the dispatch", err)); }}>✕</button>
             </summary>
             {dispatch.mission && <p className="dispatch-goal small"><strong>Goal:</strong> {dispatch.mission.goal}</p>}
@@ -93,7 +93,7 @@ export function DispatchList({ onGo }: { onGo: () => void }) {
                     <span className="receipt-mark" aria-hidden>{RECEIPT[status].mark}</span>
                     {status === "gone" ? <span className="muted">{member.title}</span>
                       : <button className="receipt-crew" onClick={() => go(member.envId, member.threadId)}>{live?.title || member.title}</button>}
-                    <span className="receipt-status">{RECEIPT[status].label}</span>
+                    <span className="receipt-status" title={receiptLabel(status, member)}>{receiptLabel(status, member)}</span>
                     {member.part && <span className="receipt-part muted small" title={member.part}>{member.part}</span>}
                   </li>
                 );

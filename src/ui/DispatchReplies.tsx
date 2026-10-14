@@ -11,7 +11,7 @@ import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
 import { envClient, logError } from "../t3/environment";
 import { turnBusy } from "../t3/derive";
-import { closeDispatch, dispatchTitle, progressOf, RECEIPT, recordDispatch, replyOf, updateDispatch, type ReceiptStatus } from "./dispatch";
+import { closeDispatch, dispatchTitle, progressOf, RECEIPT, receiptLabel, recordDispatch, replyOf, REPORTED, updateDispatch, type ReceiptStatus } from "./dispatch";
 import { groupOf, type DispatchMember } from "../../shared/dispatches";
 import { useDraft } from "./drafts";
 import { debriefMarkdown, followUpBrief, type DebriefRound, type SharedReply } from "./mission";
@@ -26,13 +26,14 @@ const WAITING: Partial<Record<ReceiptStatus, string>> = {
   failed: "The turn failed before it replied.",
   stopped: "The turn was interrupted.",
   superseded: "Another turn started before this one was seen to end, so its reply isn't known here.",
+  offline: "Its machine is offline, so what it's doing now isn't known.",
 };
 
 /** Parts that went wrong before they produced anything: the same brief can be sent again. */
 const RESENDABLE = new Set<ReceiptStatus>(["unsent", "undelivered", "unstarted", "failed", "stopped"]);
 
 /** Replies you can read first, then what's waiting on you, still going, and what went wrong. */
-const RANK: ReceiptStatus[] = ["reported", "needs-you", "working", "sent", "queued", "superseded", "stopped", "failed", "unstarted", "undelivered", "unsent", "gone"];
+const RANK: ReceiptStatus[] = ["reported", "partial", "blocked", "needs-you", "working", "offline", "sent", "queued", "superseded", "stopped", "failed", "unstarted", "undelivered", "unsent", "gone"];
 
 export function DispatchReplies() {
   const id = useGame((s) => s.replies);
@@ -60,7 +61,7 @@ function Replies({ id }: { id: string }) {
     const thread = envs[member.envId]?.threads[member.threadId];
     const reply = replyOf(status, thread, details[unitKey(member.envId, member.threadId)], member);
     const turnId = member.turnId ?? thread?.latestTurn?.turnId;
-    const unread = status === "reported" && !!turnId && readReports[unitKey(member.envId, member.threadId)] !== turnId;
+    const unread = REPORTED.has(status) && !!turnId && readReports[unitKey(member.envId, member.threadId)] !== turnId;
     return { member, status, thread, reply, turnId, unread };
   }).sort((a, b) => RANK.indexOf(a.status) - RANK.indexOf(b.status));
   const unread = cards.filter((c) => c.unread);
@@ -69,14 +70,14 @@ function Replies({ id }: { id: string }) {
   const [share, setShare] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string>();
-  const shared: SharedReply[] = cards.map((c) => ({ title: c.thread?.title || c.member.title, reply: c.reply, status: RECEIPT[c.status].label, part: c.member.part }));
+  const shared: SharedReply[] = cards.map((c) => ({ title: c.thread?.title || c.member.title, reply: c.reply, status: receiptLabel(c.status, c.member), part: c.member.part }));
   // Every round of this order or mission, in order: tabs to move between them, one debrief for all.
   const allDispatches = useGame((s) => s.dispatches);
   const rounds = useMemo(() => allDispatches.filter((d) => groupOf(d) === groupOf(dispatch)).sort((a, b) => (a.round ?? 1) - (b.round ?? 1)), [allDispatches, dispatch]);
   const debriefRounds: DebriefRound[] = rounds.map((r) => ({ round: r.round ?? 1, order: r.text,
     replies: progressOf(r, envs).receipts.map(({ member, status }) => {
       const t = envs[member.envId]?.threads[member.threadId];
-      return { title: t?.title || member.title, status: RECEIPT[status].label, part: member.part, reply: replyOf(status, t, details[unitKey(member.envId, member.threadId)], member) };
+      return { title: t?.title || member.title, status: receiptLabel(status, member), part: member.part, reply: replyOf(status, t, details[unitKey(member.envId, member.threadId)], member) };
     }) }));
   // Who a follow-up can reach: still aboard, on a connected T3 station.
   const reachable = cards.filter((c) => c.thread && !c.thread.archivedAt && envs[c.member.envId]?.connection === "live" && envs[c.member.envId]?.summary.kind !== "hermes");
@@ -91,7 +92,8 @@ function Replies({ id }: { id: string }) {
     const queueFor = (m: { envId: string; threadId: string }) => turnBusy(envs[m.envId].threads[m.threadId]);
     if (!confirmReplacing(wouldReplace(targets, queueFor))) { setBusy(false); return; }
     const { receipts, failed } = await orderCrew(targets,
-      (m) => followUpBrief({ mission: dispatch.mission, text, part: byKey.get(unitKey(m.envId, m.threadId))?.member.part, others: others(unitKey(m.envId, m.threadId)) }),
+      (m) => followUpBrief({ mission: dispatch.mission, text, part: byKey.get(unitKey(m.envId, m.threadId))?.member.part, others: others(unitKey(m.envId, m.threadId)),
+        round: (rounds.at(-1)?.round ?? 1) + 1 }),
       queueFor,
       (m) => byKey.get(unitKey(m.envId, m.threadId))?.member.part);
     try {
@@ -132,10 +134,12 @@ function Replies({ id }: { id: string }) {
     } catch { setNote("Couldn't copy: the browser blocked the clipboard."); }
   };
   const finish = () => {
-    markReportsRead(unread.map((c) => ({ envId: c.member.envId, threadId: c.member.threadId, turnId: c.turnId! })));
-    void closeDispatch(dispatch.id).catch((err) => logError("Couldn't close it", err));
-    sfx.order();
-    close();
+    void closeDispatch(dispatch.id).then((closed) => {
+      if (!closed) return;
+      markReportsRead(unread.map((c) => ({ envId: c.member.envId, threadId: c.member.threadId, turnId: c.turnId! })));
+      sfx.order();
+      close();
+    }).catch((err) => logError("Couldn't close it", err));
   };
   const go = (envId: string, threadId: string) => {
     const sel = { kind: "unit" as const, envId, threadId };
@@ -170,14 +174,14 @@ function Replies({ id }: { id: string }) {
                 <span className="receipt-mark" aria-hidden>{RECEIPT[status].mark}</span>
                 {status === "gone" ? <span className="muted">{member.title}</span>
                   : <button className="receipt-crew" onClick={() => go(member.envId, member.threadId)} title="Go to this crew member">{thread?.title || member.title}</button>}
-                <span className="receipt-status">{RECEIPT[status].label}</span>
+                <span className="receipt-status" title={receiptLabel(status, member)}>{receiptLabel(status, member)}</span>
                 {RESENDABLE.has(status) && thread && !thread.archivedAt && envs[member.envId]?.connection === "live" && (
                   <button className="btn small" disabled={busy} title="Send exactly what was sent before, on this same order" onClick={() => void resend(member)}>Resend</button>
                 )}
               </header>
               <p className="muted small">{envs[member.envId]?.summary.label ?? member.envId}{member.part ? ` · part: ${member.part}` : ""}</p>
               {reply ? <div className="reply-body"><MessageMarkdown text={reply} envId={member.envId} threadId={member.threadId} /></div>
-                : <p className="muted reply-body">{WAITING[status] ?? (status === "reported" ? "Loading…" : `${RECEIPT[status].label[0].toUpperCase()}${RECEIPT[status].label.slice(1)}.`)}</p>}
+                : <p className="muted reply-body">{WAITING[status] ?? (REPORTED.has(status) ? "Loading…" : `${RECEIPT[status].label[0].toUpperCase()}${RECEIPT[status].label.slice(1)}.`)}</p>}
             </article>
           ))}
         </div>
@@ -200,7 +204,7 @@ function Replies({ id }: { id: string }) {
           {asking
             ? <button className="btn primary" disabled={busy || !text.trim() || !reachable.length} onClick={() => void followUp()}>{busy ? "…" : `Send to ${reachable.length}`}</button>
             : <button className="btn" disabled={!reachable.length} title="Order the same crew again; busy ones get it after their turn" onClick={() => setAsking(true)}>Follow up…</button>}
-          <button className="btn" title="Mark the replies read and stop following it (nothing is sent)" onClick={finish}>{dispatch.mission ? "Close mission" : "Close order"}</button>
+          <button className="btn" title="Mark the replies read and stop following it (nothing is sent; anything still queued is cancelled, after asking)" onClick={finish}>{dispatch.mission ? "Close mission" : "Close order"}</button>
         </div>
       </div>
     </div>,
