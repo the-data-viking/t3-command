@@ -336,8 +336,11 @@ export class CrewSprite extends Container {
         this.quiet = quietness(this.thread, this.detail, now)?.kind === "quiet";
       }
       if (this.quiet) {
-        // Quiet turn: three steady grey dots where the busy pip spins (not a status or gauge colour).
-        for (const x of [8, 12, 16]) f.rect(x, -40 + this.lift, 2, 2).fill(mapInk(useGame.getState().artStyle).muted);
+        // Quiet turn: an outlined 7×5 ellipsis plate where the busy pip spins, dark-backed so it
+        // reads over a lit screen; three separate grey cells (not a status or gauge colour).
+        f.rect(6, -44 + this.lift, 14, 10).fill(mapInk(useGame.getState().artStyle).muted);
+        f.rect(8, -42 + this.lift, 10, 6).fill(0x101418);
+        for (const x of [8, 12, 16]) f.rect(x, -40 + this.lift, 2, 2).fill(0xc9d1d9);
       } else {
         // Spinning pip: busy, no attention needed.
         const a = Math.floor(t * 8) % 4;

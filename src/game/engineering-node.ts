@@ -14,7 +14,7 @@ import { etaLabel } from "../../shared/storage";
 import type { StorageView } from "../../shared/storage";
 import { currentStyle, PX, tex } from "./textures";
 import { GAUGE, mapInk, STATUS } from "./theme";
-import { label, fitLabel, truncate, sprite, hash, pixelBox, ROOM_SHADOW } from "./map-common";
+import { label, fitLabel, truncate, sprite, hash, pixelBox, pixelStamp, ROOM_SHADOW, UNPLUGGED, BROKEN_LINK, SIGNAL_GREY } from "./map-common";
 import { worldRef } from "./world-ref";
 
 // ---- Environment service nodes -----------------------------------------------------------------------------
@@ -33,6 +33,9 @@ export class EnvironmentNodeSprite {
   private cpuText?: PixelText;
   private memoryText?: PixelText;
   private caption?: PixelText;
+  /** The connection mark at the head of the plate: unplugged, a parted link, or none. */
+  private signal = new Graphics();
+  private signalKind: "unplugged" | "broken" | "" = "";
   /** Fullest disk holding this machine's checkouts, on the status plate after any caption. */
   private diskText?: PixelText;
   private storage?: StorageView;
@@ -95,7 +98,9 @@ export class EnvironmentNodeSprite {
     this.callsign = label(18, node.color);
     this.callsign.anchor.set(0.5, 0.5);
     this.callsign.position.set(h.x + h.w / 2, h.y + 26);
-    this.root.addChild(this.meters, this.cells, this.damage, this.name, this.cpuText, this.memoryText, this.caption, this.diskText, this.overflowText, this.callsignBack, this.callsign);
+    this.signal = new Graphics();
+    this.signalKind = "";
+    this.root.addChild(this.meters, this.cells, this.damage, this.signal, this.name, this.cpuText, this.memoryText, this.caption, this.diskText, this.overflowText, this.callsignBack, this.callsign);
     this.updateResources(node, state.hosts[node.envId], state.envs[node.envId]?.connection ?? "offline");
     this.updateStorage(state.storage[node.envId]);
     this.root.eventMode = 'static';
@@ -129,6 +134,17 @@ export class EnvironmentNodeSprite {
     // A message, not a load reading: theme text, never the critical-load magenta.
     this.caption!.fill = offline ? ink.text : ink.muted;
     if (offline !== this.offline) { this.offline = offline; this.drawDamage(); }
+    // Unreachable: a pulled plug. Reconnecting, or readings gone stale: a parted link. The caption
+    // (and the disk reading after it) moves over to make room.
+    const kind = offline && connection !== "needs-update" ? "unplugged" : connection === "connecting" || connection === "reconnecting" || view.stale ? "broken" : "";
+    if (kind !== this.signalKind) {
+      this.signalKind = kind;
+      const plate = { x: h.x + ENGINEERING_SPOTS.plate.x * PX, y: h.y + ENGINEERING_SPOTS.plate.y * PX };
+      this.signal.clear();
+      if (kind) pixelStamp(this.signal, kind === "unplugged" ? UNPLUGGED : BROKEN_LINK, plate.x + 10, plate.y + 3, SIGNAL_GREY, currentStyle().colors.k);
+      this.caption!.x = plate.x + 8 + (kind ? 22 : 0);
+      this.updateStorage(this.storage);
+    }
     const alpha = view.stale ? 0.35 : 1;
     const g = this.meters!.clear();
     if (offline) return;
