@@ -186,3 +186,12 @@ test("tick re-judges on a clock: a standing order whose send never started is dr
   assert.equal(followUps.view().queued.length, 0);
   assert.ok(comms.since().some((e) => /didn't start a turn/.test(e.text)));
 });
+
+test("a standing order waits a moment after a clean turn before going again (time for a NOTHING LEFT to cancel it)", async () => {
+  const { decide } = await import("./followups.ts");
+  const f = { id: "f", envId: "e", threadId: "t", afterTurnId: "a", text: "x", createdAt: 0, expiresAt: 1e13, left: 2, total: 3 };
+  const done = (at: number) => ({ ...shell("a", "completed"), latestTurn: { turnId: "a", state: "completed", requestedAt: "", startedAt: "", completedAt: new Date(at).toISOString(), assistantMessageId: null } }) as never;
+  assert.deepEqual(decide(f, done(1_000_000), 1_005_000), { action: "wait" });
+  assert.deepEqual(decide(f, done(1_000_000), 1_025_000), { action: "send" });
+  assert.deepEqual(decide({ ...f, left: undefined, total: undefined }, done(1_000_000), 1_005_000), { action: "send" }, "a plain follow-up goes straight away");
+});

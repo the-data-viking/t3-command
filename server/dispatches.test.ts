@@ -211,3 +211,24 @@ test("each member is pinned to the turn its order started: a later turn doesn't 
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("a mission's next round joins it: numbered, announced as that round, closed together", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dispatches-"));
+  try {
+    const store = new Dispatches(dir);
+    const comms = new CommsLog(dir);
+    store.announceTo(comms, () => false);
+    const first = store.add("Goal.", [member("a")], Date.now(), { name: "Ship", goal: "Goal." });
+    const second = store.add("Now wire it up.", [member("a")], Date.now(), { name: "Ship", goal: "Goal." }, { missionId: first.id });
+    const third = store.add("And document it.", [member("a")], Date.now(), { name: "Ship", goal: "Goal." }, { missionId: first.id });
+    assert.deepEqual([second.missionId, second.round, third.round], [first.id, 2, 3]);
+    assert.equal(store.add("x", [member("a")], Date.now(), undefined, { missionId: "nope" }).round, undefined, "an unknown mission starts no round");
+    store.observe("e", [shell("a", "t9")]);
+    assert.ok(comms.since().some((e) => e.text.startsWith("Mission \"Ship\", round 3:")));
+    store.close(second.id);
+    assert.equal(store.all().filter((d) => d.id === first.id || d.missionId === first.id).length, 0, "closing any round closes the mission");
+    await store.flush(); await comms.flush();
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

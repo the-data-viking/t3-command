@@ -52,7 +52,8 @@ export class Dispatches {
         this.list = saved.filter((d): d is Dispatch => !!d && typeof d.id === "string" && typeof d.text === "string" && typeof d.at === "number")
           .map((d) => {
             const mission = sanitizeMission(d.mission);
-            return { id: d.id, text: d.text, at: d.at, members: sanitizeMembers(d.members), ...(mission ? { mission } : {}), ...(typeof d.finishedAt === "number" ? { finishedAt: d.finishedAt } : {}) };
+            return { id: d.id, text: d.text, at: d.at, members: sanitizeMembers(d.members), ...(mission ? { mission } : {}), ...(typeof d.finishedAt === "number" ? { finishedAt: d.finishedAt } : {}),
+              ...(typeof d.missionId === "string" && Number.isInteger(d.round) ? { missionId: d.missionId, round: d.round } : {}) };
           });
       }
     } catch (err) {
@@ -69,13 +70,17 @@ export class Dispatches {
     return () => this.listeners.delete(listener);
   }
 
-  add(text: unknown, members: unknown, now = Date.now(), mission?: unknown): Dispatch {
+  /** `round`: a later round of an existing mission (its first round's id); numbered from it. */
+  add(text: unknown, members: unknown, now = Date.now(), mission?: unknown, round?: unknown): Dispatch {
     const order = clipText(String(text ?? ""));
     if (!order) throw new Error("The order is empty");
     const clean = sanitizeMembers(members);
     if (!clean.length) throw new Error("A dispatch needs at least one crew member");
     const info = sanitizeMission(mission);
-    const dispatch: Dispatch = { id: randomUUID(), text: order, at: now, members: clean, ...(info ? { mission: info } : {}) };
+    const of = typeof (round as { missionId?: unknown } | undefined)?.missionId === "string" ? (round as { missionId: string }).missionId : undefined;
+    const rounds = of ? this.list.filter((d) => d.id === of || d.missionId === of) : [];
+    const next = rounds.length ? { missionId: of!, round: Math.max(...rounds.map((d) => d.round ?? 1)) + 1 } : {};
+    const dispatch: Dispatch = { id: randomUUID(), text: order, at: now, members: clean, ...(info ? { mission: info } : {}), ...next };
     this.list = [dispatch, ...this.all(now)].slice(0, DISPATCH_MAX);
     this.changed();
     return dispatch;
@@ -95,9 +100,12 @@ export class Dispatches {
     return dispatch;
   }
 
+  /** Stop following an order, or a mission with all its rounds. */
   close(id: string): boolean {
     const before = this.list.length;
-    this.list = this.list.filter((d) => d.id !== id);
+    const target = this.list.find((d) => d.id === id);
+    const group = target ? target.missionId ?? target.id : id;
+    this.list = this.list.filter((d) => d.id !== id && d.id !== group && d.missionId !== group);
     if (this.list.length === before) return false;
     this.changed();
     return true;
@@ -171,7 +179,7 @@ export class Dispatches {
       const reported = ends.filter((e) => e === "reported").length;
       const rest = (["failed", "stopped", "superseded", "unsent", "unstarted", "gone"] as const).map((k) => [k, ends.filter((e) => e === k).length] as const).filter(([, n]) => n);
       const words = { failed: "failed", stopped: "interrupted", superseded: "taken over by a later turn", unsent: "never sent", unstarted: "didn't start", gone: "gone" };
-      const what = d.mission ? `Mission "${d.mission.name}"` : `Squad order "${preview(d.text)}"`;
+      const what = d.mission ? `Mission "${d.mission.name}"${d.round ? `, round ${d.round}` : ""}` : `Squad order "${preview(d.text)}"`;
       this.comms?.add({ tone: rest.length ? "alert" : "good", kind: "mission", dispatchId: d.id,
         text: `${what}: ${reported} of ${d.members.length} reported${rest.map(([k, n]) => `, ${n} ${words[k]}`).join("")}. Replies are ready to read.` });
     }

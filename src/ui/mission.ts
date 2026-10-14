@@ -82,11 +82,19 @@ export function followUpBrief(opts: { mission?: { name: string; goal: string }; 
 }
 
 /** Everything a squad order or mission produced, as one markdown document. */
-export function debriefMarkdown(opts: { mission?: { name: string; goal: string }; order: string; replies: SharedReply[] }): string {
+/** One round of an order or mission, for the debrief. */
+export interface DebriefRound { round: number; order: string; replies: SharedReply[] }
+
+export function debriefMarkdown(opts: { mission?: { name: string; goal: string }; order: string; replies: SharedReply[]; rounds?: DebriefRound[] }): string {
   const out = [opts.mission ? `# Mission: ${opts.mission.name}` : "# Squad order", ""];
   out.push(opts.mission ? `**Goal:** ${opts.mission.goal}` : `**Order:** ${opts.order.split("\n")[0]}`, "");
-  for (const r of opts.replies) {
-    out.push(`## ${r.title} — ${r.status}${r.part ? ` (part: ${r.part})` : ""}`, "", r.reply?.trim() || "_No reply._", "");
-  }
+  const reply = (r: SharedReply, level: string) => out.push(`${level} ${r.title} — ${r.status}${r.part ? ` (part: ${r.part})` : ""}`, "", r.reply?.trim() || "_No reply._", "");
+  // Several rounds: each under its own heading, in order, with what was asked that round.
+  if (opts.rounds && opts.rounds.length > 1) {
+    for (const r of opts.rounds) {
+      out.push(`## Round ${r.round}`, "", `> ${r.order.split("\n").find((l) => l.trim())?.trim() ?? ""}`, "");
+      for (const x of r.replies) reply(x, "###");
+    }
+  } else for (const r of opts.replies) reply(r, "##");
   return out.join("\n").trimEnd() + "\n";
 }

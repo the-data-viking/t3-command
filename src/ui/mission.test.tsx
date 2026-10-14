@@ -55,3 +55,11 @@ test("teammates who share a title still see each other, and shared replies stay 
   const others = Array.from({ length: 8 }, (_, i) => ({ title: `Crew ${i}`, reply: "x".repeat(3_000), status: "reported" }));
   assert.ok(followUpBrief({ mission: { name: "Ship", goal: "Done." }, text: "Next.", others }).length < 7_000, "8 replies share 6,000 characters");
 });
+
+test("a debrief across rounds puts each round under its own heading, with what was asked", () => {
+  const md = debriefMarkdown({ mission: { name: "Ship", goal: "Done." }, order: "Done.", replies: [], rounds: [
+    { round: 1, order: "Mission brief…", replies: [{ title: "A", status: "reported", reply: "First." }] },
+    { round: 2, order: "Now wire it up.\nmore", replies: [{ title: "A", status: "reported", reply: "Second." }] },
+  ] });
+  assert.equal(md, "# Mission: Ship\n\n**Goal:** Done.\n\n## Round 1\n\n> Mission brief…\n\n### A — reported\n\nFirst.\n\n## Round 2\n\n> Now wire it up.\n\n### A — reported\n\nSecond.\n");
+});

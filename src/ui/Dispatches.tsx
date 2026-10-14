@@ -4,15 +4,28 @@
 import { useMemo } from "react";
 import { worldRef } from "../game/world";
 import { setSelection, useGame } from "../store";
-import type { Dispatch } from "../../shared/dispatches";
+import { groupOf, type Dispatch } from "../../shared/dispatches";
 import { logError } from "../t3/environment";
 import { closeDispatch, dispatchTitle, progressOf, RECEIPT, type DispatchProgress } from "./dispatch";
 import { useClock } from "./useClock";
 
-function useProgress(): Array<{ dispatch: Dispatch; progress: DispatchProgress }> {
+/**
+ * Each order or mission once, by its newest round (`earlier`: how many rounds came before it):
+ * a mission's follow-ups are one thread of work, not separate copies on the board.
+ */
+function useProgress(): Array<{ dispatch: Dispatch; progress: DispatchProgress; earlier: number }> {
   const dispatches = useGame((s) => s.dispatches);
   const envs = useGame((s) => s.envs);
-  return useMemo(() => dispatches.map((dispatch) => ({ dispatch, progress: progressOf(dispatch, envs) })), [dispatches, envs]);
+  return useMemo(() => {
+    const newest = new Map<string, Dispatch>(), count = new Map<string, number>();
+    for (const d of dispatches) {
+      const g = groupOf(d);
+      count.set(g, (count.get(g) ?? 0) + 1);
+      const have = newest.get(g);
+      if (!have || (d.round ?? 1) > (have.round ?? 1)) newest.set(g, d);
+    }
+    return [...newest.values()].sort((a, b) => b.at - a.at).map((dispatch) => ({ dispatch, progress: progressOf(dispatch, envs), earlier: (count.get(groupOf(dispatch)) ?? 1) - 1 }));
+  }, [dispatches, envs]);
 }
 
 function summary(p: DispatchProgress): string {
@@ -57,13 +70,13 @@ export function DispatchList({ onGo }: { onGo: () => void }) {
   return (
     <section className="dispatches" aria-label="Missions and squad orders">
       <h3 className="board-col-head">{list.some((d) => d.dispatch.mission) ? "Missions and orders" : "Orders to several crew"} <span className="board-count">{list.length}</span></h3>
-      {list.map(({ dispatch, progress }) => {
+      {list.map(({ dispatch, progress, earlier }) => {
         const finished = progress.done === progress.total;
         return (
           <details key={dispatch.id} className={`dispatch${finished ? " finished" : ""}`} open={!finished}>
             <summary>
               <span className="dispatch-title" title={dispatch.text}>{dispatchTitle(dispatch)}</span>
-              <span className="muted small">{ago(now - dispatch.at)} · {summary(progress)}</span>
+              <span className="muted small">{ago(now - dispatch.at)} · {summary(progress)}{earlier ? ` · ${earlier} earlier round${earlier === 1 ? "" : "s"}` : ""}</span>
               {progress.total - progress.trouble > 0 && (
                 <button className="btn small dispatch-read" title="Every reply to this order, side by side"
                   onClick={(e) => { e.preventDefault(); useGame.setState({ replies: dispatch.id }); }}>Read replies{progress.reported ? ` (${progress.reported})` : ""}</button>

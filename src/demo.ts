@@ -238,6 +238,9 @@ function demoDispatches(envs: Record<string, EnvWorld>): Dispatch[] {
   return [{ id: "demo-mission", at: NOW - 25 * 60_000, text: "Aurvanga plays top-down: tiles, the imported map and lighting together, at 60 fps on the dev machine.",
     mission: { name: "Aurvanga top-down", goal: "Aurvanga plays top-down: tiles, the imported map and lighting together, at 60 fps on the dev machine." },
     members: [parted("agent1", "b1", "sent", true, "The tile renderer and camera"), parted("agent1", "b2", "sent", true, "Hollow Vein's client visuals in the new view"), parted("agent1", "b3", "sent", false, "Keep the nightly build green while it lands")],
+  }, { id: "demo-mission-2", at: NOW - 6 * 60_000, missionId: "demo-mission", round: 2, text: "Land what you have behind a flag and open a draft PR.",
+    mission: { name: "Aurvanga top-down", goal: "Aurvanga plays top-down: tiles, the imported map and lighting together, at 60 fps on the dev machine." },
+    members: [parted("agent1", "b1", "sent", true, "The tile renderer and camera"), parted("agent1", "b2", "sent", true, "Hollow Vein's client visuals in the new view")],
   }, { id: "demo-dispatch", at: NOW - 40 * 60_000, text: "Give me a short status: where you are, what's left, and anything blocking you or needing my decision.", members: [
     member("mini", "a1", "sent", true), member("agent1", "b2", "sent", true), member("mini", "a3", "sent", true),
     member("lab", "d1", "sent", false), member("wes", "c1", "failed", false),

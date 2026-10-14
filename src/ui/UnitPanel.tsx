@@ -1,6 +1,7 @@
 import { useDraft } from "./drafts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cancelFollowUp, followUpFor, followUpLabel, queueFollowUp } from "../t3/followups";
+import { standingNote } from "../../shared/followups";
 import { expandPlaybook } from "../../shared/playbooks";
 import { RiskBanner } from "./RiskBanner";
 import { PlanReady, PostureControl } from "./PostureControl";
@@ -325,8 +326,10 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
     if (!isPhone()) input.current?.focus();
   }, [envId, threadId]);
 
+  // A standing order tells the agent how to stop it.
+  const withNote = (order: string) => (times > 1 ? `${order}\n\n${standingNote(times)}` : order);
   const send = async () => {
-    const order = expandPlaybook(text.trim(), playbooks);
+    const order = withNote(expandPlaybook(text.trim(), playbooks));
     if (!order || sending) return;
     setSending(true);
     // The turn before this order: the repeats wait on the turn the order starts, whichever it is.
@@ -350,7 +353,7 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
 
   // Busy: hold the order on the Command server and send it when this turn ends (Alt+Enter).
   const queue = async () => {
-    const order = expandPlaybook(text.trim(), playbooks);
+    const order = withNote(expandPlaybook(text.trim(), playbooks));
     if (!order || sending) return;
     setSending(true);
     try {
