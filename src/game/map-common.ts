@@ -224,6 +224,16 @@ export function pixelOval(g: Graphics, cx: number, cy: number, rx: number, ry: n
   }
 }
 
+/** A plate with quarter-circle corners of radius `r`, drawn in 2-px rows (no smooth curves). */
+export function roundedPlate(g: Graphics, x: number, y: number, w: number, h: number, r: number, color: number): void {
+  g.rect(x, y + r, w, h - 2 * r).fill(color);
+  for (let row = 0; row < r; row += 2) {
+    const inset = Math.round((r - Math.sqrt(r * r - (r - row - 1) ** 2)) / 2) * 2;
+    g.rect(x + inset, y + row, w - 2 * inset, 2).fill(color);
+    g.rect(x + inset, y + h - row - 2, w - 2 * inset, 2).fill(color);
+  }
+}
+
 /** A plate with stepped (staircase) chamfered corners: `cut` deep, in `step`-sized stairs. */
 export function steppedPlate(g: Graphics, x: number, y: number, w: number, h: number, cut: number, step: number, color: number, alpha = 1): void {
   const n = Math.max(1, Math.round(cut / step));

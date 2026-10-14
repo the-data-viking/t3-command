@@ -8,7 +8,7 @@ import type { UnitState } from '../t3/derive';
 import { HALL_HEAD, type ControlCenterLayout, type Rect } from './layout';
 import { GAUGE, mapInk, platingMaterials, modelTier, providerSilhouette, SELECTION, STATUS } from './theme';
 import { crewTex, currentStyle, PX, tex } from './textures';
-import { crispScale, figureBoost, fitLabel, hash, pixelDiamond, seatedPose, steppedPlate } from './map-common';
+import { crispScale, figureBoost, fitLabel, hash, pixelDiamond, roundedPlate, seatedPose, steppedPlate } from './map-common';
 
 const badges: Partial<Record<UnitState, A.Grid>> = {
   alert: A.BADGE_ALERT, question: A.BADGE_QUESTION, done: A.BADGE_DONE,
@@ -64,21 +64,28 @@ export class ControlCenterSprite {
     const { hull: h } = center;
     this.hull = h;
     const c = currentStyle().colors;
-    // Dark plating in every theme (the HUD's own materials); Hermes tan is trim only, so the
-    // hall never becomes the brightest thing on a light-themed map.
+    // The hull is the world's own, as every station's is (its silhouette, plating, highlight and
+    // shadow); inside a Hermes-tan trim, the hall's deck is dark plating in every theme, so its
+    // text reads and the hall never becomes the brightest thing on a light-themed map.
+    const style = currentStyle();
     const m = platingMaterials(useGame.getState().artStyle);
     const ink = mapInk(useGame.getState().artStyle);
     const g = new Graphics();
     this.root.addChild(g);
-    steppedPlate(g, h.x - 4, h.y - 4, h.w + 8, h.h + 8, 44, 8, c.k);
-    steppedPlate(g, h.x - 2, h.y - 2, h.w + 4, h.h + 4, 42, 8, HERMES_COLOR);
-    steppedPlate(g, h.x, h.y, h.w, h.h, 40, 8, m.surface);
-    steppedPlate(g, h.x + 16, h.y + 16, h.w - 32, h.h - 32, 24, 8, m.edge);
-    steppedPlate(g, h.x + 18, h.y + 18, h.w - 36, h.h - 36, 22, 8, m.slot);
-    // Rivets along the trim.
+    const plate = (inset: number, cut: number, color: number) => style.hull === "soft"
+      ? roundedPlate(g, h.x + inset, h.y + inset, h.w - 2 * inset, h.h - 2 * inset, cut, color)
+      : steppedPlate(g, h.x + inset, h.y + inset, h.w - 2 * inset, h.h - 2 * inset, cut, 8, color);
+    plate(-2, 42, c.k);
+    plate(0, 40, c.H);
+    g.rect(h.x + 40, h.y + 2, h.w - 80, 4).fill(c.h);
+    g.rect(h.x + 40, h.y + h.h - 6, h.w - 80, 4).fill(c.D);
+    plate(14, 26, HERMES_COLOR);
+    plate(16, 24, m.edge);
+    plate(18, 22, m.slot);
+    // Rivets along the hull band.
     for (let x = h.x + 60; x < h.x + h.w - 60; x += 48) {
-      g.rect(x, h.y + 6, 4, 4).fill(m.edgeStrong);
-      g.rect(x, h.y + h.h - 10, 4, 4).fill(m.edgeStrong);
+      g.rect(x, h.y + 8, 4, 4).fill(c.D);
+      g.rect(x, h.y + h.h - 12, 4, 4).fill(c.D);
     }
     // Sensor wings on the roof.
     for (const x of [h.x + 56, h.x + h.w - 56]) {

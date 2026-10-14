@@ -10,7 +10,7 @@ import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { currentStyle, PX, tex } from "./textures";
 import { mapInk, STATUS } from "./theme";
-import { fitLabel, FLEET_VIEW_ZOOM, hash, pixelFrame, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
+import { fitLabel, FLEET_VIEW_ZOOM, hash, pixelFrame, roundedPlate, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
 import { worldRef } from "./world-ref";
 import { dockedPrs, JOBS_PER_SHELF, MAX_PATCHES, MAX_PODS, podSpot, stationMemory, tallyBand, type DockedPr, type StationMemory } from "./memory";
 
@@ -449,16 +449,6 @@ export class StationSprite {
 
   destroy(): void {
     this.root.destroy({ children: true });
-  }
-}
-
-/** A plate with quarter-circle corners of radius `r`, drawn in 2-px rows (no smooth curves). */
-function roundedPlate(g: Graphics, x: number, y: number, w: number, h: number, r: number, color: number): void {
-  g.rect(x, y + r, w, h - 2 * r).fill(color);
-  for (let row = 0; row < r; row += 2) {
-    const inset = Math.round((r - Math.sqrt(r * r - (r - row - 1) ** 2)) / 2) * 2;
-    g.rect(x + inset, y + row, w - 2 * inset, 2).fill(color);
-    g.rect(x + inset, y + h - row - 2, w - 2 * inset, 2).fill(color);
   }
 }
 
