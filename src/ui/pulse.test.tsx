@@ -22,6 +22,14 @@ test("a turn's pulse: last file change, tests, a command failing again and again
   assert.equal(pulseOf(thread([], "completed"), T0 + 200 * 60_000)!.noChangeMs, undefined, "a finished turn isn't 'not changing'");
 });
 
+test("different heredoc scripts that each fail once aren't one command failing again and again", () => {
+  const script = (id: string, body: string) => tool(id, 6, { detail: `python3 - <<'PY'\n${body}\nPY`, status: "failed" });
+  const varied = pulseOf(thread([script("h1", "print(1)"), script("h2", "print(2)"), script("h3", "print(3)")]), T0 + 12 * 60_000)!;
+  assert.equal(varied.repeatFail, undefined);
+  const same = pulseOf(thread([script("s1", "x()"), script("s2", "x()"), script("s3", "x()")]), T0 + 12 * 60_000)!;
+  assert.deepEqual(same.repeatFail, { command: "python3 - <<'PY'", count: 3 });
+});
+
 test("edits made through the shell count as file changes", async () => {
   const { writesFiles } = await import("./pulse");
   for (const cmd of [`/bin/zsh -lc "sed -i '' 's/a/b/' x.ts"`, `bash -c "python3 - <<'EOF'"`, "cat > notes.md", "echo hi >> log.txt", "git commit -m wip", "cp a b"]) assert.ok(writesFiles(cmd), cmd);

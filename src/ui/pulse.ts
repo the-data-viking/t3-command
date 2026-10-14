@@ -42,7 +42,9 @@ export function pulseOf(thread: OrchestrationThread, now: number): Pulse | undef
   if (!turn) return undefined;
   const mine = thread.activities.filter((a) => a.turnId === turn.turnId && a.kind.startsWith("tool."));
   let lastChangeAt: number | undefined;
-  const failures = new Map<string, number>();
+  // Failing commands by their whole text (a heredoc's body tells two `python3 - <<EOF` scripts
+  // apart), each shown by its first line.
+  const failures = new Map<string, { count: number; shown: string }>();
   const seen = new Set<string>();
   for (const a of mine) {
     const p = a.payload ?? {};
@@ -57,10 +59,14 @@ export function pulseOf(thread: OrchestrationThread, now: number): Pulse | undef
     const failed = p.status === "failed" || (typeof p.exitCode === "number" && p.exitCode !== 0);
     if (!failed || seen.has(id)) continue;
     seen.add(id);
-    const command = bareCommand((typeof p.detail === "string" && p.detail.trim() ? p.detail : a.summary ?? "").split("\n")[0]);
-    if (command) failures.set(command, (failures.get(command) ?? 0) + 1);
+    const text = (typeof p.detail === "string" && p.detail.trim() ? p.detail : a.summary ?? "").trim();
+    const shown = bareCommand(text.split("\n")[0]);
+    if (!shown) continue;
+    const key = bareCommand(text);
+    const f = failures.get(key);
+    failures.set(key, { count: (f?.count ?? 0) + 1, shown });
   }
-  const worst = [...failures].sort((a, b) => b[1] - a[1])[0];
+  const worst = [...failures.values()].sort((a, b) => b.count - a.count)[0];
   const started = Date.parse(turn.startedAt ?? turn.requestedAt);
   const running = turn.state === "running";
   const since = lastChangeAt ?? (Number.isFinite(started) ? started : undefined);
@@ -68,7 +74,7 @@ export function pulseOf(thread: OrchestrationThread, now: number): Pulse | undef
   return {
     ...(lastChangeAt ? { lastChangeAt } : {}),
     tests: testsRun(thread),
-    ...(worst && worst[1] >= REPEAT_FAILS ? { repeatFail: { command: worst[0].length > 60 ? `${worst[0].slice(0, 59)}…` : worst[0], count: worst[1] } } : {}),
+    ...(worst && worst.count >= REPEAT_FAILS ? { repeatFail: { command: worst.shown.length > 60 ? `${worst.shown.slice(0, 59)}…` : worst.shown, count: worst.count } } : {}),
     ...(noChangeMs ? { noChangeMs } : {}),
   };
 }
