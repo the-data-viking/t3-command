@@ -32,12 +32,18 @@ interface Sky {
   /** Star colours, faint to bright, and how many of them show (1 = all). */
   stars?: [number, number, number];
   starDensity?: number;
+  /**
+   * The sky's grade: space at the top, rising in dithered bands toward this colour by the
+   * horizon, by up to `strength` (0–1). Halved while the whole fleet sleeps: the sky deepens.
+   */
+  grade?: { toward: number; strength: number };
 }
 
 const NIGHT_SHIFT: Sky = {
   // A cold blue world under a thin crescent moon: the graveyard shift.
   planet: [0x6f8fa8, 0x3d566b, 0x1c2733],
   body: { kind: "moon", x: 0.88, y: 0.17, r: 24, color: 0xdfe8f0, shade: 0x2a3440, glow: 0x6f8fa8, glowStrength: 0.18 },
+  grade: { toward: 0x3d566b, strength: 0.3 },
 };
 
 const SKY: Record<StyleId, Sky> = {
@@ -47,24 +53,61 @@ const SKY: Record<StyleId, Sky> = {
   signal: {
     planet: [0x7fc4d6, 0x3f7f92, 0x163440],
     body: { kind: "sun", x: 0.86, y: 0.16, r: 30, color: 0xfff6dc, shade: 0xffd98a, glow: 0xffe6a8, glowStrength: 0.42 },
-    starDensity: 0.35,
+    // Daylight: a sky that brightens toward a teal horizon, and only the brightest stars.
+    starDensity: 0.15,
+    grade: { toward: 0x7fc4d6, strength: 0.32 },
   },
   // Kestrel: an amber desert world, a bronze ringed giant overhead, warm dust in the starlight.
   flightdeck: {
     planet: [0xd0a070, 0x8a6040, 0x3a2818],
     body: { kind: "ringed", x: 0.8, y: 0.22, r: 46, color: 0xe0b078, shade: 0x5a3a20, glow: 0xc28e52, glowStrength: 0.16, ring: 0xf1d6a8 },
     stars: [0xfff1dc, 0xffd9a0, 0xffc890],
+    grade: { toward: 0x8a6040, strength: 0.32 },
   },
   // Pastel: candy dusk, a big cream crescent moon and pink and mint stars.
   pastel: {
     planet: [0xffc6d9, 0xc58aa8, 0x5a3a5a],
     body: { kind: "moon", x: 0.8, y: 0.2, r: 44, color: 0xfff1d6, shade: 0x5a4470, glow: 0xffc6d9, glowStrength: 0.3 },
     stars: [0xffffff, 0xffc6d9, 0xa8f0d0],
+    grade: { toward: 0xc58aa8, strength: 0.28 },
   },
   highcontrast: {},
 };
 
 interface Layer { sprite: TilingSprite; parallax: number; twinkle?: number }
+
+/** The colour of a world's sky body's light (rim light on the hulls), if it has one. */
+export function skyLight(style: StyleId): number | undefined {
+  return (SKY[style] ?? SKY["flightdeck-nightshift"]).body?.glow;
+}
+
+const GRADE_CELL = 3, GRADE_BANDS = 8;
+
+/**
+ * The sky's grade as a 12-px-wide strip (tiled across the frame): space at the top, rising in
+ * eight bands toward `toward` by the horizon (85% down), joined by ordered dither in 3-px cells.
+ */
+function gradeTexture(space: number, toward: number, strength: number, height: number): Texture {
+  const w = 4 * GRADE_CELL, h = Math.ceil(height / GRADE_CELL) * GRADE_CELL;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  const css = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
+  for (let y = 0; y < h; y += GRADE_CELL) {
+    const t = Math.min(1, (y + GRADE_CELL / 2) / (h * 0.85));
+    const s = t ** 1.6 * GRADE_BANDS;
+    const base = Math.floor(s), frac = s - base;
+    for (let x = 0; x < w; x += GRADE_CELL) {
+      const band = Math.min(GRADE_BANDS, frac > BAYER[(y / GRADE_CELL) & 3][(x / GRADE_CELL) & 3] / 16 ? base + 1 : base);
+      ctx.fillStyle = css(mix(space, toward, (strength * band) / GRADE_BANDS));
+      ctx.fillRect(x, y, GRADE_CELL, GRADE_CELL);
+    }
+  }
+  const tex = Texture.from(canvas);
+  tex.source.scaleMode = "nearest";
+  return tex;
+}
 
 function texture(renderer: Renderer, size: number, draw: (g: Graphics) => void): Texture {
   const g = new Graphics();
@@ -196,6 +239,12 @@ export class Backdrop {
   readonly root = new Container();
   private layers: Layer[] = [];
   private horizon?: Sprite;
+  /** The sky's grade, under the stars, and what it was last drawn for. */
+  private grade?: TilingSprite;
+  private gradeFor = "";
+  private sky: Sky = {};
+  private space = 0;
+  private asleep = false;
   private body?: { sprite: Sprite; x: number; y: number };
 
   private readonly renderer: Renderer;
@@ -210,10 +259,19 @@ export class Backdrop {
     this.layers = [];
     const sky = SKY[style] ?? SKY["flightdeck-nightshift"];
     const space = STYLES[style].space;
+    this.sky = sky;
+    this.space = space;
+    this.grade?.destroy({ texture: true, textureSource: true });
+    this.grade = undefined;
+    this.gradeFor = "";
+    if (sky.grade) {
+      this.grade = new TilingSprite({ texture: Texture.EMPTY, width, height });
+      this.root.addChild(this.grade);
+    }
     const [faint, warm, cool] = sky.stars ?? [0xffffff, 0xffd9a0, 0xa0d8ff];
     const density = sky.starDensity ?? 1;
+    // Clear between its stars: space itself (and its grade) shows through.
     const far = texture(this.renderer, 1024, (g) => {
-      g.rect(0, 0, 1024, 1024).fill(space);
       for (let i = 0; i < Math.round(420 * density); i++) {
         const m = hash(`fs${i}`);
         g.rect(Math.round(hash(`fx${i}`) * 1024), Math.round(hash(`fy${i}`) * 1024), 1, 1).fill({ color: faint, alpha: 0.15 + m * 0.35 });
@@ -268,7 +326,24 @@ export class Backdrop {
   }
 
   /** Follow the camera at each layer's depth; twinkle with the animation clock. */
+  /** While the whole fleet sleeps, the sky deepens: its grade drops to half. */
+  setAsleep(asleep: boolean): void {
+    this.asleep = asleep;
+  }
+
   update(width: number, height: number, camX: number, camY: number, t: number): void {
+    if (this.grade && this.sky.grade) {
+      // Redrawn only when the frame's height or the fleet's sleep changes.
+      const key = `${height}:${this.asleep}`;
+      if (key !== this.gradeFor) {
+        this.gradeFor = key;
+        const old = this.grade.texture;
+        this.grade.texture = gradeTexture(this.space, this.sky.grade.toward, this.sky.grade.strength * (this.asleep ? 0.5 : 1), height);
+        if (old !== Texture.EMPTY) old.destroy(true);
+      }
+      this.grade.width = width;
+      this.grade.height = height;
+    }
     // On a phone-width screen the sky body and the horizon are drawn at 2/3 (their 3-px cells at 2
     // px, still whole): full size, a ringed giant swamped the stations and the horizon was a slab.
     const scale = width < 800 ? 2 / 3 : 1;
@@ -292,6 +367,7 @@ export class Backdrop {
   }
 
   destroy(): void {
+    this.grade?.destroy({ texture: true, textureSource: true });
     for (const l of this.layers) l.sprite.destroy({ texture: true, textureSource: true });
     this.horizon?.destroy({ texture: true, textureSource: true });
     this.body?.sprite.destroy({ texture: true, textureSource: true });

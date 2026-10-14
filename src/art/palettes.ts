@@ -107,7 +107,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     light: 0xfff4dc,
     memoryInk: 0x33485b,
     blurb: "Night Shift by day: the same station in sunlight, porcelain hulls under a cool slate-and-white HUD.",
-    space: 0x0b1423,
+    // A dawn-navy sky (it brightens toward the horizon), not the night's near-black.
+    space: 0x16304a,
     wall: 0x101c2a,
     // The cool light HUD, counterpart to Pastel's warm one: slate frames on pale panels.
     hud: {

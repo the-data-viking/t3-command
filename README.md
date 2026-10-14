@@ -291,29 +291,34 @@ The map uses compact suited crew and wraparound system consoles. The theme butto
 scene in the current theme) opens the **world** picker, each with a rendered preview:
 
 - **Night Shift**, the default: a graveyard-shift engineering bay over a cold blue planet under a
-  crescent moon. **Day** is the same world in sunlight (formerly Signal): porcelain hulls, a cool
-  slate-and-white HUD, and a sun whose glare washes out all but the brightest stars.
+  crescent moon. Its tubes stutter as they come on. **Day** is the same world in sunlight (formerly
+  Signal): porcelain hulls, a cool slate-and-white HUD, and a dawn-blue sky brightening toward a teal
+  horizon, its sun's glare washing out all but the brightest stars.
 - **Kestrel**: the warm FTL hull over an amber desert world, walnut decks under a bronze-and-leather
   HUD, with a ringed giant overhead and warm dust in the starlight. Its stations are ships: deep
-  angular corners, long slot ports, a dorsal spine and twin engine nacelles with a glowing exhaust.
+  angular corners, long slot ports, a dorsal spine and twin engine nacelles with a glowing exhaust,
+  and its sodium lamps warm up through amber as a room comes on.
 - **Pastel Ops**: candy dusk, a cream HUD over a pink planet, a big pale crescent moon, and pink and
-  mint stars. Its stations are soft: rounded hulls, round portholes, a glass dome on the roof and a
-  rounded engine pod.
+  mint stars. Its stations are soft: rounded hulls, round portholes, a glass dome on the roof (it
+  glows pink while the bridge under it is lit) and a rounded engine pod.
 
 **High contrast** is a switch under the worlds, an accessibility mode rather than a world: black
 space and wells, white frames and text, light hulls on dark floors, a bare sky. Turning it off
 returns you to your last world. It is chosen automatically if your system asks for more contrast
 and you haven't picked a theme yet.
 
-Hovering previews the HUD. Each world recolors the map and brings its own HUD chrome: bevelled
+Each world's thumbnail previews it. Each world recolors the map and brings its own HUD chrome: bevelled
 corners for Night Shift and Kestrel, rounded for Day and Pastel, square for High Contrast. Status
 and gauge colors keep their meaning everywhere; on the light HUDs (Day, Pastel) they're hand-tuned
 darker so they stay readable. Switching crossfades the map, except under reduced motion. Earlier
 saved preferences carry over.
 
-Behind the fleet, the sky is layered for depth when you pan: dim far stars, nearer stars, a few
-bright stars that twinkle, the world's light (a moon, the sun or the ringed giant) with a
-pixel-dithered glow, and its planet's horizon along the bottom of the frame.
+Behind the fleet, the sky is layered for depth when you pan: a grade from space down toward the
+world's horizon colour in dithered bands, dim far stars, nearer stars, a few bright stars that
+twinkle, the world's light (a moon, the sun or the ringed giant) with a pixel-dithered glow, and its
+planet's horizon along the bottom of the frame. That light catches the hulls: a faint rim along each
+station's top and right side. When the last crew on duty stands down, the lights go out station by
+station, bow to stern, and the sky deepens while the fleet sleeps.
 
 The pixel-art map renders at one backing pixel per CSS pixel and at most 30 FPS. It stops
 redrawing when the fleet is idle and pauses while the page is hidden; live connections and
