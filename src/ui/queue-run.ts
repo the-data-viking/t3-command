@@ -1,20 +1,20 @@
-// Working the queue: one run through everything waiting on you — approvals and questions first,
-// longest wait first, then unread reports oldest first — one card at a time, ending on a "queue
-// clear" card. Anything that starts waiting on you mid-run goes before the remaining reports.
+// Working the queue: one run through everything that needs you (needs-you.ts) — approvals and
+// questions first, longest wait first, then plans, failures and reports — one card at a time,
+// ending on a "queue clear" card. Anything that starts waiting on you mid-run goes next.
 
 import { openEvent, useGame } from "../store";
 import { pendingRequests } from "../t3/derive";
-import { openDebrief, unreadReports } from "./debrief";
-import { waitQueue } from "./queue";
+import { openDebrief } from "./debrief";
+import { needsYou } from "./needs-you";
 
 type Item = { envId: string; threadId: string };
 const key = (i: Item) => `${i.envId}:${i.threadId}`;
 
-/** Approvals and questions plus unread reports: what a run would go through (less what it skipped). */
+/** Everything that needs you: what a run would go through (less what it skipped). */
 export function queueLength(): number {
   const s = useGame.getState();
   const skipped = new Set(s.queueRun?.skipped ?? []);
-  return [...waitQueue(s.envs, s.details), ...unreadReports()].filter((i) => !skipped.has(key(i))).length;
+  return needsYou(s).filter((i) => !skipped.has(key(i))).length;
 }
 
 export function startQueue(): void {
@@ -35,11 +35,13 @@ export function advanceQueue(skip: string | null): boolean {
     return run.seen.includes(key(i)) && !!detail?.synced && pendingRequests(detail.thread).length === 0;
   };
   const passed = (i: Item) => key(i) === skip || run.skipped.includes(key(i));
-  const waiting = waitQueue(s.envs, s.details).find((i) => !passed(i) && !answered(i));
-  if (waiting) { seen(waiting); openDebrief(null); openEvent(waiting); return true; }
-  const report = unreadReports().find((i) => !passed(i));
-  if (report) { seen(report); openEvent(null); openDebrief(report); return true; }
-  return false;
+  const next = needsYou(s).find((i) => !passed(i) && !answered(i));
+  if (!next) return false;
+  seen(next);
+  // Requests open the event card; plans, failures and reports open the report card in their variant.
+  if (next.kind === "approval" || next.kind === "question") openEvent(next);
+  else openDebrief(next);
+  return true;
 }
 
 /** The run is done: close its cards and show how many it went through. */

@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { logError } from "../t3/environment";
 import { PixelLabel } from "./PixelArt";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
 import { changeTotals } from "../t3/changes";
-import { envClient } from "../t3/environment";
+import { envClient, logError } from "../t3/environment";
 import { turnBreakdown } from "../t3/progress";
 import { elapsed } from "../t3/timing";
 import { ARM_MS } from "./event-guard";
 import { PullRequestChips } from "./MissionTelemetry";
 import { batchSettle } from "./squad";
 import { openDebrief, unreadReports } from "./debrief";
+import { needsYou } from "./needs-you";
 import { advanceQueue, finishQueue, queueLength, skipInQueue, stopQueue } from "./queue-run";
 import { useSwipe } from "./useSwipe";
 import { approvePlan } from "./plan";
@@ -69,7 +69,19 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
   // A plan-mode crew member's finished turn is a plan to approve, not work to accept: building
   // it is the next step, and sending it to camp would shelve the plan unbuilt.
   const plan = thread?.interactionMode === "plan";
-  const choices: Array<{ label: string; run: () => void | Promise<void>; tone?: "good" }> = plan ? [
+  // A failed turn is a triage card: ask the crew member to fix it, look, dismiss, or stand it down.
+  const failed = thread?.latestTurn?.state === "error" || thread?.session?.status === "error";
+  const error = thread?.session?.lastError?.trim();
+  const fixOrder = `Your last turn failed${error ? `: ${error.split("\n")[0].slice(0, 300)}` : ""}. Find the cause, fix it, and tell me what you changed and how you verified it.`;
+  const choices: Array<{ label: string; run: () => void | Promise<void>; tone?: "good" }> = failed ? [
+    { label: "Ask it to find and fix the cause.", tone: "good", run: async () => {
+      try { await envClient(envId)?.order(threadId, fixOrder); sfx.order(); if (turnId) markReportsRead([member]); next(); }
+      catch (err) { sfx.error(); logError("Couldn't send the fix order", err); }
+    } },
+    { label: "Open the crew log.", run: openLog },
+    { label: "Dismiss: I've seen it.", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
+    { label: "Send to camp.", run: async () => { if (turnId) markReportsRead([member]); await batchSettle(true, [{ envId, threadId }]); next(); } },
+  ] : plan ? [
     { label: "Approve the plan and build it.", tone: "good", run: async () => {
       try { await approvePlan(envId, threadId); sfx.order(); if (turnId) markReportsRead([member]); next(); }
       catch (err) { sfx.error(); logError("Couldn't start building", err); }
@@ -106,17 +118,20 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
 
   if (!env || !thread) return null;
   const project = env.projects[thread.projectId];
-  const remaining = unreadReports().filter((r) => !(r.envId === envId && r.threadId === threadId)).length;
+  // The same list as the top bar's Needs you: requests, plans, failures and reports.
+  const remaining = needsYou(useGame.getState()).filter((r) => !(r.envId === envId && r.threadId === threadId)).length;
   return (
     <div className="event-backdrop" onClick={close}>
       <div className="event debrief ftl-frame" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Report" {...swipe.handlers} style={swipe.style}>
         {swipe.armed === -1 && <div className="swipe-hint left">Later</div>}
         {swipe.armed === 1 && <div className="swipe-hint right">Mark read</div>}
-        <div className="ftl-tab"><PixelLabel text={plan ? "Plan" : "Report"} /></div>
+        <div className="ftl-tab"><PixelLabel text={failed ? "Failed" : plan ? "Plan" : "Report"} /></div>
         <div className="event-meta">{env.summary.label} · {project?.title ?? "?"}</div>
         <div className="event-body">
-          <p className="event-text"><strong>{thread.title || "A crew member"}</strong> {plan ? "has a plan for you to approve." : "finished."}</p>
-          {report
+          <p className="event-text"><strong>{thread.title || "A crew member"}</strong> {failed ? "failed its last turn." : plan ? "has a plan for you to approve." : "finished."}</p>
+          {failed && <pre className="event-detail failure-detail">{error ?? "No error message was reported."}</pre>}
+          {failed && report && <p className="muted small">Its last words before failing:</p>}
+          {failed && !report ? null : report
             ? <div className="debrief-report">{report.length > 900 ? `${report.slice(0, 899)}…` : report}</div>
             : <p className="muted">{detail ? "No written report this turn." : "Loading the report…"}</p>}
           <div className="debrief-facts">
@@ -136,7 +151,7 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
         </div>
         <div className="event-foot muted">Press a number to choose{running
           ? ` · ${queueLength() > 1 ? `${queueLength() - 1} more in the queue` : "last one"} · ${isPhone() ? "tap outside to stop" : "Esc stops"}`
-          : `${remaining > 0 ? ` · ${remaining} more report${remaining === 1 ? "" : "s"} after this` : ""} · Esc to close`}
+          : `${remaining > 0 ? ` · ${remaining} more need${remaining === 1 ? "s" : ""} you` : ""} · Esc to close`}
           {running && <button className="link-button queue-skip" onClick={skip}>{isPhone() ? "Later (or swipe left; right marks read)" : "Later (S)"}</button>}</div>
       </div>
     </div>

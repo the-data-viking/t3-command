@@ -30,7 +30,9 @@ const TITLES: Partial<Record<NonNullable<CommsEntry["kind"]>, string>> = {
 export function notificationFor(entry: CommsEntry, machine?: string): { title: string; body: string; url: string; tag: string } {
   const title = TITLES[entry.kind ?? "info"] ?? "T3 Command";
   const body = machine ? `${entry.text} · ${machine}` : entry.text;
-  const url = entry.envId && entry.threadId ? `/#crew/${encodeURIComponent(entry.envId)}/${encodeURIComponent(entry.threadId)}`
+  // Something to decide (approve, answer, triage a failure, read a report) opens straight to its card.
+  const decide = entry.kind === "approval" || entry.kind === "question" || entry.kind === "failed" || entry.kind === "done";
+  const url = entry.envId && entry.threadId ? `/#${decide ? "decide" : "crew"}/${encodeURIComponent(entry.envId)}/${encodeURIComponent(entry.threadId)}`
     : entry.envId ? `/#host/${encodeURIComponent(entry.envId)}` : "/";
   // One notification per crew member and kind: a newer one replaces the older on the lock screen.
   const tag = `${entry.kind ?? "info"}:${entry.envId ?? ""}:${entry.threadId ?? ""}`;

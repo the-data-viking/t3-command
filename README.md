@@ -168,6 +168,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   new release never wipes it. Unsent drafts are kept for 14 days. When a new release goes live
   while you're typing, the page waits: a banner says it's ready, and it reloads once you leave
   the field (or the tab is in the background), or when you click **Reload now**.
+- **One "Needs you"**: the top bar's **▶ Needs you N**, the roster's Needs you group, the mission
+  board's column, the queue run and the tab title all count the same list, in the same order:
+  approvals and questions (longest wait first), plans waiting for approval, failed turns, then
+  reports. A failed turn is a triage card: ask the crew member to find and fix the cause, open
+  its log, dismiss it ("I've seen it"), or send it to camp; a dismissed failure or read report
+  stops needing you until that crew member's next turn. Push notifications for something to
+  decide open straight to its card (`#decide/<machine>/<thread>`).
 - **Work the queue** (**Q**, the **▶ Queue N** button in the top bar, or the palette): one run
   through everything waiting on you, one card at a time — every approval and question, longest
   wait first (anything new that starts waiting mid-run goes next), then every unread report,

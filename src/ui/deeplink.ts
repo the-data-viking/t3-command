@@ -3,9 +3,12 @@
 // once its machine has connected and the target exists.
 
 import { worldRef } from "../game/world";
-import { openHost, setSelection, useGame, type GameState, type Selection } from "../store";
+import { openEvent, openHost, setSelection, useGame, type GameState, type Selection } from "../store";
+import { openDebrief } from "./debrief";
+import { needsYou } from "./needs-you";
 
-export type Target = { kind: "host"; envId: string } | Exclude<Selection, null>;
+/** `decide`: open the crew member's decision (request, plan, failure or report card) too. */
+export type Target = { kind: "host"; envId: string } | (Exclude<Selection, null> & { decide?: boolean });
 
 const enc = encodeURIComponent;
 
@@ -25,6 +28,8 @@ export function parseHash(hash: string): Target | undefined {
   if (!a) return undefined;
   if (kind === "host") return { kind: "host", envId: a };
   if (kind === "crew" && b) return { kind: "unit", envId: a, threadId: b };
+  // From a notification: go straight to what it's asking for.
+  if (kind === "decide" && b) return { kind: "unit", envId: a, threadId: b, decide: true };
   if (kind === "station" && b) return { kind: "building", envId: a, projectId: b };
   if (kind === "archive" && b) return { kind: "library", envId: a, projectId: b };
   if (kind === "hermes") return { kind: "hermes", envId: a, ...(b ? { profile: b } : {}) };
@@ -42,8 +47,15 @@ export function ready(target: Target, state: GameState): boolean {
 
 function open(target: Target): void {
   if (target.kind === "host") { openHost(target.envId); worldRef.current?.focusEngineering(target.envId); return; }
-  setSelection(target);
-  worldRef.current?.focus(target);
+  const { decide, ...selection } = target as Target & { decide?: boolean };
+  setSelection(selection as Exclude<Selection, null>);
+  worldRef.current?.focus(selection as Exclude<Selection, null>);
+  if (decide && selection.kind === "unit") {
+    const need = needsYou(useGame.getState()).find((n) => n.envId === selection.envId && n.threadId === selection.threadId);
+    // Still needing you when the link opens? Then its card; otherwise the crew panel is the answer.
+    if (need?.kind === "approval" || need?.kind === "question") openEvent(need);
+    else if (need) openDebrief(need);
+  }
 }
 
 export function installDeepLinks(): () => void {

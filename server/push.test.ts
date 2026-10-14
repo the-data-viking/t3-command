@@ -39,7 +39,7 @@ test("rules from a client are cleaned: bad times and unknown kinds fall back to 
 
 test("a notification says what happened and where, and links straight to the crew member", () => {
   const n = notificationFor({ id: 1, at: 0, tone: "alert", kind: "approval", text: "\"Fix CI\" needs your approval", envId: "mini", threadId: "t 1" }, "Mac mini");
-  assert.deepEqual(n, { title: "Approval needed", body: "\"Fix CI\" needs your approval · Mac mini", url: "/#crew/mini/t%201", tag: "approval:mini:t 1" });
+  assert.deepEqual(n, { title: "Approval needed", body: "\"Fix CI\" needs your approval · Mac mini", url: "/#decide/mini/t%201", tag: "approval:mini:t 1" });
   assert.equal(notificationFor({ id: 2, at: 0, tone: "bad", kind: "offline", text: "Lost contact with Box", envId: "box" }).url, "/#host/box");
 });
 

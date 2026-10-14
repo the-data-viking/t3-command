@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from "react";
 import { useGame } from "../store";
 import { PixelLabel } from "./PixelArt";
-import { queueLength, startQueue } from "./queue-run";
+import { needsYou, needsYouCounts } from "./needs-you";
+import { startQueue } from "./queue-run";
 
 /** The top bar's way into a run through the queue, with how much is waiting. Hidden when there's nothing. */
 export function QueueButton() {
@@ -9,12 +10,18 @@ export function QueueButton() {
   const details = useGame((s) => s.details);
   const read = useGame((s) => s.readReports);
   const running = useGame((s) => !!s.queueRun);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- recount when what the queue reads changes
-  const waiting = useMemo(() => queueLength(), [envs, details, read]);
-  if (!waiting || running) return null;
+  const counts = useMemo(() => needsYouCounts(needsYou({ envs, details, readReports: read })), [envs, details, read]);
+  if (!counts.total || running) return null;
+  const parts = [
+    counts.approval && `${counts.approval} approval${counts.approval === 1 ? "" : "s"}`,
+    counts.question && `${counts.question} question${counts.question === 1 ? "" : "s"}`,
+    counts.plan && `${counts.plan} plan${counts.plan === 1 ? "" : "s"}`,
+    counts.failure && `${counts.failure} failed`,
+    counts.report && `${counts.report} report${counts.report === 1 ? "" : "s"}`,
+  ].filter(Boolean).join(", ");
   return (
-    <button className="btn queue-btn" title="Work through everything waiting on you, one card at a time (Q)" onClick={() => startQueue()}>
-      ▶ Queue <strong>{waiting}</strong>
+    <button className="btn queue-btn" title={`Needs you: ${parts}. Work through it one card at a time (Q).`} onClick={() => startQueue()}>
+      ▶ Needs you <strong>{counts.total}</strong>
     </button>
   );
 }
