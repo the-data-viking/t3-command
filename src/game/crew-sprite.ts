@@ -63,6 +63,8 @@ export class CrewSprite extends Container {
   hovered = false;
   /** Picked for batch actions; set by the World each frame. */
   inSquad = false;
+  /** The unfinished mission this crew member is on, if any: its name leads their label. */
+  mission?: string;
   private fullName = "";
   private shortName = "";
   /**
@@ -287,7 +289,7 @@ export class CrewSprite extends Container {
     // pointing at or have selected shows the full title, so labels don't pile onto the consoles.
     const full = selected || this.hovered;
     this.nameText.visible = !resting && (full || zoom > 1.7);
-    this.nameText.text = full ? this.fullName : this.shortName;
+    this.nameText.text = this.mission ? (full ? `◆ ${this.mission} · ${this.fullName}` : `◆ ${this.shortName}`) : full ? this.fullName : this.shortName;
     this.syncLabel();
   }
 

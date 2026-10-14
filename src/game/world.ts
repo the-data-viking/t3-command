@@ -891,6 +891,9 @@ export class World {
     const frame = still ? 0 : Math.floor(t * 5); // sprite animation rate
     const sel = state.selection;
     const squad = new Set(state.squad.map((m) => unitKey(m.envId, m.threadId)));
+    // Crew on a mission still playing out: the newest such mission each is on.
+    const missions = new Map<string, string>();
+    for (const d of state.dispatches) if (d.mission && !d.finishedAt) for (const m of d.members) if (!missions.has(unitKey(m.envId, m.threadId))) missions.set(unitKey(m.envId, m.threadId), d.mission.name);
     const panning = this.stepCamera(dt);
     if (this.fade) {
       this.fade.alpha -= dt / FADE_SECONDS;
@@ -918,6 +921,7 @@ export class World {
       if (!lay || !s) continue;
       const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
       sprite.inSquad = squad.has(key);
+      sprite.mission = missions.get(key);
       sprite.offline = state.envs[sprite.envId]?.connection !== "live";
       sprite.tick(lay, s, t, dt, frame, selected, this.zoom, this.tween?.to.zoom ?? this.zoom);
     }
@@ -1207,7 +1211,7 @@ export class World {
     // Glyphs are 5 cells on a 6-cell dark tile, packed edge to edge so a room holds as many as it can.
     const pitch = 6 * cell;
     const now = Date.now();
-    const glyph = (x: number, y: number, state: UnitState, color: number, selected: boolean, waitedMs = 0, inSquad = false) => {
+    const glyph = (x: number, y: number, state: UnitState, color: number, selected: boolean, waitedMs = 0, inSquad = false, onMission = false) => {
       // A dark tile under each glyph, so it reads on light floors too; white-framed when selected.
       g.rect(x - cell, y - cell, 6 * cell, 6 * cell).fill({ color: 0x0b0d10, alpha: 0.8 });
       // Someone waiting on you gets a frame in their colour that thickens with the wait: from
@@ -1222,6 +1226,8 @@ export class World {
         }
       }
       for (const [cx, cy] of cells(STATUS_GLYPHS[state])) g.rect(x + cx * cell, y + cy * cell, cell, cell).fill(color);
+      // On a mission: a light pip in the tile's top-right corner.
+      if (onMission) g.rect(x + 4 * cell, y - cell, cell, cell).fill(0xe8edf2);
     };
     /** Lay glyphs out in rows inside a rect; false (and nothing drawn) if they don't all fit. */
     const fill = (r: Rect, crew: CrewSprite[], force = false): boolean => {
@@ -1233,7 +1239,7 @@ export class World {
         const waiting = sprite.state === "alert" || sprite.state === "question";
         const waited = waiting ? now - waitingSince(sprite.thread, state.details[sprite.key]?.thread) : 0;
         glyph(r.x + 2 * cell + (k % cols) * pitch, r.y + 2 * cell + Math.floor(k / cols) * pitch, sprite.state,
-          sprite.offline ? 0x59626c : STATUS[sprite.state], selected, waited, sprite.inSquad);
+          sprite.offline ? 0x59626c : STATUS[sprite.state], selected, waited, sprite.inSquad, !!sprite.mission);
       });
       return true;
     };
