@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_PUSH_RULES, inQuietHours, sanitizeRules, shouldPush, type PushRules } from "../shared/push.ts";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { DEFAULT_PUSH_RULES, deviceWants, inQuietHours, sanitizeDeviceKinds, sanitizeRules, shouldPush, type PushRules } from "../shared/push.ts";
 import { quietSince, QUIET_MS } from "./long-turns.ts";
-import { notificationFor } from "./push.ts";
+import { notificationFor, PushNotifier } from "./push.ts";
 import type { ThreadShell } from "../src/t3/types.ts";
 
 const rules = (over: Partial<PushRules["quiet"]> = {}): PushRules => ({ ...DEFAULT_PUSH_RULES, quiet: { ...DEFAULT_PUSH_RULES.quiet, enabled: true, timeZone: "UTC", ...over } });
@@ -51,4 +54,37 @@ test("a running turn with no update for a while, and not waiting on you, has gon
   assert.equal(quietSince(t(QUIET_MS / 60_000 + 1), now), now - (QUIET_MS / 60_000 + 1) * 60_000);
   assert.equal(quietSince(t(60, { hasPendingApprovals: true }), now), undefined, "waiting on you isn't quiet");
   assert.equal(quietSince(t(60, { latestTurn: { state: "completed" } } as Partial<ThreadShell>), now), undefined);
+});
+
+test("each device can narrow what it gets: everything, only some kinds, or nothing", () => {
+  assert.equal(deviceWants(null, "done"), true);
+  assert.equal(deviceWants(undefined, "done"), true);
+  assert.equal(deviceWants(["approval"], "approval"), true);
+  assert.equal(deviceWants(["approval"], "done"), false);
+  assert.equal(deviceWants([], "approval"), false, "an empty list mutes the device");
+  assert.deepEqual(sanitizeDeviceKinds(["done", "bogus", "approval"]), ["approval", "done"]);
+  assert.equal(sanitizeDeviceKinds(null), null);
+  assert.equal(sanitizeDeviceKinds("approval"), undefined);
+});
+
+test("a device's filter is saved, survives a restart and a re-subscribe, and unknown devices are refused", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "push-"));
+  try {
+    const push = new PushNotifier(dir);
+    await push.load();
+    const subscription = { endpoint: "https://push.example/abc", keys: { p256dh: "k", auth: "a" } };
+    push.subscribe(subscription, "iPhone · Safari");
+    assert.equal(push.status().devices[0].kinds, null);
+    push.setDeviceKinds(subscription.endpoint, ["approval", "question"]);
+    push.subscribe(subscription, "iPhone · Safari");
+    assert.deepEqual(push.status().devices[0].kinds, ["approval", "question"]);
+    assert.throws(() => push.setDeviceKinds("https://push.example/nobody", null), /No such device/);
+    assert.throws(() => push.setDeviceKinds(subscription.endpoint, "all"), /list of event kinds/);
+    await push.flush();
+    const again = new PushNotifier(dir);
+    await again.load();
+    assert.deepEqual(again.status().devices[0].kinds, ["approval", "question"]);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });

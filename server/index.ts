@@ -301,6 +301,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     try { push.setRules((await readJson<{ rules?: unknown }>(req))?.rules); } catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
     return sendJson(res, 200, push.status());
   }
+  if (pathname === "/api/push/device" && method === "PUT") {
+    const body = await readJson<{ endpoint?: string; kinds?: unknown }>(req);
+    try { push.setDeviceKinds(String(body?.endpoint ?? ""), body?.kinds); } catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
+    return sendJson(res, 200, push.status());
+  }
   if (pathname === "/api/push/test" && method === "POST") {
     const body = await readJson<{ endpoint?: string }>(req);
     return sendJson(res, 200, { sent: await push.test(body?.endpoint) });

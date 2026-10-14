@@ -1,13 +1,13 @@
 // Push notifications on this device: the service worker, the subscription with the Command
 // server, and the server's rules (which events, quiet hours).
 
-import type { PushRules } from "../../shared/push";
+import type { DeviceKinds, PushRules } from "../../shared/push";
 import { DEMO } from "../demo";
 import { fetchJson } from "./environment";
 
 export interface PushStatus {
   publicKey: string;
-  devices: Array<{ label: string; addedAt: number; endpoint: string }>;
+  devices: Array<{ label: string; addedAt: number; endpoint: string; kinds: DeviceKinds }>;
   rules: PushRules;
 }
 
@@ -70,6 +70,16 @@ export async function disablePush(): Promise<PushStatus> {
 
 export async function testPush(endpoint?: string): Promise<number> {
   return (await fetchJson<{ sent: number }>("/api/push/test", { method: "POST", body: JSON.stringify({ endpoint }) })).sent;
+}
+
+/** One device's own filter: only these kinds, or null for everything the fleet's rules allow. */
+export async function saveDeviceKinds(endpoint: string, kinds: DeviceKinds): Promise<PushStatus> {
+  return fetchJson<PushStatus>("/api/push/device", { method: "PUT", body: JSON.stringify({ endpoint, kinds }) });
+}
+
+/** Stop pushing to a device (another one, say an old phone): it's removed from the server's list. */
+export async function forgetDevice(endpoint: string): Promise<PushStatus> {
+  return fetchJson<PushStatus>("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) });
 }
 
 export async function saveRules(rules: PushRules): Promise<PushStatus> {

@@ -2176,6 +2176,9 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 /* ---- Alerts menu: desktop alerts, push to this device, rules, quiet hours ---- */
 .alerts-panel { width: min(380px, calc(100vw - 16px)); max-height: min(70vh, 640px); overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-1h); padding: var(--space-3); }
 .alerts-heading { margin: var(--space-2) 0 0; font-size: var(--fs-xs); letter-spacing: 1.5px; text-transform: uppercase; color: var(--frame); }
+.push-devices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.push-devices li { display: flex; align-items: center; gap: var(--space-2); min-height: 28px; }
+.push-devices li > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .alerts-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .alerts-kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-0) var(--space-2); }
 .alerts-panel input[type=time] { background: var(--slot); color: var(--text); border: 1px solid var(--edge-strong); padding: var(--space-0) var(--space-1); }

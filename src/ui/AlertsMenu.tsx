@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { PUSH_KINDS, PUSH_LABELS, type PushKind, type PushRules } from "../../shared/push";
+import { PUSH_KINDS, PUSH_LABELS, type DeviceKinds, type PushKind, type PushRules } from "../../shared/push";
 import { setNotify, useGame } from "../store";
-import { currentEndpoint, deviceLabel, disablePush, enablePush, needsHomeScreen, pushStatus, pushSupported, saveRules, testPush, type PushStatus } from "../t3/push";
+import { currentEndpoint, deviceLabel, disablePush, enablePush, forgetDevice, needsHomeScreen, pushStatus, pushSupported, saveDeviceKinds, saveRules, testPush, type PushStatus } from "../t3/push";
 import { PixelIcon } from "./PixelArt";
 
 /**
  * Alerts: desktop notifications while this tab is open, and push to this device from the Command
- * server (which reaches a phone in a pocket), with which events and quiet hours.
+ * server (which reaches a phone in a pocket), with which events and quiet hours. Each device can
+ * narrow that further: a phone that only buzzes for approvals, a desk that gets everything.
  */
 export function AlertsMenu() {
   const notify = useGame((s) => s.notify);
@@ -44,6 +45,16 @@ export function AlertsMenu() {
   };
   const toggleKind = (k: PushKind) => update((r) => ({ ...r, kinds: { ...r.kinds, [k]: !r.kinds[k] } }));
   const toggleAllow = (k: PushKind) => update((r) => ({ ...r, quiet: { ...r.quiet, allow: r.quiet.allow.includes(k) ? r.quiet.allow.filter((x) => x !== k) : [...r.quiet.allow, k] } }));
+  const mine = status?.devices.find((d) => d.endpoint === endpoint);
+  const setMine = (kinds: DeviceKinds) => {
+    if (!status || !endpoint) return;
+    setStatus({ ...status, devices: status.devices.map((d) => (d.endpoint === endpoint ? { ...d, kinds } : d)) });
+    void run(async () => { setStatus(await saveDeviceKinds(endpoint, kinds)); });
+  };
+  const toggleMine = (k: PushKind) => {
+    const kinds = mine?.kinds ?? [];
+    setMine(kinds.includes(k) ? kinds.filter((x) => x !== k) : [...kinds, k]);
+  };
   const anyOn = notify || pushOn;
 
   return (
@@ -72,16 +83,47 @@ export function AlertsMenu() {
                 : <button className="btn small" disabled={busy || !status} onClick={() => void run(async () => { setStatus(await enablePush(deviceLabel())); setEndpoint(await currentEndpoint()); })}>Turn on</button>}
             </div>
           )}
+          {status && pushOn && mine && (
+            <>
+              <div className="alerts-row">
+                <label className="sound-row"><input type="radio" name="device-kinds" checked={!mine.kinds} onChange={() => setMine(null)} /> Everything the fleet pushes</label>
+                <label className="sound-row"><input type="radio" name="device-kinds" checked={!!mine.kinds} onChange={() => setMine(["approval", "question"])} /> Only some</label>
+              </div>
+              {mine.kinds && (
+                <div className="alerts-kinds">
+                  {PUSH_KINDS.map((k) => (
+                    <label key={k} className={`sound-row${status.rules.kinds[k] ? "" : " muted"}`} title={status.rules.kinds[k] ? undefined : "Off for the whole fleet, below"}>
+                      <input type="checkbox" checked={mine.kinds!.includes(k)} disabled={!status.rules.kinds[k]} onChange={() => toggleMine(k)} /> {PUSH_LABELS[k]}</label>
+                  ))}
+                </div>
+              )}
+              {mine.kinds?.length === 0 && <p className="muted small">Nothing is picked: this device is muted.</p>}
+            </>
+          )}
           {status && (
             <>
-              <p className="muted small">{status.devices.length} device{status.devices.length === 1 ? "" : "s"} receive push{status.devices.length ? `: ${status.devices.map((d) => d.label).join(", ")}` : ""}. These settings apply to all of them.</p>
-              <h3 className="alerts-heading">Push these events</h3>
+              {status.devices.length > 0 && (
+                <>
+                  <h3 className="alerts-heading">Devices</h3>
+                  <ul className="push-devices">
+                    {status.devices.map((d) => (
+                      <li key={d.endpoint}>
+                        <span>{d.label}{d.endpoint === endpoint ? " (this one)" : ""}</span>
+                        <span className="muted small">{!d.kinds ? "everything" : d.kinds.length ? `only ${d.kinds.length} kind${d.kinds.length === 1 ? "" : "s"}` : "muted"}</span>
+                        {d.endpoint !== endpoint && <button className="icon-btn small" aria-label={`Stop pushing to ${d.label}`} title="Stop pushing to this device"
+                          disabled={busy} onClick={() => void run(async () => { setStatus(await forgetDevice(d.endpoint)); })}>✕</button>}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <h3 className="alerts-heading">Push these events (every device)</h3>
               <div className="alerts-kinds">
                 {PUSH_KINDS.map((k) => (
                   <label key={k} className="sound-row"><input type="checkbox" checked={status.rules.kinds[k]} onChange={() => toggleKind(k)} /> {PUSH_LABELS[k]}</label>
                 ))}
               </div>
-              <h3 className="alerts-heading">Quiet hours</h3>
+              <h3 className="alerts-heading">Quiet hours (every device)</h3>
               <div className="alerts-row">
                 <label className="sound-row"><input type="checkbox" checked={status.rules.quiet.enabled}
                   onChange={(e) => update((r) => ({ ...r, quiet: { ...r.quiet, enabled: e.target.checked, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } }))} /> From</label>
