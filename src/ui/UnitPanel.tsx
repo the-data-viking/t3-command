@@ -4,6 +4,7 @@ import { cancelFollowUp, followUpFor, queueFollowUp } from "../t3/followups";
 import { expandPlaybook } from "../../shared/playbooks";
 import { RiskBanner } from "./RiskBanner";
 import { PlanReady, PostureControl } from "./PostureControl";
+import { openReview } from "./review";
 import { allowedDecisions, assessRisk } from "./risk";
 import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
@@ -117,6 +118,9 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         {env.summary.kind !== 'hermes' && <PostureControl envId={envId} thread={thread} />}
         <ThreadTiming thread={thread} detail={detail?.thread} />
         <span className="spacer" />
+        {!bot && (detail?.thread.checkpoints.length ?? 0) > 0 && (
+          <button className="btn" title="Its report beside its checks, tests and the branch's changes" onClick={() => openReview({ envId, threadId })}>Review</button>
+        )}
         {!bot && state === "done" && thread.latestTurn && !reportRead(readReports, envId, thread) && (
           <button className="btn" title="Take this report out of Needs you and the REPORTS count (this browser), until the thread's next turn"
             onClick={() => markReportsRead([{ envId, threadId, turnId: thread.latestTurn!.turnId }])}>✓ Mark read</button>
