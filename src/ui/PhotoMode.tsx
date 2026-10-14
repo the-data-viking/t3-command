@@ -51,7 +51,7 @@ export function PhotoMode() {
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000);
     // With the HUD gone the whole screen is map: frame the fleet in it.
-    const frame = requestAnimationFrame(() => worldRef.current?.fitAll());
+    const frame = requestAnimationFrame(() => worldRef.current?.fitAll(true));
     return () => { clearInterval(timer); cancelAnimationFrame(frame); };
   }, []);
   const title = titleLine(now);

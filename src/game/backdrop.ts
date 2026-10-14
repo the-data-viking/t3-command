@@ -132,6 +132,9 @@ function mix(a: number, b: number, k: number): number {
   return (m(16) << 16) | (m(8) << 8) | m(0);
 }
 
+/** How far down the screen the horizon planet's edge sits: low enough that a fit fleet draws at half size. */
+export const HORIZON_AT = 0.88;
+
 /** The visible cap of the horizon planet: width and height of its texture, and the planet's radius. */
 const HORIZON_W = 2600, HORIZON_H = 560, HORIZON_R = 1700, HORIZON_CELL = 3;
 
@@ -362,7 +365,7 @@ export class Backdrop {
     }
     if (this.horizon) {
       // The horizon fills about the bottom fifth of the frame and drifts only slightly as you pan.
-      this.horizon.position.set(Math.round(width / 2 + camX * 0.03), Math.round(height * 0.8 + Math.max(-60, Math.min(60, camY * 0.03))));
+      this.horizon.position.set(Math.round(width / 2 + camX * 0.03), Math.round(height * HORIZON_AT + Math.max(-60, Math.min(60, camY * 0.03))));
     }
     for (const l of this.layers) {
       l.sprite.width = width;
