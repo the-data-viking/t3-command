@@ -19,6 +19,7 @@ import { TimelinePanel } from "./ui/TimelinePanel";
 import { MissionBoard } from "./ui/MissionBoard";
 import { QueueClear } from "./ui/QueueButton";
 import { ReviewPanel } from "./ui/ReviewPanel";
+import { DispatchReplies } from "./ui/DispatchReplies";
 import { registerServiceWorker } from "./t3/push";
 import { loadPlaybooks } from "./t3/playbooks";
 import { loadMemory, MEMORY_REFRESH_MS } from "./t3/memory";
@@ -62,7 +63,7 @@ function announceTransitions(): () => void {
       const s = useGame.getState();
       if (!s.event && active !== "TEXTAREA" && active !== "INPUT") {
         // Never over a report card or a dialog: the card's number keys would land on it too.
-        const covered = !!s.debrief || !!s.review || s.showPalette || s.showHelp || s.showPlaybooks || s.showBoard || s.showTimeline || s.showHistory;
+        const covered = !!s.debrief || !!s.review || !!s.replies || s.showPalette || s.showHelp || s.showPlaybooks || s.showBoard || s.showTimeline || s.showHistory;
         if (mayAutoOpen() && !covered) openEvent(at);
         else useGame.setState({ incoming: { ...at, at: Date.now() } });
       }
@@ -173,6 +174,7 @@ export default function App() {
       <DebriefCard />
       <QueueClear />
       <ReviewPanel />
+      <DispatchReplies />
       {showPalette && <CommandPalette />}
       {showHelp && <HelpOverlay />}
       {showPlaybooks && <PlaybooksDialog />}

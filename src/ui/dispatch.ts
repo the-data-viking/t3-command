@@ -4,7 +4,7 @@
 
 import type { Dispatch, DispatchMember } from "../../shared/dispatches";
 import type { FollowUpsView } from "../../shared/followups";
-import type { EnvWorld } from "../store";
+import type { EnvWorld, ThreadDetail } from "../store";
 import { unitState } from "../t3/derive";
 import { followUpFor } from "../t3/followups";
 import { fetchJson } from "../t3/environment";
@@ -81,4 +81,14 @@ export function updateDispatch(id: string, members: DispatchMember[]): Promise<D
 
 export async function closeDispatch(id: string): Promise<void> {
   await fetchJson("/api/dispatches/close", { method: "POST", body: JSON.stringify({ id }) });
+}
+
+/**
+ * What a crew member said back: their last message in the turn the order started (or the latest
+ * turn since, for a standing order). Undefined until the order reached them and they've written.
+ */
+export function replyOf(status: ReceiptStatus, thread: EnvWorld["threads"][string] | undefined, detail: ThreadDetail | undefined): string | undefined {
+  if (!thread || !detail || status === "unsent" || status === "undelivered" || status === "sent" || status === "queued" || status === "gone") return undefined;
+  const turnId = thread.latestTurn?.turnId;
+  return [...detail.thread.messages].reverse().find((m) => m.role === "assistant" && m.turnId === turnId && m.text.trim())?.text;
 }
