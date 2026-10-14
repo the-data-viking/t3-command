@@ -210,7 +210,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   commits behind, changes requested), **In progress** (drafts, checks running) and **Not
   verified** (nothing bad is known, but the host wasn't read, no checks ran, or mergeability isn't
   known yet: silence is never taken for clearance), each with the reasons. It reads each
-  PR's detail from the host, a few at a time. **Review** opens the crew member's review panel,
+  PR's detail from GitHub a few at a time, through the GitHub CLI (`gh`) signed in on the Command
+  server's own host, so one login reads every repo it can see. (The agent machines' T3 is asked
+  only if that fails; a fine-grained token there can't read checks at all.) A PR that GitHub says
+  has merged or closed since T3 last looked leaves the dock. **Review** opens the crew member's review panel,
   **Rebase** sends them your saved `/rebase` order (queued if they're busy), and **Open ↗** goes to
   the host. Merging stays on the host.
 - **Fleet timeline** (**T**, or the command palette): every crew member's turns over the last 6

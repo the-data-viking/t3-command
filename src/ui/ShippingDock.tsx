@@ -9,7 +9,8 @@ import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
 import { setSelection, useGame } from "../store";
 import { turnBusy } from "../t3/derive";
-import { envClient, logError } from "../t3/environment";
+import { logError } from "../t3/environment";
+import { readPrDetail } from "../t3/pr-detail";
 import type { PullRequestDetail } from "../t3/types";
 import { DEMO, demoReview } from "../demo";
 import { LANES, openPrs, readiness, type DockPr } from "./dock";
@@ -40,9 +41,7 @@ export function ShippingDock() {
       const item = queue.shift();
       if (!item || !live) return;
       try {
-        const client = envClient(item.envId);
-        if (!client) throw new Error("not connected");
-        const d = await client.pullRequestDetail(item.thread.projectId, item.pr.repository, item.pr.number, item.pr.host);
+        const d = await readPrDetail(item.envId, item.thread.projectId, item.pr);
         if (live) setDetails((s) => ({ ...s, [item.key]: d }));
       } catch { if (live) setDetails((s) => ({ ...s, [item.key]: "error" })); }
       return next();
@@ -51,10 +50,14 @@ export function ShippingDock() {
     return () => { live = false; };
   }, [wanted]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const rows = prs.map((p) => {
+  const all = prs.map((p) => {
     const d = details[p.key];
     return { ...p, detail: d === "error" ? undefined : d, unread: d === "error", ready: readiness(p.pr, d === "error" ? undefined : d) };
   });
+  // GitHub's word outranks T3's snapshot: a PR the snapshot still calls open may have merged or
+  // closed since (a machine whose GitHub login can't read it never refreshes it).
+  const rows = all.filter((r) => !r.detail || r.detail.state === "open");
+  const gone = all.length - rows.length;
 
   const go = (p: DockPr) => {
     const sel = { kind: "unit" as const, envId: p.envId, threadId: p.thread.id };
@@ -84,12 +87,12 @@ export function ShippingDock() {
       <div className="modal dock-modal" role="dialog" aria-label="Shipping dock" onClick={(e) => e.stopPropagation()}>
         <header className="panel-head">
           <h2 className="title-tab"><PixelLabel text="Shipping dock" /></h2>
-          <span className="muted small">{prs.length} open PR{prs.length === 1 ? "" : "s"} · {rows.filter((r) => r.ready.lane === "ready").length} ready to merge</span>
+          <span className="muted small">{rows.length} open PR{rows.length === 1 ? "" : "s"} · {rows.filter((r) => r.ready.lane === "ready").length} ready to merge{gone ? ` · ${gone} merged or closed since T3 last looked` : ""}</span>
           <span className="spacer" />
           <button className="icon-btn" aria-label="Close shipping dock" onClick={close}>✕</button>
         </header>
         {note && <p className="small muted" role="status">{note}</p>}
-        {prs.length === 0 && <p className="muted">No open pull requests in the fleet.</p>}
+        {rows.length === 0 && <p className="muted">No open pull requests in the fleet.</p>}
         <div className="dock-lanes">
           {LANES.map((lane) => {
             const inLane = rows.filter((r) => r.ready.lane === lane.id);

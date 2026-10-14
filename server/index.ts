@@ -22,6 +22,7 @@ import { PushNotifier } from "./push.ts";
 import { FollowUps } from "./followups.ts";
 import { Decisions } from "./decide.ts";
 import { Dispatches } from "./dispatches.ts";
+import { PrDetails } from "./pr-detail.ts";
 import type { OrchestrationThread } from "../src/t3/types.ts";
 import { Playbooks } from "./playbooks.ts";
 import { randomUUID } from "node:crypto";
@@ -94,6 +95,7 @@ const followUps = new FollowUps(config.dataDir, comms, async (envId, thread, tex
 await followUps.load();
 const playbooks = new Playbooks(config.dataDir);
 await playbooks.load();
+const prDetails = new PrDetails();
 const dispatches = new Dispatches(config.dataDir);
 await dispatches.load();
 dispatches.readReportsWith(readReply);
@@ -281,6 +283,14 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (pathname === "/api/playbooks" && method === "PUT") {
     try { return sendJson(res, 200, await playbooks.set((await readJson<{ playbooks?: unknown }>(req))?.playbooks)); }
     catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
+  }
+  // A PR's detail read by this host's own GitHub login (see pr-detail.ts); GitHub only.
+  if (pathname === "/api/pr-detail" && method === "GET") {
+    const params = new URL(req.url ?? "/", "http://localhost").searchParams;
+    const host = params.get("host");
+    if (host && host !== "github.com") return sendJson(res, 400, { error: "Only GitHub pull requests are read here" });
+    try { return sendJson(res, 200, await prDetails.get(params.get("repo") ?? "", Number(params.get("number")))); }
+    catch (err) { return sendJson(res, 502, { error: (err as Error).message }); }
   }
   if (pathname === "/api/dispatches" && method === "GET") return sendJson(res, 200, dispatches.all());
   if (pathname === "/api/dispatches" && method === "POST") {

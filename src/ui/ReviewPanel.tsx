@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { sfx } from "../game/sfx";
 import { markReportsRead, unitKey, useGame } from "../store";
 import { parseDiff, type ParsedDiff } from "../t3/diff";
+import { readPrDetail } from "../t3/pr-detail";
 import { envClient, logError } from "../t3/environment";
 import type { PullRequestDetail } from "../t3/types";
 import { DiffFiles } from "./DiffFiles";
@@ -74,10 +75,8 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
   useEffect(() => {
     if (!ref || !thread) return;
     if (DEMO) { setPr(demoReview().pr); return; }
-    const client = envClient(envId);
-    if (!client) { setPrError("not connected"); return; }
     let live = true;
-    client.pullRequestDetail(thread.projectId, ref.repository, ref.number, ref.host)
+    readPrDetail(envId, thread.projectId, ref)
       .then((d) => { if (live) setPr(d); })
       .catch((err: unknown) => { if (live) setPrError(err instanceof Error ? err.message : String(err)); });
     return () => { live = false; };
