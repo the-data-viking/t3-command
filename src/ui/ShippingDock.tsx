@@ -106,7 +106,7 @@ export function ShippingDock() {
                       <div className="dock-pr-main">
                         <a href={r.pr.url} target="_blank" rel="noreferrer" className="dock-pr-title">#{r.pr.number} {r.pr.snapshot?.title ?? ""}</a>
                         <span className="muted small">{r.pr.repository} · <button className="dock-crew" onClick={() => go(r)} title="Go to the crew member">{r.thread.title || "Untitled"}</button>
-                          {r.detail && <> · <span className="diff-add">+{r.detail.additions}</span> <span className="diff-del">−{r.detail.deletions}</span></>}</span>
+                          {r.detail && <> · <span className="diff-stat"><span className="diff-add">+{r.detail.additions}</span> <span className="diff-del">−{r.detail.deletions}</span></span></>}</span>
                         <span className={`dock-why small why-${r.ready.tone ?? lane.id}`} title={r.unread ? "The host couldn't be read for this PR, so only T3's snapshot is known" : undefined}>
                           {r.ready.reasons.join(" · ")}{!r.detail && !r.unread && !DEMO ? " · reading…" : ""}
                         </span>

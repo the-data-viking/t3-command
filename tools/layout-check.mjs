@@ -80,7 +80,7 @@ async function run(base) {
 
     // History: the charts keep their height when the dialog overflows.
     if (phone) { await page.tap(".menu-btn"); await page.waitForTimeout(200); await page.tap("button:has-text('History')"); }
-    else await page.click("button:has-text('History')");
+    else { await page.click("button:has-text('More')"); await page.waitForTimeout(200); await page.click("button:has-text('History')"); }
     await page.waitForTimeout(800);
     const bars = await rect(page, ".history-bars");
     check(view.name, bars && bars.height > 40, `history turns chart is squeezed (${bars?.height ?? "missing"} px)`);

@@ -73,8 +73,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   ◆ question, ● working, ○ monitoring, ✓ report, ✕ failed. With your system's **reduced motion**
   setting the map holds still (no blinking, pulsing or walking; crew are placed), camera moves snap
   and HUD animations stop. Crew portraits are their actual map sprites, and HUD icons are pixel
-  art rather than emoji. The top bar has buttons for the work views (**Board**, **Dock**, **Timeline**)
-  beside the log, history and **Machines** (the T3 environments). On phones the top bar is one row
+  art rather than emoji. On the desktop the top bar is two fixed rows, so nothing below it moves
+  when Needs you appears: the counters, spend, limits and tools (fit, worlds, alerts, sound), then
+  the machines (scrolling sideways if they don't fit), Hermes and the work views (**Board**,
+  **Dock**, **Timeline**, with the log, history and **Machines** under **More**). On phones the top bar is one row
   (active, alerts, reports) with a menu holding the machines, spend, limits and the rest, and a tab
   bar along the bottom: **Needs you** (the roster, which opens by itself the first time something
   needs you), **Board**, **Dock** and **Map**. Panels and dialogs fill the screen. The map pinch-zooms, and a tap just beside a small crew member still

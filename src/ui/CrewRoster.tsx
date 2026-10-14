@@ -80,6 +80,8 @@ export function CrewRoster() {
   // The same count as the top bar's Needs you: everything waiting on you, reports included.
   const readReports = useGame((s) => s.readReports);
   const stuckOk = useGame((s) => s.stuckOk);
+  const showBoard = useGame((s) => s.showBoard);
+  const showDock = useGame((s) => s.showDock);
   const now = useClock(true, 10000);
   const waiting = useMemo(() => needsYouCounts(needsYouList({ envs, details, readReports, stuckOk }, now)).total, [envs, details, readReports, stuckOk, now]);
   useEffect(() => {
@@ -96,8 +98,6 @@ export function CrewRoster() {
     .sort((a, b) => order.get(unitKey(a.envId, a.thread.id))! - order.get(unitKey(b.envId, b.thread.id))!);
   // A turn that may be stuck is listed under Needs you, not twice.
   const onDuty = crew.filter((u) => !order.has(unitKey(u.envId, u.thread.id)) && (ON_DUTY.includes(u.state) || read(u)));
-  const urgent = crew.filter((u) => u.state === "alert" || u.state === "question").length
-    + operators.filter(b => b.state === 'alert' || b.state === 'question').length;
 
   const squad = useGame((s) => s.squad);
   const picked = squadKeys(squad);
@@ -167,17 +167,17 @@ export function CrewRoster() {
       {phone ? (
         // The phone's tab bar: what needs you (this list), the work board, the shipping dock, the map.
         <nav className="phone-tabs" aria-label="Views">
-          <button className={`phone-tab${collapsed ? "" : " active"}`} aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
+          <button className={`phone-tab${collapsed || showBoard || showDock ? "" : " active"}`} aria-expanded={!collapsed} onClick={() => { useGame.setState({ showBoard: false, showDock: false }); setCollapsed(!collapsed); }}>
             {waiting > 0 ? <span className="needs-count hot">{waiting} need{waiting === 1 ? "s" : ""} you</span> : <span>Crew <span className="count">{crew.length}</span></span>}
           </button>
-          <button className="phone-tab" onClick={() => { setCollapsed(true); useGame.setState({ showBoard: true }); }}>Board</button>
-          <button className="phone-tab" onClick={() => { setCollapsed(true); useGame.setState({ showDock: true }); }}>Dock</button>
+          <button className={`phone-tab${showBoard ? " active" : ""}`} aria-pressed={showBoard} onClick={() => { setCollapsed(true); useGame.setState({ showBoard: true, showDock: false }); }}>Board</button>
+          <button className={`phone-tab${showDock ? " active" : ""}`} aria-pressed={showDock} onClick={() => { setCollapsed(true); useGame.setState({ showDock: true, showBoard: false }); }}>Dock</button>
           <button className="phone-tab" onClick={() => { setCollapsed(true); useGame.setState({ showBoard: false, showDock: false, showTimeline: false, showLog: false, showHistory: false }); }}>Map</button>
         </nav>
       ) : (
         <button className="ftl-tab roster-tab" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
           {/* The tab's name in the map's pixel font, like every other frame tab. */}
-          <PixelLabel text="Crew" /> <span className={urgent ? "count hot" : "count"}>{crew.length}</span>
+          <PixelLabel text="Crew" /> <span className="count">{crew.length}</span>
           {" "}{collapsed ? "▸" : "▾"}
         </button>
       )}

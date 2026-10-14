@@ -50,7 +50,7 @@ export function ThemePicker() {
                 {world.variants.length > 1 && (
                   <div className="theme-variants" role="group" aria-label={`${world.name}: time of day`}>
                     {world.variants.map((v) => (
-                      <button key={v.style} className={`btn small ${artStyle === v.style ? "active" : ""}`} aria-pressed={artStyle === v.style} onClick={() => choose(v.style)}>
+                      <button key={v.style} className="btn small" aria-pressed={artStyle === v.style} onClick={() => choose(v.style)}>
                         {v.label}
                       </button>
                     ))}
