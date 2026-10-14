@@ -27,7 +27,7 @@
   --chart-neutral: color-mix(in srgb, var(--frame) 70%, var(--surface));
   /* Type scale: use these, not new pixel sizes. Body text is 13px. */
   --fs-2xs: 10px; /* the floor: 9px uppercase didn't hold up on 1× screens */
-  --fs-xs: 10px;
+  --fs-xs: 11px;
   --fs-sm: 11px;
   --fs-md: 12px;
   --fs-lg: 14px;
@@ -1712,12 +1712,10 @@ button.ftl-tab {
   color: var(--bright);
 }
 
+/* Hover is a neutral wash across the row: no status colour (yellow means "question"). */
 .event-choice:hover:not(:disabled) {
-  color: color-mix(in srgb, var(--question) 70%, var(--bright));
-}
-
-.event-choice.bad:hover:not(:disabled) {
-  color: color-mix(in srgb, var(--alert) 65%, var(--bright));
+  background: var(--wash);
+  color: var(--bright);
 }
 
 .event-choice:disabled {
@@ -1880,7 +1878,8 @@ button.ftl-tab {
 .comms-log-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-0); }
 .comms-log-row {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  /* Wide enough for "08:07 PM" on one line in any locale. */
+  grid-template-columns: 9ch 1fr auto;
   gap: var(--space-2);
   width: 100%;
   text-align: left;
@@ -2038,6 +2037,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
   /* The menu is a two-column grid: even rows, with machines and sound across the full width. */
   .topbar.menu-open .topbar-more {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); width: 100%;
+    background: var(--surface);
     max-height: calc(100dvh - 64px); overflow-y: auto; padding: var(--space-2) 0 var(--space-1);
     border-top: 1px solid var(--line);
   }
@@ -2112,7 +2112,8 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 }
 
 /* The narrowest phones get short counter labels so all three fit beside the menu. */
-@media (max-width: 380px) {
+/* Short counter labels on every phone (an iPhone 14 is 390 px wide), so the counters keep room. */
+@media (max-width: 700px) {
   .topbar .res-key[data-short] { font-size: 0; letter-spacing: 0; }
   .topbar .res-key[data-short]::before { content: attr(data-short); font-size: var(--fs-2xs); letter-spacing: 1px; }
 }
@@ -2145,6 +2146,8 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 
 /* ---- Report debrief card ---- */
 .event.debrief { width: min(560px, calc(100vw - 16px)); }
+/* Phone: every card is a full-width bottom sheet, report cards included. */
+@media (max-width: 700px) { .event, .event.debrief { width: 100%; } }
 .debrief-report { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto; padding: var(--space-2) var(--space-3); background: var(--slot); border: 1px solid var(--edge); color: var(--text); font-size: var(--fs-md); }
 .debrief-facts { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0; color: var(--muted); font-size: var(--fs-md); }
 
@@ -2249,6 +2252,8 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 /* ---- Working the queue ---- */
 .queue-btn { flex: none; border-color: var(--alert); color: var(--bright); }
 .queue-btn strong { margin-left: var(--space-1); color: var(--alert); }
+/* On a phone the button is just "▶ 4": the full name stays in its title and accessible name. */
+@media (max-width: 700px) { .queue-btn .queue-label { display: none; } }
 .queue-clear { position: absolute; left: 50%; top: 96px; transform: translateX(-50%); z-index: var(--z-banner); padding: var(--space-3) var(--space-4) var(--space-2); max-width: min(420px, calc(100vw - 32px)); cursor: pointer; }
 .queue-clear p { margin: var(--space-1) 0 0; }
 @media (max-width: 640px) {
@@ -2298,3 +2303,14 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .update-ready { position: fixed; left: 50%; top: 104px; transform: translateX(-50%); z-index: var(--z-alert); display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1h) var(--space-2); font-size: var(--fs-sm); max-width: calc(100vw - 32px); }
 
 .event-detail.failure-detail { border-color: var(--error); }
+
+/* Phone palette: the name gets the whole first line; its kind and detail go underneath. */
+@media (max-width: 700px) {
+  .palette-item { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label label" "group detail"; row-gap: 2px; min-height: 52px; align-items: center; }
+  .palette-label { grid-area: label; }
+  .palette-group { grid-area: group; }
+  .palette-detail { grid-area: detail; overflow: hidden; text-overflow: ellipsis; max-width: 50vw; }
+}
+
+/* Dialog titles wear the same pixel title tab as the roster and the event cards. */
+.panel-head h2.title-tab { display: inline-flex; align-items: center; margin: 0; padding: var(--space-1) var(--space-3); background: var(--frame); color: var(--ink); border: 2px solid var(--ink); border-radius: var(--radius-control); }

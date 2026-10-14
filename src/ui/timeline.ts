@@ -84,15 +84,17 @@ export function buildTimeline(view: TimelineView, envs: Record<string, EnvWorld>
   return [...groups.values()].sort((a, b) => b.last - a.last || a.project.localeCompare(b.project));
 }
 
-/** Axis ticks on whole local hours, spaced so there are about six to eight. */
-export function ticks(from: number, to: number): number[] {
+/** Axis ticks on whole local hours: the finest step that leaves at most `max` labels (they need ~80 px each). */
+export function ticks(from: number, to: number, max = 8): number[] {
   const hours = (to - from) / 3_600_000;
-  const step = hours <= 6 ? 1 : hours <= 24 ? 3 : hours <= 72 ? 12 : 24;
+  const step = [1, 2, 3, 6, 12, 24, 48].find((h) => hours / h <= max) ?? 48;
   const first = new Date(from);
   first.setMinutes(0, 0, 0);
   const out: number[] = [];
   for (let t = first.getTime() + 3_600_000; t < to; t += 3_600_000) {
-    if (new Date(t).getHours() % step === 0) out.push(t);
+    const d = new Date(t);
+    // Steps past a day land on midnights every other day or so.
+    if (step <= 24 ? d.getHours() % step === 0 : d.getHours() === 0 && Math.floor(t / 86_400_000) % (step / 24) === 0) out.push(t);
   }
   return out;
 }

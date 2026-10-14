@@ -1,6 +1,7 @@
 // The fleet timeline: every crew member's turns over the last hours, one lane each, grouped by
 // project, with what's running or waiting on you now at the right edge.
 
+import { PixelLabel } from "./PixelArt";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { agentMs, type TimelineView } from "../../shared/history";
@@ -40,6 +41,15 @@ export function TimelinePanel() {
   const details = useGame((s) => s.details);
   const now = useClock();
   const box = useRef<HTMLDivElement>(null);
+  const [trackWidth, setTrackWidth] = useState(900);
+  const axisTrack = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = axisTrack.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setTrackWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [view]);
 
   useEffect(() => {
     let live = true;
@@ -67,7 +77,8 @@ export function TimelinePanel() {
     worldRef.current?.focus(sel);
     close();
   };
-  const axis = ticks(from, to);
+  // As many hour labels as the track has room for (about 80 px each), so a phone's axis stays readable.
+  const axis = ticks(from, to, Math.max(2, Math.floor(trackWidth / 80)));
   // Tooltip position inside the (scrolling) dialog, flipped left near its right edge.
   const place = (clientX: number, clientY: number) => {
     const el = box.current!, r = el.getBoundingClientRect();
@@ -79,7 +90,7 @@ export function TimelinePanel() {
     <div className="modal-backdrop" onClick={close}>
       <div className="modal timeline-modal" ref={box} role="dialog" aria-label="Fleet timeline" onClick={(e) => e.stopPropagation()}>
         <header className="panel-head">
-          <h2>Fleet timeline</h2>
+          <h2 className="title-tab"><PixelLabel text="Fleet timeline" /></h2>
           <span className="spacer" />
           <div className="history-ranges" role="group" aria-label="Range">
             {RANGES.map((r) => <button key={r.hours} className={`btn small ${r.hours === hours ? "primary" : ""}`} aria-pressed={r.hours === hours} onClick={() => setHours(r.hours)}>{r.label}</button>)}
@@ -98,7 +109,7 @@ export function TimelinePanel() {
           <div className="tl" onPointerLeave={() => setHover(undefined)}>
             <div className="tl-row tl-axis">
               <span className="tl-label-col" />
-              <div className="tl-track">
+              <div className="tl-track" ref={axisTrack}>
                 {axis.map((t) => <span key={t} className="tl-tick" style={{ left: `${pct(t)}%` }}>{clock(t, hours > 24)}</span>)}
                 <span className="tl-tick tl-tick-now" style={{ left: "100%" }}>now</span>
               </div>

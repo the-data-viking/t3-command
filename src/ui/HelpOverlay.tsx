@@ -1,3 +1,4 @@
+import { PixelLabel } from "./PixelArt";
 import { useEffect } from "react";
 import { useGame } from "../store";
 import type { Grid } from "../art/sprites";
@@ -75,7 +76,7 @@ export function HelpOverlay() {
     <div className="modal-backdrop" onClick={close}>
       <div className="modal help-modal" role="dialog" aria-label="Help" onClick={(e) => e.stopPropagation()}>
         <header className="panel-head">
-          <h2>Command reference</h2><span className="spacer" />
+          <h2 className="title-tab"><PixelLabel text="Command reference" /></h2><span className="spacer" />
           <button className="icon-btn" aria-label="Close help" onClick={close}>✕</button>
         </header>
         <div className="help-columns">
