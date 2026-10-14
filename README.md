@@ -54,7 +54,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   Hermes operators keep their names. A crew member whose turn has run past 2, 6, 12 and 24 hours
   gets a pip for each beside the head (amber, then magenta past 12 hours). Rooms are lit only
   while in use: a bridge while its station has crew on duty, a system room while someone works
-  there. Crew walk to quarters when their thread settles and back when it wakes, doors slide
+  there. Crew walk to quarters, a cryo bay of stasis pods, when their thread settles (frost
+  glints along the canopy, the pod's panel light breathes) and back when it wakes, doors slide
   open as they pass, and a freshly recruited crew member beams in at their seat. Camera jumps
   ease into place.
 - **Readable at any zoom**: map labels use a 5×7 pixel font that matches the art. Zoomed out they

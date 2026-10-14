@@ -142,7 +142,7 @@ the map sleep.
   crew on a live connection. A system room is lit, with a soft screen glow from its fixture
   (violet for monitoring-only comms), while crew work there. Quarters and the archive stay dim.
   Crew render above the shadow.
-- **Quarters:** a crew member's own settle or wake walks them between seat and bunk through the
+- **Quarters:** a crew member's own settle or wake walks them between seat and cryo pod through the
   doors. They lie down only on arrival. Seat reshuffles caused by other crew, and any change to
   room geometry, still snap, so busy stations never drift (`crew-motion.ts`).
 - **Doors:** doors slide half then fully open as walking crew come within 34 / 18 px, and close
@@ -167,8 +167,8 @@ the map sleep.
   ● working, ○ monitoring, ✓ report, ✕ failed, ▪ idle, — asleep). Minimap crew and
   engineering-deck plate pips draw these, so color-blind users never depend on red vs. orange vs.
   green.
-- **Reduced motion:** the map freezes its animation clock. There's no blinking, pulsing, sleeper
-  drift or packet flow, crew are placed instead of walking, and the render loop wakes only for
+- **Reduced motion:** the map freezes its animation clock. There's no blinking, pulsing, cryo-pod
+  frost or panel light, or packet flow, crew are placed instead of walking, and the render loop wakes only for
   real changes. Camera moves snap, the beam-in is skipped, and CSS animations and transitions
   are off.
 - **Pixel HUD art:** crew portraits in the roster and crew panel are the crew member's map sprite

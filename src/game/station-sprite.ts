@@ -136,10 +136,10 @@ export class StationSprite {
       fixtures.addChild(con);
       this.consoles.set(`${p.x},${p.y}`, con);
     }
-    // Quarters: three bunks (sleepers are drawn by their crew sprites).
+    // Quarters are a cryo bay: three stasis pods (sleepers are drawn by their crew sprites, in their own pod).
     const q = s.rooms.quarters?.rect;
     if (q) {
-      for (let k = 0; k < QUARTERS_SHOWN; k++) fixtures.addChild(sprite(tex(A.BUNK_EMPTY), q.x + TILE * 1.5 + k * TILE * 1.5, q.y + q.h - TILE / 2, 0.5, 0.5));
+      for (let k = 0; k < QUARTERS_SHOWN; k++) fixtures.addChild(sprite(tex(A.CRYO_EMPTY), q.x + TILE * 1.5 + k * TILE * 1.5, q.y + q.h - TILE / 2, 0.5, 0.5));
     }
     // Archive shelves, filling with finished work: one shelf unit per few clean turns.
     const ar = s.rooms.archive?.rect;

@@ -253,7 +253,7 @@ export class CrewSprite extends Container {
 
     const visor = PROVIDER_VISOR[this.thread.modelSelection.instanceId] ?? DEFAULT_VISOR;
     if (resting) {
-      this.figure.texture = tex(A.BUNK_SLEEPER, { team: this.team, visor });
+      this.figure.texture = tex(A.CRYO_SLEEPER, { team: this.team, visor });
       this.figure.anchor.set(0.5, 0.5);
       this.figure.scale.set(PX);
       this.badge.visible = false;
@@ -320,13 +320,11 @@ export class CrewSprite extends Container {
     // Teleporter column, fading as they solidify.
     if (this.arriving) this.drawBeam(f, this.arriving / BEAM_SECONDS, t);
     if (sleeping) {
-      const drift = (t * 0.5 + this.seed) % 1;
-      // A pixel "z" drifting up from the pillow, gone before it fades (no translucency).
-      if (drift < 0.85) {
-        const zx = snap(10 + drift * 8), zy = snap(-14 - drift * 14);
-        // A "z": top bar, a diagonal of two cells, bottom bar (a single centre cell read as an I-beam).
-        f.rect(zx, zy, 8, 2).fill(0xffffff).rect(zx + 4, zy + 2, 2, 2).fill(0xffffff).rect(zx + 2, zy + 4, 2, 2).fill(0xffffff).rect(zx, zy + 6, 8, 2).fill(0xffffff);
-      }
+      // In stasis: a glint of frost slides along the canopy now and then, and the pod's panel
+      // light at the foot breathes slowly in the world's lamp colour (held still under reduced motion).
+      const drift = (t * 0.2 + this.seed) % 1;
+      if (drift < 0.45) f.rect(snap(-14 + drift * 60), -8, 2, 2).fill(0xffffff);
+      if ((t * 0.4 + this.seed) % 1 < 0.6) f.rect(-16, 6, 2, 2).fill(currentStyle().light ?? 0xe8f0f8);
       return;
     }
     if (this.offline) {

@@ -128,10 +128,10 @@ function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
   drawCrew(ctx, style, { silhouette: "angular", tier: "reviewer", team: TEAM.teal, x: ox + 13.5 * T, y: oy + 2 * T - 3 });
   blit(ctx, rasterize(S.BADGE_MONITOR, style, { visor: SCREEN.monitoring }), ox + 13.5 * T + 9, oy + 6);
 
-  // Quarters: two settled crew and an empty bunk; archive shelves.
-  blit(ctx, rasterize(S.BUNK_SLEEPER, style, { team: TEAM.lime, visor: VISOR.codex }), ox + 1 * T, oy + 6 * T - 4);
-  blit(ctx, rasterize(S.BUNK_SLEEPER, style, { team: TEAM.amber, visor: VISOR.claude }), ox + 3 * T, oy + 6 * T - 4);
-  blit(ctx, rasterize(S.BUNK_EMPTY, style), ox + 5 * T, oy + 6 * T - 4);
+  // Quarters: two settled crew in stasis and an empty cryo pod; archive shelves.
+  blit(ctx, rasterize(S.CRYO_SLEEPER, style, { team: TEAM.lime, visor: VISOR.codex }), ox + 1 * T, oy + 6 * T - 4);
+  blit(ctx, rasterize(S.CRYO_SLEEPER, style, { team: TEAM.amber, visor: VISOR.claude }), ox + 3 * T, oy + 6 * T - 4);
+  blit(ctx, rasterize(S.CRYO_EMPTY, style), ox + 5 * T, oy + 6 * T - 4);
   blit(ctx, rasterize(S.SHELF, style, { team: TEAM.amber }), ox + 11.5 * T, oy + 5 * T + 6);
   blit(ctx, rasterize(S.SHELF, style, { team: TEAM.teal }), ox + 13 * T + 4, oy + 5 * T + 6);
 
@@ -187,7 +187,7 @@ for (const style of Object.values(STYLES).filter((s) => s.id !== "nightshift")) 
   const assets: Array<[string, S.Grid]> = [
     ["Utility deck", S.FLOOR], ["Bridge alloy", S.FLOOR_BRIDGE], ["Quarters panels", S.FLOOR_QUARTERS],
     ["Console", kit.CONSOLE], ["Terminal", kit.TERMINAL], ["File bank", kit.FILES], ["Comms", kit.COMMS],
-    ["Bunk", S.BUNK_EMPTY], ["Archive", S.SHELF], ["Engineering deck", kit.ENGINEERING_DECK],
+    ["Cryo pod", S.CRYO_EMPTY], ["Archive", S.SHELF], ["Engineering deck", kit.ENGINEERING_DECK],
     ["Approval", S.BADGE_ALERT], ["Question", S.BADGE_QUESTION], ["Report ready", S.BADGE_DONE],
     ["Failed", S.BADGE_ERROR], ["Monitoring", S.BADGE_MONITOR],
   ];

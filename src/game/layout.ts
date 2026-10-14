@@ -102,7 +102,7 @@ export interface CrewLayout {
   threadId: string;
   stationKey: string;
   color: number; // team color
-  /** Seat in front of the console, or bunk. */
+  /** Seat in front of the console, or cryo pod. */
   home: Point;
   homeRoom: RoomKind;
   console?: Point;

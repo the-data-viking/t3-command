@@ -217,38 +217,43 @@ export const COMMS: Grid = [
   "....kkkkkkkkk...",
 ];
 
-export const BUNK_EMPTY: Grid = [
+/**
+ * Quarters are a cryo bay: an empty stasis pod, side on. A metal cradle under a glass canopy in
+ * the world's window glass (never a status colour), lit at its upper left, with a panel light at
+ * the foot.
+ */
+export const CRYO_EMPTY: Grid = [
   "........................",
   "........................",
   "........................",
-  "........................",
-  "........................",
-  "kkkk....................",
-  "kMMk....................",
-  "kMMkkkkkkkkkkkkkkkkkkkkk",
-  "kMMkwwwkmmmmmmmmmmmmmmmk",
-  "kMMkkkkkkkkkkkkkkkkkkkkk",
-  "kMMMMMMMMMMMMMMMMMMMMMMk",
+  "..kkkkkkkkkkkkkkkkkkkk..",
+  ".khhhbbbbbbbbbbbbbbbbbk.",
+  "khbbbbbbbbbbbbbbbbbbbbbk",
+  "kbbbbbbbbbbbbbbbbbbbbbbk",
+  "kHkkkkkkkkkkkkkkkkkkkkHk",
+  "kWWWWWWWWWWWWWWWWWWWWWWk",
+  "kHHHHHHHHHHHHHHHHHHHHHDk",
+  "kHkwkHHHHHHHHHHHHHHHHDDk",
   "kkkkkkkkkkkkkkkkkkkkkkkk",
-  ".kk..................kk.",
+  "..kk................kk..",
   "........................",
 ];
 
-/** A settled crew member asleep, side on: helmet on the pillow, a team-coloured blanket over them. */
-export const BUNK_SLEEPER: Grid = [
+/** A settled crew member in stasis: lying under the glass in their suit, visor up, team stripe along the body. */
+export const CRYO_SLEEPER: Grid = [
   "........................",
   "........................",
-  "....kkkk................",
-  "...kwWWWk...............",
-  "...kwWVVk.....kkkkkk....",
-  "kkkkWWVVkkkkkkTTTTTTkk..",
-  "kMMkkWWkTTTTTTTTtTTTTTk.",
-  "kMMkkkkkTtTtTtTtTtTtTtTk",
-  "kMMkwwwkTTTTTTTTTTTTTTTk",
-  "kMMkkkkkkkkkkkkkkkkkkkkk",
-  "kMMMMMMMMMMMMMMMMMMMMMMk",
+  "........................",
+  "..kkkkkkkkkkkkkkkkkkkk..",
+  ".khhhbbbbbbbbbbbbbbbbbk.",
+  "khkwWkkWWWWWWWWWWWWkbbbk",
+  "kbkVVkkTTTTTTTTTTTWkbbbk",
+  "kHkkkkkkkkkkkkkkkkkkkkHk",
+  "kWWWWWWWWWWWWWWWWWWWWWWk",
+  "kHHHHHHHHHHHHHHHHHHHHHDk",
+  "kHkwkHHHHHHHHHHHHHHHHDDk",
   "kkkkkkkkkkkkkkkkkkkkkkkk",
-  ".kk..................kk.",
+  "..kk................kk..",
   "........................",
 ];
 
@@ -390,8 +395,8 @@ export const ALL: Record<string, Grid> = {
   TERMINAL,
   FILES,
   COMMS,
-  BUNK_EMPTY,
-  BUNK_SLEEPER,
+  CRYO_EMPTY,
+  CRYO_SLEEPER,
   SHELF,
   FLOOR,
   FLOOR_BRIDGE,
