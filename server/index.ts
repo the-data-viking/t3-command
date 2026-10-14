@@ -73,8 +73,9 @@ const playbooks = new Playbooks(config.dataDir);
 await playbooks.load();
 const dispatches = new Dispatches(config.dataDir);
 await dispatches.load();
+dispatches.announceTo(comms, (envId, threadId) => followUps.view().queued.some((f) => f.envId === envId && f.threadId === threadId));
 recorder.listen({
-  observe: (envId, threads) => { comms.observe(envId, threads); followUps.observe(envId, threads); },
+  observe: (envId, threads) => { comms.observe(envId, threads); followUps.observe(envId, threads); dispatches.observe(envId, threads); },
   connected: (envId, label) => comms.connected(envId, label),
   disconnected: (envId, label) => comms.disconnected(envId, label),
   removed: (envId) => comms.forget(envId),

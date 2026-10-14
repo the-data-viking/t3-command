@@ -29,6 +29,8 @@ export interface Dispatch {
   members: DispatchMember[];
   /** Set when the order was a mission: its name and goal (the order text is each member's brief). */
   mission?: MissionInfo;
+  /** When the Command server saw every member's part of it end (and said so in the comms log). */
+  finishedAt?: number;
 }
 
 /** Dispatches stop being tracked after this long, or when you close them. */
