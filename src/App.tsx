@@ -18,6 +18,7 @@ import { pruneDrafts } from "./ui/drafts";
 import { TimelinePanel } from "./ui/TimelinePanel";
 import { MissionBoard } from "./ui/MissionBoard";
 import { ShippingDock } from "./ui/ShippingDock";
+import { NewRequest } from "./ui/NewRequest";
 import { QueueClear } from "./ui/QueueButton";
 import { ReviewPanel } from "./ui/ReviewPanel";
 import { DispatchReplies } from "./ui/DispatchReplies";
@@ -89,6 +90,7 @@ export default function App() {
   const showTimeline = useGame((s) => s.showTimeline);
   const showBoard = useGame((s) => s.showBoard);
   const showDock = useGame((s) => s.showDock);
+  const showNewRequest = useGame((s) => s.showNewRequest);
   const [fatal, setFatal] = useState<string>();
 
   useEffect(() => {
@@ -173,6 +175,7 @@ export default function App() {
       {showTimeline && <TimelinePanel />}
       {showBoard && <MissionBoard />}
       {showDock && <ShippingDock />}
+      {showNewRequest && <NewRequest />}
       <SquadBar />
       <AwayDigest />
       <IncomingToast />

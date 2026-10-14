@@ -60,11 +60,12 @@ function hermesEnv(): EnvWorld {
 
 /** Codex reports a weekly and a 5-hour quota on one machine and fails on another; Claude reports none. */
 function providers(envId: string): Provider[] {
-  const base = { enabled: true, installed: true, status: "ready", models: [] };
+  const base = { enabled: true, installed: true, status: "ready" };
   const codex = envId === "mini"
-    ? { ...base, instanceId: "codex", driver: "codex", displayName: "Codex", usageLimits: { checkedAt: ago(1), windows: [{ id: "w", kind: "weekly", label: "Weekly", usedPercent: 28, resetsAt: new Date(NOW + 3 * 86_400_000).toISOString() }, { id: "s", kind: "session", label: "5-hour", usedPercent: 82, resetsAt: new Date(NOW + 72 * 60_000).toISOString() }] } }
-    : { ...base, instanceId: "codex", driver: "codex", displayName: "Codex", usageLimits: { checkedAt: ago(1), windows: [], unavailable: { reason: "probeFailed", message: "JSON-RPC -32600" } } };
-  const claude = { ...base, instanceId: "claudeAgent", driver: "claudeAgent", displayName: "Claude", usageLimits: { checkedAt: ago(1), windows: [], unavailable: { reason: "unsupported" } } };
+    ? { ...base, instanceId: "codex", driver: "codex", displayName: "Codex", models: [{ slug: "gpt-6", name: "GPT-6", isDefault: true }], usageLimits: { checkedAt: ago(1), windows: [{ id: "w", kind: "weekly", label: "Weekly", usedPercent: 28, resetsAt: new Date(NOW + 3 * 86_400_000).toISOString() }, { id: "s", kind: "session", label: "5-hour", usedPercent: 82, resetsAt: new Date(NOW + 72 * 60_000).toISOString() }] } }
+    : { ...base, instanceId: "codex", driver: "codex", displayName: "Codex", models: [{ slug: "gpt-6", name: "GPT-6", isDefault: true }], usageLimits: { checkedAt: ago(1), windows: [], unavailable: { reason: "probeFailed", message: "JSON-RPC -32600" } } };
+  // A model each, so the demo's recruit forms (and the New request sheet) render.
+  const claude = { ...base, instanceId: "claudeAgent", driver: "claudeAgent", displayName: "Claude", models: [{ slug: "claude-opus-5-5", name: "Claude Opus 5.5", isDefault: true }], usageLimits: { checkedAt: ago(1), windows: [], unavailable: { reason: "unsupported" } } };
   return [codex, claude] as unknown as Provider[];
 }
 

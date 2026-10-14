@@ -15,6 +15,7 @@ const KEYS: Array<[string, string]> = [
   [".", "Next report, as a debrief card: what was done, what changed, accept or follow up"],
   ["W / M / X", "Next working / monitoring / failed crew (the keyboard stays on the map)"],
   ["O or Enter", "Write in the selected crew member's order box"],
+  ["N", "New request: start a crew member on any project"],
   ["F", "Fit the whole fleet"],
   ["Z", "Up to the whole fleet, and back down to where you were (or to the selected crew)"],
   ["Backspace / Alt+←", "Back to where you were before the last jump (8 deep)"],
