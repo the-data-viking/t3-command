@@ -27,3 +27,42 @@ export function missionBrief(plan: MissionPlan, crew: string[], me: string, part
 }
 
 export const missionKey = (m: SquadMember): string => `${m.envId}:${m.threadId}`;
+
+/** What another crew member said, for sharing with the rest. */
+export interface SharedReply { title: string; reply?: string; status: string; part?: string }
+
+/** Longest share of one crew member's reply passed on to the others. */
+export const SHARED_REPLY_MAX = 1_500;
+
+const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
+
+/**
+ * The follow-up order for one crew member: the mission (if any) and their part, your instruction,
+ * and, when shared, what everyone else on it reported last time, so they can build on it.
+ */
+export function followUpBrief(opts: { mission?: { name: string; goal: string }; text: string; part?: string; others?: SharedReply[] }): string {
+  const lines: string[] = [];
+  if (opts.mission) {
+    lines.push(`Mission "${opts.mission.name}", follow-up.`, `Goal: ${opts.mission.goal}`);
+    if (opts.part?.trim()) lines.push(`Your part: ${opts.part.trim()}`);
+    lines.push("");
+  }
+  lines.push(opts.text.trim());
+  const shared = (opts.others ?? []).filter((o) => o.reply?.trim());
+  if (shared.length) {
+    lines.push("", opts.mission ? "What the others on this mission reported last time:" : "What the others given this order reported last time:");
+    for (const o of shared) lines.push("", `--- ${o.title}${o.part ? ` (part: ${o.part})` : ""} ---`, clip(o.reply!.trim(), SHARED_REPLY_MAX));
+  }
+  if (opts.mission) lines.push("", "When you're done, report what you did, how you verified it, and anything the others need to know.");
+  return lines.join("\n");
+}
+
+/** Everything a squad order or mission produced, as one markdown document. */
+export function debriefMarkdown(opts: { mission?: { name: string; goal: string }; order: string; replies: SharedReply[] }): string {
+  const out = [opts.mission ? `# Mission: ${opts.mission.name}` : "# Squad order", ""];
+  out.push(opts.mission ? `**Goal:** ${opts.mission.goal}` : `**Order:** ${opts.order.split("\n")[0]}`, "");
+  for (const r of opts.replies) {
+    out.push(`## ${r.title} — ${r.status}${r.part ? ` (part: ${r.part})` : ""}`, "", r.reply?.trim() || "_No reply._", "");
+  }
+  return out.join("\n").trimEnd() + "\n";
+}
