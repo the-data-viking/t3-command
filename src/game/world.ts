@@ -168,6 +168,8 @@ export class World {
       return animated;
     });
     this.unsubscribe = useGame.subscribe((s, prev) => {
+      // Jumps usually follow a selection change; the view to go back to had the selection before it.
+      if (s.selection !== prev.selection || s.hostPanel !== prev.hostPanel) this.before = { selection: prev.selection, hostPanel: prev.hostPanel, at: performance.now() };
       if (s.envs !== prev.envs || s.details !== prev.details || s.hosts !== prev.hosts || s.selection !== prev.selection || s.squad !== prev.squad || s.hermesCatalog !== prev.hermesCatalog || s.artStyle !== prev.artStyle) this.invalidate();
     });
     this.resizeObserver = new ResizeObserver(() => {
@@ -376,6 +378,7 @@ export class World {
 
   focusRect(rect: Rect): void {
     if (!this.initialized) return;
+    this.remember();
     this.userMoved = true;
     this.frame(rect, 2);
   }
@@ -383,8 +386,36 @@ export class World {
   private focusControlCenter(): void {
     const center = this.layout.controlCenter;
     if (!center || !this.initialized) return;
+    this.remember();
     this.userMoved = true;
     this.frame(center.bounds, 1.4);
+  }
+
+  /**
+   * Where you were before a jump (Space, the roster, a link, the queue…): camera and what was
+   * open. Backspace or Alt+← goes back, eight jumps deep, so triage never loses your place.
+   */
+  private views: Array<{ x: number; y: number; zoom: number; selection: Selection; hostPanel: string | null }> = [];
+  private before?: { selection: Selection; hostPanel: string | null; at: number };
+
+  private remember(): void {
+    const s = useGame.getState();
+    const recent = this.before && performance.now() - this.before.at < 300 ? this.before : undefined;
+    const view = { x: this.camera.x, y: this.camera.y, zoom: this.zoom, selection: recent ? recent.selection : s.selection, hostPanel: recent ? recent.hostPanel : s.hostPanel };
+    const top = this.views.at(-1);
+    if (top && Math.abs(top.x - view.x) < 4 && Math.abs(top.y - view.y) < 4 && top.zoom === view.zoom && top.selection === view.selection) return;
+    this.views.push(view);
+    if (this.views.length > 8) this.views.shift();
+  }
+
+  /** Return to the view before the last jump. False when there's nowhere to go back to. */
+  back(): boolean {
+    const view = this.views.pop();
+    if (!view) return false;
+    this.userMoved = true;
+    this.moveCamera(view.x, view.y, view.zoom, !reducedMotion());
+    useGame.setState({ selection: view.selection, hostPanel: view.hostPanel });
+    return true;
   }
 
   /** Frame all service nodes and project modules belonging to an environment. */
@@ -450,6 +481,7 @@ export class World {
 
   /** Frame a set of crew (a recalled control group). */
   frameCrew(members: SquadMember[]): void {
+    this.remember();
     const keys = new Set(members.map((m) => unitKey(m.envId, m.threadId)));
     const points = [...this.crew.entries()].filter(([key]) => keys.has(key)).map(([, sprite]) => sprite.pos);
     if (!points.length) return;
@@ -475,6 +507,7 @@ export class World {
   /** Center the camera on a unit, station or archive, leaving room for the side panel. */
   focus(selection: Selection): void {
     if (!selection || !this.initialized) return;
+    this.remember();
     let p: Point | undefined;
     const center = this.layout.controlCenter;
     if (selection.kind === "hermes") {

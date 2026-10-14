@@ -79,6 +79,11 @@ export function installHotkeys(): () => void {
       return;
     }
     if (typing(e.target)) return;
+    // Back to where you were before the last jump: Backspace, or Alt+← as in a browser.
+    if ((e.key === "Backspace" && !e.ctrlKey && !e.metaKey && !e.altKey) || (e.altKey && e.key === "ArrowLeft")) {
+      if (worldRef.current?.back()) { e.preventDefault(); sfx.select(); }
+      return;
+    }
     // Control groups by physical key: Alt+digit types symbols on a Mac, and Chrome keeps Ctrl+digit
     // for switching tabs on Windows and Linux, so saving takes either Ctrl or Alt.
     const digit = /^Digit([1-9])$/.exec(e.code);

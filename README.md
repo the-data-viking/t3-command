@@ -228,7 +228,9 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   them all to camp or wake them from the squad bar, or give them all one order (it names how many
   it goes to; busy crew can get it as a follow-up when their turn ends). **Ctrl or Alt + 1–9** saves the squad (or the
   selected crew member) as a control group. **1–9** recalls it, and pressing again frames it on the
-  map. Alt works where the browser keeps Ctrl+digit for switching tabs. **?** lists every key and
+  map. Alt works where the browser keeps Ctrl+digit for switching tabs. **Backspace** (or Alt+←) goes back
+  to where you were before the last jump (Space, a roster row, a link, the queue…): camera and
+  what was open, up to eight jumps deep. **?** lists every key and
   explains what the map's lights and effects mean.
 - **Links, reports and catching up**: the address bar follows what's open (`#crew/…`, `#host/…`,
   `#station/…`), so a link opens the same crew member, machine or station on any device once that
