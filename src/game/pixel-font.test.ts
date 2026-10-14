@@ -39,3 +39,13 @@ test('zoomed-out titles shorten to fit their facility instead of running into ne
   assert.equal(fitText('THE-LIVING-STONE', 400, 2), 'THE-LIVING-STONE');
   assert.equal(fitText('ANYTHING', 2, 1).length <= 2, true, 'never wider than the room it has');
 });
+
+test("machine callsigns cut from the middle, so the end that tells them apart survives", async () => {
+  const { fitTextMiddle } = await import("../art/pixelfont");
+  const fit = (s: string, chars: number) => fitTextMiddle(s, (chars * 6 - 1) * 1, 1);
+  assert.equal(fit("TLS-AGENT-01", 6), "TLS…01");
+  assert.notEqual(fit("TLS-AGENT-01", 6), fit("TLS-AGENT-02", 6));
+  assert.equal(fit("WESLEY-DESKTOP", 6), "WE…TOP");
+  assert.equal(fit("MAC MINI (LOCAL)", 8), "MAC MINI", "a trailing (local) goes first");
+  assert.equal(fit("LAB", 6), "LAB");
+});

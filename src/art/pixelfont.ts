@@ -92,6 +92,22 @@ export function fitText(full: string, screenWidth: number, fontPx: number): stri
   return full.length <= chars ? full : `${full.slice(0, Math.max(1, chars - 1))}…`;
 }
 
+/**
+ * Like fitText, but for names that share a start (machines: TLS-AGENT-01, -02, -03): a trailing
+ * "(local)" goes first, then the middle, so the end that tells them apart survives
+ * ("TLS…01", "WE…TOP").
+ */
+export function fitTextMiddle(full: string, screenWidth: number, fontPx: number): string {
+  const chars = Math.max(1, Math.floor((screenWidth / fontPx + 1) / ADVANCE));
+  if (full.length <= chars) return full;
+  const base = full.replace(/\s*\([^)]*\)$/, "");
+  if (base.length <= chars) return base;
+  const last = base.split(/[-\s_.]+/).pop() ?? "";
+  const tail = last && last.length <= 4 ? last : base.slice(-3);
+  const head = chars - 1 - tail.length;
+  return head >= 2 ? `${base.slice(0, head).trimEnd()}…${tail}` : `${base.slice(0, Math.max(1, chars - 1))}…`;
+}
+
 /** The glyph for one character: uppercased, accents dropped, unknown characters as "?". */
 export function glyphFor(ch: string): string[] {
   const upper = (ALIASES[ch] ?? ch).toUpperCase();

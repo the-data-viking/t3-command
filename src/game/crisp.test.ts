@@ -39,3 +39,14 @@ test("small figures stay at one screen pixel per art pixel when zoomed out, and 
   assert.equal(figureBoost(1, 2), 1);
   assert.equal(2 * 0.125 * figureBoost(0.125, 2), 1);
 });
+
+test("supply lines stay about two screen pixels wide at every zoom step", async () => {
+  const { linkWidth } = await import("./world");
+  const { ZOOM_STEPS } = await import("./map-common");
+  for (const z of ZOOM_STEPS) {
+    const screen = linkWidth(z) * z;
+    assert.ok(screen >= 1.5, `zoom ${z}: ${screen} screen px`);
+    assert.equal(linkWidth(z) % 2, 0, "whole art pixels");
+  }
+  assert.equal(linkWidth(1), 2);
+});
