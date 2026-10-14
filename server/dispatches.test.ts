@@ -55,3 +55,21 @@ test("members are validated: one per crew member, known kinds only", () => {
   const clean = sanitizeMembers([member("a"), member("a"), { envId: "e", threadId: "b", how: "lost" }, { envId: "", threadId: "c", how: "sent" }, { envId: "e", threadId: "d", how: "queued", baseTurnId: 7 }]);
   assert.deepEqual(clean.map((m) => [m.threadId, m.how, m.baseTurnId]), [["a", "sent", "t1"], ["d", "queued", null]]);
 });
+
+test("a mission keeps its name, goal and each member's part across a restart", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dispatches-"));
+  try {
+    const store = new Dispatches(dir);
+    store.add("Tiles render at 60 fps.", [{ ...member("a"), part: " Renderer " }, member("b")], Date.now(), { name: "Ship it", goal: "Tiles render at 60 fps." });
+    await store.flush();
+    const again = new Dispatches(dir);
+    await again.load();
+    const d = again.all()[0];
+    assert.deepEqual(d.mission, { name: "Ship it", goal: "Tiles render at 60 fps." });
+    assert.deepEqual(d.members.map((m) => m.part), ["Renderer", undefined]);
+    assert.equal(store.add("plain", [member("a")]).mission, undefined, "no name and goal: an ordinary squad order");
+    await store.flush();
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

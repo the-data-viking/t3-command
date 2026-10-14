@@ -4,7 +4,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { clipText, DISPATCH_MAX, DISPATCH_TTL_MS, sanitizeMembers, type Dispatch } from "../shared/dispatches.ts";
+import { clipText, DISPATCH_MAX, DISPATCH_TTL_MS, sanitizeMembers, sanitizeMission, type Dispatch } from "../shared/dispatches.ts";
 
 export class Dispatches {
   private readonly file: string;
@@ -22,7 +22,7 @@ export class Dispatches {
       const saved = JSON.parse(await fs.readFile(this.file, "utf8")) as unknown;
       if (Array.isArray(saved)) {
         this.list = saved.filter((d): d is Dispatch => !!d && typeof d.id === "string" && typeof d.text === "string" && typeof d.at === "number")
-          .map((d) => ({ id: d.id, text: d.text, at: d.at, members: sanitizeMembers(d.members) }));
+          .map((d) => { const mission = sanitizeMission(d.mission); return { id: d.id, text: d.text, at: d.at, members: sanitizeMembers(d.members), ...(mission ? { mission } : {}) }; });
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.warn("[dispatches] load failed", (err as Error).message);
@@ -38,12 +38,13 @@ export class Dispatches {
     return () => this.listeners.delete(listener);
   }
 
-  add(text: unknown, members: unknown, now = Date.now()): Dispatch {
+  add(text: unknown, members: unknown, now = Date.now(), mission?: unknown): Dispatch {
     const order = clipText(String(text ?? ""));
     if (!order) throw new Error("The order is empty");
     const clean = sanitizeMembers(members);
     if (!clean.length) throw new Error("A dispatch needs at least one crew member");
-    const dispatch: Dispatch = { id: randomUUID(), text: order, at: now, members: clean };
+    const info = sanitizeMission(mission);
+    const dispatch: Dispatch = { id: randomUUID(), text: order, at: now, members: clean, ...(info ? { mission: info } : {}) };
     this.list = [dispatch, ...this.all(now)].slice(0, DISPATCH_MAX);
     this.changed();
     return dispatch;

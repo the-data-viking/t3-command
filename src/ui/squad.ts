@@ -6,6 +6,8 @@ import { worldRef } from "../game/world";
 import { addLog, setSquad, unitKey, useGame, type EnvWorld, type SquadMember } from "../store";
 import { isHistory, isSettled } from "../t3/derive";
 import { envClient, logError } from "../t3/environment";
+import { queueFollowUp } from "../t3/followups";
+import type { DispatchMember } from "../../shared/dispatches";
 
 const GROUPS_KEY = "t3c:control-groups";
 
@@ -82,3 +84,43 @@ export async function batchSettle(settle: boolean, members = currentPick()): Pro
 }
 
 export const squadKeys = (squad: SquadMember[]) => new Set(squad.map((m) => unitKey(m.envId, m.threadId)));
+
+export interface CrewOrderResult {
+  /** One receipt per target, in the targets' order. */
+  receipts: DispatchMember[];
+  sent: number;
+  queued: number;
+  failed: number;
+  failedKeys: string[];
+}
+
+/**
+ * Give each target its order (`orderFor` may brief each one differently): sent now, or queued as a
+ * follow-up for a busy one when `queueBusy`. Never throws; failures come back as receipts.
+ */
+export async function orderCrew(targets: SquadMember[], orderFor: (m: SquadMember) => string, queueBusy: (m: SquadMember) => boolean, part?: (m: SquadMember) => string | undefined): Promise<CrewOrderResult> {
+  const { envs } = useGame.getState();
+  const result: CrewOrderResult = { receipts: [], sent: 0, queued: 0, failed: 0, failedKeys: [] };
+  const byKey = new Map<string, DispatchMember>();
+  await Promise.all(targets.map(async (m) => {
+    const thread = envs[m.envId].threads[m.threadId];
+    const own = part?.(m)?.trim();
+    const receipt = { envId: m.envId, threadId: m.threadId, title: thread.title || "Untitled", baseTurnId: thread.latestTurn?.turnId ?? null, ...(own ? { part: own } : {}) };
+    try {
+      if (queueBusy(m)) { await queueFollowUp(m.envId, m.threadId, orderFor(m)); result.queued++; byKey.set(unitKey(m.envId, m.threadId), { ...receipt, how: "queued" }); }
+      else {
+        const client = envClient(m.envId);
+        if (!client) throw new Error("not connected");
+        await client.order(m.threadId, orderFor(m));
+        result.sent++;
+        byKey.set(unitKey(m.envId, m.threadId), { ...receipt, how: "sent" });
+      }
+    } catch {
+      result.failed++;
+      result.failedKeys.push(unitKey(m.envId, m.threadId));
+      byKey.set(unitKey(m.envId, m.threadId), { ...receipt, how: "failed" });
+    }
+  }));
+  result.receipts = targets.map((m) => byKey.get(unitKey(m.envId, m.threadId))!);
+  return result;
+}

@@ -31,6 +31,13 @@ export function CrewRoster() {
   const envs = useGame((s) => s.envs);
   const details = useGame((s) => s.details);
   const followUps = useGame((s) => s.followUps);
+  const dispatches = useGame((s) => s.dispatches);
+  // Crew on a mission being followed: the newest mission each is on.
+  const missions = useMemo(() => {
+    const on = new Map<string, string>();
+    for (const d of dispatches) if (d.mission) for (const m of d.members) if (!on.has(`${m.envId}:${m.threadId}`)) on.set(`${m.envId}:${m.threadId}`, d.mission.name);
+    return on;
+  }, [dispatches]);
   const selection = useGame((s) => s.selection);
   const hermesCatalog = useGame(s => s.hermesCatalog);
   const operators = botOperators({ envs, hermesCatalog });
@@ -116,6 +123,7 @@ export function CrewRoster() {
               <RosterAsk state={u.state} request={pendingRequests(detail.thread)[0]} />
             )}
             {(() => { const f = followUpFor(followUps, u.envId, u.thread.id); return f && <span className="crew-queued">↻ {f.total ? followUpLabel(f) : "Follow-up queued"}{followUps.paused ? " (paused)" : ""}</span>; })()}
+            {missions.has(`${u.envId}:${u.thread.id}`) && <span className="crew-queued crew-mission" title="On this mission (mission board, B)">◆ {missions.get(`${u.envId}:${u.thread.id}`)}</span>}
             <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
             <PlanLine thread={u.thread} detail={detail?.thread} />
             {ctx !== undefined && (

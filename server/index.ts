@@ -256,8 +256,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (pathname === "/api/dispatches" && method === "GET") return sendJson(res, 200, dispatches.all());
   if (pathname === "/api/dispatches" && method === "POST") {
-    const body = await readJson<{ text?: unknown; members?: unknown }>(req);
-    try { return sendJson(res, 200, dispatches.add(body?.text, body?.members)); }
+    const body = await readJson<{ text?: unknown; members?: unknown; mission?: unknown }>(req);
+    try { return sendJson(res, 200, dispatches.add(body?.text, body?.members, Date.now(), body?.mission)); }
     catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
   }
   if (pathname === "/api/dispatches/update" && method === "POST") {
