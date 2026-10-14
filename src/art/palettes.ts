@@ -25,6 +25,11 @@ export interface Style {
   light?: number;
   /** Map label text and lines (drawn over space or dark plating); defaults are the HUD's dark-theme text. */
   mapInk?: { text: number; muted: number; line?: number };
+  /**
+   * Casing of the supply trunks (bus and corridors), a step quieter than the hull's own shade so
+   * infrastructure never outweighs the coloured lines inside it. Defaults to the hull shade `D`.
+   */
+  trunk?: number;
 }
 
 /**
@@ -73,7 +78,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     id: "flightdeck", name: "Kestrel",
     // Warm sodium lamps.
     light: 0xffd49a,
-    memoryInk: 0x19212a,
+    memoryInk: 0x1e1812,
+    trunk: 0x514438,
     hull: "ftl",
     mapInk: { text: 0xf1e6d0, muted: 0xa39e95 },
     blurb: "FTL's warm hull over an amber desert world: ivory plating, walnut decks, a ringed giant overhead.",
@@ -90,8 +96,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       tokens: { alert: 0xff6470, sleeping: 0x9d97c4 },
     },
     colors: {
-      k: 0x19212a, w: 0xf6eedc, W: 0xd7d3c4, s: 0x919c9b,
-      G: 0x44515c, g: 0x73818b, h: 0xd7d3bc, H: 0xadb3ad, D: 0x6c7b80,
+      k: 0x1e1812, w: 0xf6eedc, W: 0xd7d3c4, s: 0x919c9b,
+      G: 0x4d463d, g: 0x7d7366, h: 0xd7d3bc, H: 0xadb3ad, D: 0x7a6e60,
       // Walnut decks: dark enough that status lights and white suits read on them (the old pale
       // decks held statuses at 1–2:1 and made Kestrel look like Pastel).
       m: 0xb99a75, M: 0x756c61, f: 0x3b342c, F: 0x2f2a24,
@@ -106,6 +112,9 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     // Daylight through the ports: warm white.
     light: 0xfff4dc,
     memoryInk: 0x33485b,
+    trunk: 0x526575,
+    // Labels over a daylight sky: pale enough to read on the teal horizon too.
+    mapInk: { text: 0xf3f6f8, muted: 0xc3ced8, line: 0x72899b },
     blurb: "Night Shift by day: the same station in sunlight, porcelain hulls under a cool slate-and-white HUD.",
     // A dawn-navy sky (it brightens toward the horizon), not the night's near-black.
     space: 0x16304a,
@@ -180,7 +189,8 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     light: 0xffdcec,
     memoryInk: 0x3a2e3f,
     hull: "soft",
-    mapInk: { text: 0xf6efe4, muted: 0xc9b8d4 },
+    mapInk: { text: 0xf6efe4, muted: 0xc9b8d4, line: 0x9a86ad },
+    trunk: 0x705f77,
     name: "Pastel Ops",
     blurb: "Cozy candy ops at dusk: a cream HUD, soft plum outlines, a big pale moon.",
     space: 0x2a2140,
@@ -209,15 +219,15 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
       G: 0x8a7f96,
       g: 0xb1a6bc,
       h: 0xf6ecdf,
-      H: 0xdcc8b4,
-      D: 0xae957f,
+      H: 0xe2c6cc,
+      D: 0xa88a98,
       m: 0xcad7db,
       M: 0x92a7ae,
       f: 0xd8cdbd,
       F: 0xc3b6a2,
       p: 0xb0c3c9,
       P: 0x97abb3,
-      q: 0xe8d4c1,
+      q: 0xecd0d0,
       Q: 0xcdb5a4,
       a: 0xffb35c,
       r: 0xff6b7a,

@@ -782,7 +782,7 @@ export class World {
     // The trunks the lines share: the bus under the decks and each corridor down a wing, one casing
     // (every band's outline first, then every fill, so the overlaps merge).
     for (const r of this.layout.trunks) g.rect(r.x - 2, r.y - 2, r.w + 4, r.h + 4).fill(c.k);
-    for (const r of this.layout.trunks) g.rect(r.x, r.y, r.w, r.h).fill(c.D);
+    for (const r of this.layout.trunks) g.rect(r.x, r.y, r.w, r.h).fill(currentStyle().trunk ?? c.D);
     for (const node of this.layout.environmentNodes.values()) {
       const live = state.envs[node.envId]?.connection === "live";
       for (const link of node.links) {
@@ -1309,7 +1309,7 @@ export class World {
       const fit = Math.max(1, Math.min(8, Math.floor((p.w - 32) / pitch)));
       states.slice(0, fit).forEach((st, k) => {
         const x = p.x + p.w - 24 - (Math.min(fit, states.length) - k) * pitch, y = far ? p.y + p.h - 6 * gc : p.y + 5;
-        if (far) g.rect(x - gc, y - gc, 7 * gc, 7 * gc).fill({ color: 0x0b0d10, alpha: 0.8 });
+        if (far) g.rect(x - gc, y - gc, 7 * gc, 7 * gc).fill({ color: platingMaterials(state.artStyle).slot, alpha: 0.85 });
         for (const [cx, cy] of cells(STATUS_GLYPHS[st])) g.rect(x + cx * gc, y + cy * gc, gc, gc).fill(STATUS[st]);
       });
     }
@@ -1349,7 +1349,8 @@ export class World {
     const now = Date.now();
     const glyph = (x: number, y: number, state: UnitState, color: number, selected: boolean, waitedMs = 0, inSquad = false, onMission = false, shape = STATUS_GLYPHS[state]) => {
       // A dark tile under each glyph, so it reads on light floors too; white-framed when selected.
-      g.rect(x - cell, y - cell, 6 * cell, 6 * cell).fill({ color: 0x0b0d10, alpha: 0.8 });
+      // In the world's own dark plating (plum in Pastel, navy by Day), not a stray black.
+      g.rect(x - cell, y - cell, 6 * cell, 6 * cell).fill({ color: plating.slot, alpha: 0.85 });
       // Someone waiting on you gets a frame in their colour that thickens with the wait: from
       // 2 minutes, thicker from 15. The rollup line under the station gives the minutes.
       // `cell` is three screen pixels: one or two of them, never a sub-pixel line that shimmers.
@@ -1545,7 +1546,7 @@ export class World {
       const pad = Math.round(3 / this.zoom);
       const x0 = Math.min(...shown.map((t) => t.x)) - pad, x1 = Math.max(...shown.map((t) => t.x + t.width)) + pad;
       const y0 = s.hull[11], y1 = Math.max(...shown.map((t) => t.y + t.height)) + pad;
-      g.rect(x0, y0, x1 - x0, y1 - y0).fill({ color: 0x05080c, alpha: 0.78 });
+      g.rect(x0, y0, x1 - x0, y1 - y0).fill({ color: platingMaterials(useGame.getState().artStyle).slot, alpha: 0.85 });
       g.rect(x0, y0, x1 - x0, Math.round(1 / this.zoom)).fill(mapInk(artStyle).line);
     }
   }

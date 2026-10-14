@@ -2008,6 +2008,8 @@ button.ftl-tab {
 .help-legend dt { display: flex; align-items: center; gap: var(--space-2); color: var(--bright); }
 kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--space-1h); border: 1px solid var(--edge-strong); border-bottom-width: 2px; border-radius: 3px; background: var(--slot); color: var(--bright); white-space: nowrap; }
 .help-chip { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 2px; box-shadow: 0 0 0 1px var(--hairline-strong); }
+/* The white selection mark wears the map's dark outline, as on the map, so it shows on light HUDs. */
+.help-chip[style*="--selection"] { box-shadow: 0 0 0 2px var(--space); }
 .help-sprite { flex: none; image-rendering: pixelated; }
 
 .sound-panel { gap: var(--space-3); padding: var(--space-3); min-width: 260px; }

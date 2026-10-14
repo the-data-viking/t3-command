@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { PixelLabel } from "./PixelArt";
-import { css, mapInk, platingMaterials } from "../game/theme";
+import { css, mapInk } from "../game/theme";
 import { STYLES } from "../art/palettes";
 import { useGame } from "../store";
 import { worldRef } from "../game/world";
@@ -46,7 +46,7 @@ export function Minimap() {
       // Stations in the theme's own hull colour; the view box in its frame colour.
       const style = useGame.getState().artStyle;
       // The view box is drawn over map space, so it takes map ink (the HUD frame vanishes on light HUDs).
-      const hull = css(STYLES[style].colors.H), frameColor = css(mapInk(style).text), offline = css(platingMaterials(style).edgeStrong);
+      const hull = css(STYLES[style].colors.H), frameColor = css(mapInk(style).text), offline = css(mapInk(style).line);
       ctx.fillStyle = `${hull}33`;
       ctx.strokeStyle = `${hull}aa`;
       for (const r of data.hubs) {
@@ -54,11 +54,15 @@ export function Minimap() {
         ctx.strokeRect(ox + r.x * scale + 0.5, oy + r.y * scale + 0.5, Math.max(2, r.w * scale), Math.max(2, r.h * scale));
       }
       for (const s of data.stations) {
-        ctx.fillStyle = s.live ? `${css(s.color)}33` : `${offline}22`;
+        // Fills strong enough to tell the machines' colours apart; an unreachable one is a dashed
+        // outline in the map's line ink, which reads against this world's space.
+        ctx.fillStyle = s.live ? `${css(s.color)}66` : `${offline}22`;
         ctx.strokeStyle = s.live ? css(s.color) : offline;
         ctx.lineWidth = 1;
+        ctx.setLineDash(s.live ? [] : [2, 2]);
         ctx.fillRect(ox + s.rect.x * scale, oy + s.rect.y * scale, s.rect.w * scale, s.rect.h * scale);
         ctx.strokeRect(ox + s.rect.x * scale + 0.5, oy + s.rect.y * scale + 0.5, s.rect.w * scale, s.rect.h * scale);
+        ctx.setLineDash([]);
       }
       // Each crew dot is its status glyph (▲ approval, ◆ question, ● working…), not just a color.
       for (const d of data.dots) {
