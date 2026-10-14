@@ -81,7 +81,7 @@ export function HostHistoryChart({ envId }: { envId: string }) {
         </span>
         <span className="history-ranges" role="group" aria-label="Range">
           {HOST_RANGES.map((r) => (
-            <button key={r.hours} className={`btn small ${hours === r.hours ? "active" : ""}`} aria-pressed={hours === r.hours} onClick={() => setHours(r.hours)}>{r.label}</button>
+            <button key={r.hours} className="btn small" aria-pressed={hours === r.hours} onClick={() => setHours(r.hours)}>{r.label}</button>
           ))}
         </span>
       </div>

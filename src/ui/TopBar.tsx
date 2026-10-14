@@ -20,6 +20,7 @@ import { usePhone } from "./phone";
 import { ThemePicker } from "./ThemePicker";
 import { SoundMenu } from "./SoundMenu";
 import { AlertsMenu } from "./AlertsMenu";
+import { MoreMenu } from "./MoreMenu";
 
 export function TopBar() {
   const bar = useRef<HTMLElement>(null);
@@ -50,6 +51,20 @@ export function TopBar() {
   const counts = useMemo(() => fleetCounts(envs, readReports), [envs, readReports]);
   const totals = { working: counts.working + counts.background, monitoring: counts.monitoring, crew: counts.crew, awake: counts.awake };
 
+  const views = (
+    <>
+      <button className="btn menu-closes" role={phone ? undefined : "menuitem"} title="Comms log (L)" aria-expanded={showLog} onClick={() => useGame.setState({ showLog: !showLog })}>
+        Log
+      </button>
+      <button className="btn menu-closes" role={phone ? undefined : "menuitem"} title="Turn and spend history (H)" onClick={() => useGame.setState({ showHistory: true })}>
+        History
+      </button>
+      <button className="btn menu-closes" role={phone ? undefined : "menuitem"} title="The T3 machines in the fleet: add, pair, remove" onClick={() => useGame.setState({ showEnvManager: true })}>
+        Machines
+      </button>
+    </>
+  );
+
   return (
     <header ref={bar} className={`topbar hud-frame ${menuOpen ? "menu-open" : ""}`}>
       <div className="logo">
@@ -79,6 +94,8 @@ export function TopBar() {
       <SpendTelemetry />
       <LimitsTelemetry />
       <div className="spacer" />
+      {/* Desktop keeps two rows: counters and tools, then machines and work views. */}
+      <div className="topbar-break" aria-hidden />
       <nav className="stations">
         {stations.map((env, i) => {
           const units = Object.values(env.threads).filter((t) => !isHistory(t));
@@ -128,15 +145,7 @@ export function TopBar() {
       <button className="btn menu-closes" title="Fleet timeline: every crew member's turns (T)" onClick={() => useGame.setState({ showTimeline: true })}>
         Timeline
       </button>
-      <button className="btn menu-closes" title="Comms log (L)" aria-expanded={showLog} onClick={() => useGame.setState({ showLog: !showLog })}>
-        Log
-      </button>
-      <button className="btn menu-closes" title="Turn and spend history (H)" onClick={() => useGame.setState({ showHistory: true })}>
-        History
-      </button>
-      <button className="btn menu-closes" title="The T3 machines in the fleet: add, pair, remove" onClick={() => useGame.setState({ showEnvManager: true })}>
-        Machines
-      </button>
+      {phone ? views : <MoreMenu>{views}</MoreMenu>}
       <UpdatePanel />
       {phone && <button className="btn menu-closes" onClick={() => useGame.setState({ showPalette: true })}>Search</button>}
       {phone && <button className="btn menu-closes" onClick={() => useGame.setState({ showHelp: true })}>Help</button>}

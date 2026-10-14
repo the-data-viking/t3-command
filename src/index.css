@@ -299,7 +299,6 @@ code {
 .swatch { display: inline-block; width: 10px; height: 3px; vertical-align: middle; border-radius: 2px; }
 .swatch.cpu { background: var(--chart-cpu); }
 .swatch.ram { background: var(--chart-ram); }
-.history-ranges .btn.active { border-color: var(--frame); color: var(--bright); box-shadow: inset 0 0 0 1px var(--frame); }
 .host-history-plot { position: relative; margin-top: 6px; }
 .host-history-plot svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
 .host-history-plot .grid { stroke: var(--muted); stroke-opacity: 0.2; }
@@ -492,6 +491,17 @@ code {
   border-color: var(--bright);
   color: var(--ink);
 }
+
+/* Night Shift's frame is grey, which made a primary read as disabled: there it's the bright ink. */
+:root[data-art="flightdeck-nightshift"] .btn.primary { background: var(--bright); border-color: var(--bright); }
+:root[data-art="flightdeck-nightshift"] .btn.primary:hover:not(:disabled) { background: var(--frame); border-color: var(--frame); }
+
+/* Every segmented control (ranges, variants, toggles) shows its pressed option one way: filled
+   in the frame colour. */
+.btn[aria-pressed="true"] { background: var(--frame); border-color: var(--frame); color: var(--ink); }
+
+/* A disabled primary is an outline in waiting, not a dimmed slab. */
+.btn.primary:disabled { opacity: 1; background: transparent; border-style: dashed; border-color: var(--edge-strong); color: var(--muted); }
 
 .btn.approve {
   border-color: var(--done);
@@ -1415,10 +1425,11 @@ button.ftl-tab {
 .crew-roster {
   /* Room for the title tab above the frame, clear of the top bar. */
   top: calc(var(--topbar-bottom, 74px) + 12px);
-  left: 10px;
+  left: 8px;
   width: 290px;
-  /* Ends 10px above the minimap (166px tall, 30px off the bottom). */
-  max-height: calc(100vh - var(--topbar-bottom, 74px) - 12px - 206px);
+  /* Ends 10px above the minimap's title tab (the minimap is 166px tall, 30px off the bottom, and
+     its tab rises 12px over its frame), in line with its left edge. */
+  max-height: calc(100dvh - var(--topbar-bottom, 74px) - 12px - 220px);
   display: flex;
   flex-direction: column;
   z-index: var(--z-hud);
@@ -1722,19 +1733,27 @@ button.ftl-tab {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-0);
+  gap: var(--space-1);
 }
 
+/* Each choice is a real button: a slab with its number, approving in done green and denying in
+   the alert red (the same inks as the crew panel's own buttons), the rest in the frame. */
 .event-choice {
   width: 100%;
-  background: none;
-  border: none;
+  min-height: 36px;
+  background: var(--control);
+  border: 2px solid var(--edge-strong);
+  border-radius: var(--radius-control);
   text-align: left;
-  padding: var(--space-1h) var(--space-1);
+  padding: var(--space-1h) var(--space-3);
   font-size: var(--fs-lg);
   cursor: pointer;
   color: var(--bright);
 }
+.event-choice.good { border-color: var(--done); }
+.event-choice.good .choice-num { color: var(--done); }
+.event-choice.bad { border-color: var(--alert); }
+.event-choice.bad .choice-num { color: var(--alert); }
 
 /* Hover is a neutral wash across the row: no status colour (yellow means "question"). */
 .event-choice:hover:not(:disabled) {
@@ -2028,7 +2047,6 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .theme-world.active .theme-option { color: var(--bright); }
 .theme-world .theme-option { width: 100%; }
 .theme-variants { display: flex; gap: var(--space-1); padding: 0 var(--space-2) var(--space-1h) calc(104px + var(--space-3) + var(--space-2)); }
-.theme-variants .btn.active { background: var(--frame); border-color: var(--frame); color: var(--ink); }
 .theme-hc { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2); margin-top: var(--space-1); border-top: 1px solid var(--hairline); cursor: pointer; font-size: var(--fs-md); }
 .theme-hc input { margin-top: 3px; }
 
@@ -2037,6 +2055,37 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 /* Off phones the menu wrapper is invisible to layout and the phone-only bits are hidden. */
 .topbar-more { display: contents; }
 .menu-btn, .phone-label { display: none; }
+.topbar-break { display: none; }
+@media (min-width: 701px) {
+  /* Two fixed rows, so nothing below moves when Needs you appears: the counters, spend, limits
+     and the tools (fit, worlds, alerts, sound) first; then the machines, Hermes and the work
+     views. The machines scroll sideways rather than wrap a third row. */
+  .topbar { row-gap: var(--space-1h); }
+  .topbar > *, .topbar-more > * { order: 10; }
+  .topbar > .logo { order: 1; }
+  .topbar > .resources { order: 2; }
+  .topbar > .queue-btn { order: 3; }
+  .topbar-more > .spend-menu { order: 4; }
+  .topbar-more > .limits-menu { order: 5; }
+  .topbar-more > .spacer { order: 6; }
+  .topbar-more > .icon-btn, .topbar-more > .theme-menu:not(.more-menu) { order: 7; }
+  .topbar-break { display: block; order: 8 !important; flex-basis: 100%; height: 0; }
+  /* A zero basis so the chips share the row instead of wrapping it; they grow to their own width. */
+  .topbar .stations { flex: 1 1 0; max-width: max-content; min-width: 120px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; mask-image: linear-gradient(90deg, #000 calc(100% - 16px), transparent); }
+  .topbar .stations::-webkit-scrollbar { display: none; }
+  .topbar .station-chip { flex: none; }
+}
+@media (min-width: 701px) and (max-width: 1200px) {
+  /* A narrow desktop keeps the two rows: the counters you can also read on the roster go. */
+  .topbar .resource.optional { display: none; }
+  .topbar .res-key[data-short] { font-size: 0; letter-spacing: 0; }
+  .topbar .res-key[data-short]::before { content: attr(data-short); font-size: var(--fs-2xs); letter-spacing: 1px; }
+}
+.more-list { width: auto; min-width: 180px; }
+.diff-stat { white-space: nowrap; }
+.more-list > .btn { width: 100%; justify-content: flex-start; }
+/* Every popover stays on screen, whatever wraps where. */
+.theme-list { max-width: calc(100vw - 16px); max-height: calc(100dvh - var(--topbar-bottom, 120px) - 8px); overflow-y: auto; }
 
 @media (max-width: 700px) {
   .logo { font-size: var(--fs-md); }
@@ -2046,8 +2095,11 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
   .resource, .station-chip { flex: none; }
   /* Dialog heads: the title and the close button share the first row, everything else goes under. */
   .modal .panel-head { flex-wrap: wrap; }
-  .modal .panel-head > h2 { flex: 1 0 calc(100% - 56px); min-width: 0; }
+  /* The title tab keeps its own width (not a full-width slab); a break after the close button
+     sends the rest to the next row. */
+  .modal .panel-head > h2 { flex: 0 1 auto; min-width: 0; margin-right: auto; }
   .modal .panel-head > :last-child { order: 1; }
+  .modal .panel-head::after { content: ""; order: 1; flex-basis: 100%; height: 0; }
   .modal .panel-head > :not(h2):not(:last-child) { order: 2; }
   .modal .panel-head > .spacer { display: none; }
   .dispatches { max-height: none; }
@@ -2128,6 +2180,10 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
   .modal-backdrop, .event-backdrop { padding: 0; place-items: stretch; }
   .modal, .history-modal { width: 100%; max-height: 100dvh; border-radius: 0; padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   .event { width: 100%; align-self: end; border-radius: 0; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  /* The board and the dock are tabs on the phone: they stop above the tab bar, which stays live. */
+  .modal-backdrop:has(.board-modal, .dock-modal) { top: var(--topbar-bottom, 64px); bottom: calc(var(--touch-target) + 3px + env(safe-area-inset-bottom)); }
+  .board-modal, .dock-modal { max-height: 100%; padding-top: var(--space-3); padding-bottom: var(--space-3); }
+  .game:has(.board-modal, .dock-modal) .crew-roster { z-index: calc(var(--z-popover) + 1); }
 
   /* The dock would show through an open panel. */
   .game:has(.panel) .crew-roster { display: none; }

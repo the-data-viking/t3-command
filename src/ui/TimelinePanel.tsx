@@ -95,7 +95,7 @@ export function TimelinePanel() {
           <h2 className="title-tab"><PixelLabel text="Fleet timeline" /></h2>
           <span className="spacer" />
           <div className="history-ranges" role="group" aria-label="Range">
-            {RANGES.map((r) => <button key={r.hours} className={`btn small ${r.hours === hours ? "primary" : ""}`} aria-pressed={r.hours === hours} onClick={() => setHours(r.hours)}>{r.label}</button>)}
+            {RANGES.map((r) => <button key={r.hours} className="btn small" aria-pressed={r.hours === hours} onClick={() => setHours(r.hours)}>{r.label}</button>)}
           </div>
           <button className="icon-btn" aria-label="Close timeline" onClick={close}>✕</button>
         </header>

@@ -54,7 +54,7 @@ export function HistoryPanel() {
           <h2 className="title-tab"><PixelLabel text="Turn history" /></h2>
           <span className="spacer" />
           <div className="history-ranges" role="group" aria-label="Range">
-            {RANGES.map((r) => <button key={r} className={`btn small ${r === days ? "primary" : ""}`} aria-pressed={r === days} onClick={() => setDays(r)}>{r} days</button>)}
+            {RANGES.map((r) => <button key={r} className="btn small" aria-pressed={r === days} onClick={() => setDays(r)}>{r} days</button>)}
           </div>
           <button className="icon-btn" aria-label="Close history" onClick={close}>✕</button>
         </header>
