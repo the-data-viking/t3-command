@@ -106,7 +106,7 @@ test('settling walks to quarters through the door, and waking walks back to the 
   motion.step(crew, s, { room: 'bridge', point: crew.home }, 0, 100);
   const sleeper = { ...crew, home: { x: 48, y: 168 }, homeRoom: 'quarters' as const, sleeping: true };
   motion.step(sleeper, s, { room: 'quarters', point: sleeper.home }, 0, 100);
-  assert.deepEqual(motion.pos, crew.home, 'sets off from the seat rather than appearing in the bunk');
+  assert.deepEqual(motion.pos, crew.home, 'sets off from the seat rather than appearing in the cryo pod');
   assert.equal(motion.arrived, false);
   const walked: Point[] = [];
   for (let i = 0; i < 60 && !motion.arrived; i++) { motion.step(sleeper, s, { room: 'quarters', point: sleeper.home }, 0.05, 100); walked.push({ ...motion.pos }); }
@@ -121,7 +121,7 @@ test('settling walks to quarters through the door, and waking walks back to the 
   motion.step(crew, s, { room: 'bridge', point: crew.home }, 0.05, 100);
   assert.equal(motion.moving, true, 'waking walks back');
 });
-test('settling while the rooms resize snaps into the bunk', () => {
+test('settling while the rooms resize snaps into the cryo pod', () => {
   const s = station(), motion = new CrewMotion(crew);
   motion.step(crew, s, { room: 'bridge', point: crew.home }, 0, 100);
   const bigger = { ...s, rooms: { ...s.rooms, quarters: { ...s.rooms.quarters!, rect: { ...s.rooms.quarters!.rect, w: 224 } } } };
