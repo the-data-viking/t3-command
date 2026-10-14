@@ -67,7 +67,7 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   gets a pip for each beside the head (amber, then magenta past 12 hours). Rooms are lit only
   while in use: a bridge while its station has crew on duty, a system room while someone works
   there. Crew walk to quarters, a cryo bay of stasis pods, when their thread settles (frost
-  glints down the glass of their upright pod, its base lamp breathes) and back when it wakes, doors slide
+  glints down the glass of their wide upright pod, its base lamp breathes) and back when it wakes, doors slide
   open as they pass, and a freshly recruited crew member beams in at their seat. Camera jumps
   ease into place.
 - **Readable at any zoom**: map labels use a 5×7 pixel font that matches the art. Zoomed out they
@@ -168,19 +168,17 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   elsewhere in the fleet: an unproven release might speak a newer protocol Command can't follow
   yet. Machines that can't update remotely say how to do it there. The palette lists "Update T3 on
   …" for every machine that's behind.
-- **Station memory**: stations wear what they've been through. Every merged PR from a project's
-  threads is a painted tally mark on its hull (groups of five), every failed turn in the Command
-  server's 90-day history a riveted patch plate with soot beside it (up to eight), and the archive's
+- **Station memory**: stations wear what they've been through. Every failed turn in the Command
+  server's 90-day history is a riveted patch plate with soot beside it (up to eight), and the archive's
   shelves fill with books as the station finishes work (one shelf per five clean turns; bare slots
   until then). `GET /api/memory` serves the per-project counts.
 - **Cargo pods**: each open PR hangs under its station's hull as a cargo pod, newest outermost
   (up to four, then "+N"), with a light for its checks: green passing, red failing, white pending,
   dim for a draft. Close up each shows its number; tapping one opens the PR. When a PR merges, its
-  pod drops off its strut and away into space on a dithered exhaust, and the new tally mark
-  flashes onto the hull (not under reduced motion). PR states come from T3, corrected by GitHub:
+  pod drops off its strut and away into space on a dithered exhaust (not under reduced motion). PR states come from T3, corrected by GitHub:
   the Command server re-reads every PR a machine still calls open (every few minutes, through its
   own host's `gh` login), so a PR whose machine can't refresh it doesn't stay docked after it
-  merges. One that turns out to have merged long ago joins the tally quietly, without a launch.
+  merges. One that turns out to have merged long ago leaves quietly, without a launch.
 - **Hazard telegraphs**: warnings before something runs out, not after. A disk filling up (a
   least-squares line over the last six hours of readings) shows **FULL IN 8H** on its engineering
   deck and in the station panel, turns amber under two days and critical (with hazard stripes)

@@ -29,7 +29,7 @@ import { RenderLoop, type DrawResult } from "./render-loop";
 import { Backdrop, HORIZON_AT } from "./backdrop";
 import { consoleScreen, terminalScreen } from "./screens";
 import { BAYER, LightLayer, mixColor } from "./light";
-import { dockedPrs, podSpot, stationMemory, tallyMark } from "./memory";
+import { dockedPrs, podSpot } from "./memory";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
@@ -119,8 +119,8 @@ export class World {
   private departing = new Set<CrewSprite>();
   /** Each station's open PR numbers, newest first, as last drawn: a merge launches its pod. */
   private podsSeen = new Map<string, number[]>();
-  /** Merged PRs leaving: the pod lifting off, then the new tally mark flashing on the hull. */
-  private launches: Array<{ x: number; y: number; at: number; tally?: { x: number; y: number } }> = [];
+  /** Merged PRs leaving: the pod dropping away into space. */
+  private launches: Array<{ x: number; y: number; at: number }> = [];
   private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, trunks: [] };
   private zoom = 1;
   private time = 0;
@@ -886,7 +886,7 @@ export class World {
     this.podsSeen.set(s.key, open);
     if (!prev || reducedMotion()) return;
     // Merged just now: one Command learned of later (a correction from GitHub) that merged long
-    // ago joins the tally quietly, without a launch.
+    // ago leaves quietly, without a launch.
     const merged = new Set<number>();
     const now = Date.now();
     for (const { envId, projectId } of s.members) {
@@ -899,18 +899,17 @@ export class World {
       }
     }
     const hullBottom = s.hull[11];
-    const count = stationMemory(state, s).merged;
     prev.forEach((n, k) => {
       if (open.includes(n) || !merged.has(n)) return;
       const spot = podSpot(s.interior, hullBottom, k);
-      this.launches.push({ x: spot.x, y: spot.y, at: performance.now(), tally: tallyMark(s.interior, hullBottom, count) });
+      this.launches.push({ x: spot.x, y: spot.y, at: performance.now() });
       sfx.done();
     });
   }
 
   /**
    * Launches in flight: the pod drops off its strut and away into space on a dithered exhaust in
-   * the world's lamp colour, accelerating, while the new tally mark on the hull flashes.
+   * the world's lamp colour, accelerating.
    */
   private drawLaunches(o: Graphics): void {
     if (!this.launches.length) return;
@@ -934,10 +933,6 @@ export class World {
             o.rect(x + cx, y - 4 - row * 2, 2, 2).fill(row < 2 ? 0xffffff : lamp);
           }
         }
-      }
-      // The new tally mark blinks in after the pod clears.
-      if (l.tally && k > 0.5 && Math.floor(k * 8) % 2 === 0) {
-        pixelFrame(o, l.tally.x - 4, l.tally.y - 4, 10, 16, STATUS.done, 1, 2);
       }
     }
   }

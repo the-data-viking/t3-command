@@ -19,8 +19,6 @@ export interface Style {
    * corners, a dorsal spine, twin nacelles), or soft (rounded hull, portholes, a glass dome).
    */
   hull?: "industrial" | "ftl" | "soft";
-  /** Paint for station memory (tally marks): reads on the world's hull plating. Defaults to white. */
-  memoryInk?: number;
   /** The world's lamp colour: ceiling strips and their bloom in lit rooms. */
   light?: number;
   /** Map label text and lines (drawn over space or dark plating); defaults are the HUD's dark-theme text. */
@@ -78,7 +76,6 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     id: "flightdeck", name: "Kestrel",
     // Warm sodium lamps.
     light: 0xffd49a,
-    memoryInk: 0x1e1812,
     trunk: 0x514438,
     hull: "ftl",
     mapInk: { text: 0xf1e6d0, muted: 0xa39e95 },
@@ -111,7 +108,6 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     name: "Day Shift",
     // Daylight through the ports: warm white.
     light: 0xfff4dc,
-    memoryInk: 0x33485b,
     trunk: 0x526575,
     // Labels over a daylight sky: pale enough to read on the teal horizon too.
     mapInk: { text: 0xf3f6f8, muted: 0xc3ced8, line: 0x72899b },
@@ -187,7 +183,6 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
     id: "pastel",
     // Candy-pink lamps at dusk.
     light: 0xffdcec,
-    memoryInk: 0x3a2e3f,
     hull: "soft",
     mapInk: { text: 0xf6efe4, muted: 0xc9b8d4, line: 0x9a86ad },
     trunk: 0x705f77,
@@ -239,7 +234,6 @@ const BASE_STYLES: Record<Exclude<StyleId, "flightdeck-nightshift">, Style> = {
   highcontrast: {
     id: "highcontrast",
     light: 0xffffff,
-    memoryInk: 0x000000,
     mapInk: { text: 0xffffff, muted: 0xc8ced6, line: 0xd0d0d0 },
     name: "High Contrast",
     blurb: "Maximum legibility: black wells, white frames and text, light hulls on the darkest decks.",

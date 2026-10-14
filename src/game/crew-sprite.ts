@@ -332,8 +332,8 @@ export class CrewSprite extends Container {
       // In stasis: a glint of frost slides down the glass beside them now and then, and the lamp
       // in the pod's base breathes slowly in the world's lamp colour (held still under reduced motion).
       const drift = (t * 0.2 + this.seed) % 1;
-      if (drift < 0.45) f.rect(4, snap(-14 + drift * 60), 2, 2).fill(0xffffff);
-      if ((t * 0.4 + this.seed) % 1 < 0.6) f.rect(-4, 16, 2, 2).fill(currentStyle().light ?? 0xe8f0f8);
+      if (drift < 0.45) f.rect(6, snap(-14 + drift * 54), 2, 2).fill(0xffffff);
+      if ((t * 0.4 + this.seed) % 1 < 0.6) f.rect(-8, 16, 2, 2).fill(currentStyle().light ?? 0xe8f0f8);
       return;
     }
     if (this.offline) {
@@ -503,16 +503,15 @@ export class CrewSprite extends Container {
   private drawRing(selected: boolean, t: number, sleeping: boolean): void {
     const r = this.ring.clear();
     if (sleeping) {
-      // White on a dark outline, so it reads on pale decks too.
-      if (selected) pixelFrame(r, -28, -12, 56, 24, currentStyle().colors.k);
+      // Around the upright pod (40×48): white between two one-art-pixel dark rings, so it reads on
+      // pale floors as well as dark.
       if (selected) {
-        // White between two one-art-pixel dark rings, so it reads on pale floors as well as dark.
         const k = currentStyle().colors.k;
-        pixelFrame(r, -28, -12, 56, 24, k);
-        pixelFrame(r, -24, -8, 48, 16, k);
-        pixelFrame(r, -26, -10, 52, 20, SELECTION);
+        pixelFrame(r, -26, -30, 52, 60, k);
+        pixelFrame(r, -22, -26, 44, 52, k);
+        pixelFrame(r, -24, -28, 48, 56, SELECTION);
       }
-      if (this.inSquad) pixelFrame(r, -30, -14, 60, 28, SELECTION, 0.5);
+      if (this.inSquad) pixelFrame(r, -28, -32, 56, 64, SELECTION, 0.5);
       return;
     }
     // Rings are plotted in art-pixel cells, in white so they never read as a status. Squad
