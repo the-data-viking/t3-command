@@ -177,3 +177,27 @@ test('scratch projects never become stations; their awake crew stand in the engi
   }
   assert.equal(layout.crew.has('a:s3'), false);
 });
+
+test('the Hermes hall is sized to its operators, and each dock takes its collar where the hall is', () => {
+  const hall = (bots: number) => {
+    const state = fixture();
+    state.envs.hermes = { summary: { id: 'hermes', kind: 'hermes', addedAt: '2026-02-01' }, projects: {}, threads: {} } as unknown as GameState['envs'][string];
+    state.hermesCatalog = { envId: 'hermes', loaded: true, bots: Array.from({ length: bots }, (_, i) => ({
+      name: `bot-${i}`, title: `Bot ${i}`, description: '', model: null, provider: null, skillCount: 0, isDefault: false,
+    })) };
+    return computeFleetLayout(state);
+  };
+  const two = hall(2), many = hall(13);
+  assert.deepEqual([two.controlCenter!.hull.w, two.controlCenter!.hull.h], [2 * 166 - 8 + 280, 224], 'two operators: the reviewers\' ~600×220');
+  assert.equal(many.controlCenter!.hull.w, 4 * 166 - 8 + 280, 'four bays a row, with the archive and routines beside them');
+  assert.equal(many.controlCenter!.hull.h, 86 + 4 * 124 + 14);
+  for (const layout of [two, many]) {
+    const center = layout.controlCenter!;
+    for (const link of center.links) {
+      const node = layout.environmentNodes.get(link.envId)!;
+      assert.equal(link.laneX, node.hatchX, 'the collar lands on the dock\'s hatch');
+      assert.ok(node.hatchX - 20 >= node.hull.x && node.hatchX + 20 <= node.hull.x + node.hull.w, 'the hatch is on the dock\'s roof');
+      assert.ok(link.from.x - 20 >= center.hull.x + 40 && link.from.x + 20 <= center.hull.x + center.hull.w - 40, 'clear of the hall\'s stepped corners');
+    }
+  }
+});

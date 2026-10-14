@@ -69,7 +69,7 @@ export class EnvironmentNodeSprite {
     this.hull = h;
     // Docking hatch above the deck, where bridge collars and conduits attach.
     const hatch = new Graphics();
-    pixelBox(hatch, h.x + h.w / 2 - 20, h.y - 6, 40, 12, c.D, c.k);
+    pixelBox(hatch, node.hatchX - 20, h.y - 6, 40, 12, c.D, c.k);
     this.root.addChild(hatch, sprite(tex(FLIGHT_KIT.ENGINEERING_DECK, { team: node.color }), h.x, h.y));
     this.meters = new Graphics();
     this.cells = new Graphics();

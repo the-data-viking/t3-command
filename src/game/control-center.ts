@@ -5,7 +5,7 @@ import * as A from '../art/sprites';
 import { setSelection, useGame, type Selection } from '../store';
 import { botColor, BOT_STATE_LABELS, HERMES_COLOR, type BotOperator } from '../t3/bots';
 import type { UnitState } from '../t3/derive';
-import type { ControlCenterLayout, Rect } from './layout';
+import { HALL_HEAD, type ControlCenterLayout, type Rect } from './layout';
 import { GAUGE, mapInk, platingMaterials, modelTier, providerSilhouette, STATUS } from './theme';
 import { crewTex, currentStyle, PX, tex } from './textures';
 import { crispScale, figureBoost, fitLabel, hash, pixelDiamond, seatedPose, steppedPlate } from './map-common';
@@ -31,12 +31,22 @@ export class ControlCenterSprite {
   private names: Array<{ label: PixelText; full: string; width: number }> = [];
   private selection = new Graphics();
   private operators: OperatorSprite[] = [];
+  private holo = new Graphics();
+  private hull?: Rect;
 
-  /** In the fleet view operators are drawn as glyphs by the world; their figures and badges hide. */
+  /**
+   * In the fleet view operators are drawn as glyphs by the world; their figures and badges hide.
+   * The title (held at a readable size) centres over the hall, with the holo-table out of its way.
+   */
   setFleetView(far: boolean): void {
     for (const { figure, badge } of this.operators) {
       figure.visible = !far;
       if (far) badge.visible = false;
+    }
+    this.holo.visible = !far;
+    if (this.title && this.hull) {
+      this.title.anchor.set(far ? 0.5 : 0, 0);
+      this.title.position.set(far ? this.hull.x + this.hull.w / 2 : this.hull.x + 100, this.hull.y + 24);
     }
   }
 
@@ -52,6 +62,7 @@ export class ControlCenterSprite {
     this.names = [];
     this.operators = [];
     const { hull: h } = center;
+    this.hull = h;
     const c = currentStyle().colors;
     // Dark plating in every theme (the HUD's own materials); Hermes tan is trim only, so the
     // hall never becomes the brightest thing on a light-themed map.
@@ -75,22 +86,42 @@ export class ControlCenterSprite {
       g.rect(x - 20, h.y - 18, 40, 16).fill(m.control);
       for (let i = 0; i < 3; i++) g.rect(x - 12 + i * 10, h.y - 12, 4, 6).fill(HERMES_COLOR);
     }
-    // Command emblem: a pixel diamond with the H.
-    const ex = h.x + 76, ey = h.y + 68;
+    // Header band: the emblem and title, a holo-table, and the link state; the bays sit below it.
+    const ex = h.x + 60, ey = h.y + 48;
     pixelDiamond(g, ex, ey, 28, c.k);
     pixelDiamond(g, ex, ey, 24, HERMES_COLOR);
     pixelDiamond(g, ex, ey, 20, m.control);
     g.rect(ex - 12, ey - 12, 4, 24).fill(HERMES_COLOR);
     g.rect(ex + 8, ey - 12, 4, 24).fill(HERMES_COLOR);
     g.rect(ex - 12, ey - 2, 24, 4).fill(HERMES_COLOR);
-    this.title = this.text('HERMES', h.x + 122, h.y + 28, 28, HERMES_COLOR);
-    this.text('DOCKED BRIDGE', h.x + 124, h.y + 63, 12, ink.text);
-    this.text('PERSISTENT OPERATORS / SHARED ENGINEERING', h.x + 124, h.y + 88, 9, ink.muted);
-    this.text(live ? 'CONNECTED' : 'OFFLINE', h.x + h.w - 155, h.y + 35, 10, live ? GAUGE.ok : ink.muted);
-    this.text(`${center.operators.length} OPERATORS`, h.x + h.w - 155, h.y + 55, 9, ink.muted);
-    this.text(`${endpointCount} BAYS ONLINE`, h.x + h.w - 155, h.y + 74, 9, ink.muted);
-    g.rect(h.x + 30, h.y + 98, h.w - 60, 2).fill({ color: HERMES_COLOR, alpha: 0.35 });
-    if (!center.operators.length) this.text('OPEN CONTROL CENTER TO VIEW OPERATORS', h.x + 150, h.y + 136, 12, ink.muted);
+    this.title = this.text('HERMES', h.x + 100, h.y + 24, 28, HERMES_COLOR);
+    this.text('DOCKED BRIDGE · PERSISTENT OPERATORS', h.x + 102, h.y + 58, 9, ink.muted);
+    this.text(live ? 'CONNECTED' : 'OFFLINE', h.x + h.w - 150, h.y + 26, 10, live ? GAUGE.ok : ink.muted);
+    this.text(`${center.operators.length} OPERATORS`, h.x + h.w - 150, h.y + 44, 9, ink.muted);
+    this.text(`${endpointCount} BAYS ONLINE`, h.x + h.w - 150, h.y + 60, 9, ink.muted);
+    // Holo-table between the title and the link state: a pedestal with a dithered projection, in
+    // the Hermes accent (cyan would read as "working").
+    const hx = h.x + Math.round((h.w + 180) / 4) * 2, hy = h.y + 66;
+    const holo = this.holo = new Graphics();
+    this.root.addChild(holo);
+    holo.rect(hx - 24, hy - 6, 48, 10).fill(c.k);
+    holo.rect(hx - 22, hy - 4, 44, 6).fill(m.control);
+    holo.rect(hx - 16, hy - 6, 32, 2).fill(HERMES_COLOR);
+    for (let row = 0; row < 4; row++) {
+      for (let x = -14 + row * 2; x < 14 - row * 2; x += 4) {
+        if (((x + 14) / 4 + row) % 2) continue;
+        holo.rect(hx + x, hy - 10 - row * 4, 4, 4).fill({ color: HERMES_COLOR, alpha: 0.5 - row * 0.1 });
+      }
+    }
+    g.rect(h.x + 30, h.y + HALL_HEAD - 8, h.w - 60, 2).fill({ color: HERMES_COLOR, alpha: 0.35 });
+    // Shared services beside the bays: the memory archive and the routines console.
+    const bayY = h.y + HALL_HEAD;
+    this.fixture(A.FILES, h.x + 70, bayY + 34, 0.5, 0.5);
+    this.centred('MEMORY', h.x + 70, bayY + 62, 9, HERMES_COLOR);
+    this.centred('ARCHIVE', h.x + 70, bayY + 74, 9, HERMES_COLOR);
+    this.fixture(A.COMMS, h.x + h.w - 70, bayY + 34, 0.5, 0.5);
+    this.centred('ROUTINES', h.x + h.w - 70, bayY + 62, 9, HERMES_COLOR);
+    if (!center.operators.length) this.centred('OPEN CONTROL CENTER TO VIEW OPERATORS', h.x + h.w / 2, bayY + 40, 12, ink.muted);
     for (const { bot, workstation: r } of center.operators) {
       const color = botColor(bot.name);
       const x = r.x + r.w / 2;
@@ -126,26 +157,6 @@ export class ControlCenterSprite {
       });
       this.root.addChild(hit);
     }
-    // Reuse familiar archive and communications furniture for the shared bridge services.
-    const serviceY = h.y + h.h - 52;
-    g.rect(h.x + 30, serviceY - 12, h.w - 60, 2).fill({ color: HERMES_COLOR, alpha: 0.35 });
-    // Holo-table at the centre of the dock: a pedestal with a dithered projection above it, in
-    // the Hermes accent (cyan would read as "working").
-    const hx = h.x + h.w / 2;
-    g.rect(hx - 24, serviceY - 6, 48, 10).fill(c.k);
-    g.rect(hx - 22, serviceY - 4, 44, 6).fill(m.control);
-    g.rect(hx - 16, serviceY - 6, 32, 2).fill(HERMES_COLOR);
-    for (let row = 0; row < 4; row++) {
-      for (let x = -14 + row * 2; x < 14 - row * 2; x += 4) {
-        if (((x + 14) / 4 + row) % 2) continue;
-        g.rect(hx + x, serviceY - 10 - row * 4, 4, 4).fill({ color: HERMES_COLOR, alpha: 0.5 - row * 0.1 });
-      }
-    }
-    this.fixture(A.FILES, h.x + 50, serviceY + 4, 0.5, 0.5);
-    this.text('MEMORY ARCHIVE', h.x + 82, serviceY - 7, 10, HERMES_COLOR);
-    this.text('ENGINEERING DOCK', h.x + h.w / 2 - 63, serviceY + 19, 10, HERMES_COLOR);
-    this.fixture(A.COMMS, h.x + h.w - 50, serviceY + 4, 0.5, 0.5);
-    this.text('ROUTINES', h.x + h.w - 168, serviceY - 7, 10, HERMES_COLOR);
     this.selection = new Graphics(); this.root.addChild(this.selection);
     this.root.eventMode = 'static'; this.root.cursor = 'pointer';
     this.root.hitArea = new Rectangle(h.x, h.y - 18, h.w, h.h + 18);
@@ -161,6 +172,11 @@ export class ControlCenterSprite {
     const s = new Sprite(tex(grid));
     s.anchor.set(ax, ay); s.scale.set(PX); s.position.set(x, y);
     this.root.addChild(s); return s;
+  }
+
+  private centred(value: string, x: number, y: number, size: number, color: number): PixelText {
+    const t = this.text(value, x, y, size, color);
+    t.anchor.set(0.5, 0); return t;
   }
 
   private text(value: string, x: number, y: number, size: number, color: number): PixelText {
