@@ -2,7 +2,7 @@
 // live thread. A new turn since the order went out means it reached them; that turn's state says
 // what they did with it. Pure over the store, so every device shows the same from the same fleet.
 
-import type { Dispatch, DispatchMember } from "../../shared/dispatches";
+import type { Dispatch, DispatchMember, MissionInfo } from "../../shared/dispatches";
 import type { FollowUpsView } from "../../shared/followups";
 import type { EnvWorld, ThreadDetail } from "../store";
 import { unitState } from "../t3/derive";
@@ -65,14 +65,14 @@ export function progressOf(d: Dispatch, envs: Record<string, EnvWorld>, followUp
   };
 }
 
-/** The order's first line, short enough for a row. */
+/** The order's first line (a mission's name), short enough for a row. */
 export function dispatchTitle(d: Dispatch, max = 80): string {
-  const line = d.text.split("\n").find((l) => l.trim())?.trim() ?? "";
+  const line = d.mission ? `◆ ${d.mission.name}` : d.text.split("\n").find((l) => l.trim())?.trim() ?? "";
   return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
-export function recordDispatch(text: string, members: DispatchMember[]): Promise<Dispatch> {
-  return fetchJson<Dispatch>("/api/dispatches", { method: "POST", body: JSON.stringify({ text, members }) });
+export function recordDispatch(text: string, members: DispatchMember[], mission?: MissionInfo): Promise<Dispatch> {
+  return fetchJson<Dispatch>("/api/dispatches", { method: "POST", body: JSON.stringify({ text, members, ...(mission ? { mission } : {}) }) });
 }
 
 export function updateDispatch(id: string, members: DispatchMember[]): Promise<Dispatch> {

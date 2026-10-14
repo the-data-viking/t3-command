@@ -32,7 +32,7 @@ export function DispatchChip() {
   const title = open.map((d) => `"${dispatchTitle(d.dispatch, 50)}": ${summary(d.progress)}`).join("\n");
   return (
     <button className="resource dispatch-chip" title={`${title}\nReceipts on the mission board (B)`} onClick={() => useGame.setState({ showBoard: true })}>
-      <span className="res-key">{open.length > 1 ? `DISPATCHES ${open.length}` : "DISPATCH"}</span>
+      <span className="res-key">{open.length > 1 ? `DISPATCHES ${open.length}` : dispatch.mission ? "MISSION" : "DISPATCH"}</span>
       <span className={`res-val${progress.needsYou ? " st-alert" : progress.trouble ? " st-error" : ""}`} aria-label={`${dispatchTitle(dispatch)}: ${summary(progress)}`}>{progress.reported}/{progress.total}</span>
     </button>
   );
@@ -56,8 +56,8 @@ export function DispatchList({ onGo }: { onGo: () => void }) {
     onGo();
   };
   return (
-    <section className="dispatches" aria-label="Squad orders">
-      <h3 className="board-col-head">Squad orders <span className="board-count">{list.length}</span></h3>
+    <section className="dispatches" aria-label="Missions and squad orders">
+      <h3 className="board-col-head">{list.some((d) => d.dispatch.mission) ? "Missions and squad orders" : "Squad orders"} <span className="board-count">{list.length}</span></h3>
       {list.map(({ dispatch, progress }) => {
         const finished = progress.done === progress.total;
         return (
@@ -72,6 +72,7 @@ export function DispatchList({ onGo }: { onGo: () => void }) {
               <button className="icon-btn small" aria-label="Stop following this order" title="Stop following (the order itself stands)"
                 onClick={(e) => { e.preventDefault(); void closeDispatch(dispatch.id).catch((err) => logError("Couldn't close the dispatch", err)); }}>✕</button>
             </summary>
+            {dispatch.mission && <p className="dispatch-goal small"><strong>Goal:</strong> {dispatch.mission.goal}</p>}
             <ul className="dispatch-receipts">
               {progress.receipts.map(({ member, status }) => {
                 const live = envs[member.envId]?.threads[member.threadId];
@@ -81,6 +82,7 @@ export function DispatchList({ onGo }: { onGo: () => void }) {
                     {status === "gone" ? <span className="muted">{member.title}</span>
                       : <button className="receipt-crew" onClick={() => go(member.envId, member.threadId)}>{live?.title || member.title}</button>}
                     <span className="receipt-status">{RECEIPT[status].label}</span>
+                    {member.part && <span className="receipt-part muted small" title={member.part}>{member.part}</span>}
                   </li>
                 );
               })}

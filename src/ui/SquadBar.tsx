@@ -4,11 +4,10 @@ import { expandPlaybook } from "../../shared/playbooks";
 import { sfx } from "../game/sfx";
 import { setSquad, useGame } from "../store";
 import { isSettled, unitState } from "../t3/derive";
-import { envClient, logError } from "../t3/environment";
-import { queueFollowUp } from "../t3/followups";
-import type { DispatchMember } from "../../shared/dispatches";
+import { logError } from "../t3/environment";
 import { recordDispatch, updateDispatch } from "./dispatch";
-import { batchSettle, liveMembers } from "./squad";
+import { batchSettle, liveMembers, orderCrew } from "./squad";
+import { MissionDialog } from "./MissionDialog";
 
 /**
  * Batch actions for the crew picked with shift-click, shift-drag or a control group: camp, wake,
@@ -29,6 +28,7 @@ export function SquadBar() {
   const [retry, setRetry] = useState<string[]>();
   /** The dispatch the last send recorded, so a retry updates its receipts instead of starting another. */
   const [dispatchId, setDispatchId] = useState<string>();
+  const [planning, setPlanning] = useState(false);
   const members = liveMembers(squad, envs);
   if (!members.length) return null;
   const settled = members.filter((m) => isSettled(envs[m.envId].threads[m.threadId])).length;
@@ -40,27 +40,8 @@ export function SquadBar() {
     const order = expandPlaybook(text.trim(), playbooks);
     if (!order || sending) return;
     setSending(true);
-    let sent = 0, queued = 0, failed = 0;
-    const failedKeys: string[] = [];
     const targets = retry ? orderable.filter((m) => retry.includes(`${m.envId}:${m.threadId}`)) : orderable;
-    const receipts: DispatchMember[] = [];
-    await Promise.all(targets.map(async (m) => {
-      const thread = envs[m.envId].threads[m.threadId];
-      const receipt = { envId: m.envId, threadId: m.threadId, title: thread.title || "Untitled", baseTurnId: thread.latestTurn?.turnId ?? null };
-      try {
-        if (queueBusy && busy.includes(m)) { await queueFollowUp(m.envId, m.threadId, order); queued++; receipts.push({ ...receipt, how: "queued" }); }
-        else {
-          const client = envClient(m.envId);
-          if (!client) throw new Error("not connected");
-          await client.order(m.threadId, order);
-          sent++;
-          receipts.push({ ...receipt, how: "sent" });
-        }
-      } catch { failed++; failedKeys.push(`${m.envId}:${m.threadId}`); receipts.push({ ...receipt, how: "failed" }); }
-    }));
-    // Receipts land as each send settles; keep them in the squad's order.
-    const rank = new Map(targets.map((m, i) => [`${m.envId}:${m.threadId}`, i]));
-    receipts.sort((a, b) => rank.get(`${a.envId}:${a.threadId}`)! - rank.get(`${b.envId}:${b.threadId}`)!);
+    const { receipts, sent, queued, failed, failedKeys } = await orderCrew(targets, () => order, (m) => queueBusy && busy.includes(m));
     const tracked = retry && dispatchId ? updateDispatch(dispatchId, receipts)
       : targets.length >= 2 ? recordDispatch(order, receipts).then((d) => { setDispatchId(d.id); return d; }) : undefined;
     void tracked?.catch((err) => logError("Couldn't record the dispatch", err));
@@ -88,12 +69,14 @@ export function SquadBar() {
       ) : (
         <>
           <button className="btn" disabled={!orderable.length} title={orderable.length < members.length ? `${members.length - orderable.length} on a disconnected station` : undefined} onClick={() => { setOrdering(true); setResult(undefined); }}>Order {orderable.length}…</button>
+          <button className="btn" disabled={orderable.length < 2} title={orderable.length < 2 ? "A mission needs two or more crew on connected stations" : "One goal, each with their own part"} onClick={() => setPlanning(true)}>Mission…</button>
           <button className="btn" disabled={settled === members.length} onClick={() => void batchSettle(true, members)}>Send to camp</button>
           <button className="btn" disabled={settled === 0} onClick={() => void batchSettle(false, members)}>Wake</button>
           <span className="muted small squad-hint">{result ?? "Ctrl or Alt + 1–9 saves a group"}</span>
         </>
       )}
       <button className="icon-btn" aria-label="Clear squad" title="Clear (Esc)" onClick={() => setSquad([])}>✕</button>
+      {planning && <MissionDialog crew={orderable} busy={busy} onClose={() => setPlanning(false)} />}
     </div>
   );
 }

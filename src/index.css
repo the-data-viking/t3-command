@@ -2287,9 +2287,22 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .dispatch-receipts { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 2px var(--space-4); }
 .receipt { display: flex; align-items: baseline; gap: var(--space-1h); min-width: 0; }
 .receipt-mark { width: 1.2em; text-align: center; flex: none; color: var(--muted); }
-.receipt-crew { background: none; border: 0; padding: 0; color: var(--text); font: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; text-align: left; }
+.receipt-crew { flex: 1 1 0; background: none; border: 0; padding: 0; color: var(--text); font: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; text-align: left; }
 .receipt-crew:hover { text-decoration: underline; }
 .receipt-status { margin-left: auto; flex: none; color: var(--muted); }
+.receipt { flex-wrap: wrap; }
+.receipt-part { flex: 1 0 100%; padding-left: calc(1.2em + var(--space-1h)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; letter-spacing: 0; }
+.dispatch-goal { margin: var(--space-1) 0 0; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text); }
+/* Starting a mission: name, goal, and each crew member's part. */
+.mission-modal { width: min(760px, 100%); }
+.mission-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.mission-field input, .mission-field textarea, .mission-crew input { background: var(--slot); color: var(--text); border: 1px solid var(--edge-strong); border-radius: var(--radius-control); padding: var(--space-1) var(--space-1h); font: inherit; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.mission-crew { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); max-height: 40vh; overflow-y: auto; }
+.mission-crew li { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: var(--space-2); align-items: center; }
+.mission-crew li.failed .mission-who { color: var(--error); }
+.mission-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; letter-spacing: 0; }
+.mission-preview pre { white-space: pre-wrap; font-family: var(--mono); font-size: var(--fs-sm); text-transform: none; letter-spacing: 0; font-weight: 400; margin: var(--space-1) 0 0; padding: var(--space-1h); background: var(--wash); border: 1px solid var(--hairline); max-height: 24vh; overflow-y: auto; }
+@media (max-width: 700px) { .mission-crew { gap: var(--space-2); } .mission-crew li { grid-template-columns: 1fr; gap: var(--space-1); } }
 .r-reported .receipt-mark, .r-reported .receipt-status { color: var(--done); }
 .r-working .receipt-mark, .r-working .receipt-status { color: var(--working); }
 .r-needs-you .receipt-mark, .r-needs-you .receipt-status { color: var(--alert); }

@@ -71,6 +71,7 @@ function Replies({ id }: { id: string }) {
           <button className="icon-btn" aria-label="Close replies" onClick={close}>✕</button>
         </header>
         <p className="muted small">{progress.reported} of {progress.total} reported{progress.needsYou ? ` · ${progress.needsYou} waiting on you` : ""}</p>
+        {dispatch.mission && <p className="dispatch-goal small"><strong>Goal:</strong> {dispatch.mission.goal}</p>}
         <div className="replies">
           {cards.map(({ member, status, thread, reply, unread: fresh }) => (
             <article key={`${member.envId}:${member.threadId}`} className={`reply r-${status}${fresh ? " unread" : ""}`}>
@@ -80,7 +81,7 @@ function Replies({ id }: { id: string }) {
                   : <button className="receipt-crew" onClick={() => go(member.envId, member.threadId)} title="Go to this crew member">{thread?.title || member.title}</button>}
                 <span className="receipt-status">{RECEIPT[status].label}</span>
               </header>
-              <p className="muted small">{envs[member.envId]?.summary.label ?? member.envId}</p>
+              <p className="muted small">{envs[member.envId]?.summary.label ?? member.envId}{member.part ? ` · part: ${member.part}` : ""}</p>
               {reply ? <div className="reply-body"><MessageMarkdown text={reply} envId={member.envId} threadId={member.threadId} /></div>
                 : <p className="muted reply-body">{WAITING[status] ?? (status === "reported" ? "Loading…" : `${RECEIPT[status].label[0].toUpperCase()}${RECEIPT[status].label.slice(1)}.`)}</p>}
             </article>
