@@ -28,6 +28,7 @@ import { doorState } from "./crew-motion";
 import { RenderLoop, type DrawResult } from "./render-loop";
 import { Backdrop } from "./backdrop";
 import { consoleScreen, terminalScreen } from "./screens";
+import { LightLayer, mixColor } from "./light";
 import { dockedPrs, podSpot, stationMemory, tallyMark } from "./memory";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
@@ -69,6 +70,8 @@ export class World {
   private stationLayer = new Container();
   private environmentLayer = new Container();
   private lights = new Graphics();
+  /** Additive light: lamp cones, console pools, the spotlight on whoever waits on you. */
+  private glow = new LightLayer();
   /** Unlit rooms, multiplied by a theme-tinted dim tone. */
   private shade = Object.assign(new Graphics(), { blendMode: "multiply" as const });
   private crewLayer = new Container();
@@ -154,7 +157,7 @@ export class World {
     this.backdrop = new Backdrop(this.app.renderer);
     this.backdrop.build(useGame.getState().artStyle, this.app.screen.width, this.app.screen.height);
     this.crewLayer.sortableChildren = true;
-    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.shade, this.lights, this.fleetView, this.fleetLabels, this.crewLayer, this.crewLabels, this.overlay);
+    this.camera.addChild(this.grid, this.operations, this.links, this.packets, this.stationLayer, this.environmentLayer, this.shade, this.glow.root, this.lights, this.fleetView, this.fleetLabels, this.crewLayer, this.crewLabels, this.overlay);
     this.app.stage.addChild(this.backdrop.root, this.camera, this.edge, this.edgeHits);
     this.setupCamera();
 
@@ -794,7 +797,8 @@ export class World {
    * A room's ceiling strip, in the world's lamp colour: lit with a dithered bloom falling from it,
    * dark when the room is, or catching for a frame in a brownout.
    */
-  private ceilingLight(g: Graphics, r: { x: number; y: number; w: number; h: number }, mode: "on" | "off" | "flicker"): void {
+  private ceilingLight(g: Graphics, r: { x: number; y: number; w: number; h: number }, mode: "on" | "off" | "flicker"): number[] {
+    const tubes: number[] = [];
     const style = currentStyle();
     const lamp = style.light ?? 0xe8f0f8;
     const y0 = r.y + 2;
@@ -803,6 +807,7 @@ export class World {
     const x0 = r.x + Math.round((r.w - (count * 28 - 8)) / 4) * 2;
     for (let k = 0; k < count; k++) {
       const x = x0 + k * 28;
+      tubes.push(x + 10);
       if (mode === "off") { g.rect(x, y0, 20, 2).fill(style.colors.k); continue; }
       g.rect(x, y0, 20, 2).fill(mode === "flicker" ? { color: lamp, alpha: 0.5 } : lamp);
       if (mode === "flicker") continue;
@@ -814,6 +819,12 @@ export class World {
         }
       }
     }
+    return tubes;
+  }
+
+  /** Whether additive light draws: not in High Contrast, and not in the flat fleet view. */
+  private get glowing(): boolean {
+    return currentStyle().id !== "highcontrast" && this.zoom >= FLEET_VIEW_ZOOM;
   }
 
   // ---- Frame ----
@@ -864,7 +875,9 @@ export class World {
       sprite.destroy({ children: true });
     }
     this.separateLabels();
+    this.glow.begin();
     this.drawLights(state, sel, t, frame);
+    this.glow.end();
     this.drawFleetView(state, sel);
     // Labels are sized for the zoom the camera is settling on, not each in-between frame of a
     // move; otherwise they jump between whole-pixel sizes and re-truncate as the camera eases.
@@ -949,6 +962,8 @@ export class World {
       if (sprite.state === "alert" || sprite.state === "question") {
         u.attention = true;
         if (lay.console && !lay.sleeping && sprite.atConsole) asking.push({ ...lay.console, color: STATUS[sprite.state] });
+        // A spotlight from the ceiling onto whoever is waiting on you: stage light, not another red.
+        if (!lay.sleeping && !sprite.offline && this.glowing) this.glow.add("spot", currentStyle().light ?? 0xe8f0f8, sprite.pos.x, sprite.pos.y - 66);
       }
       stationUse.set(lay.stationKey, u);
       if (!lay.sleeping) {
@@ -969,6 +984,11 @@ export class World {
           if (con.texture !== next) con.texture = next;
           // A team-colored tab on each console shows whose desk it is.
           g.rect(lay.console.x - 26, lay.console.y - 26, 4, 12).fill(sprite.team);
+          // Someone working here: their screen throws a pool of light onto the floor, lamp-coloured
+          // and only a quarter toward the screen's hue, so status colour never becomes decoration.
+          if (live && sprite.atConsole && sprite.state === "working" && this.glowing) {
+            this.glow.add("pool", mixColor(currentStyle().light ?? 0xe8f0f8, STATUS.working, 0.25), lay.console.x, lay.console.y + 12);
+          }
         }
       }
     }
@@ -994,7 +1014,9 @@ export class World {
         const r = room.rect;
         // A brownout on a station whose machines have all dropped off: its lamps catch now and then.
         const flicker = !lit && kind === "bridge" && offline.has(s.key) && !reducedMotion() && hash(`${s.key}:${frame}`) > 0.86;
-        this.ceilingLight(g, r, lit ? "on" : flicker ? "flicker" : "off");
+        const tubes = this.ceilingLight(g, r, lit ? "on" : flicker ? "flicker" : "off");
+        // Lit rooms: a dithered cone of lamp light falling from every tube.
+        if (lit && this.glowing) for (const x of tubes) this.glow.add("cone", currentStyle().light ?? 0xe8f0f8, x, r.y + 4);
         if (!lit) { shade.rect(r.x, r.y, r.w, r.h).fill(dim); continue; }
         if (kind === "bridge") continue;
         // Screen light spilling from the system's fixture into its room, dithered.
@@ -1126,6 +1148,8 @@ export class World {
     const plating = platingMaterials(state.artStyle);
     const cell = Math.round(3 / this.zoom);
     const tone: Record<RoomKind, number> = { bridge: c.f, terminal: c.p, files: c.p, comms: c.p, quarters: c.q, archive: c.F };
+    const lamp = currentStyle().light ?? 0xe8f0f8;
+    const highContrast = state.artStyle === "highcontrast";
     const urgency: UnitState[] = ["alert", "question", "error", "done", "working", "monitoring", "idle", "sleeping"];
     // Glyphs are 5 cells on a 6-cell dark tile, packed edge to edge so a room holds as many as it can.
     const pitch = 6 * cell;
@@ -1176,12 +1200,24 @@ export class World {
         byRoom.set(room, [...(byRoom.get(room) ?? []), sprite]);
       }
       g.rect(i.x, i.y, i.w, i.h).fill(plating.slot);
-      // Rooms in the theme's floor tones, lit while someone is in them and dimmed otherwise.
+      // Night lights from orbit: rooms nobody is in go dark; a room with someone in it glows in the
+      // world's lamp colour under a strip of ceiling light. A quiet fleet reads as rest, not a diagram.
       const rooms = Object.entries(s.rooms) as Array<[RoomKind, StationLayout["rooms"][RoomKind]]>;
       for (const [kind, room] of rooms) {
         if (!room) continue;
-        const lit = byRoom.has(kind);
-        g.rect(room.rect.x + cell, room.rect.y + cell, room.rect.w - 2 * cell, room.rect.h - 2 * cell).fill({ color: tone[kind], alpha: lit ? 1 : 0.45 });
+        // Last-known crew on an unreachable machine light nothing, as in the close view.
+        const lit = (byRoom.get(kind) ?? []).some((c) => !c.offline);
+        const r = { x: room.rect.x + cell, y: room.rect.y + cell, w: room.rect.w - 2 * cell, h: room.rect.h - 2 * cell };
+        g.rect(r.x, r.y, r.w, r.h).fill({ color: tone[kind], alpha: lit ? 1 : 0.22 });
+        if (!lit || highContrast) continue;
+        g.rect(r.x + cell, r.y, r.w - 2 * cell, cell).fill(lamp);
+        for (let y = r.y + cell; y < r.y + Math.min(r.h, 6 * cell); y += cell) {
+          const row = (y - r.y) / cell;
+          for (let x = r.x + cell; x < r.x + r.w - cell; x += cell) {
+            if (((x - r.x) / cell + row) % (row + 1) !== 0) continue;
+            g.rect(x, y, cell, cell).fill({ color: lamp, alpha: 0.32 - row * 0.05 });
+          }
+        }
       }
       // Each glyph sits in the room its crew member is in; a station whose rooms are too small
       // for its crew at this zoom lists them all across its interior instead.
