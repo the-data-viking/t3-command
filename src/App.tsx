@@ -21,6 +21,7 @@ import { QueueClear } from "./ui/QueueButton";
 import { registerServiceWorker } from "./t3/push";
 import { loadPlaybooks } from "./t3/playbooks";
 import { loadMemory, MEMORY_REFRESH_MS } from "./t3/memory";
+import { scheduleT3Latest } from "./t3/t3-update";
 import { mayAutoOpen, noteKey } from "./ui/event-guard";
 import { CommandPalette } from "./ui/CommandPalette";
 import { HelpOverlay } from "./ui/HelpOverlay";
@@ -112,6 +113,7 @@ export default function App() {
     void loadPlaybooks();
     void loadMemory();
     const memoryTimer = setInterval(() => void loadMemory(), MEMORY_REFRESH_MS);
+    const offT3Latest = scheduleT3Latest();
     window.addEventListener("keydown", noteKey, true);
     const offTransitions = announceTransitions();
     const offTitle = installTitleBadge();
@@ -123,6 +125,7 @@ export default function App() {
       clearInterval(timer);
       clearInterval(storageTimer);
       clearInterval(memoryTimer);
+      offT3Latest();
       offHotkeys();
       window.removeEventListener("keydown", noteKey, true);
       offTransitions();

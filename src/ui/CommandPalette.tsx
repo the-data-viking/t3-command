@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { readDraft, writeDraft } from "./drafts";
+import { t3UpdateOffer } from "../t3/t3-update";
 import { expandPlaybook } from "../../shared/playbooks";
 import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
@@ -67,6 +68,9 @@ function buildItems(state: GameState): Item[] {
     } else {
       items.push({ id: `machine:${env.summary.id}`, group: "Machine", label: env.summary.label, detail: `Engineering · ${env.connection}`,
         run: () => { openHost(env.summary.id); worldRef.current?.focusEngineering(env.summary.id); } });
+      const t3 = t3UpdateOffer(env.summary.id, state.envs, state.t3Latest?.version);
+      if (t3?.behind) items.push({ id: `t3-update:${env.summary.id}`, group: "Machine", label: `Update T3 on ${env.summary.label}…`,
+        detail: `${t3.current} → ${t3.latest}`, run: () => { openHost(env.summary.id); worldRef.current?.focusEngineering(env.summary.id); } });
     }
   }
   items.push(

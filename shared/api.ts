@@ -20,11 +20,27 @@ export interface EnvSummary {
   statusDetail?: string;
   serverVersion?: string;
   protocolVersion?: number;
+  /** How this machine's T3 can update itself remotely (absent: only by relaunching it there). */
+  selfUpdate?: T3SelfUpdate;
   tokenExpiresAt?: string;
   addedAt: string;
   /** Uses T3 desktop's own saved connection on the t3-command host (no separate pairing). */
   linked?: boolean;
 }
+
+/** T3's self-update support, from its environment descriptor's capabilities. */
+export interface T3SelfUpdate {
+  /** "boot-service": the T3 background service restarts into the new version; "respawn": the server
+   * relaunches itself; "desktop-managed": the T3 desktop app updates and relaunches. */
+  method: "boot-service" | "respawn" | "desktop-managed";
+  /** The desktop app can be updated remotely (desktop-managed only). */
+  desktopAppUpdate: boolean;
+  /** Running turns can carry on through the restart instead of being interrupted. */
+  continuesThreads: boolean;
+}
+
+/** The newest T3 release on npm (the `t3` package), as the Command server last saw it. */
+export interface T3Latest { version: string | null; checkedAt: number }
 
 export interface ImportDesktopResponse {
   linked: string[];

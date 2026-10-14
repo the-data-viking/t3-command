@@ -39,7 +39,9 @@ function thread(id: string, projectId: string, title: string, state: "working" |
 
 function env(id: string, label: string, projects: ProjectShell[], threads: ThreadShell[]): EnvWorld {
   return {
-    summary: { id, label, url: `https://${id}.demo`, status: "ok", serverVersion: "0.0.45", protocolVersion: 1, addedAt: ago(20000) },
+    // Wesley-Desktop runs the T3 desktop app one release behind; the others update via the T3 service.
+    summary: { id, label, url: `https://${id}.demo`, status: "ok", serverVersion: id === "wes" ? "0.0.44" : "0.0.45", protocolVersion: 1, addedAt: ago(20000),
+      selfUpdate: id === "wes" ? { method: "desktop-managed", desktopAppUpdate: true, continuesThreads: true } : { method: "boot-service", desktopAppUpdate: false, continuesThreads: true } },
     connection: "live", synced: true,
     projects: Object.fromEntries(projects.map((p) => [p.id, p])),
     threads: Object.fromEntries(threads.map((t) => [t.id, t])),

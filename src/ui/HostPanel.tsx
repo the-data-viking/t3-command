@@ -3,6 +3,7 @@ import { addLog, useGame } from "../store";
 import { envClient, logError } from "../t3/environment";
 import { gib, hostView } from "../t3/host";
 import { providerVersions, type ProviderVersion } from "../t3/providers";
+import { methodText, t3UpdateOffer } from "../t3/t3-update";
 import { sfx } from "../game/sfx";
 import { HostHistoryChart } from "./HostHistoryChart";
 import { PixelMeter } from "./PixelArt";
@@ -43,10 +44,65 @@ export function HostPanel({ envId }: { envId: string }) {
         <p className="muted small">Includes all applications on this machine. RAM used is total minus reported availability; it does not measure memory pressure.</p>
         <ScratchBay envId={envId} />
         <StorageSection envId={envId} now={now} />
+        {env?.summary.kind !== "hermes" && <T3Version envId={envId} />}
         {env?.summary.kind !== "hermes" && <AgentClis envId={envId} />}
       </div>
     </aside>
   );
+}
+
+/**
+ * This machine's T3 release, with a one-click update when it's behind npm's latest. The update
+ * restarts T3 there, so it says what happens to crew mid-turn and asks first.
+ */
+function T3Version({ envId }: { envId: string }) {
+  const envs = useGame((s) => s.envs);
+  const latest = useGame((s) => s.t3Latest?.version);
+  const [state, setState] = useState<{ busy?: boolean; error?: string; started?: string }>({});
+  const offer = t3UpdateOffer(envId, envs, latest);
+  if (!offer?.current) return null;
+  const machine = envs[envId]?.summary.label ?? "this machine";
+
+  const update = async () => {
+    if (!offer.latest || state.busy) return;
+    const lines = [
+      `Update T3 on ${machine} from ${offer.current} to ${offer.latest}?`,
+      methodText(offer.method),
+      offer.running === 0 ? "No crew are mid-turn there."
+        : offer.continues ? `${offer.running} crew mid-turn there will carry on after the restart.`
+        : `${offer.running} crew mid-turn there will be interrupted by the restart.`,
+      offer.proven ? `${offer.latest} already runs on another machine in this fleet.`
+        : `Nothing in this fleet runs ${offer.latest} yet: if it speaks a newer orchestration protocol, Command won't be able to follow this machine until Command is updated too.`,
+    ];
+    if (!window.confirm(lines.join("\n\n"))) return;
+    setState({ busy: true });
+    try {
+      await envClient(envId)!.updateT3(offer.latest, offer.continues);
+      sfx.order();
+      addLog({ tone: "info", text: `Updating T3 on ${machine} to ${offer.latest}: it will reconnect when the new version is up`, envId });
+      setState({ started: offer.latest });
+    } catch (err) {
+      sfx.error();
+      logError(`T3 update on ${machine} failed`, err);
+      setState({ error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  return <>
+    <h3>T3 Code</h3>
+    <div className="host-stat"><span>Version</span><strong className={offer.behind ? "outdated" : undefined} title={offer.behind ? `${offer.latest} available` : undefined}>{offer.current}</strong></div>
+    {state.busy && <p className="muted small">Updating to {offer.latest}… T3 downloads it, then restarts; this machine drops off briefly.</p>}
+    {!state.busy && state.started && offer.behind && <p className="muted small">Update to {state.started} started. Waiting for {machine} to come back on the new version…</p>}
+    {!state.busy && !state.started && offer.can && (
+      <button className="btn wide" onClick={() => void update()}>Update T3 to {offer.latest}</button>
+    )}
+    {!state.busy && offer.behind && offer.reason && <p className="muted small">{offer.latest} is available. {offer.reason}</p>}
+    {!state.busy && offer.behind && offer.can && offer.running > 0 && (
+      <p className="small orange">{offer.running} crew mid-turn here {offer.continues ? "will carry on after the restart" : "would be interrupted"}.</p>
+    )}
+    {!offer.behind && offer.latest && <p className="muted small">Up to date (latest release {offer.latest}).</p>}
+    {state.error && <p className="orange small">{state.error}</p>}
+  </>;
 }
 
 /** Installed agent CLI versions, with T3's one-click update when one is behind. */
