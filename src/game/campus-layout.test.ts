@@ -262,3 +262,26 @@ test('bus lanes stack in the order with fewest crossings', () => {
   assert.deepEqual(orderLanes([a, b]), [1, 0]);
   assert.deepEqual(orderLanes([b, a]), [0, 1]);
 });
+
+test('every line runs inside a trunk along the bus and down its corridor', () => {
+  for (const [machines, projects] of [[1, 1], [2, 3], [5, 5], [8, 15]]) {
+    const layout = computeFleetLayout(fleet(machines, projects));
+    const inside = (x: number, y: number) => layout.trunks.some(r => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h);
+    const decksBottom = Math.max(...[...layout.environmentNodes.values()].map(n => n.hull.y + n.hull.h));
+    for (const node of layout.environmentNodes.values()) for (const link of node.links) {
+      // The bus run starts where the drop lands, the first point under the decks; then the corridor.
+      const via = link.via!;
+      const i = via.findIndex(p => p.y > decksBottom);
+      const run = via.slice(i, i + 3);
+      assert.equal(run.length, 3);
+      for (let n = 1; n < run.length; n++) {
+        const a = run[n - 1], b = run[n];
+        const steps = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y)) / 2;
+        for (let s = 0; s <= steps; s++) {
+          const x = a.x + (b.x - a.x) * s / Math.max(1, steps), y = a.y + (b.y - a.y) * s / Math.max(1, steps);
+          assert.ok(inside(x, y), `${machines}×${projects}: ${node.envId} → ${link.stationKey} leaves its trunk at ${x},${y}`);
+        }
+      }
+    }
+  }
+});

@@ -119,6 +119,9 @@ export interface FleetLayout {
   crew: Map<string, CrewLayout>;
   bounds: Rect;
   hub?: Rect;
+  /** The cable runs supply lines share, as overlapping rects: one band per bus lane, and each
+   * corridor narrowing as its lines turn off. Drawn as one casing under the lines. */
+  trunks: Rect[];
 }
 
 export interface ControlCenterLayout {
@@ -472,6 +475,13 @@ export function nodeDrawKey(state: GameState, node: EnvironmentNodeLayout): stri
   return fingerprint(state.artStyle, node, state.envs[node.envId]?.summary.label);
 }
 
+/** Casing either side of a line inside a trunk. */
+const TRUNK_PAD = 6;
+const snapRect = (x: number, y: number, w: number, h: number): Rect => {
+  const x0 = Math.round(x / 2) * 2, y0 = Math.round(y / 2) * 2;
+  return { x: x0, y: y0, w: Math.round((x + w) / 2) * 2 - x0, h: Math.round((y + h) / 2) * 2 - y0 };
+};
+
 type BusLine = { drop: number; downs: number[]; lo: number; hi: number };
 
 /** Crossings if `below`'s lane sits under `above`'s: its drop through `above`'s lane, and
@@ -518,7 +528,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   const hermes = envs.filter(env => env.summary.kind === 'hermes');
   const engineering = envs.filter(env => env.summary.kind !== 'hermes');
   const operators = hermes.length ? botOperators(state) : [];
-  const fleet: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
+  const fleet: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, trunks: [] };
   const groups = groupProjects(envs);
   if (envs.length === 0) return fleet;
   const crew: CrewLayout[] = [];
@@ -564,6 +574,9 @@ export function computeFleetLayout(state: GameState): FleetLayout {
 
   let y = stationsTop;
   const placed = new Map<string, Slot>();
+  // The open space above each station's row: from the bus, or the row above, to its top.
+  const ceiling = new Map<string, number>();
+  let above = laneY(Math.max(0, machines - 1));
   for (const row of rows) {
     let rowH = 0;
     for (const { index, slot } of row) {
@@ -574,13 +587,15 @@ export function computeFleetLayout(state: GameState): FleetLayout {
       station.port = { x: slot.side === "left" ? station.bounds.x + station.bounds.w : station.bounds.x, y: station.interior.y + station.interior.h / 2 };
       fleet.stations.set(station.key, station);
       placed.set(station.key, slot);
+      ceiling.set(station.key, above);
       rowH = Math.max(rowH, station.bounds.h);
     }
+    above = y + rowH;
     y += rowH + STATION_GAP_Y;
   }
 
-  // Corridor lanes, one per supply line: lines to the left column take the corridor's left half,
-  // lines to the right its right half, the shallowest port outermost, so no line turns off
+  // Corridor lanes, one per supply line, packed about the corridor's middle: lines to the left
+  // column on its left, lines to the right on its right, the shallowest port outermost, so no line turns off
   // across another still heading deeper. Into one port, the outer line takes the upper berth;
   // round the axis station it is the other way, as the lines wrap its far side. (Lines cross
   // only on the bus, like interchanges.)
@@ -599,7 +614,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
       lines.sort((a, b) => a.depth - b.depth || a.order - b.order);
       const room = CORRIDOR_W / 2 - 16;
       const pitch = Math.min(LANE, room / Math.max(1, lines.length));
-      lines.forEach((line, n) => corridorLane.set(line.key, wingCentre(w) + (goingLeft ? -1 : 1) * (room - n * pitch)));
+      lines.forEach((line, n) => corridorLane.set(line.key, wingCentre(w) + (goingLeft ? -1 : 1) * (4 + (lines.length - 1 - n) * pitch)));
     }
   }
 
@@ -636,6 +651,8 @@ export function computeFleetLayout(state: GameState): FleetLayout {
     const k = busLane.get(key) ?? index;
     const busY = laneY(k);
     const projects = [...fleet.stations.values()].filter(station => station.members.some(m => m.envId === key));
+    // This machine's band of the bus trunk, under its run from its drop to its farthest corridor.
+    if (projects.length) fleet.trunks.push(snapRect(busLines[index].lo - TRUNK_PAD, busY - TRUNK_PAD, busLines[index].hi - busLines[index].lo + 2 * TRUNK_PAD, 2 * TRUNK_PAD));
     const links = projects.map(station => {
       const slot = placed.get(station.key)!;
       const members = [...new Set(station.members.map(m => m.envId))];
@@ -656,10 +673,17 @@ export function computeFleetLayout(state: GameState): FleetLayout {
       if (slot.side === "centre") {
         // Round the axis station's left side: out of the corridor in the gap above its row.
         const { n, of } = centreRank.get(`${key}|${station.key}`)!;
-        const turnY = station.bounds.y - STATION_GAP_Y / 2 + (n - (of - 1) / 2) * LANE;
+        const top = ceiling.get(station.key)!, gap = station.bounds.y - top;
+        const pitch = Math.min(LANE, (gap - 16) / Math.max(1, of));
+        const turnY = Math.round((top + gap / 2 + (n - (of - 1) / 2) * pitch) / 2) * 2;
         const sideX = station.bounds.x - 24 - (of - 1 - n) * LANE;
         via.push({ x: corridorX, y: turnY }, { x: sideX, y: turnY }, { x: sideX, y: portY });
       } else via.push({ x: corridorX, y: portY });
+      // The corridor trunk holds this line from the bus to where it turns off, out to the middle.
+      const mid = wingCentre(slot.wing);
+      const exitY = slot.side === "centre" ? via[via.length - 2].y : portY;
+      const left = Math.min(corridorX - TRUNK_PAD, mid - 2), right = Math.max(corridorX + TRUNK_PAD, mid + 2);
+      fleet.trunks.push(snapRect(left, laneY(0) - TRUNK_PAD, right - left, exitY - laneY(0) + 2 * TRUNK_PAD));
       return { stationKey: station.key, from, to: { x: station.port.x, y: portY }, via };
     });
     const bay = { x: x + ENV_BAY.x, y: nodeY + ENV_BAY.y, w: ENV_BAY.w, h: ENV_BAY.h };
