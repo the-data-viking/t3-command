@@ -66,7 +66,7 @@ const ENGINEERING_DECK = panel(144, 76, [
   [7, 2, 130, 72, 'H'], [5, 4, 134, 68, 'H'], [3, 6, 138, 64, 'H'], [2, 8, 140, 60, 'H'],
   [7, 2, 130, 1, 'h'], [7, 73, 130, 1, 'D'],
   // Nameplate recess and the environment's identity stripe.
-  [5, 5, 70, 8, 'k'], [78, 7, 60, 2, 'T'], [78, 9, 60, 1, 't'],
+  [5, 5, 70, 8, 'k'], [78, 7, 60, 1, 'T'], [78, 8, 60, 1, 't'],
   // Compute bay: two storage racks.
   [4, 14, 42, 46, 'k'], [5, 15, 40, 44, 'F'], [6, 56, 38, 2, 'D'],
   ...rack(RACK_X[0]), ...rack(RACK_X[1]),
@@ -124,12 +124,13 @@ export const FLIGHT_KIT = { ...S, CONSOLE, TERMINAL, FILES, COMMS, CHAIR, ENGINE
 export function flightCrew(silhouette: Silhouette, tier: Tier, legs: Legs = 'idle', arms: Arms = 'idle', look: Head = ''): Grid {
   // Claude ('round'): a bubble helmet with a wide, curved visor. Codex ('angular'): a squared
   // helmet with a narrow visor slit and a crest. Readable apart at one screen pixel per art pixel.
+  // The visor's glint sits at its upper-left end, where the light comes from.
   const head = silhouette === 'round'
     ? panel(16, 22, [[6, 2, 4, 1, 'k'], [4, 3, 8, 1, 'k'], [3, 4, 10, 5, 'k'], [4, 9, 8, 1, 'k'],
       [5, 3, 6, 1, 'W'], [4, 4, 8, 5, 'W'], [5, 3, 3, 1, 'w'], [4, 4, 1, 2, 'w'],
-      [6, 5, 7, 3, 'k'], [7, 5, 5, 1, 'V'], [7, 6, 5, 1, 'V'], [11, 5, 1, 1, 'v'], [8, 8, 4, 1, 's'], [11, 4, 1, 1, 's']])
+      [6, 5, 7, 3, 'k'], [7, 5, 5, 1, 'V'], [7, 6, 5, 1, 'V'], [7, 5, 1, 1, 'v'], [8, 8, 4, 1, 's'], [11, 4, 1, 1, 's']])
     : panel(16, 22, [[7, 1, 3, 2, 'k'], [8, 1, 1, 1, 'T'], [3, 3, 10, 7, 'k'], [4, 4, 8, 5, 'W'], [4, 4, 8, 1, 'w'],
-      [5, 6, 9, 2, 'k'], [6, 6, 7, 1, 'V'], [12, 6, 1, 1, 'v'], [9, 8, 3, 1, 's'], [11, 4, 1, 2, 's']]);
+      [5, 6, 9, 2, 'k'], [6, 6, 7, 1, 'V'], [6, 6, 1, 1, 'v'], [9, 8, 3, 1, 's'], [11, 4, 1, 2, 's']]);
   if (legs === 'behind') return flightCrewBehind(silhouette, tier, arms, look);
   // The torso is suit, not outline: one outline row under the helmet, a 6-px chest lit from the
   // upper left and shaded on the right, and a 1-px team stripe; the team colour's main home is

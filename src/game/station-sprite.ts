@@ -65,11 +65,12 @@ export class StationSprite {
     // worlds, the layout's own chamfer otherwise. The interior always clears the corners.
     const silhouette = style.hull ?? "industrial";
     const cut = silhouette === "industrial" ? Math.max(8, s.hull[0] - hx) : 40;
+    // A one-art-pixel outline, as every sprite has.
     if (silhouette === "soft") {
-      roundedPlate(g, hx - 4, hy - 4, hw + 8, hh + 8, cut + 4, c.k);
+      roundedPlate(g, hx - PX, hy - PX, hw + 2 * PX, hh + 2 * PX, cut + PX, c.k);
       roundedPlate(g, hx, hy, hw, hh, cut, c.H);
     } else {
-      steppedPlate(g, hx - 4, hy - 4, hw + 8, hh + 8, cut + 4, 4, c.k);
+      steppedPlate(g, hx - PX, hy - PX, hw + 2 * PX, hh + 2 * PX, cut + PX, 4, c.k);
       steppedPlate(g, hx, hy, hw, hh, cut, 4, c.H);
     }
     const i = s.interior;
