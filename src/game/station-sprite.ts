@@ -11,7 +11,7 @@ import { currentStyle, PX, tex } from "./textures";
 import { mapInk, STATUS } from "./theme";
 import { fitLabel, hash, pixelFrame, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
 import { worldRef } from "./world-ref";
-import { dockedPrs, JOBS_PER_SHELF, MAX_PATCHES, MAX_PODS, stationMemory, type DockedPr, type StationMemory } from "./memory";
+import { dockedPrs, JOBS_PER_SHELF, MAX_PATCHES, MAX_PODS, podSpot, stationMemory, tallyBand, type DockedPr, type StationMemory } from "./memory";
 
 // ---- Stations --------------------------------------------------------------------------
 
@@ -351,9 +351,10 @@ export class StationSprite {
    */
   private drawMemory(g: Graphics, s: StationLayout, m: StationMemory, hullTop: number, hullBottom: number, i: { x: number; y: number; w: number; h: number }): void {
     const c = currentStyle().colors;
+    const band = tallyBand(i, hullBottom);
     const bandTop = i.y + i.h + 4, bandH = hullBottom - 6 - bandTop;
-    if (bandH >= 10) {
-      const y = bandTop + Math.floor((bandH - 8) / 4) * 2;
+    if (band) {
+      const y = band.y;
       const groups = Math.min(Math.ceil(m.merged / 5), Math.floor((i.w * 0.5) / 24));
       for (let gi = 0; gi < groups; gi++) {
         const x0 = i.x + 10 + gi * 24;
@@ -400,7 +401,7 @@ export class StationSprite {
     const ink = mapInk(useGame.getState().artStyle);
     const top = hullBottom + 4;
     prs.slice(0, MAX_PODS).forEach((pr, k) => {
-      const x = i.x + i.w - 30 - k * 28, y = top + 6;
+      const { x, y } = podSpot(i, hullBottom, k);
       const pod = new Graphics();
       pod.rect(x + 10, top, 4, 6).fill(c.k);
       pod.rect(x + 11, top, 2, 6).fill(c.D);

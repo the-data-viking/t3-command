@@ -28,7 +28,7 @@ import { doorState } from "./crew-motion";
 import { RenderLoop, type DrawResult } from "./render-loop";
 import { Backdrop } from "./backdrop";
 import { consoleScreen, terminalScreen } from "./screens";
-import { dockedPrs } from "./memory";
+import { dockedPrs, podSpot, stationMemory, tallyMark } from "./memory";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
@@ -52,6 +52,9 @@ export interface MinimapData {
 
 /** The world point at the center of the screen, and the zoom around it. */
 interface CameraView { cx: number; cy: number; zoom: number }
+
+/** How long a merged PR's pod takes to launch away. */
+const LAUNCH_MS = 2200;
 
 export class World {
   private app = new Application();
@@ -92,6 +95,10 @@ export class World {
   private opsLabels?: { title: PixelText; count: PixelText };
   /** Crew beaming out after their thread was archived or removed. */
   private departing = new Set<CrewSprite>();
+  /** Each station's open PR numbers, newest first, as last drawn: a merge launches its pod. */
+  private podsSeen = new Map<string, number[]>();
+  /** Merged PRs leaving: the pod lifting off, then the new tally mark flashing on the hull. */
+  private launches: Array<{ x: number; y: number; at: number; tally?: { x: number; y: number } }> = [];
   private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
   private zoom = 1;
   private time = 0;
@@ -556,6 +563,7 @@ export class World {
           this.stationLayer.addChild(sprite.root);
         }
         sprite.sync(station, state);
+        this.watchMerges(station, state);
       }
       for (const [key, sprite] of this.stations) {
         if (seen.has(key)) continue;
@@ -711,6 +719,65 @@ export class World {
   }
 
   /**
+   * A merged PR's pod launches: open last time, gone now, and merged on one of the station's
+   * threads. The first look at a station only sets the baseline, so nothing launches on load.
+   */
+  private watchMerges(s: StationLayout, state: GameState): void {
+    const open = dockedPrs(state, s).map((p) => p.number);
+    const prev = this.podsSeen.get(s.key);
+    this.podsSeen.set(s.key, open);
+    if (!prev || reducedMotion()) return;
+    const merged = new Set<number>();
+    for (const { envId, projectId } of s.members) {
+      for (const t of Object.values(state.envs[envId]?.threads ?? {})) {
+        if (t.projectId === projectId) for (const pr of t.pullRequests ?? []) if (pr.snapshot?.state === "merged") merged.add(pr.number);
+      }
+    }
+    const hullBottom = s.hull[11];
+    const count = stationMemory(state, s).merged;
+    prev.forEach((n, k) => {
+      if (open.includes(n) || !merged.has(n)) return;
+      const spot = podSpot(s.interior, hullBottom, k);
+      this.launches.push({ x: spot.x, y: spot.y, at: performance.now(), tally: tallyMark(s.interior, hullBottom, count) });
+      sfx.done();
+    });
+  }
+
+  /**
+   * Launches in flight: the pod drops off its strut and away into space on a dithered exhaust in
+   * the world's lamp colour, accelerating, while the new tally mark on the hull flashes.
+   */
+  private drawLaunches(o: Graphics): void {
+    if (!this.launches.length) return;
+    const style = currentStyle(), c = style.colors, lamp = style.light ?? c.w;
+    const now = performance.now();
+    this.launches = this.launches.filter((l) => now - l.at < LAUNCH_MS * 1.5);
+    for (const l of this.launches) {
+      const k = (now - l.at) / LAUNCH_MS;
+      if (k < 1) {
+        // Away from the hull into open space: down and a little outward, accelerating.
+        const fall = Math.round((k * k * 240) / 2) * 2, drift = Math.round((k * k * 40) / 2) * 2;
+        const x = l.x + drift, y = l.y + fall;
+        steppedPlate(o, x - 2, y - 2, 28, 18, 6, 2, c.k);
+        steppedPlate(o, x, y, 24, 14, 4, 2, c.W);
+        o.rect(x + 4, y + 4, 16, 2).fill(c.w);
+        o.rect(x + 16, y + 6, 2, 2).fill(STATUS.done);
+        // Exhaust trailing behind (above) the pod, sparser further back.
+        for (let row = 0; row < 8; row++) {
+          for (let cx = 6; cx < 18; cx += 2) {
+            if ((cx / 2 + row + Math.floor(k * 20)) % (row < 3 ? 2 : 3) !== 0) continue;
+            o.rect(x + cx, y - 4 - row * 2, 2, 2).fill(row < 2 ? 0xffffff : lamp);
+          }
+        }
+      }
+      // The new tally mark blinks in after the pod clears.
+      if (l.tally && k > 0.5 && Math.floor(k * 8) % 2 === 0) {
+        pixelFrame(o, l.tally.x - 4, l.tally.y - 4, 10, 16, STATUS.done, 1, 2);
+      }
+    }
+  }
+
+  /**
    * A room's ceiling strip, in the world's lamp colour: lit with a dithered bloom falling from it,
    * dark when the room is, or catching for a frame in a brownout.
    */
@@ -804,7 +871,7 @@ export class World {
       pixelFrame(this.edge, Math.round(b.x), Math.round(b.y), Math.round(b.w), Math.round(b.h), SELECTION, 0.9, 1);
     }
     if (still) return panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || [...this.crew.values()].some((crew) => crew.animated);
-    const moving = panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
+    const moving = panning || !!this.fade || this.doorsOpen || this.departing.size > 0 || this.launches.length > 0 || !!this.controlCenter?.animated || [...this.crew.values()].some((crew) => crew.animated)
       || Object.values(state.envs).some((env) => env.connection === "connecting" || env.connection === "reconnecting");
     // Nothing moving: the fleet still breathes at a low rate (deck lights and fins, sleepers' z's,
     // glances at consoles, twinkling stars) instead of freezing until the next input.
@@ -837,6 +904,7 @@ export class World {
   private drawLights(state: GameState, sel: Selection, t: number, frame: number): void {
     const g = this.lights.clear();
     const o = this.overlay.clear();
+    this.drawLaunches(o);
 
     // Per-station and per-node tallies from the crew.
     const stationUse = new Map<string, Record<SystemRoom, boolean> & { attention: boolean; monitoringOnly: boolean }>();
