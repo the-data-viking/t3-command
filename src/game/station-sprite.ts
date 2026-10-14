@@ -295,11 +295,16 @@ export class StationSprite {
       // A pylon in hull plating, outlined, from the hull to the nacelle.
       g.rect(right ? h.x + h.w - 2 : nx + nw - 2, ny + 4, 12, 10).fill(c.k);
       g.rect(right ? h.x + h.w - 2 : nx + nw, ny + 6, 12, 6).fill(c.H);
+      // In hull plating, not ivory (ivory capsules are PR pods), with a dark intake ring at the
+      // front and two seams, so it reads as an engine.
       steppedPlate(g, nx - 2, ny - 2, nw + 4, nh + 4, 6, 2, c.k);
-      steppedPlate(g, nx, ny, nw, nh, 4, 2, c.W);
-      g.rect(nx + 4, ny + 2, nw - 8, 2).fill(c.w);
+      steppedPlate(g, nx, ny, nw, nh, 4, 2, c.H);
+      g.rect(nx + 4, ny + 2, nw - 8, 2).fill(c.h);
       g.rect(nx + 4, ny + nh - 4, nw - 8, 2).fill(c.D);
-      g.rect(nx + 14, ny + 6, 16, 6).fill(c.q);
+      const intake = right ? nx + 4 : nx + nw - 8;
+      g.rect(intake, ny + 2, 4, nh - 4).fill(c.k);
+      g.rect(intake + 1, ny + 4, 2, nh - 8).fill(c.G);
+      for (const seam of [0.4, 0.65]) g.rect(nx + Math.round((nw * seam) / 2) * 2, ny + 4, 2, nh - 8).fill(c.D);
       // The nozzle; its glow is drawn by the world only while the station is on duty.
       g.rect(right ? nx + nw : nx - 4, ny + 4, 4, nh - 8).fill(c.k);
     }

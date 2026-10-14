@@ -267,7 +267,9 @@ export class CrewSprite extends Container {
       const legs: Legs = moving ? WALK[Math.floor(t * 8) % 4] : seated ? "behind" : "idle";
       this.figure.y = seated ? 14 : moving && legs === "walkB" ? -PX : 0;
       this.lift = seated ? 14 : 0;
-      const pose = seated ? seatedPose(this.state, this.isQuiet ? 0 : frame, this.isQuiet ? 0 : t, this.seed, this.offline) : { arms: (working ? (frame % 2 ? "typeA" : "typeB") : "idle") as Arms, head: "" as const };
+      // Walking, the arm swings with the strides; at a station, they type while working.
+      const swing: Arms = legs === "walkA" ? "swingA" : legs === "walkC" ? "swingB" : "idle";
+      const pose = seated ? seatedPose(this.state, this.isQuiet ? 0 : frame, this.isQuiet ? 0 : t, this.seed, this.offline) : { arms: (moving ? swing : working ? (frame % 2 ? "typeA" : "typeB") : "idle") as Arms, head: "" as const };
       // At a system they face its fixture, which stands to their left. Facing left is a mirrored
       // texture relit from the upper left, not a flipped sprite (that would light them from the right).
       const facing = seated ? 1 : this.atStation && !moving ? -1 : this.motion.facing;

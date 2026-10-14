@@ -11,7 +11,7 @@ export type Legs = "idle" | "walkA" | "walkB" | "walkC" | "sit" | "behind";
  * Arm poses. Typing alternates A and B; seated crew can also raise a hand (waving between
  * raise and raiseB) or lean back with hands behind the head (relax).
  */
-export type Arms = "idle" | "typeA" | "typeB" | "raise" | "raiseB" | "relax";
+export type Arms = "idle" | "typeA" | "typeB" | "raise" | "raiseB" | "relax" | "swingA" | "swingB";
 /** Where a seated crew member's head is: glancing left or right, or bowed down. */
 export type Head = "" | "left" | "right" | "down";
 
