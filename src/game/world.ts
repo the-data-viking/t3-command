@@ -12,7 +12,7 @@
 // packets only while crew are working. Engineering gauges show measured whole-host load.
 
 import { Application, Container, Graphics, Rectangle, Sprite, type FederatedPointerEvent } from "pixi.js";
-import { cells, STATUS_GLYPHS } from "../art/pixelfont";
+import { cells, MORE_GLYPH, QUIET_GLYPH, STATUS_GLYPHS } from "../art/pixelfont";
 import * as A from "../art/sprites";
 import { setSelection, setSquad, unitKey, useGame, type GameState, type Selection, type SquadMember } from "../store";
 import { isHistory, unitState, type UnitState } from "../t3/derive";
@@ -1132,7 +1132,8 @@ export class World {
         let states = environmentStates.get(key);
         if (!states) environmentStates.set(key, (states = []));
         states.push(sprite.state);
-        if (sprite.state === "working") workingAt.add(`${lay.envId}|${lay.stationKey}`);
+        // A quiet turn's line goes still too: packets would claim traffic nobody has seen.
+        if (sprite.state === "working" && !sprite.isQuiet) workingAt.add(`${lay.envId}|${lay.stationKey}`);
       }
 
       // Console screens show what the crew member at that console is doing.
@@ -1346,7 +1347,7 @@ export class World {
     // Glyphs are 5 cells on a 6-cell dark tile, packed edge to edge so a room holds as many as it can.
     const pitch = 6 * cell;
     const now = Date.now();
-    const glyph = (x: number, y: number, state: UnitState, color: number, selected: boolean, waitedMs = 0, inSquad = false, onMission = false) => {
+    const glyph = (x: number, y: number, state: UnitState, color: number, selected: boolean, waitedMs = 0, inSquad = false, onMission = false, shape = STATUS_GLYPHS[state]) => {
       // A dark tile under each glyph, so it reads on light floors too; white-framed when selected.
       g.rect(x - cell, y - cell, 6 * cell, 6 * cell).fill({ color: 0x0b0d10, alpha: 0.8 });
       // Someone waiting on you gets a frame in their colour that thickens with the wait: from
@@ -1361,7 +1362,7 @@ export class World {
           g.rect(x - cell, y + (k + 1) * cell - cell, cell, cell).fill(SELECTION).rect(x + 4 * cell, y + k * cell - cell, cell, cell).fill(SELECTION);
         }
       }
-      for (const [cx, cy] of cells(STATUS_GLYPHS[state])) g.rect(x + cx * cell, y + cy * cell, cell, cell).fill(color);
+      for (const [cx, cy] of cells(shape)) g.rect(x + cx * cell, y + cy * cell, cell, cell).fill(color);
       // On a mission: a light pip in the tile's top-right corner.
       if (onMission) g.rect(x + 4 * cell, y - cell, cell, cell).fill(0xe8edf2);
     };
@@ -1370,12 +1371,21 @@ export class World {
       const cols = Math.max(1, Math.floor((r.w - cell) / pitch));
       const rows = Math.max(1, Math.floor((r.h - cell) / pitch));
       if (!force && crew.length > cols * rows) return false;
-      crew.slice(0, cols * rows).forEach((sprite, k) => {
+      // Never drop anyone silently: past the room's capacity the last tile says there's more
+      // (crew are ordered most urgent first, so the ones left out are the calmest).
+      const over = crew.length > cols * rows;
+      const shown = over ? crew.slice(0, cols * rows - 1) : crew;
+      if (over) {
+        const k = shown.length;
+        glyph(r.x + 2 * cell + (k % cols) * pitch, r.y + 2 * cell + Math.floor(k / cols) * pitch, "idle", stampInk, false, 0, false, false, MORE_GLYPH);
+      }
+      shown.forEach((sprite, k) => {
         const selected = sel?.kind === "unit" && sel.envId === sprite.envId && sel.threadId === sprite.threadId;
         const waiting = sprite.state === "alert" || sprite.state === "question";
         const waited = waiting ? now - waitingSince(sprite.thread, state.details[sprite.key]?.thread) : 0;
         glyph(r.x + 2 * cell + (k % cols) * pitch, r.y + 2 * cell + Math.floor(k / cols) * pitch, sprite.state,
-          sprite.offline ? 0x59626c : STATUS[sprite.state], selected, waited, sprite.inSquad, !!sprite.mission);
+          sprite.offline ? 0x59626c : STATUS[sprite.state], selected, waited, sprite.inSquad, !!sprite.mission,
+          sprite.state === "working" && sprite.isQuiet && !sprite.offline ? QUIET_GLYPH : STATUS_GLYPHS[sprite.state]);
       });
       return true;
     };

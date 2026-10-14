@@ -131,6 +131,11 @@ export const STATUS_GLYPHS: Record<UnitState, string[]> = {
   sleeping: [".....", ".....", "#####", ".....", "....."],
 };
 
+/** A working turn gone quiet (nothing new for a while): an ellipsis, in the working colour. */
+export const QUIET_GLYPH = [".....", ".....", "#.#.#", ".....", "....."];
+/** More crew than the fleet view can fit here: the rollup under the station has the counts. */
+export const MORE_GLYPH = [".....", "..#..", ".###.", "..#..", "....."];
+
 /** Filled cells of a glyph as [x, y] pairs, for any renderer. */
 export function cells(rows: string[]): Array<[number, number]> {
   const out: Array<[number, number]> = [];

@@ -1,5 +1,5 @@
 import { useDraft } from "./drafts";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { sfx } from "../game/sfx";
 import { envClient, logError } from "../t3/environment";
 import { questionAnswers, requestQuestions, type QuestionAnswer } from "../t3/questions";
@@ -7,7 +7,12 @@ import type { PendingRequest } from "../t3/types";
 import { useGame } from "../store";
 
 /** Shared by the incoming-question dialog and the crew log. Mount with the request ID as key. */
-export function QuestionForm({ request, envId, threadId, onAnswered }: { request: PendingRequest; envId: string; threadId: string; onAnswered?: () => void }) {
+/**
+ * With `keys` (the request card, once armed), 1–9 pick an option of the first question still
+ * unanswered (toggle, for select-all) and Enter sends once every question has an answer; typing in
+ * an answer box keeps its keys.
+ */
+export function QuestionForm({ request, envId, threadId, onAnswered, keys = false }: { request: PendingRequest; envId: string; threadId: string; onAnswered?: () => void; keys?: boolean }) {
   const prefix = useId();
   const connected = useGame((s) => s.envs[envId]?.connection === "live");
   const questions = requestQuestions(request.activity.payload ?? {});
@@ -39,6 +44,30 @@ export function QuestionForm({ request, envId, threadId, onAnswered }: { request
       sfx.error();
     }
   };
+
+  useEffect(() => {
+    if (!keys) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || disabled) return;
+      if ((e.target as HTMLElement | null)?.closest("input:not([type=radio]):not([type=checkbox]), textarea, select, [contenteditable]")) return;
+      if (e.key === "Enter" && answers) { e.preventDefault(); e.stopImmediatePropagation(); void respond(false); return; }
+      const n = Number(e.key);
+      if (!Number.isInteger(n) || n < 1) return;
+      const q = questions.find((q) => !questionAnswers([q], drafts)) ?? questions[0];
+      const option = q?.options[n - 1];
+      if (!q || !option) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const value = option.value ?? option.label;
+      const draft = drafts[q.id] ?? { selected: [], custom: "", useCustom: false };
+      const selected = q.multiSelect
+        ? draft.selected.includes(value) ? draft.selected.filter((s) => s !== value) : [...draft.selected, value]
+        : [value];
+      setDrafts((prev) => ({ ...prev, [q.id]: { ...draft, useCustom: false, selected } }));
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  });
 
   return (
     <form className="question-form" onSubmit={(e) => { e.preventDefault(); void respond(false); }}>

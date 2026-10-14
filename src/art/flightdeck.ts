@@ -161,12 +161,12 @@ function flightCrewBehind(silhouette: Silhouette, tier: Tier, arms: Arms, head: 
   const helmet = silhouette === 'round'
     ? panel(16, 22, shift([[6, 2, 4, 1, 'k'], [4, 3, 8, 1, 'k'], [3, 4, 10, 5, 'k'], [4, 9, 8, 1, 'k'],
       [5, 3, 6, 1, 'W'], [4, 4, 8, 5, 'W'], [5, 3, 3, 1, 'w'], [4, 4, 1, 3, 'w'], [11, 4, 1, 5, 's'], [8, 8, 3, 1, 's'],
-      // The wide visor wraps round the right side: a sliver of glass shows from behind.
-      [12, 5, 1, 2, 'V']]))
+      // The wide visor wraps round the right side: a sliver of glass shows from behind, inside the outline.
+      [11, 5, 1, 2, 'V']]))
     : panel(16, 22, shift([[7, 1, 3, 2, 'k'], [8, 1, 1, 1, 'T'], [3, 3, 10, 7, 'k'], [4, 4, 8, 5, 'W'], [4, 4, 8, 1, 'w'],
       [4, 5, 1, 3, 'w'], [11, 4, 1, 5, 's'], [9, 8, 2, 1, 's'],
-      // The visor slit's end, a single cell on the right edge.
-      [12, 6, 1, 1, 'V']]));
+      // The visor slit's end, a single cell just inside the right edge.
+      [11, 6, 1, 1, 'V']]));
   // Tiers read apart by mass from behind: light crew have a narrow back and a slim pack; heavy
   // crew a deep pack that reaches the chair; standard and reviewer sit between.
   const torso: PixelBox[] = tier === 'light'

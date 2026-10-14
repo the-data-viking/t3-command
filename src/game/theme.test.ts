@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_VISOR, GAUGE, hudAccent, hudMaterials, hudTokens, PROVIDER_VISOR, STATUS, TEAM_COLORS } from "./theme";
+import { DEFAULT_VISOR, GAUGE, HERMES_COLOR, hudAccent, hudMaterials, hudTokens, PROVIDER_VISOR, STATUS, TEAM_COLORS } from "./theme";
+import { BOT_COLORS } from "../t3/bots";
 import { BADGES } from "./map-common";
 import { ART_STYLES } from "../store";
 import { STYLES } from "../art/palettes";
@@ -127,6 +128,10 @@ test("station colours stay clear of every status and gauge colour, and of each o
   for (const [i, a] of TEAM_COLORS.entries()) for (const b of TEAM_COLORS.slice(i + 1)) assert.ok(deltaE(a, b) >= 20, `teams #${a.toString(16)} / #${b.toString(16)}`);
   // The failing gauge is magenta, nowhere near the approval red.
   assert.ok(deltaE(GAUGE.critical, STATUS.alert) >= 40);
+});
+
+test("bot colours stay clear of Hermes tan, which means the hall", () => {
+  for (const bot of BOT_COLORS) assert.ok(deltaE(bot, HERMES_COLOR) >= 15, `bot #${bot.toString(16)} vs Hermes tan`);
 });
 
 test("status badges are drawn only in outline, white and their status colour (V)", () => {

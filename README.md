@@ -38,7 +38,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   will compact automatically soon, or (if it won't) turns may start failing and a fresh thread is
   wiser. It's noted once in the comms log. Damage is drawn from real state too. A failed turn throws
   sparks for a minute, then leaves a scorch mark and a wisp of smoke until the thread moves on. An
-  unreachable machine's deck shows snow on its screens and NO SIGNAL, with severed supply lines.
+  unreachable machine's deck shows snow on its screens and NO SIGNAL, with severed supply lines. Its crew's panels say LAST KNOWN, with no live timer and nothing to send, and W cycles
+  to them last.
   A disk that's nearly full gets hazard stripes, and crew beam out when their thread is archived
   or removed. All of it is static after the first minute, so it never keeps the map redrawing.
   Each station hull is stepped pixel plating with its own exterior: viewports, an engine block and
@@ -51,7 +52,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   Zoomed out past half size, the map switches to a fleet view: stations become flat blocks of
   their rooms (lit while occupied), and each awake crew member and Hermes operator a status glyph
   in the room they're in (most urgent first), so a large fleet stays readable instead of breaking
-  up. Crew seated at a console are drawn from behind, facing its screen.
+  up; a working turn gone quiet shows an ellipsis, and a room with more crew than fit ends in a
+  "+" tile (nobody is dropped silently). Crew seated at a console are drawn from behind, facing its screen.
   Each station there carries a one-line summary (who's waiting and for how long, who's working,
   open PRs), and a waiting crew member's glyph gets a frame that thickens with the wait. Close in,
   crew wear a short tag; the one you point at or select shows their full title. **P** is photo
@@ -231,7 +233,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   hours, 24 hours or 3 days, one lane each, grouped by project. Bars are coloured and named by
   outcome (done, failed, interrupted), and the right edge is live: what's running, or waiting on
   your approval or answer, right now. Hover a bar for its times, model, agent time and time spent
-  waiting on you; click a lane to go to that crew member. Time a turn spent waiting on your
+  waiting on you; click a bar to keep its turn's card open, or a lane's name to go to that crew
+  member. Time a turn spent waiting on your
   approvals and answers is hatched over its bar (recorded as spans for turns watched live). Served
   by `GET /api/history/timeline`.
 - **Posture and plan-first**: the crew panel shows what a crew member may do without asking (Ask

@@ -457,15 +457,17 @@ export class CrewSprite extends Container {
    * wisp of smoke stay until the thread moves on. Under reduced motion only the scorch and smoke.
    */
   private drawDamage(f: Graphics, t: number): void {
-    // Scorch: two rows of dark cells, the outer ones broken up.
-    f.rect(-10, -2, 20, 2).fill(0x16191c).rect(-12, 0, 24, 2).fill(0x16191c);
+    // Scorch: two rows of dark cells, the outer ones broken up (under the chair when seated).
+    const lift = this.lift;
+    f.rect(-10, -2 + lift / 2, 20, 2).fill(0x16191c).rect(-12, lift / 2, 24, 2).fill(0x16191c);
     const still = reducedMotion() || !this.sparking();
     for (let i = 0; i < 3; i++) {
       const drift = still ? i / 3 : (t * 0.35 + i / 3 + this.seed) % 1;
       const x = snap(-8 + Math.sin(drift * 6 + i) * 3);
       // Smoke steps from light to dark grey as it rises, and is gone near the top: no see-through puffs.
       if (drift > 0.8) continue;
-      f.rect(x, snap(-48 - drift * 18), 4, 4).fill(drift < 0.3 ? 0x8a939c : drift < 0.55 ? 0x6a7078 : 0x4c5157);
+      // Seated, the smoke rises beside the console, clear of its ✕ screen.
+      f.rect(lift ? x - 16 : x, snap(-48 + lift - drift * 18), 4, 4).fill(drift < 0.3 ? 0x8a939c : drift < 0.55 ? 0x6a7078 : 0x4c5157);
     }
     if (still) return;
     const cycle = (t * 0.9 + this.seed) % 1;
@@ -473,12 +475,12 @@ export class CrewSprite extends Container {
     const k = cycle / 0.4;
     // The flash: a 5-cell pixel star for the first half of the burst.
     // In the failure colour and a pale hot white: never question yellow.
-    if (k < 0.5) f.rect(8, -34, 2, 6).fill(STATUS.error).rect(6, -32, 6, 2).fill(STATUS.error);
+    if (k < 0.5) f.rect(8, -34 + lift, 2, 6).fill(STATUS.error).rect(6, -32 + lift, 6, 2).fill(STATUS.error);
     for (let j = 0; j < 8; j++) {
       const a = (j / 8) * Math.PI * 2 + this.seed * 6;
       const r = 4 + k * 16;
       if (k > 0.8 && j % 2) continue;
-      f.rect(snap(10 + Math.cos(a) * r), snap(-30 + Math.sin(a) * r * 0.7 + k * k * 10), 2, 2).fill(j % 2 ? STATUS.error : 0xffe0c8);
+      f.rect(snap(10 + Math.cos(a) * r), snap(-30 + lift + Math.sin(a) * r * 0.7 + k * k * 10), 2, 2).fill(j % 2 ? STATUS.error : 0xffe0c8);
     }
   }
 

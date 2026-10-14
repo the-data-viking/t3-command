@@ -37,6 +37,8 @@ export function TimelinePanel() {
   const [view, setView] = useState<TimelineView>();
   const [error, setError] = useState<string>();
   const [hover, setHover] = useState<{ lane: Lane; bar: Bar; x: number; y: number }>();
+  // A clicked bar keeps its turn's card open, with the way to its crew member.
+  const [pinned, setPinned] = useState<{ lane: Lane; bar: Bar; x: number; y: number }>();
   const envs = useGame((s) => s.envs);
   const details = useGame((s) => s.details);
   const now = useClock();
@@ -132,7 +134,7 @@ export function TimelinePanel() {
                           onPointerEnter={(e) => setHover({ lane, bar, ...place(e.clientX, e.clientY) })}
                           onFocus={(e) => { const b = e.currentTarget.getBoundingClientRect(); setHover({ lane, bar, ...place(b.left, b.bottom) }); }}
                           onBlur={() => setHover(undefined)}
-                          onClick={() => open(lane)}>
+                          onClick={(e) => setPinned({ lane, bar, ...place(e.clientX, e.clientY) })}>
                           {(bar.record?.waits ?? []).map(([w0, w1], j) => {
                             const len = bar.end - bar.start;
                             if (len <= 0 || w1 <= bar.start) return null;
@@ -148,25 +150,31 @@ export function TimelinePanel() {
             ))}
           </div>
         )}
-        {hover && <Tooltip {...hover} />}
-        {view && <p className="muted small">{turns} turn{turns === 1 ? "" : "s"} finished · {lanes} crew · {live} running or waiting now. Click a lane to go to its crew member. Finished turns come from the Command server's history; the right edge is live.</p>}
+        {pinned ? <Tooltip {...pinned} onOpen={() => open(pinned.lane)} onClose={() => setPinned(undefined)} /> : hover && <Tooltip {...hover} />}
+        {view && <p className="muted small">{turns} turn{turns === 1 ? "" : "s"} finished · {lanes} crew · {live} running or waiting now. Click a turn for its details, or a lane's name to go to its crew member. Finished turns come from the Command server's history; the right edge is live.</p>}
       </div>
     </div>,
     document.body,
   );
 }
 
-function Tooltip({ lane, bar, x, y }: { lane: Lane; bar: Bar; x: number; y: number }) {
+function Tooltip({ lane, bar, x, y, onOpen, onClose }: { lane: Lane; bar: Bar; x: number; y: number; onOpen?: () => void; onClose?: () => void }) {
   const r = bar.record;
   const tone = TONES[bar.tone];
   return (
-    <div className="tl-tooltip hud-frame" role="tooltip" style={{ left: x, top: y }}>
+    <div className={`tl-tooltip hud-frame ${onClose ? "pinned" : ""}`} role={onClose ? "dialog" : "tooltip"} aria-label={onClose ? `Turn: ${lane.title}` : undefined} style={{ left: x, top: y }}>
       <strong>{lane.title}</strong>
       <span className="muted small">{lane.machine}{r ? ` · ${r.model}` : ""}</span>
       <span><i className="tl-swatch" style={{ background: tone.color }} />{tone.mark} {tone.label}</span>
       <span className="small">{clock(bar.start, true)} → {bar.live ? "now" : clock(bar.end, true)} · {duration(bar.end - bar.start)}</span>
       {r && <span className="small muted">Agent {duration(agentMs(r))}{r.waitMs ? ` · waited on you ${duration(r.waitMs)}` : ""}</span>}
       {r?.error && <span className="small">{r.error}</span>}
+      {onClose && (
+        <span className="tl-tooltip-actions">
+          <button className="btn" onClick={onOpen}>Go to crew</button>
+          <button className="btn" onClick={onClose}>Close</button>
+        </span>
+      )}
     </div>
   );
 }
