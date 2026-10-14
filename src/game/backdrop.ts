@@ -142,8 +142,8 @@ function bodyTexture(body: SkyBody, space: number): Texture {
   const ctx = canvas.getContext("2d")!;
   const hex = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
   const c = size / 2;
-  // Light falls from the body toward the frame's centre: lit side faces the fleet.
-  const lx = body.x < 0.5 ? 1 : -1, ly = body.y < 0.5 ? 0.6 : -0.6;
+  // Lit from the upper left, as everything on the map is (the art bible's one light).
+  const lx = -1, ly = -0.6;
   const ringTilt = -0.32, ringA = body.r * 2.1, ringB = body.r * 0.42;
   const inRing = (dx: number, dy: number): "front" | "back" | undefined => {
     if (body.kind !== "ringed") return undefined;
