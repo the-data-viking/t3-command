@@ -1,3 +1,4 @@
+import { useDraft } from "./drafts";
 import { useState } from "react";
 import { expandPlaybook } from "../../shared/playbooks";
 import { sfx } from "../game/sfx";
@@ -17,7 +18,7 @@ export function SquadBar() {
   const envs = useGame((s) => s.envs);
   const playbooks = useGame((s) => s.playbooks);
   const [ordering, setOrdering] = useState(false);
-  const [text, setText] = useState("");
+  const [text, setText, clearText] = useDraft("squad-order");
   const [queueBusy, setQueueBusy] = useState(true);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<string>();
@@ -52,7 +53,7 @@ export function SquadBar() {
     setResult([sent && `Sent to ${sent}`, queued && `queued for ${queued}`, failed && `${failed} failed`].filter(Boolean).join(" · "));
     setSending(false);
     setRetry(failed ? failedKeys : undefined);
-    if (!failed) { setText(""); setOrdering(false); }
+    if (!failed) { clearText(); setOrdering(false); }
   };
 
   return (

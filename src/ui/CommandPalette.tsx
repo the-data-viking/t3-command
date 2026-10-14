@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { readDraft, writeDraft } from "./drafts";
 import { expandPlaybook } from "../../shared/playbooks";
 import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
@@ -22,6 +23,8 @@ interface Prompt {
   label: string;
   placeholder: string;
   submit: (text: string) => Promise<void>;
+  /** The draft this text is kept in (an order shares its crew member's order box draft). */
+  draftKey?: string;
 }
 
 interface Item {
@@ -114,6 +117,7 @@ function buildItems(state: GameState): Item[] {
       const title = u.thread.title || "Untitled";
       items.push({ id: `order:${u.envId}:${u.thread.id}`, group: "Order", label: `Order "${title}"…`, detail: STATE_LABELS[u.state], run: () => {},
         prompt: { label: `Orders for "${title}"${u.state === "working" ? " · busy: this starts a new turn" : ""}`, placeholder: "Type the order… (or /saved)",
+          draftKey: `order:${u.envId}:${u.thread.id}`,
           submit: async (text) => {
             const client = envClient(u.envId);
             if (!client) throw new Error("This station is not connected.");
@@ -156,8 +160,12 @@ export function CommandPalette() {
 
   const pick = (item: Item) => {
     if (!item.prompt) { item.run(); return; }
-    setPrompt(item.prompt);
-    setQuery("");
+    // The palette's box is one line: a multi-line draft stays in the order box, untouched, and
+    // the palette keeps its own.
+    const key = item.prompt.draftKey, draft = key ? readDraft(key) : "";
+    const shared = !draft.includes("\n");
+    setPrompt({ ...item.prompt, draftKey: key && (shared ? key : `palette-${key}`) });
+    setQuery(key ? (shared ? draft : readDraft(`palette-${key}`)) : "");
     input.current?.focus();
   };
   const submit = async () => {
@@ -166,6 +174,7 @@ export function CommandPalette() {
     setSending(true);
     try {
       await prompt.submit(text);
+      if (prompt.draftKey) writeDraft(prompt.draftKey, "");
       close();
     } catch (err) {
       sfx.error();
@@ -189,7 +198,7 @@ export function CommandPalette() {
   return (
     <div className="modal-backdrop palette-backdrop" onClick={close}>
       <div className="palette hud-frame" role="dialog" aria-label="Command palette" onClick={(e) => e.stopPropagation()}>
-        <input ref={input} className="palette-input" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKey}
+        <input ref={input} className="palette-input" value={query} onChange={(e) => { setQuery(e.target.value); if (prompt?.draftKey) writeDraft(prompt.draftKey, e.target.value); }} onKeyDown={onKey}
           placeholder={prompt ? prompt.placeholder : "Find crew, stations, machines, actions… or type a verb: order, report, PR"}
           disabled={sending} role="combobox" aria-expanded={!prompt} aria-controls="palette-list"
           aria-activedescendant={!prompt && shown[active] ? `palette-${shown[active].id}` : undefined} />

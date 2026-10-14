@@ -14,6 +14,7 @@ import { IncomingToast } from "./ui/IncomingToast";
 import { DebriefCard } from "./ui/DebriefCard";
 import { PhotoMode } from "./ui/PhotoMode";
 import { PlaybooksDialog } from "./ui/PlaybooksDialog";
+import { pruneDrafts } from "./ui/drafts";
 import { TimelinePanel } from "./ui/TimelinePanel";
 import { MissionBoard } from "./ui/MissionBoard";
 import { QueueClear } from "./ui/QueueButton";
@@ -107,6 +108,7 @@ export default function App() {
     })();
     const offHotkeys = installHotkeys();
     registerServiceWorker();
+    pruneDrafts();
     void loadPlaybooks();
     void loadMemory();
     const memoryTimer = setInterval(() => void loadMemory(), MEMORY_REFRESH_MS);

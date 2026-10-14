@@ -2266,3 +2266,6 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .swipe-hint.left { right: var(--space-2); }
 .swipe-hint.right { left: var(--space-2); }
 .event { touch-action: pan-y; }
+
+/* ---- New release ready (waiting for typing to stop) ---- */
+.update-ready { position: fixed; left: 50%; top: 104px; transform: translateX(-50%); z-index: var(--z-alert); display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1h) var(--space-2); font-size: var(--fs-sm); max-width: calc(100vw - 32px); }

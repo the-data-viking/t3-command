@@ -1,3 +1,4 @@
+import { useDraft } from "./drafts";
 import { useId, useState } from "react";
 import { sfx } from "../game/sfx";
 import { envClient, logError } from "../t3/environment";
@@ -10,7 +11,10 @@ export function QuestionForm({ request, envId, threadId, onAnswered }: { request
   const prefix = useId();
   const connected = useGame((s) => s.envs[envId]?.connection === "live");
   const questions = requestQuestions(request.activity.payload ?? {});
-  const [drafts, setDrafts] = useState<Record<string, QuestionAnswer>>({});
+  // Answers in progress are kept per request, so a reload doesn't lose a typed answer.
+  const [saved, save, forget] = useDraft(`answer:${envId}:${threadId}:${request.requestId}`);
+  const drafts = parseAnswers(saved);
+  const setDrafts = (update: (d: Record<string, QuestionAnswer>) => Record<string, QuestionAnswer>) => save(JSON.stringify(update(parseAnswers(saved))));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const answers = questionAnswers(questions, drafts);
@@ -26,6 +30,7 @@ export function QuestionForm({ request, envId, threadId, onAnswered }: { request
       if (dismiss) await client.dismissQuestion(threadId, request.requestId);
       else await client.respondToQuestion(threadId, request.requestId, answers!);
       sfx.order();
+      forget();
       onAnswered?.();
     } catch (err) {
       setBusy(false);
@@ -81,4 +86,8 @@ export function QuestionForm({ request, envId, threadId, onAnswered }: { request
       </div>
     </form>
   );
+}
+
+function parseAnswers(saved: string): Record<string, QuestionAnswer> {
+  try { return saved ? JSON.parse(saved) as Record<string, QuestionAnswer> : {}; } catch { return {}; }
 }

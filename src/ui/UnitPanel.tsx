@@ -1,3 +1,4 @@
+import { useDraft } from "./drafts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cancelFollowUp, followUpFor, queueFollowUp } from "../t3/followups";
 import { expandPlaybook } from "../../shared/playbooks";
@@ -296,7 +297,8 @@ function PendingCard({ request, envId, threadId }: { request: PendingRequest; en
 }
 
 function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string; threadId: string; disabled: boolean; working: boolean; busy: boolean }) {
-  const [text, setText] = useState("");
+  // Kept as a draft per crew member, so a reload or a new release never loses it.
+  const [text, setText, clearText] = useDraft(`order:${envId}:${threadId}`);
   const [sending, setSending] = useState(false);
   const followUps = useGame((s) => s.followUps);
   const queued = followUpFor(followUps, envId, threadId);
@@ -311,7 +313,6 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
   const phone = usePhone();
 
   useEffect(() => {
-    setText("");
     // Focusing on a phone would raise the keyboard over the reports.
     if (!isPhone()) input.current?.focus();
   }, [envId, threadId]);
@@ -323,7 +324,7 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
     try {
       await envClient(envId)?.order(threadId, order);
       sfx.order();
-      setText("");
+      clearText();
     } catch (err) {
       sfx.error();
       logError("Order failed", err);
@@ -340,7 +341,7 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
     try {
       await queueFollowUp(envId, threadId, order);
       sfx.order();
-      setText("");
+      clearText();
     } catch (err) {
       sfx.error();
       logError("Couldn't queue the follow-up", err);

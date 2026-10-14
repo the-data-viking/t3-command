@@ -144,6 +144,12 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   under six hours, and the Command server posts a comms warning (and a push) once it's under 12
   hours. When the fullest provider quota is 75% or more, the top bar's **LIMITS** chip shows when
   it resets (↺1h12m).
+- **Drafts never get lost**: every message box (a crew member's orders, recruiting, answers to
+  questions, squad orders, the palette's order prompt, Hermes tasks) keeps what you've typed in
+  this browser as you type, and clears it when the message is sent, so a reload, a crash or a
+  new release never wipes it. Unsent drafts are kept for 14 days. When a new release goes live
+  while you're typing, the page waits: a banner says it's ready, and it reloads once you leave
+  the field (or the tab is in the background), or when you click **Reload now**.
 - **Work the queue** (**Q**, the **▶ Queue N** button in the top bar, or the palette): one run
   through everything waiting on you, one card at a time — every approval and question, longest
   wait first (anything new that starts waiting mid-run goes next), then every unread report,

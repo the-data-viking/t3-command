@@ -1,3 +1,4 @@
+import { useDraft } from "./drafts";
 import { useMemo, useState } from "react";
 import { RUNTIME_MODES } from "./posture";
 import { sfx } from "../game/sfx";
@@ -144,7 +145,7 @@ export function RecruitForm({ envId, projectId }: { envId: string; projectId: st
   const prefs = useMemo(() => loadPrefs(envId), [envId]);
 
   const [hermesProfile, setHermesProfile] = useState(prefs.hermesProfile ?? "default");
-  const [text, setText] = useState("");
+  const [text, setText, clearText] = useDraft(`recruit:${envId}:${projectId}`);
   const [selection, setSelectionState] = useState<ModelSelection | undefined>(() =>
     defaultSelection(providers, [prefs.modelSelection, project?.defaultModelSelection]),
   );
@@ -184,7 +185,7 @@ export function RecruitForm({ envId, projectId }: { envId: string; projectId: st
       savePrefs(envId, { modelSelection: current, runtimeMode: currentRuntimeMode, hermesProfile, planFirst });
       sfx.recruit();
       addLog({ tone: "good", text: `New worker recruited at ${project?.title ?? "base"}`, envId, threadId });
-      setText("");
+      clearText();
       setSelection({ kind: "unit", envId, threadId });
     } catch (err) {
       setRecruitError(err instanceof Error ? err.message : String(err));
