@@ -1165,7 +1165,7 @@ export class World {
       const deck = this.environmentNodes.get(node.key);
       if (deck) {
         // Unreachable: dimmed with an opaque grey tint, not made see-through.
-        deck.root.tint = live ? 0xffffff : 0x6a6f76;
+        deck.setOffline(!live);
         deck.setActivity(states, live, frame, [...bayStates, ...overflow]);
       }
       const p = node.plate;
