@@ -65,7 +65,8 @@ async function run(base) {
     // A crew member's panel sits below the top bar, never over its controls.
     // On a phone the roster opens by itself when something needs you; otherwise its tab opens it.
     if (phone && !(await page.locator(".crew-row:not(.operator-row)").first().isVisible().catch(() => false))) { await page.tap(".phone-tab"); await page.waitForTimeout(300); }
-    await page.locator(".crew-row:not(.operator-row)").first().click();
+    // (On a phone a Needs you row opens its decision card, so take an on-duty one: they come last.)
+    await page.locator(".crew-row:not(.operator-row)")[phone ? "last" : "first"]().click();
     await page.waitForTimeout(800);
     const bar = await rect(page, ".topbar"), panel = await rect(page, ".panel");
     check(view.name, panel && bar && panel.top >= bar.bottom - 1, `crew panel overlaps the top bar (panel top ${panel?.top}, bar bottom ${bar?.bottom})`);
