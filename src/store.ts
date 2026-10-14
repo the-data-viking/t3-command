@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { FleetMemory } from "../shared/memory";
 import type { CommsKind } from "../shared/comms";
+import type { Dispatch } from "../shared/dispatches";
 import type { FollowUpsView } from "../shared/followups";
 import { DEFAULT_PLAYBOOKS, type Playbook } from "../shared/playbooks";
 import type { EnvSummary, MeResponse, T3Latest } from "../shared/api";
@@ -101,6 +102,8 @@ export interface GameState {
   photo: boolean;
   /** Orders the Command server will send when a busy crew member's turn ends (every device's). */
   followUps: FollowUpsView;
+  /** Squad orders being followed (the Command server's list). */
+  dispatches: Dispatch[];
   /** Saved orders, typed as /name in any order box (from the Command server). */
   playbooks: Playbook[];
   showPlaybooks: boolean;
@@ -270,6 +273,7 @@ export const useGame = create<GameState>()(() => ({
   queueClear: null,
   photo: false,
   followUps: { paused: false, queued: [] },
+  dispatches: [],
   playbooks: DEFAULT_PLAYBOOKS,
   showPlaybooks: false,
   memory: {},

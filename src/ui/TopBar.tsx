@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { DispatchChip } from "./Dispatches";
 import { QueueButton } from "./QueueButton";
 import { sortedEnvs } from "../game/layout";
 import { sfx } from "../game/sfx";
@@ -72,6 +73,7 @@ export function TopBar() {
             <span className="res-key" data-short="FAIL">FAILED</span> <span className="res-val orange">{totals.hurt}</span>
           </button>
         )}
+        <DispatchChip />
         <span className="resource dim optional" title="Crew awake / total">
           <span className="res-key">CREW</span> <span className="res-val">
             {totals.awake}/{totals.crew}

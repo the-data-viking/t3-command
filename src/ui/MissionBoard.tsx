@@ -8,6 +8,7 @@ import { worldRef } from "../game/world";
 import { openEvent, setSelection, unitKey, useGame } from "../store";
 import { pendingRequests, type UnitState } from "../t3/derive";
 import { boardOf, COLUMNS, type Card } from "./board";
+import { DispatchList } from "./Dispatches";
 import { openReview } from "./review";
 import { prState } from "../t3/changes";
 import type { ThreadShell } from "../t3/types";
@@ -44,6 +45,7 @@ export function MissionBoard() {
           )}
           <button className="icon-btn" aria-label="Close mission board" onClick={close}>✕</button>
         </header>
+        <DispatchList onGo={close} />
         <div className="board">
           {COLUMNS.map((col) => (
             <section key={col.id} className={`board-col col-${col.id}`} aria-label={`${col.title}: ${board[col.id].length}`}>

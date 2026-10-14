@@ -1,0 +1,47 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type { Dispatch, DispatchMember } from "../../shared/dispatches";
+import type { EnvWorld } from "../store";
+import type { ThreadShell } from "../t3/types";
+import { dispatchTitle, progressOf, receiptOf } from "./dispatch";
+
+const shell = (id: string, turnId: string, state: string, extra: Partial<ThreadShell> = {}) =>
+  ({ id, title: id, latestTurn: { turnId, state }, session: null, hasPendingApprovals: false, hasPendingUserInput: false, ...extra }) as unknown as ThreadShell;
+const envs = { e: { threads: {
+  working: shell("working", "t2", "running"),
+  asking: shell("asking", "t2", "running", { hasPendingApprovals: true }),
+  done: shell("done", "t2", "completed"),
+  broke: shell("broke", "t2", "error"),
+  halted: shell("halted", "t2", "interrupted"),
+  waiting: shell("waiting", "t1", "running"),
+  archived: shell("archived", "t2", "completed", { archivedAt: "2026-10-13T00:00:00Z" }),
+} } } as unknown as Record<string, EnvWorld>;
+const m = (threadId: string, how: DispatchMember["how"] = "sent", baseTurnId: string | null = "t1"): DispatchMember => ({ envId: "e", threadId, title: threadId, how, baseTurnId });
+const none = { paused: false, queued: [] };
+
+test("a receipt: a new turn since the order means it arrived; that turn's state says what came of it", () => {
+  assert.equal(receiptOf(m("working"), envs, none), "working");
+  assert.equal(receiptOf(m("asking"), envs, none), "needs-you");
+  assert.equal(receiptOf(m("done"), envs, none), "reported");
+  assert.equal(receiptOf(m("broke"), envs, none), "failed");
+  assert.equal(receiptOf(m("halted"), envs, none), "stopped");
+  assert.equal(receiptOf(m("waiting"), envs, none), "sent");
+  assert.equal(receiptOf(m("done", "failed"), envs, none), "unsent");
+  assert.equal(receiptOf(m("archived"), envs, none), "gone");
+  assert.equal(receiptOf(m("missing"), envs, none), "gone");
+});
+
+test("a queued receipt holds while its follow-up is queued, and says so once it's dropped unsent", () => {
+  const queued = { paused: false, queued: [{ id: "f", envId: "e", threadId: "waiting", afterTurnId: "t1", text: "x", createdAt: 0, expiresAt: 1 }] };
+  assert.equal(receiptOf(m("waiting", "queued"), envs, queued), "queued");
+  assert.equal(receiptOf(m("waiting", "queued"), envs, none), "undelivered");
+  assert.equal(receiptOf(m("done", "queued"), envs, none), "reported");
+});
+
+test("progress counts what's over, what was reported, what needs you and what went wrong", () => {
+  const d: Dispatch = { id: "d", at: 0, text: "Status please.", members: [m("working"), m("asking"), m("done"), m("broke"), m("done", "failed")] };
+  const p = progressOf(d, envs, none);
+  assert.deepEqual({ done: p.done, reported: p.reported, needsYou: p.needsYou, trouble: p.trouble, total: p.total }, { done: 3, reported: 1, needsYou: 1, trouble: 2, total: 5 });
+  assert.equal(dispatchTitle({ ...d, text: "\n  Status please.\nMore detail" }), "Status please.");
+  assert.equal(dispatchTitle({ ...d, text: "x".repeat(100) }, 10), `${"x".repeat(9)}…`);
+});
