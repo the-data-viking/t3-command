@@ -6,10 +6,10 @@ import { changesOrder, checksSummary, reviewPullRequest, testsRun } from "./revi
 const act = (id: string, kind: string, detail: string, extra: Record<string, unknown> = {}, turnId = "t2") =>
   ({ id, kind, tone: "tool", summary: detail, createdAt: "2026-10-13T10:00:00Z", turnId, payload: { toolCallId: id.split(":")[0], detail, ...extra } });
 
-test("tests run this turn: the last run of each test command, with how it ended", () => {
+test("tests run this turn: the last run of each test command, with how it ended (passed only on exit 0)", () => {
   const thread = { latestTurn: { turnId: "t2" }, activities: [
     act("a:1", "tool.started", "npm test"), act("a:2", "tool.completed", "npm test", { status: "failed" }),
-    act("b:1", "tool.completed", "npm test"),
+    act("b:1", "tool.completed", "npm test", { exitCode: 0 }),
     act("c:1", "tool.completed", "npx vitest run src/x"),
     act("d:1", "tool.completed", "ls -la"),
     act("e:1", "tool.completed", "pnpm lint", {}, "t1"),
@@ -17,7 +17,7 @@ test("tests run this turn: the last run of each test command, with how it ended"
   ] } as unknown as OrchestrationThread;
   assert.deepEqual(testsRun(thread), [
     { command: "npm test", outcome: "passed" },
-    { command: "npx vitest run src/x", outcome: "passed" },
+    { command: "npx vitest run src/x", outcome: "ran" },
     { command: "cargo test", outcome: "running" },
   ]);
 });

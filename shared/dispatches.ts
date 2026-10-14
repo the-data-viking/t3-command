@@ -35,6 +35,8 @@ export interface Dispatch {
   finishedAt?: number;
 }
 
+/** An order sent now whose turn hasn't started after this long didn't start. */
+export const DISPATCH_START_MS = 3 * 60_000;
 /** Dispatches stop being tracked after this long, or when you close them. */
 export const DISPATCH_TTL_MS = 3 * 24 * 3_600_000;
 export const DISPATCH_MAX = 30;

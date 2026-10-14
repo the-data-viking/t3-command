@@ -11,9 +11,10 @@ export interface MissionPlan {
   parts: Record<string, string>;
 }
 
-/** The order a crew member on a mission receives. */
-export function missionBrief(plan: MissionPlan, crew: string[], me: string, part?: string): string {
-  const others = crew.filter((t) => t !== me);
+/** The order a crew member on a mission receives. `crew` is everyone on it, `me` this member's key. */
+export function missionBrief(plan: MissionPlan, crew: Array<{ key: string; title: string }>, me: string, part?: string): string {
+  // By key, not title: two crew can share a title ("Untitled") and must still see each other.
+  const others = crew.filter((c) => c.key !== me).map((c) => c.title);
   return [
     `Mission "${plan.name.trim()}": ${crew.length} crew working on one goal.`,
     "",
@@ -31,8 +32,10 @@ export const missionKey = (m: SquadMember): string => `${m.envId}:${m.threadId}`
 /** What another crew member said, for sharing with the rest. */
 export interface SharedReply { title: string; reply?: string; status: string; part?: string }
 
-/** Longest share of one crew member's reply passed on to the others. */
+/** Longest share of one crew member's reply passed on to the others… */
 export const SHARED_REPLY_MAX = 1_500;
+/** …and of all of them together, so a follow-up stays well inside the 8,000-character order limit. */
+export const SHARED_TOTAL_MAX = 6_000;
 
 const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
 
@@ -49,9 +52,10 @@ export function followUpBrief(opts: { mission?: { name: string; goal: string }; 
   }
   lines.push(opts.text.trim());
   const shared = (opts.others ?? []).filter((o) => o.reply?.trim());
+  const each = Math.min(SHARED_REPLY_MAX, Math.floor(SHARED_TOTAL_MAX / Math.max(1, shared.length)));
   if (shared.length) {
     lines.push("", opts.mission ? "What the others on this mission reported last time:" : "What the others given this order reported last time:");
-    for (const o of shared) lines.push("", `--- ${o.title}${o.part ? ` (part: ${o.part})` : ""} ---`, clip(o.reply!.trim(), SHARED_REPLY_MAX));
+    for (const o of shared) lines.push("", `--- ${o.title}${o.part ? ` (part: ${o.part})` : ""} ---`, clip(o.reply!.trim(), each));
   }
   if (opts.mission) lines.push("", "When you're done, report what you did, how you verified it, and anything the others need to know.");
   return lines.join("\n");

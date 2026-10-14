@@ -143,12 +143,13 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
             </div>
             <div className="review-block">
               <div className="review-row"><strong>Tests it ran this turn</strong>
-                <span className={`review-verdict v-${!tests.length ? "none" : tests.some((t) => t.outcome === "failed") ? "failing" : tests.some((t) => t.outcome === "running") ? "pending" : "passing"}`}>
-                  {tests.length ? `${tests.filter((t) => t.outcome === "passed").length}/${tests.length} passed` : "none seen"}
+                <span className={`review-verdict v-${!tests.length ? "none" : tests.some((t) => t.outcome === "failed") ? "failing" : tests.some((t) => t.outcome === "running") ? "pending" : tests.every((t) => t.outcome === "passed") ? "passing" : "none"}`}>
+                  {tests.length ? [`${tests.filter((t) => t.outcome === "passed").length}/${tests.length} passed`,
+                    tests.some((t) => t.outcome === "ran") && `${tests.filter((t) => t.outcome === "ran").length} ran, exit code unknown`].filter(Boolean).join(" · ") : "none seen"}
                 </span>
               </div>
               {tests.length > 0 && <ul className="review-list">{tests.map((t) => (
-                <li key={t.command} className={`test-${t.outcome}`}><span className="review-mark">{t.outcome === "passed" ? "✓" : t.outcome === "failed" ? "✕" : "…"}</span><code>{t.command}</code></li>
+                <li key={t.command} className={`test-${t.outcome}`}><span className="review-mark" title={t.outcome === "ran" ? "Finished, but no exit code was reported" : undefined}>{t.outcome === "passed" ? "✓" : t.outcome === "failed" ? "✕" : t.outcome === "ran" ? "·" : "…"}</span><code>{t.command}</code></li>
               ))}</ul>}
             </div>
             {ref && (

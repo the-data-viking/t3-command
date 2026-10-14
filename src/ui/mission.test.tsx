@@ -5,7 +5,7 @@ import { debriefMarkdown, followUpBrief, missionBrief } from "./mission";
 
 test("a mission brief names the mission, the goal, the others on it, and this crew member's part", () => {
   const plan = { name: " Ship the renderer ", goal: " Tiles render top-down at 60 fps. ", parts: {} };
-  const brief = missionBrief(plan, ["Renderer", "Importer", "Lighting"], "Importer", "Port the map importer to the tile format");
+  const brief = missionBrief(plan, [{ key: "r", title: "Renderer" }, { key: "i", title: "Importer" }, { key: "l", title: "Lighting" }], "i", "Port the map importer to the tile format");
   assert.match(brief, /^Mission "Ship the renderer": 3 crew working on one goal\./);
   assert.match(brief, /\nGoal: Tiles render top-down at 60 fps\.\n/);
   assert.match(brief, /\nYour part: Port the map importer to the tile format\n/);
@@ -13,7 +13,7 @@ test("a mission brief names the mission, the goal, the others on it, and this cr
   assert.doesNotMatch(brief, /Also on it:.*Importer/);
   assert.match(brief, /report what you did, how you verified it, and anything the others on this mission need to know\.$/);
   assert.doesNotMatch(brief, /\n\n\n/, "no stacked blank lines");
-  assert.match(missionBrief(plan, ["A", "B"], "A"), /Your part: whatever of the goal fits/);
+  assert.match(missionBrief(plan, [{ key: "a", title: "A" }, { key: "b", title: "B" }], "a"), /Your part: whatever of the goal fits/);
 });
 
 test("a mission needs both a name and a goal; anything else is an ordinary squad order", () => {
@@ -42,4 +42,11 @@ test("a debrief is one markdown document: the goal, then each crew member's repl
     { title: "Renderer", reply: "Done.", status: "reported", part: "Tiles" }, { title: "Lighting", status: "turn failed" }] });
   assert.equal(md, "# Mission: Ship it\n\n**Goal:** Tiles at 60 fps.\n\n## Renderer — reported (part: Tiles)\n\nDone.\n\n## Lighting — turn failed\n\n_No reply._\n");
   assert.match(debriefMarkdown({ order: "Status?\nmore", replies: [] }), /^# Squad order\n\n\*\*Order:\*\* Status\?\n$/);
+});
+
+test("teammates who share a title still see each other, and shared replies stay inside the order limit", () => {
+  const plan = { name: "Ship", goal: "Done.", parts: {} };
+  assert.match(missionBrief(plan, [{ key: "a", title: "Untitled" }, { key: "b", title: "Untitled" }], "a"), /Also on it: Untitled\./);
+  const others = Array.from({ length: 8 }, (_, i) => ({ title: `Crew ${i}`, reply: "x".repeat(3_000), status: "reported" }));
+  assert.ok(followUpBrief({ mission: { name: "Ship", goal: "Done." }, text: "Next.", others }).length < 7_000, "8 replies share 6,000 characters");
 });

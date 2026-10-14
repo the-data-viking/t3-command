@@ -177,3 +177,12 @@ test("replacing or cancelling a queued follow-up is said, and reported as droppe
   assert.equal(followUps.view().queued.length, 0);
   assert.ok(comms.since().some((e) => /1 follow-up dropped: the machine was removed/.test(e.text)));
 });
+
+test("tick re-judges on a clock: a standing order whose send never started is dropped without an update", async () => {
+  const { comms, followUps } = await setup();
+  followUps.observe("e", [shell("a", "completed")]);
+  followUps.add("e", "t", "Next", Date.now(), { times: 2, startedAfter: "a" });
+  followUps.tick(Date.now() + 4 * 60_000);
+  assert.equal(followUps.view().queued.length, 0);
+  assert.ok(comms.since().some((e) => /didn't start a turn/.test(e.text)));
+});

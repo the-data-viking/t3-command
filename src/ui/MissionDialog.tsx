@@ -27,6 +27,7 @@ export function MissionDialog({ crew, busy, onClose }: { crew: SquadMember[]; bu
   const title = (m: SquadMember) => envs[m.envId]?.threads[m.threadId]?.title || "Untitled";
   const plan: MissionPlan = { name, goal, parts };
   const titles = crew.map(title);
+  const roster = crew.map((m) => ({ key: unitKey(m.envId, m.threadId), title: title(m) }));
   const ready = !!name.trim() && !!goal.trim() && crew.length > 0;
 
   const send = async () => {
@@ -35,7 +36,7 @@ export function MissionDialog({ crew, busy, onClose }: { crew: SquadMember[]; bu
     const targets = retry ? crew.filter((m) => retry.keys.includes(unitKey(m.envId, m.threadId))) : crew;
     const partOf = (m: SquadMember) => parts[unitKey(m.envId, m.threadId)];
     const { receipts, sent, queued, failed, failedKeys } = await orderCrew(targets,
-      (m) => missionBrief(plan, titles, title(m), partOf(m)), (m) => queueBusy && busy.includes(m), partOf);
+      (m) => missionBrief(plan, roster, unitKey(m.envId, m.threadId), partOf(m)), (m) => queueBusy && busy.includes(m), partOf);
     let dispatchId = retry?.dispatchId;
     try {
       if (dispatchId) await updateDispatch(dispatchId, receipts);
@@ -82,7 +83,7 @@ export function MissionDialog({ crew, busy, onClose }: { crew: SquadMember[]; bu
         </ul>
         {crew.length > 0 && name.trim() && goal.trim() && (
           <details className="mission-preview"><summary className="muted small">What {titles[0]} will receive</summary>
-            <pre>{missionBrief(plan, titles, titles[0], parts[unitKey(crew[0].envId, crew[0].threadId)])}</pre></details>
+            <pre>{missionBrief(plan, roster, roster[0].key, parts[roster[0].key])}</pre></details>
         )}
         <div className="review-actions">
           {busy.length > 0 && <label className="squad-queue small"><input type="checkbox" checked={queueBusy} onChange={(e) => setQueueBusy(e.target.checked)} /> {busy.length} busy: brief them after their turn</label>}

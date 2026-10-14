@@ -11,7 +11,8 @@ const TEST_COMMAND = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(test|check|lint|typechec
 
 export interface TestRun {
   command: string;
-  outcome: "passed" | "failed" | "running";
+  /** "ran": finished, but without an exit code to say whether it passed. */
+  outcome: "passed" | "failed" | "ran" | "running";
 }
 
 /** The test and check commands the agent ran in its latest turn, and how each ended (last run of each). */
@@ -27,7 +28,9 @@ export function testsRun(thread: OrchestrationThread): TestRun[] {
     const id = String(p.toolCallId ?? a.id);
     const failed = p.status === "failed" || a.tone === "error" || (typeof p.exitCode === "number" && p.exitCode !== 0);
     const done = a.kind === "tool.completed" || p.status === "completed" || p.status === "failed";
-    calls.set(id, { command: command.length > 100 ? `${command.slice(0, 99)}…` : command, outcome: failed ? "failed" : done ? "passed" : "running" });
+    // Passed only on evidence: exit code 0. Finished without one is "ran", not a pass.
+    const passed = typeof p.exitCode === "number" && p.exitCode === 0;
+    calls.set(id, { command: command.length > 100 ? `${command.slice(0, 99)}…` : command, outcome: failed ? "failed" : passed ? "passed" : done ? "ran" : "running" });
   }
   // The last run of each distinct command is what counts.
   const byCommand = new Map<string, TestRun>();

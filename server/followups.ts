@@ -164,6 +164,14 @@ export class FollowUps {
     if (!paused) for (const envId of this.threads.keys()) this.evaluate(envId);
   }
 
+  /**
+   * Re-judge what's queued on a clock too: a retry's backoff, an expiry or a standing order's start
+   * timeout comes due with time, whether or not any thread updates.
+   */
+  tick(now = Date.now()): void {
+    for (const envId of this.threads.keys()) this.evaluate(envId, now);
+  }
+
   /** A machine's latest threads (from the server's own T3 link): send or drop what's due. */
   observe(envId: string, threads: ThreadShell[]): void {
     this.threads.set(envId, new Map(threads.map((t) => [t.id, t])));

@@ -119,8 +119,9 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
         label: `${o.label}.`,
         tone: deny ? "bad" : "good",
         run: async () => {
-          (deny ? sfx.deny : sfx.order)();
+          // The sound confirms the response landed (a failure plays the error instead).
           await envClient(envId)?.respondToApproval(threadId, request.requestId, o.decision);
+          (deny ? sfx.deny : sfx.order)();
         },
       });
     }

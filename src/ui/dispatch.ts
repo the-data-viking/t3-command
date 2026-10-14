@@ -2,18 +2,19 @@
 // live thread. A new turn since the order went out means it reached them; that turn's state says
 // what they did with it. Pure over the store, so every device shows the same from the same fleet.
 
-import type { Dispatch, DispatchMember, MissionInfo } from "../../shared/dispatches";
+import { DISPATCH_START_MS, type Dispatch, type DispatchMember, type MissionInfo } from "../../shared/dispatches";
 import type { EnvWorld, ThreadDetail } from "../store";
 import { unitState } from "../t3/derive";
 import { fetchJson } from "../t3/environment";
 
-export type ReceiptStatus = "unsent" | "queued" | "undelivered" | "sent" | "working" | "needs-you" | "reported" | "failed" | "stopped" | "gone";
+export type ReceiptStatus = "unsent" | "queued" | "undelivered" | "sent" | "unstarted" | "working" | "needs-you" | "reported" | "failed" | "stopped" | "gone";
 
 export const RECEIPT: Record<ReceiptStatus, { mark: string; label: string; done: boolean }> = {
   unsent: { mark: "✕", label: "didn't send", done: true },
   queued: { mark: "…", label: "queued for after its turn", done: false },
   undelivered: { mark: "✕", label: "follow-up not sent", done: true },
   sent: { mark: "…", label: "sent, not started", done: false },
+  unstarted: { mark: "✕", label: "didn't start", done: true },
   working: { mark: "▶", label: "working on it", done: false },
   "needs-you": { mark: "▲", label: "needs you", done: false },
   reported: { mark: "✓", label: "reported", done: true },
@@ -22,7 +23,8 @@ export const RECEIPT: Record<ReceiptStatus, { mark: string; label: string; done:
   gone: { mark: "–", label: "no longer aboard", done: true },
 };
 
-export function receiptOf(m: DispatchMember, envs: Record<string, EnvWorld>): ReceiptStatus {
+/** `sentAt`: when the order went out; a sent order with no turn of its own after 3 minutes didn't start. */
+export function receiptOf(m: DispatchMember, envs: Record<string, EnvWorld>, sentAt = Date.now(), now = Date.now()): ReceiptStatus {
   if (m.how === "failed") return "unsent";
   // The server marks a queued member whose follow-up went unsent; a later turn isn't this order's.
   if (m.dropped) return "undelivered";
@@ -31,7 +33,7 @@ export function receiptOf(m: DispatchMember, envs: Record<string, EnvWorld>): Re
   const turn = thread.latestTurn;
   // Not reached yet. A queued one stays "queued" in the gap between its follow-up going out and
   // the new turn showing up (the follow-up leaves the queue first).
-  if (!turn || turn.turnId === m.baseTurnId) return m.how === "sent" ? "sent" : "queued";
+  if (!turn || turn.turnId === m.baseTurnId) return m.how !== "sent" ? "queued" : now - sentAt > DISPATCH_START_MS ? "unstarted" : "sent";
   const state = unitState(thread);
   if (state === "alert" || state === "question") return "needs-you";
   if (turn.state === "running") return "working";
@@ -52,13 +54,13 @@ export interface DispatchProgress {
 }
 
 export function progressOf(d: Dispatch, envs: Record<string, EnvWorld>): DispatchProgress {
-  const receipts = d.members.map((member) => ({ member, status: receiptOf(member, envs) }));
+  const receipts = d.members.map((member) => ({ member, status: receiptOf(member, envs, d.at) }));
   const count = (pred: (s: ReceiptStatus) => boolean) => receipts.filter((r) => pred(r.status)).length;
   return {
     receipts,
     done: count((s) => RECEIPT[s].done),
     reported: count((s) => s === "reported"),
-    trouble: count((s) => s === "unsent" || s === "undelivered" || s === "failed"),
+    trouble: count((s) => s === "unsent" || s === "undelivered" || s === "unstarted" || s === "failed"),
     needsYou: count((s) => s === "needs-you"),
     total: receipts.length,
   };
@@ -87,7 +89,7 @@ export async function closeDispatch(id: string): Promise<void> {
  * turn since, for a standing order). Undefined until the order reached them and they've written.
  */
 export function replyOf(status: ReceiptStatus, thread: EnvWorld["threads"][string] | undefined, detail: ThreadDetail | undefined): string | undefined {
-  if (!thread || !detail || status === "unsent" || status === "undelivered" || status === "sent" || status === "queued" || status === "gone") return undefined;
+  if (!thread || !detail || status === "unsent" || status === "undelivered" || status === "sent" || status === "unstarted" || status === "queued" || status === "gone") return undefined;
   const turnId = thread.latestTurn?.turnId;
   return [...detail.thread.messages].reverse().find((m) => m.role === "assistant" && m.turnId === turnId && m.text.trim())?.text;
 }
