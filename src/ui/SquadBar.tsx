@@ -4,14 +4,17 @@ import { expandPlaybook } from "../../shared/playbooks";
 import { sfx } from "../game/sfx";
 import { setSquad, useGame } from "../store";
 import { isSettled, unitState } from "../t3/derive";
-import { envClient } from "../t3/environment";
+import { envClient, logError } from "../t3/environment";
 import { queueFollowUp } from "../t3/followups";
+import type { DispatchMember } from "../../shared/dispatches";
+import { recordDispatch, updateDispatch } from "./dispatch";
 import { batchSettle, liveMembers } from "./squad";
 
 /**
  * Batch actions for the crew picked with shift-click, shift-drag or a control group: camp, wake,
  * and one order to all of them. The order names how many it goes to before it's sent; busy crew
  * get it as a follow-up when their turn ends (or straight away, starting a new turn, if you say so).
+ * An order to two or more is recorded as a dispatch, so its receipts can be followed on the board.
  */
 export function SquadBar() {
   const squad = useGame((s) => s.squad);
@@ -24,6 +27,8 @@ export function SquadBar() {
   const [result, setResult] = useState<string>();
   /** After a partial failure: only these get the order again, so nobody receives it twice. */
   const [retry, setRetry] = useState<string[]>();
+  /** The dispatch the last send recorded, so a retry updates its receipts instead of starting another. */
+  const [dispatchId, setDispatchId] = useState<string>();
   const members = liveMembers(squad, envs);
   if (!members.length) return null;
   const settled = members.filter((m) => isSettled(envs[m.envId].threads[m.threadId])).length;
@@ -38,19 +43,29 @@ export function SquadBar() {
     let sent = 0, queued = 0, failed = 0;
     const failedKeys: string[] = [];
     const targets = retry ? orderable.filter((m) => retry.includes(`${m.envId}:${m.threadId}`)) : orderable;
+    const receipts: DispatchMember[] = [];
     await Promise.all(targets.map(async (m) => {
+      const thread = envs[m.envId].threads[m.threadId];
+      const receipt = { envId: m.envId, threadId: m.threadId, title: thread.title || "Untitled", baseTurnId: thread.latestTurn?.turnId ?? null };
       try {
-        if (queueBusy && busy.includes(m)) { await queueFollowUp(m.envId, m.threadId, order); queued++; }
+        if (queueBusy && busy.includes(m)) { await queueFollowUp(m.envId, m.threadId, order); queued++; receipts.push({ ...receipt, how: "queued" }); }
         else {
           const client = envClient(m.envId);
           if (!client) throw new Error("not connected");
           await client.order(m.threadId, order);
           sent++;
+          receipts.push({ ...receipt, how: "sent" });
         }
-      } catch { failed++; failedKeys.push(`${m.envId}:${m.threadId}`); }
+      } catch { failed++; failedKeys.push(`${m.envId}:${m.threadId}`); receipts.push({ ...receipt, how: "failed" }); }
     }));
+    // Receipts land as each send settles; keep them in the squad's order.
+    const rank = new Map(targets.map((m, i) => [`${m.envId}:${m.threadId}`, i]));
+    receipts.sort((a, b) => rank.get(`${a.envId}:${a.threadId}`)! - rank.get(`${b.envId}:${b.threadId}`)!);
+    const tracked = retry && dispatchId ? updateDispatch(dispatchId, receipts)
+      : targets.length >= 2 ? recordDispatch(order, receipts).then((d) => { setDispatchId(d.id); return d; }) : undefined;
+    void tracked?.catch((err) => logError("Couldn't record the dispatch", err));
     (failed ? sfx.error : sfx.order)();
-    setResult([sent && `Sent to ${sent}`, queued && `queued for ${queued}`, failed && `${failed} failed`].filter(Boolean).join(" · "));
+    setResult([sent && `Sent to ${sent}`, queued && `queued for ${queued}`, failed && `${failed} failed`, tracked && "receipts on the board (B)"].filter(Boolean).join(" · "));
     setSending(false);
     setRetry(failed ? failedKeys : undefined);
     if (!failed) { clearText(); setOrdering(false); }
@@ -62,7 +77,7 @@ export function SquadBar() {
       {ordering ? (
         <>
           <input className="squad-order" autoFocus value={text} placeholder="Order for all of them… (or /saved)" disabled={sending}
-            onChange={(e) => { setText(e.target.value); setRetry(undefined); }}
+            onChange={(e) => { setText(e.target.value); setRetry(undefined); setDispatchId(undefined); }}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } if (e.key === "Escape") { e.stopPropagation(); setOrdering(false); setRetry(undefined); } }} />
           {result && <span className="small squad-hint" role="status">{result}</span>}
           {busy.length > 0 && (

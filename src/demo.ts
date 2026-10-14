@@ -5,6 +5,7 @@
 import { summarizeHistory, type TurnRecord } from "../shared/history";
 import type { HostHistory } from "../shared/host";
 import type { StorageView } from "../shared/storage";
+import type { Dispatch, DispatchHow } from "../shared/dispatches";
 import { DEFAULT_PLAYBOOKS } from "../shared/playbooks";
 import { memoryOf } from "../shared/memory";
 import type { EnvWorld, GameState } from "./store";
@@ -220,7 +221,20 @@ export function loadDemoFleet(): void {
     details: demoDetails(envs),
     log: demoLog(),
     hosts: Object.fromEntries(Object.keys(envs).map((id, i) => [id, { history: [], snapshot: { sampledAt: Date.now(), cpuUtilization: 0.2 + i * 0.25, cpuCount: 8, availableMemoryBytes: 8 * GB, totalMemoryBytes: 24 * GB } }])),
+    dispatches: demoDispatches(envs),
   });
+}
+
+/** A squad order playing out: one working, one waiting on you, one reported, one not started, one never sent. */
+function demoDispatches(envs: Record<string, EnvWorld>): Dispatch[] {
+  const member = (envId: string, threadId: string, how: DispatchHow, started: boolean) => {
+    const t = envs[envId].threads[threadId];
+    return { envId, threadId, title: t.title, how, baseTurnId: started ? "before" : t.latestTurn?.turnId ?? null };
+  };
+  return [{ id: "demo-dispatch", at: NOW - 40 * 60_000, text: "Give me a short status: where you are, what's left, and anything blocking you or needing my decision.", members: [
+    member("mini", "a1", "sent", true), member("agent1", "b2", "sent", true), member("mini", "a3", "sent", true),
+    member("lab", "d1", "sent", false), member("wes", "c1", "failed", false),
+  ] }];
 }
 
 /** The demo's review of "Clear out stale worktrees": its branch diff and PR #72 with checks. */

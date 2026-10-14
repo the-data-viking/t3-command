@@ -20,6 +20,7 @@ import { CommsLog } from "./comms.ts";
 import { ReadState } from "./read-state.ts";
 import { PushNotifier } from "./push.ts";
 import { FollowUps } from "./followups.ts";
+import { Dispatches } from "./dispatches.ts";
 import { Playbooks } from "./playbooks.ts";
 import { randomUUID } from "node:crypto";
 import { HostHistoryRecorder } from "./host-history.ts";
@@ -70,6 +71,8 @@ const followUps = new FollowUps(config.dataDir, comms, async (envId, thread, tex
 await followUps.load();
 const playbooks = new Playbooks(config.dataDir);
 await playbooks.load();
+const dispatches = new Dispatches(config.dataDir);
+await dispatches.load();
 recorder.listen({
   observe: (envId, threads) => { comms.observe(envId, threads); followUps.observe(envId, threads); },
   connected: (envId, label) => comms.connected(envId, label),
@@ -239,15 +242,32 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return comms.stream(req, res, (send) => {
       send("read", readState.all());
       send("followups", followUps.view());
+      send("dispatches", dispatches.all());
       const offRead = readState.subscribe((changed) => send("read", changed));
       const offFollowUps = followUps.subscribe((view) => send("followups", view));
-      return () => { offRead(); offFollowUps(); };
+      const offDispatches = dispatches.subscribe((list) => send("dispatches", list));
+      return () => { offRead(); offFollowUps(); offDispatches(); };
     });
   }
   if (pathname === "/api/playbooks" && method === "GET") return sendJson(res, 200, playbooks.all());
   if (pathname === "/api/playbooks" && method === "PUT") {
     try { return sendJson(res, 200, await playbooks.set((await readJson<{ playbooks?: unknown }>(req))?.playbooks)); }
     catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
+  }
+  if (pathname === "/api/dispatches" && method === "GET") return sendJson(res, 200, dispatches.all());
+  if (pathname === "/api/dispatches" && method === "POST") {
+    const body = await readJson<{ text?: unknown; members?: unknown }>(req);
+    try { return sendJson(res, 200, dispatches.add(body?.text, body?.members)); }
+    catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
+  }
+  if (pathname === "/api/dispatches/update" && method === "POST") {
+    const body = await readJson<{ id?: string; members?: unknown }>(req);
+    const updated = dispatches.update(String(body?.id ?? ""), body?.members);
+    return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: "No such dispatch" });
+  }
+  if (pathname === "/api/dispatches/close" && method === "POST") {
+    const body = await readJson<{ id?: string }>(req);
+    return sendJson(res, dispatches.close(String(body?.id ?? "")) ? 200 : 404, dispatches.all());
   }
   if (pathname === "/api/followups" && method === "GET") return sendJson(res, 200, followUps.view());
   if (pathname === "/api/followups" && method === "POST") {
@@ -492,6 +512,7 @@ async function shutdown(): Promise<void> {
   await readState.flush();
   await push.flush();
   await followUps.flush();
+  await dispatches.flush();
   await Promise.all([...hermesBridges.values()].map(async (bridge) => (await bridge).close()));
   process.exit(0);
 }
