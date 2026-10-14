@@ -3,20 +3,25 @@ import { useGame } from "../store";
 import { PixelLabel } from "./PixelArt";
 import { needsYou, needsYouCounts } from "./needs-you";
 import { startQueue } from "./queue-run";
+import { useClock } from "./useClock";
 
 /** The top bar's way into a run through the queue, with how much is waiting. Hidden when there's nothing. */
 export function QueueButton() {
   const envs = useGame((s) => s.envs);
   const details = useGame((s) => s.details);
   const read = useGame((s) => s.readReports);
+  const stuckOk = useGame((s) => s.stuckOk);
   const running = useGame((s) => !!s.queueRun);
-  const counts = useMemo(() => needsYouCounts(needsYou({ envs, details, readReports: read })), [envs, details, read]);
+  // A spin sign can appear with nothing else changing (an hour without a file change): re-check.
+  const now = useClock(true, 10000);
+  const counts = useMemo(() => needsYouCounts(needsYou({ envs, details, readReports: read, stuckOk }, now)), [envs, details, read, stuckOk, now]);
   if (!counts.total || running) return null;
   const parts = [
     counts.approval && `${counts.approval} approval${counts.approval === 1 ? "" : "s"}`,
     counts.question && `${counts.question} question${counts.question === 1 ? "" : "s"}`,
     counts.plan && `${counts.plan} plan${counts.plan === 1 ? "" : "s"}`,
     counts.failure && `${counts.failure} failed`,
+    counts.stuck && `${counts.stuck} may be stuck`,
     counts.report && `${counts.report} report${counts.report === 1 ? "" : "s"}`,
   ].filter(Boolean).join(", ");
   return (

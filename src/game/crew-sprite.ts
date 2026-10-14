@@ -12,6 +12,7 @@ import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { CrewMotion } from "./crew-motion";
 import { quietness } from "../t3/progress";
+import { pulseOf } from "../ui/pulse";
 import { crewTex, currentStyle, PX, tex } from "./textures";
 import { contextLevel, DEFAULT_VISOR, GAUGE, HUD, hudMaterials, mapInk, modelTier, PROVIDER_VISOR, providerSilhouette, SELECTION, STATUS, type Silhouette, type Tier } from "./theme";
 import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale, pixelFrame, pixelOval, REPORT_MS, seatedPose } from "./map-common";
@@ -33,6 +34,9 @@ const WALK: Legs[] = ["walkA", "walkB", "walkC", "walkB"];
 const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
 
 // ---- Crew ------------------------------------------------------------------------------
+
+/** The ↻ over a turn that may be stuck (the HUD's repeat icon). */
+const SPIN_MARK = ["..###.#", ".#...##", "#...###", "#......", "#.....#", ".#...#.", "..###.."];
 
 export class CrewSprite extends Container {
   readonly key: string;
@@ -61,6 +65,11 @@ export class CrewSprite extends Container {
     return this.state === "working" && this.quiet;
   }
   private quietCheckedAt = 0;
+  private spin = false;
+  /** Working, with a spin sign (the same command failing again and again, or an hour with no file change). */
+  get isSpinning(): boolean {
+    return this.state === "working" && this.spin;
+  }
   tier: Tier = "standard";
   silhouette: Silhouette = "round";
   team = 0xffffff;
@@ -344,8 +353,15 @@ export class CrewSprite extends Container {
       if (this.detail && now - this.quietCheckedAt > 5000) {
         this.quietCheckedAt = now;
         this.quiet = quietness(this.thread, this.detail, now)?.kind === "quiet";
+        const p = pulseOf(this.detail, now);
+        this.spin = !!(p?.repeatFail || p?.noChangeMs);
       }
-      if (this.quiet) {
+      if (this.spin) {
+        // May be stuck: an amber ↻ (the gauge's warning, never a status colour) on a dark plate
+        // where the busy pip spins. Still, like the quiet plate: it's a prompt to look.
+        f.rect(4, -46 + this.lift, 18, 18).fill(0x101418);
+        SPIN_MARK.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === "#") f.rect(6 + x * 2, -44 + this.lift + y * 2, 2, 2).fill(GAUGE.high); }));
+      } else if (this.quiet) {
         // Quiet turn: an outlined 7×5 ellipsis plate where the busy pip spins, dark-backed so it
         // reads over a lit screen; three separate grey cells (not a status or gauge colour).
         f.rect(6, -44 + this.lift, 14, 10).fill(mapInk(useGame.getState().artStyle).muted);

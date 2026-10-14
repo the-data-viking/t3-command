@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PixelLabel } from "./PixelArt";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
-import { markReportsRead, setSelection, unitKey, useGame } from "../store";
+import { markReportsRead, markStuckOk, setSelection, unitKey, useGame } from "../store";
 import { changeTotals } from "../t3/changes";
 import { envClient, logError } from "../t3/environment";
 import { turnBreakdown } from "../t3/progress";
@@ -18,6 +18,8 @@ import { approvePlan } from "./plan";
 import { openReview } from "./review";
 import { answerFailure, fixOrder } from "./failed";
 import { isPhone } from "./phone";
+import { pulseOf, pulseText } from "./pulse";
+import { blockedOrder, spinSign } from "./stuck";
 
 /**
  * A finished job, as a card: what the agent reported, what changed, the PRs and their checks, and
@@ -59,7 +61,13 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
   const running = useGame((s) => !!s.queueRun);
   const skip = () => skipInQueue({ envId, threadId });
   // In a run on a phone: swipe left to leave the report for later, right to mark it read.
-  const swipe = useSwipe(running && isPhone(), skip, () => { if (turnId) markReportsRead([{ envId, threadId, turnId }]); sfx.select(); next(); });
+  // (A turn that may be stuck: right says it's fine.)
+  const swipe = useSwipe(running && isPhone(), skip, () => {
+    if (stuck) markStuckOk(envId, threadId, stuck.sign);
+    else if (turnId) markReportsRead([{ envId, threadId, turnId }]);
+    sfx.select();
+    next();
+  });
   const member = { envId, threadId, turnId: turnId ?? "" };
   const next = () => {
     if (useGame.getState().queueRun) { if (!advanceQueue(`${envId}:${threadId}`)) finishQueue(); return; }
@@ -80,7 +88,27 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
   const error = thread?.session?.lastError?.trim();
   // A Hermes operator's report is a conversation, not code: read it, or open the chat to reply.
   const hermes = env?.summary.kind === "hermes";
-  const choices: Array<{ label: string; run: () => void | Promise<void>; tone?: "good" }> = hermes ? [
+  // A turn still running with a spin sign: halt it, ask what's in the way, look, or let it run.
+  const stuck = !failed && thread ? spinSign(thread, detail?.thread, Date.now()) : undefined;
+  const client = envClient(envId);
+  const halt = async () => {
+    await client?.interrupt(threadId);
+    sfx.order();
+  };
+  const choices: Array<{ label: string; run: () => void | Promise<void>; tone?: "good" }> = stuck ? [
+    { label: "Halt it.", run: async () => { try { await halt(); next(); } catch (err) { sfx.error(); logError("Couldn't halt", err); } } },
+    { label: "Halt it and ask what's blocking.", tone: "good", run: async () => {
+      try {
+        await halt();
+        // The order goes once the turn has actually stopped (up to 15 s), so it starts a new turn.
+        for (let i = 0; i < 60 && useGame.getState().envs[envId]?.threads[threadId]?.latestTurn?.state === "running"; i++) await new Promise((r) => setTimeout(r, 250));
+        await client?.order(threadId, blockedOrder(stuck.why));
+        next();
+      } catch (err) { sfx.error(); logError("Couldn't halt and ask", err); }
+    } },
+    { label: "Open the crew log.", run: openLog },
+    { label: "It's fine: let it run (until a new sign).", run: () => { markStuckOk(envId, threadId, stuck.sign); sfx.select(); next(); } },
+  ] : hermes ? [
     { label: "Mark read.", tone: "good", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
     { label: "Open the conversation to reply.", run: openLog },
   ] : failed ? [
@@ -101,7 +129,7 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
     { label: "Open the crew log.", run: openLog },
     { label: "Give follow-up orders.", run: openLog },
     { label: "Mark read.", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
-    { label: "Accept and send to camp.", tone: "good", run: async () => { if (turnId) markReportsRead([member]); await batchSettle(true, [{ envId, threadId }]); next(); } },
+    { label: "Mark read and send to camp.", tone: "good", run: async () => { if (turnId) markReportsRead([member]); await batchSettle(true, [{ envId, threadId }]); next(); } },
   ];
   const choose = async (i: number) => {
     if (!armed || busy) return;
@@ -133,14 +161,15 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
     <div className="event-backdrop" onClick={close}>
       <div className="event debrief ftl-frame" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Report" {...swipe.handlers} style={swipe.style}>
         {swipe.armed === -1 && <div className="swipe-hint left">Later</div>}
-        {swipe.armed === 1 && <div className="swipe-hint right">Mark read</div>}
-        <div className="ftl-tab"><PixelLabel text={failed ? "Failed" : plan ? "Plan" : "Report"} /></div>
+        {swipe.armed === 1 && <div className="swipe-hint right">{stuck ? "It's fine" : "Mark read"}</div>}
+        <div className="ftl-tab"><PixelLabel text={stuck ? "Stuck?" : failed ? "Failed" : plan ? "Plan" : "Report"} /></div>
         <div className="event-meta">{env.summary.label} · {project?.title ?? "?"}</div>
         <div className="event-body">
-          <p className="event-text"><strong>{thread.title || "A crew member"}</strong> {failed ? "failed its last turn." : plan ? "has a plan for you to approve." : "finished."}</p>
+          <p className="event-text"><strong>{thread.title || "A crew member"}</strong> {stuck ? `may be stuck: ${stuck.why}.` : failed ? "failed its last turn." : plan ? "has a plan for you to approve." : "finished."}</p>
+          {stuck && detail && <p className="muted small">{pulseText(pulseOf(detail.thread, Date.now())!, Date.now())} · a prompt to look, not a ruling.</p>}
           {failed && <pre className="event-detail failure-detail">{error ?? "No error message was reported."}</pre>}
           {failed && report && <p className="muted small">Its last words before failing:</p>}
-          {failed && !report ? null : report
+          {stuck ? null : failed && !report ? null : report
             ? <div className="debrief-report">{report.length > 900 ? `${report.slice(0, 899)}…` : report}</div>
             : <p className="muted">{detail ? "No written report this turn." : "Loading the report…"}</p>}
           <div className="debrief-facts">

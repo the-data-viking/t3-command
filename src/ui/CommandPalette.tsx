@@ -106,8 +106,8 @@ function buildItems(state: GameState): Item[] {
   const marks = unread.map((u) => ({ envId: u.envId, threadId: u.thread.id, turnId: u.thread.latestTurn!.turnId }));
   if (unread.length) {
     items.push({ id: "act:read-all", group: "Action", label: `Mark all ${unread.length} reports read`, run: () => markReportsRead(marks) });
-    // Accepting is reading and sending to camp; the count is in the label, so it's never a surprise.
-    items.push({ id: "act:accept-all", group: "Action", label: `Accept all ${unread.length} reports and send to camp`,
+    // Reading them all and sending them to camp; the count is in the label, so it's never a surprise.
+    items.push({ id: "act:accept-all", group: "Action", label: `Mark all ${unread.length} reports read and send to camp`,
       run: () => { markReportsRead(marks); void batchSettle(true, marks.map(({ envId, threadId }) => ({ envId, threadId }))); } });
   }
   // Follow-ups the Command server will send: hold them all, or let them go again.

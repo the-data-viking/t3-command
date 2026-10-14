@@ -35,3 +35,23 @@ test("a notification link opens the decision", () => {
   assert.deepEqual(parseHash("#decide/mini/t%201"), { kind: "unit", envId: "mini", threadId: "t 1", decide: true });
   assert.deepEqual(parseHash("#crew/mini/t1"), { kind: "unit", envId: "mini", threadId: "t1" });
 });
+
+test("a working turn that may be stuck needs you, until you say this sign is fine", async () => {
+  const { markStuckOk } = await import("../store");
+  loadDemoFleet();
+  const s = useGame.getState();
+  const [envId, thread] = Object.entries(s.envs).flatMap(([id, e]) => Object.values(e.threads).map((t) => [id, t] as const))
+    .find(([, t]) => t.latestTurn?.state === "running" && !t.hasPendingApprovals && !t.hasPendingUserInput)!;
+  const turnId = thread.latestTurn!.turnId;
+  const failing = (n: number) => ({ id: `f${n}`, turnId, kind: "tool.completed", createdAt: new Date().toISOString(), summary: "npm test",
+    payload: { toolCallId: `call${n}`, status: "failed", detail: "npm test" } });
+  const detail = { synced: true, thread: { ...thread, latestTurn: thread.latestTurn, activities: [failing(1), failing(2), failing(3)], messages: [], checkpoints: [] } };
+  useGame.setState({ readReports: {}, stuckOk: {}, details: { ...s.details, [`${envId}:${thread.id}`]: detail as never } });
+  const stuck = needsYou(useGame.getState()).find((n) => n.threadId === thread.id);
+  assert.equal(stuck?.kind, "stuck");
+  // After failures, before reports.
+  const kinds = needsYou(useGame.getState()).map((n) => n.kind);
+  assert.ok(kinds.indexOf("stuck") > kinds.lastIndexOf("failure") && kinds.indexOf("stuck") < kinds.indexOf("report"));
+  markStuckOk(envId, thread.id, `${turnId}:fail:npm test`);
+  assert.ok(!needsYou(useGame.getState()).some((n) => n.threadId === thread.id), "waved off");
+});

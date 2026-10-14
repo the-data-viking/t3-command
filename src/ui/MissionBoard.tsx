@@ -16,6 +16,7 @@ import type { ThreadShell } from "../t3/types";
 import { requestSummary, waitingSince } from "./queue";
 import { startQueue } from "./queue-run";
 import { useClock } from "./useClock";
+import { openDebrief } from "./debrief";
 import { pulseOf, pulseText } from "./pulse";
 import { FailedActions } from "./FailedActions";
 import { modelName, stateLabel } from "./util";
@@ -31,7 +32,10 @@ function span(ms: number): string {
 export function MissionBoard() {
   const envs = useGame((s) => s.envs);
   const readReports = useGame((s) => s.readReports);
-  const board = useMemo(() => boardOf(envs, readReports), [envs, readReports]);
+  const details = useGame((s) => s.details);
+  const stuckOk = useGame((s) => s.stuckOk);
+  const now = useClock(true, 10000);
+  const board = useMemo(() => boardOf(envs, readReports, { details, stuckOk }, now), [envs, readReports, details, stuckOk, now]);
   const close = () => useGame.setState({ showBoard: false });
 
 
@@ -76,7 +80,7 @@ function BoardCard({ card, onGo }: { card: Card; onGo: () => void }) {
   const now = useClock();
   const project = env?.projects[thread.projectId]?.title ?? "No project";
   const turn = thread.latestTurn;
-  const since = column === "needs-you" && state !== "error"
+  const since = column === "needs-you" && state !== "error" && state !== "working"
     ? `waiting ${span(now - waitingSince(thread, detail?.thread))}`
     : state === "working" && turn?.startedAt ? `for ${span(now - Date.parse(turn.startedAt))}`
     : turn?.completedAt ? `${span(now - Date.parse(turn.completedAt))} ago` : "";
@@ -108,6 +112,9 @@ function BoardCard({ card, onGo }: { card: Card; onGo: () => void }) {
         <button className="btn small board-card-act" onClick={() => { onGo(); openEvent({ envId, threadId: thread.id }); }}>{state === "alert" ? "Decide" : "Answer"}</button>
       )}
       {state === "error" && <FailedActions envId={envId} thread={thread} />}
+      {column === "needs-you" && state === "working" && (
+        <button className="btn small board-card-act" title="Halt it, ask what's blocking, or let it run" onClick={() => { onGo(); openDebrief({ envId, threadId: thread.id }); }}>Look</button>
+      )}
       {(column === "report" || column === "review") && (
         <button className="btn small board-card-act" onClick={() => { onGo(); openReview({ envId, threadId: thread.id }); }}>Review</button>
       )}

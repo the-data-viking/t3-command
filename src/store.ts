@@ -71,6 +71,8 @@ export interface GameState {
   squad: SquadMember[];
   /** Reports marked read in this browser: unitKey → the turn whose report was read. */
   readReports: Record<string, string>;
+  /** Spin signs you've looked at and let run: unitKey → the signs (stuck.ts) waved off. */
+  stuckOk: Record<string, string[]>;
   /** Command palette and help overlay. */
   showPalette: boolean;
   showHelp: boolean;
@@ -176,6 +178,23 @@ export function markReportsRead(members: Array<{ envId: string; threadId: string
   readSink?.(marks);
 }
 
+const STUCK_KEY = "t3c:stuck-ok";
+function loadStuckOk(): Record<string, string[]> {
+  try { return JSON.parse(localStorage.getItem(STUCK_KEY) ?? "{}") as Record<string, string[]>; } catch { return {}; }
+}
+
+/** You've looked at a spin sign and it's fine: it leaves Needs you until a new sign shows up. */
+export function markStuckOk(envId: string, threadId: string, sign: string): void {
+  useGame.setState((s) => {
+    const key = unitKey(envId, threadId);
+    // Signs carry their turn id, so only this turn's are worth keeping.
+    const turn = sign.split(":")[0];
+    const stuckOk = { ...s.stuckOk, [key]: [...(s.stuckOk[key] ?? []).filter((x) => x.startsWith(`${turn}:`)), sign] };
+    try { localStorage.setItem(STUCK_KEY, JSON.stringify(stuckOk)); } catch { /* best effort */ }
+    return { stuckOk };
+  });
+}
+
 /** Read marks from the server (every device's): merged in, so reading on the phone clears it here too. */
 export function mergeReadMarks(marks: Record<string, string>): void {
   useGame.setState((s) => {
@@ -272,6 +291,7 @@ export const useGame = create<GameState>()(() => ({
   selection: null,
   squad: [],
   readReports: loadReadReports(),
+  stuckOk: loadStuckOk(),
   showPalette: false,
   showHelp: false,
   log: loadLog(),

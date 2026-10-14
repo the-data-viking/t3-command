@@ -88,7 +88,7 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
   const report = [...(detail?.thread.messages ?? [])].reverse().find((m) => m.role === "assistant" && m.turnId === turnId && m.text.trim())?.text;
   const tests = detail ? testsRun(detail.thread) : [];
   const checks = checksSummary(pr);
-  // Where the report and the evidence disagree: shown first, and Mark reviewed stops looking like approval.
+  // Where the report and the evidence disagree: shown first, and Mark read stops looking like approval.
   const doubtful = doubts(report, tests, checks, (thread.pullRequests ?? []).map((p) => p.number));
   const project = env.projects[thread.projectId];
 
@@ -195,13 +195,13 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
           </div>
         )}
         <div className="review-actions">
-          <button className={`btn${doubtful.length ? "" : " approve"}`} disabled={busy} onClick={() => void accept()} title="Mark the report read; it leaves Needs you. (Merging stays on the host.)">Mark reviewed</button>
+          <button className={`btn${doubtful.length ? "" : " approve"}`} disabled={busy} onClick={() => void accept()} title="Mark the report read; it leaves Needs you. Reading isn't approving: merging stays on the host.">Mark report read</button>
           {asking
             ? <button className="btn primary" disabled={busy || !notes.trim() || env.connection !== "live"} onClick={() => void requestChanges()}>Send changes</button>
             : <button className="btn" disabled={env.connection !== "live"} onClick={() => setAsking(true)}>Request changes…</button>}
           {ref && <a className="btn" href={ref.url} target="_blank" rel="noreferrer">Open PR ↗</a>}
           <span className="spacer" />
-          <button className="btn" disabled={busy} onClick={() => void camp()}>Mark reviewed, send to camp</button>
+          <button className="btn" disabled={busy} onClick={() => void camp()}>Mark read, send to camp</button>
         </div>
       </div>
     </div>,

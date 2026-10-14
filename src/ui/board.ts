@@ -1,15 +1,16 @@
 // The mission board's model: every crew member's current work in one column, by what it needs
 // next — you, a plan, building, review of an open PR, or reading its report.
 
-import type { EnvWorld } from "../store";
+import type { EnvWorld, GameState } from "../store";
 import type { UnitState } from "../t3/derive";
 import type { ThreadShell } from "../t3/types";
 import { allUnits, reportRead } from "./util";
+import { needsYou } from "./needs-you";
 
 export type Column = "needs-you" | "building" | "review" | "report";
 
 export const COLUMNS: Array<{ id: Column; title: string; hint: string }> = [
-  { id: "needs-you", title: "Needs you", hint: "Approvals, questions, plans to approve and failed turns" },
+  { id: "needs-you", title: "Blocked on you", hint: "Approvals, questions, plans to approve, failed turns and turns that may be stuck: Needs you, less the reports (they have their own column), in the same order" },
   { id: "building", title: "Building", hint: "Turns and background work running (plan-mode crew are drafting their plan)" },
   { id: "report", title: "Report ready", hint: "Finished, report not read yet" },
   { id: "review", title: "In review", hint: "Report read, a PR still open" },
@@ -32,8 +33,12 @@ export function columnOf(thread: ThreadShell, state: UnitState, read: boolean): 
   return undefined;
 }
 
-/** The board: each column's cards, the longest-standing first. Hermes operators aren't missions. */
-export function boardOf(envs: Record<string, EnvWorld>, readReports: Record<string, string>): Record<Column, Card[]> {
+/**
+ * The board: each column's cards, the longest-standing first; the first column in Needs you's own
+ * order, with turns that may be stuck moved into it from Building. Hermes operators aren't missions.
+ */
+export function boardOf(envs: Record<string, EnvWorld>, readReports: Record<string, string>,
+  watch: Partial<Pick<GameState, "details" | "stuckOk">> = {}, now = Date.now()): Record<Column, Card[]> {
   const board: Record<Column, Card[]> = { "needs-you": [], building: [], review: [], report: [] };
   for (const u of allUnits(envs)) {
     if (envs[u.envId]?.summary.kind === "hermes") continue;
@@ -42,5 +47,12 @@ export function boardOf(envs: Record<string, EnvWorld>, readReports: Record<stri
   }
   const since = (c: Card) => Date.parse(c.thread.latestTurn?.completedAt ?? c.thread.latestTurn?.startedAt ?? c.thread.updatedAt) || 0;
   for (const cards of Object.values(board)) cards.sort((a, b) => since(a) - since(b) || a.thread.id.localeCompare(b.thread.id));
+  const needs = needsYou({ envs, readReports, ...watch }, now);
+  const order = new Map(needs.map((n, i) => [`${n.envId}:${n.threadId}`, i]));
+  const stuck = new Set(needs.filter((n) => n.kind === "stuck").map((n) => `${n.envId}:${n.threadId}`));
+  const key = (c: Card) => `${c.envId}:${c.thread.id}`;
+  board["needs-you"].push(...board.building.filter((c) => stuck.has(key(c))).map((c) => ({ ...c, column: "needs-you" as const })));
+  board.building = board.building.filter((c) => !stuck.has(key(c)));
+  board["needs-you"].sort((a, b) => (order.get(key(a)) ?? Infinity) - (order.get(key(b)) ?? Infinity));
   return board;
 }
