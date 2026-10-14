@@ -69,9 +69,9 @@ export function terminalScreen(frame: number): Grid {
 /** Status shapes, 4 rows tall, as in the badges. */
 const SHAPES: Partial<Record<UnitState, string[]>> = {
   alert: ["...x...", "..x.x..", ".x...x.", "xxxxxxx"],
-  question: ["..x..", ".x.x.", ".x.x.", "..x.."],
+  question: ["..x..", ".xxx.", ".xxx.", "..x.."],
   done: ["....x", "...x.", "x.x..", ".x..."],
-  error: ["x..x", ".xx.", ".xx.", "x..x"],
+  error: ["x...x", ".x.x.", ".x.x.", "x...x"],
 };
 
 function shape(state: UnitState): Grid | undefined {

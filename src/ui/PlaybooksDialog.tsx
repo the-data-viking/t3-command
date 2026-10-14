@@ -1,3 +1,4 @@
+import { PixelLabel } from "./PixelArt";
 import { useState } from "react";
 import { PLAYBOOK_NAME, type Playbook } from "../../shared/playbooks";
 import { useGame } from "../store";
@@ -21,7 +22,7 @@ export function PlaybooksDialog() {
     <div className="modal-backdrop" onClick={close}>
       <div className="modal playbooks-modal" role="dialog" aria-label="Saved orders" onClick={(e) => e.stopPropagation()}>
         <header className="panel-head">
-          <h2>Saved orders</h2><span className="spacer" />
+          <h2 className="title-tab"><PixelLabel text="Saved orders" /></h2><span className="spacer" />
           <button className="icon-btn" aria-label="Close" onClick={close}>✕</button>
         </header>
         <p className="muted small">Type <strong>/name</strong> at the start of any order box (or a squad order) to use one. Shared by every device.</p>

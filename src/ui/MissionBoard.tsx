@@ -1,6 +1,7 @@
 // The mission board: the whole fleet's work as cards in columns — what needs you, what's being
 // planned, built, reviewed, or waiting to be read — so you can see where everything stands.
 
+import { PixelLabel } from "./PixelArt";
 import { useMemo } from "react";
 import { createPortal } from "react-dom";
 import { worldRef } from "../game/world";
@@ -35,7 +36,7 @@ export function MissionBoard() {
     <div className="modal-backdrop" onClick={close}>
       <div className="modal board-modal" role="dialog" aria-label="Mission board" onClick={(e) => e.stopPropagation()}>
         <header className="panel-head">
-          <h2>Mission board</h2>
+          <h2 className="title-tab"><PixelLabel text="Mission board" /></h2>
           <span className="muted small">{total} mission{total === 1 ? "" : "s"} in flight</span>
           <span className="spacer" />
           {board["needs-you"].length + board.report.length > 0 && (

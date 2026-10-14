@@ -312,7 +312,8 @@ export class CrewSprite extends Container {
       // A pixel "z" drifting up from the pillow, gone before it fades (no translucency).
       if (drift < 0.85) {
         const zx = snap(10 + drift * 8), zy = snap(-14 - drift * 14);
-        f.rect(zx, zy, 6, 2).fill(0xffffff).rect(zx + 2, zy + 2, 2, 2).fill(0xffffff).rect(zx, zy + 4, 6, 2).fill(0xffffff);
+        // A "z": top bar, a diagonal of two cells, bottom bar (a single centre cell read as an I-beam).
+        f.rect(zx, zy, 8, 2).fill(0xffffff).rect(zx + 4, zy + 2, 2, 2).fill(0xffffff).rect(zx + 2, zy + 4, 2, 2).fill(0xffffff).rect(zx, zy + 6, 8, 2).fill(0xffffff);
       }
       return;
     }

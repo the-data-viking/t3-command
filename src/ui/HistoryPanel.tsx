@@ -1,5 +1,6 @@
 // Turn history recorded by the Command server, plus spend history from each machine's T3.
 
+import { PixelLabel } from "./PixelArt";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { agentMs, type HistorySummary, type TurnRecord } from "../../shared/history";
@@ -49,7 +50,7 @@ export function HistoryPanel() {
     <div className="modal-backdrop" onClick={close}>
       <div className="modal history-modal" role="dialog" aria-label="Turn history" onClick={(e) => e.stopPropagation()}>
         <header className="panel-head">
-          <h2>Turn history</h2>
+          <h2 className="title-tab"><PixelLabel text="Turn history" /></h2>
           <span className="spacer" />
           <div className="history-ranges" role="group" aria-label="Range">
             {RANGES.map((r) => <button key={r} className={`btn small ${r === days ? "primary" : ""}`} aria-pressed={r === days} onClick={() => setDays(r)}>{r} days</button>)}

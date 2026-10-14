@@ -101,8 +101,10 @@ export function glyphFor(ch: string): string[] {
  * ▲ approval, ◆ question, ● working, ○ monitoring, ✓ report, ✕ failed, ▪ idle, — asleep.
  */
 export const STATUS_GLYPHS: Record<UnitState, string[]> = {
-  alert: ["..#..", ".###.", ".###.", "#####", "#####"],
-  question: ["..#..", ".###.", "#####", ".###.", "..#.."],
+  // ▲ with its "!" knocked out (a stepped triangle alone read as a house), ◆ with a hollow core
+  // (a solid one read as a "+") at the fleet view's 3-px cells.
+  alert: ["..#..", ".###.", "##.##", "#####", "##.##"],
+  question: ["..#..", ".###.", "##.##", ".###.", "..#.."],
   working: [".###.", "#####", "#####", "#####", ".###."],
   monitoring: [".###.", "#...#", "#...#", "#...#", ".###."],
   done: ["....#", "...##", "#.##.", "###..", ".#..."],

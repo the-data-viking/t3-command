@@ -106,7 +106,7 @@ export function CrewRoster() {
             <CrewPortrait instanceId={u.thread.modelSelection.instanceId} model={u.thread.modelSelection.model} team={stationColor(useGame.getState(), u.envId)} scale={1} />
           </span>
           <span className="crew-text">
-            <span className="crew-name">{u.thread.title || "Untitled"}</span>
+            <span className="crew-name" title={u.thread.title || undefined}>{u.thread.title || "Untitled"}</span>
             <span className="crew-sub">
               <span className={`crew-state st-${read(u) ? "idle" : isBackground(u.thread, u.state) ? "background" : u.state}`}>{read(u) ? "Report read" : stateLabel(u.thread, u.state)}</span>
               {u.thread.interactionMode === "plan" && <span className="plan-tag" title="Plan mode: proposes a plan before building">PLAN</span>}

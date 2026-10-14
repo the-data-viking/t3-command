@@ -20,8 +20,8 @@ export function QueueButton() {
     counts.report && `${counts.report} report${counts.report === 1 ? "" : "s"}`,
   ].filter(Boolean).join(", ");
   return (
-    <button className="btn queue-btn" title={`Needs you: ${parts}. Work through it one card at a time (Q).`} onClick={() => startQueue()}>
-      ▶ Needs you <strong>{counts.total}</strong>
+    <button className="btn queue-btn" title={`Needs you: ${parts}. Work through it one card at a time (Q).`} aria-label={`Needs you: ${counts.total}. Work through it`} onClick={() => startQueue()}>
+      ▶ <span className="queue-label">Needs you</span> <strong>{counts.total}</strong>
     </button>
   );
 }
