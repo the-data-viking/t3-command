@@ -788,10 +788,17 @@ export class World {
     const prev = this.podsSeen.get(s.key);
     this.podsSeen.set(s.key, open);
     if (!prev || reducedMotion()) return;
+    // Merged just now: one Command learned of later (a correction from GitHub) that merged long
+    // ago joins the tally quietly, without a launch.
     const merged = new Set<number>();
+    const now = Date.now();
     for (const { envId, projectId } of s.members) {
       for (const t of Object.values(state.envs[envId]?.threads ?? {})) {
-        if (t.projectId === projectId) for (const pr of t.pullRequests ?? []) if (pr.snapshot?.state === "merged") merged.add(pr.number);
+        if (t.projectId !== projectId) continue;
+        for (const pr of t.pullRequests ?? []) {
+          const at = pr.snapshot?.mergedAt ? Date.parse(pr.snapshot.mergedAt) : NaN;
+          if (pr.snapshot?.state === "merged" && !(now - at > 10 * 60_000)) merged.add(pr.number);
+        }
       }
     }
     const hullBottom = s.hull[11];

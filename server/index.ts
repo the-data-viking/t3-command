@@ -23,6 +23,7 @@ import { FollowUps } from "./followups.ts";
 import { Decisions } from "./decide.ts";
 import { Dispatches } from "./dispatches.ts";
 import { PrDetails } from "./pr-detail.ts";
+import { PrStatesWatcher } from "./pr-states.ts";
 import type { OrchestrationThread } from "../src/t3/types.ts";
 import { Playbooks } from "./playbooks.ts";
 import { randomUUID } from "node:crypto";
@@ -96,19 +97,23 @@ await followUps.load();
 const playbooks = new Playbooks(config.dataDir);
 await playbooks.load();
 const prDetails = new PrDetails();
+const prStates = new PrStatesWatcher(prDetails);
 const dispatches = new Dispatches(config.dataDir);
 await dispatches.load();
 dispatches.readReportsWith(readReply);
 dispatches.announceTo(comms, (envId, threadId) => followUps.view().queued.some((f) => f.envId === envId && f.threadId === threadId));
 followUps.onDrop((f) => dispatches.followUpDropped(f.envId, f.threadId, f.afterTurnId));
 recorder.listen({
-  observe: (envId, threads) => { comms.observe(envId, threads); followUps.observe(envId, threads); dispatches.observe(envId, threads); },
+  observe: (envId, threads) => { comms.observe(envId, threads); followUps.observe(envId, threads); dispatches.observe(envId, threads); prStates.observe(envId, threads); },
   connected: (envId, label) => comms.connected(envId, label),
   disconnected: (envId, label) => comms.disconnected(envId, label),
-  removed: (envId) => { comms.forget(envId); followUps.forget(envId); dispatches.forget(envId); },
+  removed: (envId) => { comms.forget(envId); followUps.forget(envId); dispatches.forget(envId); prStates.forget(envId); },
 });
 // Follow-up retries and expiries, and orders that never started, come due with time.
 setInterval(() => { followUps.tick(); dispatches.tick(); }, 15_000).unref();
+// Open PRs re-read through this host's GitHub login: soon after start, then every two minutes.
+setTimeout(() => void prStates.tick(), 20_000).unref();
+setInterval(() => void prStates.tick(), 2 * 60_000).unref();
 setInterval(() => void comms.prune().catch((err) => console.warn("[comms] prune failed", (err as Error).message)), 6 * 3_600_000).unref();
 recorder.start();
 // Announce T3 updates on each machine, and protocol changes Command can't follow yet.
@@ -273,10 +278,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       send("read", readState.all());
       send("followups", followUps.view());
       send("dispatches", dispatches.all());
+      send("prs", prStates.all());
       const offRead = readState.subscribe((changed) => send("read", changed));
       const offFollowUps = followUps.subscribe((view) => send("followups", view));
       const offDispatches = dispatches.subscribe((list) => send("dispatches", list));
-      return () => { offRead(); offFollowUps(); offDispatches(); };
+      const offPrs = prStates.subscribe((states) => send("prs", states));
+      return () => { offRead(); offFollowUps(); offDispatches(); offPrs(); };
     });
   }
   if (pathname === "/api/playbooks" && method === "GET") return sendJson(res, 200, playbooks.all());

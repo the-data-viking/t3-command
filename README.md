@@ -160,7 +160,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   (up to four, then "+N"), with a light for its checks: green passing, red failing, white pending,
   dim for a draft. Close up each shows its number; tapping one opens the PR. When a PR merges, its
   pod drops off its strut and away into space on a dithered exhaust, and the new tally mark
-  flashes onto the hull (not under reduced motion).
+  flashes onto the hull (not under reduced motion). PR states come from T3, corrected by GitHub:
+  the Command server re-reads every PR a machine still calls open (every few minutes, through its
+  own host's `gh` login), so a PR whose machine can't refresh it doesn't stay docked after it
+  merges. One that turns out to have merged long ago joins the tally quietly, without a launch.
 - **Hazard telegraphs**: warnings before something runs out, not after. A disk filling up (a
   least-squares line over the last six hours of readings) shows **FULL IN 8H** on its engineering
   deck and in the station panel, turns amber under two days and critical (with hazard stripes)
