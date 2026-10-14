@@ -9,6 +9,7 @@ import { openEvent, setSelection, unitKey, useGame } from "../store";
 import { pendingRequests, type UnitState } from "../t3/derive";
 import { boardOf, COLUMNS, type Card } from "./board";
 import { DispatchList } from "./Dispatches";
+import { openPrs } from "./dock";
 import { openReview } from "./review";
 import { prState } from "../t3/changes";
 import type { ThreadShell } from "../t3/types";
@@ -33,6 +34,7 @@ export function MissionBoard() {
   const close = () => useGame.setState({ showBoard: false });
 
 
+  const prs = useMemo(() => openPrs(envs).length, [envs]);
   const total = COLUMNS.reduce((n, c) => n + board[c.id].length, 0);
   return createPortal(
     <div className="modal-backdrop" onClick={close}>
@@ -44,6 +46,7 @@ export function MissionBoard() {
           {board["needs-you"].length + board.report.length > 0 && (
             <button className="btn small" onClick={() => { close(); startQueue(); }} title="One card at a time (Q)">▶ Work the queue</button>
           )}
+          {prs > 0 && <button className="btn small" onClick={() => useGame.setState({ showBoard: false, showDock: true })} title="Every open PR, by how ready it is to merge (D)">Shipping dock ({prs})</button>}
           <button className="icon-btn" aria-label="Close work board" onClick={close}>✕</button>
         </header>
         <DispatchList onGo={close} />

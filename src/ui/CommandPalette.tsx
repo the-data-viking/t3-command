@@ -81,6 +81,7 @@ function buildItems(state: GameState): Item[] {
     { id: "go:history", group: "Go to", label: "Turn history", detail: "H", run: () => useGame.setState({ showHistory: true }) },
     { id: "go:timeline", group: "Go to", label: "Fleet timeline", detail: "T", run: () => useGame.setState({ showTimeline: true }) },
     { id: "go:board", group: "Go to", label: "Work board: every crew member's work, missions and orders", detail: "B", run: () => useGame.setState({ showBoard: true }) },
+    { id: "go:dock", group: "Go to", label: "Shipping dock: every open PR, by how ready it is to merge", detail: "D", run: () => useGame.setState({ showDock: true }) },
     { id: "go:stations", group: "Go to", label: "Stations (manage machines)", run: () => useGame.setState({ showEnvManager: true }) },
     { id: "go:playbooks", group: "Go to", label: "Saved orders (/name shortcuts)", run: () => useGame.setState({ showPlaybooks: true }) },
     { id: "go:help", group: "Go to", label: "Keyboard and map help", detail: "?", run: () => useGame.setState({ showHelp: true }) },

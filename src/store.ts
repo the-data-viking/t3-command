@@ -86,6 +86,8 @@ export interface GameState {
   showHistory: boolean;
   showTimeline: boolean;
   showBoard: boolean;
+  /** The shipping dock: every open PR, by how ready it is to merge. */
+  showDock: boolean;
   /** Desktop notifications for approvals and questions while the tab isn't in view. */
   notify: boolean;
   /** The crew member whose pending approval/question is shown as an event dialog. */
@@ -272,6 +274,7 @@ export const useGame = create<GameState>()(() => ({
   showHistory: false,
   showTimeline: false,
   showBoard: false,
+  showDock: false,
   notify: loadNotify(),
   event: null,
   incoming: null,

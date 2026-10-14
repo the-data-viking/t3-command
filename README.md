@@ -198,6 +198,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   approval or question asks, the last error, and PR chips; **Decide**, **Answer** and **Read
   report** act from the card, and clicking one goes to its crew member. Crew at camp or idle
   are off the board. A **mission** (⚑) is only ever several crew on one named goal.
+- **Shipping dock** (**D**, the palette, or the work board's header): every open PR in the fleet,
+  once each, in three lanes: **Ready to merge** (checks passing, not a draft, no conflicts, up to
+  date with its base), **Needs attention** (failing checks, conflicts, commits behind, changes
+  requested) and **In progress** (drafts, checks running), each with the reasons. It reads each
+  PR's detail from the host, a few at a time. **Review** opens the crew member's review panel,
+  **Rebase** sends them your saved `/rebase` order (queued if they're busy), and **Open ↗** goes to
+  the host. Merging stays on the host.
 - **Fleet timeline** (**T**, or the command palette): every crew member's turns over the last 6
   hours, 24 hours or 3 days, one lane each, grouped by project. Bars are coloured and named by
   outcome (done, failed, interrupted), and the right edge is live: what's running, or waiting on

@@ -71,6 +71,7 @@ export function installHotkeys(): () => void {
       else if (state.planningMission) useGame.setState({ planningMission: false });
       // Dialogs, topmost first: Saved orders opens over a crew panel; the rest are full panels.
       else if (state.showPlaybooks) useGame.setState({ showPlaybooks: false });
+      else if (state.showDock) useGame.setState({ showDock: false });
       else if (state.showBoard) useGame.setState({ showBoard: false });
       else if (state.showTimeline) useGame.setState({ showTimeline: false });
       else if (state.showHistory) useGame.setState({ showHistory: false });
@@ -109,6 +110,7 @@ export function installHotkeys(): () => void {
       h: () => useGame.setState((s) => ({ showHistory: !s.showHistory })),
       t: () => useGame.setState((s) => ({ showTimeline: !s.showTimeline })),
       b: () => useGame.setState((s) => ({ showBoard: !s.showBoard })),
+      d: () => useGame.setState((s) => ({ showDock: !s.showDock })),
       p: () => useGame.setState((s) => ({ photo: !s.photo })),
       q: () => startQueue(),
     };

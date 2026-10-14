@@ -17,6 +17,7 @@ import { PlaybooksDialog } from "./ui/PlaybooksDialog";
 import { pruneDrafts } from "./ui/drafts";
 import { TimelinePanel } from "./ui/TimelinePanel";
 import { MissionBoard } from "./ui/MissionBoard";
+import { ShippingDock } from "./ui/ShippingDock";
 import { QueueClear } from "./ui/QueueButton";
 import { ReviewPanel } from "./ui/ReviewPanel";
 import { DispatchReplies } from "./ui/DispatchReplies";
@@ -63,7 +64,7 @@ function announceTransitions(): () => void {
       const s = useGame.getState();
       if (!s.event && active !== "TEXTAREA" && active !== "INPUT") {
         // Never over a report card or a dialog: the card's number keys would land on it too.
-        const covered = !!s.debrief || !!s.review || !!s.replies || s.showPalette || s.showHelp || s.showPlaybooks || s.showBoard || s.showTimeline || s.showHistory;
+        const covered = !!s.debrief || !!s.review || !!s.replies || s.showPalette || s.showHelp || s.showPlaybooks || s.showBoard || s.showDock || s.showTimeline || s.showHistory;
         if (mayAutoOpen() && !covered) openEvent(at);
         else useGame.setState({ incoming: { ...at, at: Date.now() } });
       }
@@ -87,6 +88,7 @@ export default function App() {
   const showPlaybooks = useGame((s) => s.showPlaybooks);
   const showTimeline = useGame((s) => s.showTimeline);
   const showBoard = useGame((s) => s.showBoard);
+  const showDock = useGame((s) => s.showDock);
   const [fatal, setFatal] = useState<string>();
 
   useEffect(() => {
@@ -168,6 +170,7 @@ export default function App() {
       {showHistory && <HistoryPanel />}
       {showTimeline && <TimelinePanel />}
       {showBoard && <MissionBoard />}
+      {showDock && <ShippingDock />}
       <SquadBar />
       <AwayDigest />
       <IncomingToast />
