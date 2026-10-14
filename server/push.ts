@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import webpush, { type PushSubscription } from "web-push";
 import type { CommsEntry } from "../shared/comms.ts";
+import type { PendingDecision } from "./decide.ts";
 import { DEFAULT_PUSH_RULES, deviceWants, sanitizeDeviceKinds, sanitizeRules, shouldPush, type DeviceKinds, type PushRules } from "../shared/push.ts";
 
 interface Saved {
@@ -29,10 +30,24 @@ const TITLES: Partial<Record<NonNullable<CommsEntry["kind"]>, string>> = {
   disk: "Disk running low",
 };
 
-/** The notification for a comms entry: what happened, where, and a link straight to it. */
-export function notificationFor(entry: CommsEntry, machine?: string): { title: string; body: string; url: string; tag: string } {
+export interface PushPayload {
+  title: string;
+  body: string;
+  url: string;
+  tag: string;
+  /** Approve and Deny on the notification (unflagged approvals only), and the token they use. */
+  actions?: Array<{ action: string; title: string }>;
+  token?: string;
+}
+
+/**
+ * The notification for a comms entry: what happened, where, and a link straight to it. For an
+ * approval the server has read, the body says what's being asked and how risky it is.
+ */
+export function notificationFor(entry: CommsEntry, machine?: string, decision?: PendingDecision): PushPayload {
   const title = TITLES[entry.kind ?? "info"] ?? "T3 Command";
-  const body = machine ? `${entry.text} · ${machine}` : entry.text;
+  const asked = decision ? ` ▲ ${decision.what}${decision.risk ? ` · ${decision.risk.level === "danger" ? "Danger" : "Careful"}: ${decision.risk.reasons.join(", ")}` : ""}` : "";
+  const body = `${entry.text}${asked}${machine ? ` · ${machine}` : ""}`;
   // Something to decide (approve, answer, triage a failure, read a report) opens straight to its card.
   const decide = entry.kind === "approval" || entry.kind === "question" || entry.kind === "failed" || entry.kind === "done";
   const url = entry.dispatchId ? `/#replies/${encodeURIComponent(entry.dispatchId)}`
@@ -40,7 +55,7 @@ export function notificationFor(entry: CommsEntry, machine?: string): { title: s
     : entry.envId ? `/#host/${encodeURIComponent(entry.envId)}` : "/";
   // One notification per crew member and kind: a newer one replaces the older on the lock screen.
   const tag = `${entry.kind ?? "info"}:${entry.envId ?? ""}:${entry.threadId ?? ""}${entry.dispatchId ? `:${entry.dispatchId}` : ""}`;
-  return { title, body, url, tag };
+  return { title, body, url, tag, ...(decision?.token ? { token: decision.token, actions: [{ action: "accept", title: "Approve" }, { action: "decline", title: "Deny" }] } : {}) };
 }
 
 async function readJson<T>(file: string): Promise<T | undefined> {
@@ -128,10 +143,15 @@ export class PushNotifier {
     return rules;
   }
 
+  /** Whether anything would be pushed for this entry (so the server only reads a request when it'll be used). */
+  wants(entry: CommsEntry): boolean {
+    return this.subs.length > 0 && shouldPush(this.rules, entry.kind, new Date(entry.at));
+  }
+
   /** Push a comms entry to every device whose filter wants it, if the fleet's rules let it through. */
-  async notify(entry: CommsEntry, machine?: string): Promise<void> {
+  async notify(entry: CommsEntry, machine?: string, decision?: PendingDecision): Promise<void> {
     if (!this.subs.length || !shouldPush(this.rules, entry.kind, new Date(entry.at))) return;
-    await this.send(notificationFor(entry, machine), (s) => deviceWants(s.kinds, entry.kind));
+    await this.send(notificationFor(entry, machine, decision), (s) => deviceWants(s.kinds, entry.kind));
   }
 
   /** A test notification to one device (or all). */
@@ -139,7 +159,7 @@ export class PushNotifier {
     return this.send({ title: "T3 Command", body: "Push notifications are working on this device.", url: "/", tag: "test" }, (s) => !endpoint || s.subscription.endpoint === endpoint);
   }
 
-  private async send(payload: { title: string; body: string; url: string; tag: string }, to: (s: Saved) => boolean): Promise<number> {
+  private async send(payload: PushPayload, to: (s: Saved) => boolean): Promise<number> {
     let sent = 0;
     const gone: string[] = [];
     await Promise.all(this.subs.filter(to).map(async (s) => {

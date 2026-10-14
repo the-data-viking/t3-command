@@ -3,7 +3,7 @@
 // approved in bulk: "approve for the rest of this session" is withheld and approving arms slowly.
 // Heuristics, not a sandbox: a clean request isn't promised safe, a flag is a reason to read twice.
 
-import type { PendingRequest } from "../t3/types";
+import type { PendingRequest } from "../t3/types.ts";
 
 export type RiskLevel = "danger" | "caution";
 

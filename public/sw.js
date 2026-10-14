@@ -1,5 +1,7 @@
 // T3 Command service worker: shows push notifications from the Command server and opens the app
-// at the right crew member when one is tapped. No offline caching: the app needs the live server.
+// at the right crew member when one is tapped. An unflagged approval carries Approve and Deny
+// (where the platform shows actions): they decide it through the server, with a single-use token,
+// and say how it went. No offline caching: the app needs the live server.
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
@@ -13,12 +15,27 @@ self.addEventListener("push", (event) => {
     renotify: true,
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
-    data: { url: data.url },
+    data: { url: data.url, token: data.token },
+    ...(Array.isArray(data.actions) && data.token ? { actions: data.actions } : {}),
   }));
 });
 
+/** Approve or deny from the notification; a short notification says whether it went through. */
+async function decide(notification, decision) {
+  const say = (title, body) => self.registration.showNotification(title, { body, tag: `${notification.tag}:decided`, icon: "/icons/icon-192.png", data: { url: notification.data?.url ?? "/" } });
+  try {
+    const res = await fetch("/api/decide", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: notification.data?.token, decision }) });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) return say("Not decided", `${out.error ?? `HTTP ${res.status}`}. Tap to open T3 Command.`);
+    return say(decision === "accept" ? "Approved" : "Denied", `${out.title ?? "Crew"}: ${out.what ?? ""}`);
+  } catch {
+    return say("Not decided", "Couldn't reach the Command server. Tap to open T3 Command.");
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  if (event.action === "accept" || event.action === "decline") { event.waitUntil(decide(event.notification, event.action)); return; }
   const url = new URL(event.notification.data?.url ?? "/", self.location.origin).href;
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

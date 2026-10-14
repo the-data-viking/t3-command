@@ -19,6 +19,8 @@ interface Follower {
   stop(): void;
   /** One request over the follower's connection (T3 machines only). */
   request?<T>(tag: string, payload: unknown, timeoutMs: number): Promise<T>;
+  /** Open a stream, take its first chunk, and close it: a one-off snapshot (T3 machines only). */
+  peek?<T>(tag: string, payload: unknown, timeoutMs: number): Promise<T[]>;
 }
 
 /** Other server features that react to what the recorder sees (the comms log). */
@@ -43,6 +45,13 @@ export class HistoryRecorder {
 
   listen(listener: RecorderListener): void {
     this.listeners.push(listener);
+  }
+
+  /** A one-off snapshot from a followed T3 machine's stream (its first chunk), e.g. one thread's detail. */
+  peek<T>(envId: string, tag: string, payload: unknown, timeoutMs = 15_000): Promise<T[]> {
+    const follower = this.followers.get(envId);
+    if (!follower?.peek) return Promise.reject(new Error("Not connected"));
+    return follower.peek<T>(tag, payload, timeoutMs);
   }
 
   /** Ask a followed T3 machine something over the recorder's own connection. */
@@ -132,7 +141,7 @@ export class HistoryRecorder {
     let up = false;
     let label = registry.get(envId)?.label ?? envId;
     let nextRequest = 2;
-    const pending = new Map<string, { resolve: (value: unknown) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+    const pending = new Map<string, { resolve: (value: unknown) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout>; peek?: boolean }>();
     const failPending = (reason: string) => {
       for (const p of pending.values()) { clearTimeout(p.timer); p.reject(new Error(reason)); }
       pending.clear();
@@ -187,6 +196,14 @@ export class HistoryRecorder {
         let msg: { _tag: string; requestId?: string; values?: ShellStreamItem[]; exit?: { _tag: string; value?: unknown; cause?: Array<{ error?: { message?: string } }> } };
         try { msg = JSON.parse(data.toString()); } catch { return; }
         const call = msg.requestId ? pending.get(msg.requestId) : undefined;
+        // A peek takes the stream's first chunk and closes it.
+        if (msg._tag === "Chunk" && call?.peek) {
+          pending.delete(msg.requestId!);
+          clearTimeout(call.timer);
+          send({ _tag: "Interrupt", requestId: msg.requestId });
+          call.resolve(msg.values ?? []);
+          return;
+        }
         if (msg._tag === "Exit" && call) {
           pending.delete(msg.requestId!);
           clearTimeout(call.timer);
@@ -237,6 +254,15 @@ export class HistoryRecorder {
         ws?.terminate();
         history.disconnected(envId);
       },
+      peek: <T>(tag: string, payload: unknown, timeoutMs: number) => new Promise<T[]>((resolve, reject) => {
+        const socket = ws;
+        if (!socket || socket.readyState !== WebSocket.OPEN) { reject(new Error("Not connected")); return; }
+        const id = `p${nextRequest++}`;
+        const timer = setTimeout(() => { pending.delete(id); socket.send(JSON.stringify({ _tag: "Interrupt", requestId: id })); reject(new Error(`${tag} timed out`)); }, timeoutMs);
+        timer.unref();
+        pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer, peek: true });
+        socket.send(JSON.stringify({ _tag: "Request", id, tag, payload, headers: [] }));
+      }),
       request: <T>(tag: string, payload: unknown, timeoutMs: number) => new Promise<T>((resolve, reject) => {
         const socket = ws;
         if (!socket || socket.readyState !== WebSocket.OPEN) { reject(new Error("Not connected")); return; }

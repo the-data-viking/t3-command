@@ -20,6 +20,7 @@ import { CommsLog } from "./comms.ts";
 import { ReadState } from "./read-state.ts";
 import { PushNotifier } from "./push.ts";
 import { FollowUps } from "./followups.ts";
+import { Decisions } from "./decide.ts";
 import { Dispatches } from "./dispatches.ts";
 import { Playbooks } from "./playbooks.ts";
 import { randomUUID } from "node:crypto";
@@ -58,7 +59,16 @@ await readState.load();
 // Fleet events pushed to subscribed devices, filtered by the push rules and quiet hours.
 const push = new PushNotifier(config.dataDir);
 await push.load();
-comms.onEntry((entry) => void push.notify(entry, entry.envId ? registry.get(entry.envId)?.label : undefined).catch((err) => console.warn("[push]", (err as Error).message)));
+// An approval's push says what's being asked (the server reads the request itself), and an
+// unflagged one can be approved or denied from the notification.
+const decisions = new Decisions((envId, tag, payload) => recorder.peek(envId, tag, payload), (envId, tag, payload) => recorder.request(envId, tag, payload), comms);
+comms.onEntry((entry) => {
+  const machine = entry.envId ? registry.get(entry.envId)?.label : undefined;
+  const asks = entry.kind === "approval" && entry.envId && entry.threadId && push.wants(entry);
+  const title = asks ? recorder.snapshot(entry.envId!)?.threads.find((t) => t.id === entry.threadId)?.title || "Untitled" : "";
+  const decision = asks ? decisions.prepare(entry.envId!, entry.threadId!, title).catch(() => undefined) : Promise.resolve(undefined);
+  void decision.then((d) => push.notify(entry, machine, d)).catch((err) => console.warn("[push]", (err as Error).message));
+});
 // Follow-ups go out over the server's own link to each machine, as the browser would send them.
 const followUps = new FollowUps(config.dataDir, comms, async (envId, thread, text) => {
   await recorder.request(envId, "orchestration.dispatchCommand", {
@@ -309,6 +319,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     const body = await readJson<{ endpoint?: string; kinds?: unknown }>(req);
     try { push.setDeviceKinds(String(body?.endpoint ?? ""), body?.kinds); } catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
     return sendJson(res, 200, push.status());
+  }
+  if (pathname === "/api/decide" && method === "POST") {
+    const body = await readJson<{ token?: string; decision?: string }>(req);
+    try { return sendJson(res, 200, await decisions.decide(String(body?.token ?? ""), String(body?.decision ?? "") as never)); }
+    catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
   }
   if (pathname === "/api/push/test" && method === "POST") {
     const body = await readJson<{ endpoint?: string }>(req);
