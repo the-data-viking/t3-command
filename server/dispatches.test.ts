@@ -184,3 +184,30 @@ test("the clock ends an order whose sent member never started, without any threa
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("each member is pinned to the turn its order started: a later turn doesn't rewrite its result", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dispatches-"));
+  try {
+    const store = new Dispatches(dir);
+    const comms = new CommsLog(dir);
+    store.announceTo(comms, () => false);
+    const d = store.add("Go", [member("a"), member("b")]);
+    store.observe("e", [shell("a", "t2", "running"), shell("b", "t2", "running")]);
+    assert.deepEqual(store.all()[0].members.map((m) => m.turnId), ["t2", "t2"], "pinned when their turns started");
+    store.observe("e", [shell("a", "t2", "error"), shell("b", "t2", "running")]);
+    assert.equal(store.all()[0].members[0].result, "error");
+    // You step in on a: a new turn completes cleanly. It doesn't make a's part "reported".
+    store.observe("e", [shell("a", "t3", "completed"), shell("b", "t2", "completed")]);
+    const m = store.all().find((x) => x.id === d.id)!.members;
+    assert.deepEqual([m[0].result, m[1].result], ["error", "completed"]);
+    assert.match(comms.since()[0].text, /1 of 2 reported, 1 failed\./);
+    // A turn that started and ended between two observations: another took over before it was seen.
+    const e = store.add("Again", [member("a")]);
+    store.observe("e", [shell("a", "t5", "running")]);
+    store.observe("e", [shell("a", "t6", "completed")]);
+    assert.equal(store.all().find((x) => x.id === e.id)!.members[0].result, "superseded");
+    await store.flush(); await comms.flush();
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

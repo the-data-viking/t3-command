@@ -7,7 +7,7 @@ import type { EnvWorld, ThreadDetail } from "../store";
 import { unitState } from "../t3/derive";
 import { fetchJson } from "../t3/environment";
 
-export type ReceiptStatus = "unsent" | "queued" | "undelivered" | "sent" | "unstarted" | "working" | "needs-you" | "reported" | "failed" | "stopped" | "gone";
+export type ReceiptStatus = "unsent" | "queued" | "undelivered" | "sent" | "unstarted" | "working" | "needs-you" | "reported" | "failed" | "stopped" | "superseded" | "gone";
 
 export const RECEIPT: Record<ReceiptStatus, { mark: string; label: string; done: boolean }> = {
   unsent: { mark: "✕", label: "didn't send", done: true },
@@ -20,6 +20,7 @@ export const RECEIPT: Record<ReceiptStatus, { mark: string; label: string; done:
   reported: { mark: "✓", label: "reported", done: true },
   failed: { mark: "✕", label: "turn failed", done: true },
   stopped: { mark: "■", label: "interrupted", done: true },
+  superseded: { mark: "–", label: "a later turn took over", done: true },
   gone: { mark: "–", label: "no longer aboard", done: true },
 };
 
@@ -28,9 +29,12 @@ export function receiptOf(m: DispatchMember, envs: Record<string, EnvWorld>, sen
   if (m.how === "failed") return "unsent";
   // The server marks a queued member whose follow-up went unsent; a later turn isn't this order's.
   if (m.dropped) return "undelivered";
+  // The order's own turn, as the server pinned it and saw it end: a later turn doesn't rewrite it.
+  if (m.result) return m.result === "completed" ? "reported" : m.result === "error" ? "failed" : m.result === "interrupted" ? "stopped" : "superseded";
   const thread = envs[m.envId]?.threads[m.threadId];
   if (!thread || thread.archivedAt) return "gone";
   const turn = thread.latestTurn;
+  if (m.turnId && turn && turn.turnId !== m.turnId) return "superseded";
   // Not reached yet. A queued one stays "queued" in the gap between its follow-up going out and
   // the new turn showing up (the follow-up leaves the queue first).
   if (!turn || turn.turnId === m.baseTurnId) return m.how !== "sent" ? "queued" : now - sentAt > DISPATCH_START_MS ? "unstarted" : "sent";
@@ -88,8 +92,10 @@ export async function closeDispatch(id: string): Promise<void> {
  * What a crew member said back: their last message in the turn the order started (or the latest
  * turn since, for a standing order). Undefined until the order reached them and they've written.
  */
-export function replyOf(status: ReceiptStatus, thread: EnvWorld["threads"][string] | undefined, detail: ThreadDetail | undefined): string | undefined {
+export function replyOf(status: ReceiptStatus, thread: EnvWorld["threads"][string] | undefined, detail: ThreadDetail | undefined, member?: DispatchMember): string | undefined {
   if (!thread || !detail || status === "unsent" || status === "undelivered" || status === "sent" || status === "unstarted" || status === "queued" || status === "gone") return undefined;
-  const turnId = thread.latestTurn?.turnId;
+  // The order's own turn when the server has pinned it; the latest otherwise (it hasn't moved on yet).
+  const turnId = member?.turnId ?? (status === "superseded" ? undefined : thread.latestTurn?.turnId);
+  if (!turnId) return undefined;
   return [...detail.thread.messages].reverse().find((m) => m.role === "assistant" && m.turnId === turnId && m.text.trim())?.text;
 }

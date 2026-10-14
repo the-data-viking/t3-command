@@ -11,9 +11,12 @@ import type { ThreadShell } from "../src/t3/types.ts";
 import type { CommsLog } from "./comms.ts";
 
 /** How a member's part ended, or undefined while it's still going (or hasn't started yet). */
-export function outcome(m: DispatchMember, thread: ThreadShell | undefined, queued: boolean, sentAt = Date.now(), now = Date.now()): "reported" | "failed" | "stopped" | "gone" | "unsent" | "unstarted" | undefined {
+export function outcome(m: DispatchMember, thread: ThreadShell | undefined, queued: boolean, sentAt = Date.now(), now = Date.now()): "reported" | "failed" | "stopped" | "superseded" | "gone" | "unsent" | "unstarted" | undefined {
   if (m.how === "failed" || m.dropped) return "unsent";
+  // The order's own turn, once seen to end: later turns (your own orders, a standing order) don't count.
+  if (m.result) return m.result === "completed" ? "reported" : m.result === "error" ? "failed" : m.result === "interrupted" ? "stopped" : "superseded";
   if (!thread || thread.archivedAt) return "gone";
+  if (m.turnId && thread.latestTurn && thread.latestTurn.turnId !== m.turnId) return "superseded";
   const turn = thread.latestTurn;
   // Sent, but no turn of its own after a few minutes: it didn't start (and never will by itself).
   if (!turn || turn.turnId === m.baseTurnId) return m.how === "sent" && now - sentAt > DISPATCH_START_MS ? "unstarted" : undefined;
@@ -83,7 +86,8 @@ export class Dispatches {
     const dispatch = this.list.find((d) => d.id === id);
     if (!dispatch) return undefined;
     const changes = new Map(sanitizeMembers(members).map((m) => [`${m.envId}:${m.threadId}`, m]));
-    const retried = dispatch.members.some((m) => m.how === "failed" && changes.has(`${m.envId}:${m.threadId}`) && changes.get(`${m.envId}:${m.threadId}`)!.how !== "failed");
+    // Retried or resent to someone (not just another failure): their part is still to come.
+    const retried = [...changes.values()].some((m) => m.how !== "failed");
     dispatch.members = dispatch.members.map((m) => changes.get(`${m.envId}:${m.threadId}`) ?? m);
     // A retry that reached someone reopens it: their part is still to come, and will be announced.
     if (retried) delete dispatch.finishedAt;
@@ -126,12 +130,36 @@ export class Dispatches {
     this.observe(envId, []);
   }
 
+  /**
+   * Pin each member to the turn their order started, and record how it ended, as this machine's
+   * threads go by: from then on, later turns on that thread aren't this order's.
+   */
+  private pin(d: Dispatch, envId: string, threads: Map<string, ThreadShell>): boolean {
+    let changed = false;
+    for (const m of d.members) {
+      if (m.envId !== envId || m.how === "failed" || m.dropped || m.result) continue;
+      const thread = threads.get(m.threadId);
+      const turn = thread?.latestTurn;
+      if (!thread || !turn) continue;
+      if (!m.turnId && turn.turnId !== m.baseTurnId && !(m.how === "queued" && this.queued(m.envId, m.threadId))) { m.turnId = turn.turnId; changed = true; }
+      if (!m.turnId) continue;
+      if (turn.turnId !== m.turnId) { m.result = "superseded"; changed = true; continue; }
+      if (turn.state !== "running" && !thread.hasPendingApprovals && !thread.hasPendingUserInput) {
+        m.result = turn.state === "completed" ? "completed" : turn.state === "error" ? "error" : "interrupted";
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   /** A machine's latest threads: announce any order whose crew have all finished with it. */
   observe(envId: string, threads: ThreadShell[], now = Date.now()): void {
-    this.threads.set(envId, new Map(threads.map((t) => [t.id, t])));
+    const byId = new Map(threads.map((t) => [t.id, t]));
+    this.threads.set(envId, byId);
     let changed = false;
     for (const d of this.all(now)) {
       if (d.finishedAt || !d.members.some((m) => m.envId === envId)) continue;
+      if (this.pin(d, envId, byId)) changed = true;
       // A machine not seen yet can't be judged: wait for it.
       if (d.members.some((m) => !this.threads.has(m.envId))) continue;
       const ends = d.members.map((m) => outcome(m, this.threads.get(m.envId)!.get(m.threadId), this.queued(m.envId, m.threadId), d.at, now));
@@ -141,8 +169,8 @@ export class Dispatches {
       d.finishedAt = now;
       changed = true;
       const reported = ends.filter((e) => e === "reported").length;
-      const rest = (["failed", "stopped", "unsent", "unstarted", "gone"] as const).map((k) => [k, ends.filter((e) => e === k).length] as const).filter(([, n]) => n);
-      const words = { failed: "failed", stopped: "interrupted", unsent: "never sent", unstarted: "didn't start", gone: "gone" };
+      const rest = (["failed", "stopped", "superseded", "unsent", "unstarted", "gone"] as const).map((k) => [k, ends.filter((e) => e === k).length] as const).filter(([, n]) => n);
+      const words = { failed: "failed", stopped: "interrupted", superseded: "taken over by a later turn", unsent: "never sent", unstarted: "didn't start", gone: "gone" };
       const what = d.mission ? `Mission "${d.mission.name}"` : `Squad order "${preview(d.text)}"`;
       this.comms?.add({ tone: rest.length ? "alert" : "good", kind: "mission", dispatchId: d.id,
         text: `${what}: ${reported} of ${d.members.length} reported${rest.map(([k, n]) => `, ${n} ${words[k]}`).join("")}. Replies are ready to read.` });
