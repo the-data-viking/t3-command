@@ -1,6 +1,7 @@
-// Orbital project campus: shared project modules around an operations hub.
-// Each participating environment gets its own engine/compute node directly attached
-// to the project it serves. Crew remain inside connected, door-routed project rooms;
+// The fleet as a ship: the Hermes hall (or an operations hub) on top, the machines' engineering
+// decks hanging from its spine in a keel, and project modules in wings below, each machine's
+// supply lines running down a bus and along corridors to the projects it serves. Crew remain
+// inside connected, door-routed project rooms;
 // scratch crew (work not tied to a project) stand in their machine's engineering bay.
 
 import { dockedPrs, stationMemory } from "./memory";
@@ -128,6 +129,11 @@ export interface ControlCenterLayout {
   bounds: Rect;
   operators: Array<{ bot: BotOperator; workstation: Rect }>;
   links: Array<{ envId: string; from: Point; to: Point; laneX: number }>;
+  /**
+   * The keel's spine: a stem down from the hall and a beam along the top deck row, from which
+   * each deck's collar drops, so a hall sized to its operators still reaches every deck.
+   */
+  manifold?: { stemX: number; top: number; y: number; x0: number; x1: number };
 }
 
 export const TILE = 32;
@@ -149,14 +155,31 @@ export const HALL_HEAD = 86;
 const HALL_FOOT = 14;
 const HALL_SIDE = 140;
 const HALL_MIN_W = 600;
-/** Collars stay this far inside the hall's ends, clear of its stepped corners. */
-const HALL_COLLAR_INSET = 72;
 export const OPERATOR_PITCH = 166;
-const CAMPUS_GAP = 400;
-/** Between station rows, and from the engineering decks down to the first row: tight enough that
- * a typical fleet fits at 0.5 zoom on a 1440×900 screen, where the art shows one-to-one. */
+/**
+ * The fleet is a ship: a keel of engineering decks (one row of up to six, under the Hermes hall),
+ * a bus beneath it with one lane per machine, and wings of stations below: two columns around a
+ * service corridor that carries the supply lines. Every line runs deck → its bus lane → its
+ * corridor lane → the station's port, so lines only cross where they drop from the decks.
+ */
+export const DOCKS_PER_ROW = 6;
+/** The corridor between a wing's two station columns (the lines' lanes run down its middle). */
+export const CORRIDOR_W = 160;
+const WING_GAP = 96;
+/** One supply-line lane per machine, this far apart on the bus and in each corridor. */
+export const LANE = 8;
+/** From the deck row to the first bus lane, and from the last lane to the first station row. */
+const BUS_TOP = 28;
+const BUS_TO_STATIONS = 40;
+/** Between station rows. */
 const STATION_GAP_Y = 96;
-const DECK_GAP_Y = 80;
+/** From the Hermes hall down to the deck row (the manifold runs in this gap). */
+const HALL_TO_DECKS = 48;
+
+/** Wings of two columns by project count: one up to 4 projects, two up to 24, then three. */
+export function wingCount(projects: number): number {
+  return projects <= 4 ? 1 : projects <= 24 ? 2 : 3;
+}
 
 export function sortedEnvs(state: GameState): EnvWorld[] {
   return Object.values(state.envs).sort((a, b) => a.summary.addedAt.localeCompare(b.summary.addedAt));
@@ -449,6 +472,47 @@ export function nodeDrawKey(state: GameState, node: EnvironmentNodeLayout): stri
   return fingerprint(state.artStyle, node, state.envs[node.envId]?.summary.label);
 }
 
+type BusLine = { drop: number; downs: number[]; lo: number; hi: number };
+
+/** Crossings if `below`'s lane sits under `above`'s: its drop through `above`'s lane, and
+ * `above`'s corridor lines down through its own. */
+function laneCost(below: BusLine, above: BusLine): number {
+  const inside = (x: number, line: BusLine) => x > line.lo && x < line.hi;
+  return (inside(below.drop, above) ? 1 : 0) + above.downs.filter(x => inside(x, below)).length;
+}
+
+/** Bus lane order (top first) with fewest crossings: exhaustive for a small fleet, then greedy
+ * insertion, which is what a larger one gets. */
+export function orderLanes(lines: BusLine[]): number[] {
+  const n = lines.length;
+  const cost = lines.map((below, b) => lines.map((above, a) => a === b ? 0 : laneCost(below, above)));
+  const total = (order: number[]) => {
+    let sum = 0;
+    for (let i = 0; i < order.length; i++) for (let j = i + 1; j < order.length; j++) sum += cost[order[j]][order[i]];
+    return sum;
+  };
+  if (n <= 7) {
+    let best = [...lines.keys()];
+    let bestCost = total(best);
+    const permute = (prefix: number[], rest: number[]) => {
+      if (!rest.length) { const c = total(prefix); if (c < bestCost) { bestCost = c; best = prefix; } return; }
+      rest.forEach((r, i) => permute([...prefix, r], [...rest.slice(0, i), ...rest.slice(i + 1)]));
+    };
+    permute([], [...lines.keys()]);
+    return best;
+  }
+  const order: number[] = [];
+  for (const line of lines.keys()) {
+    let at = 0, bestCost = Infinity;
+    for (let i = 0; i <= order.length; i++) {
+      const c = total([...order.slice(0, i), line, ...order.slice(i)]);
+      if (c < bestCost) { bestCost = c; at = i; }
+    }
+    order.splice(at, 0, line);
+  }
+  return order;
+}
+
 export function computeFleetLayout(state: GameState): FleetLayout {
   const envs = sortedEnvs(state);
   const hermes = envs.filter(env => env.summary.kind === 'hermes');
@@ -457,69 +521,148 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   const fleet: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
   const groups = groupProjects(envs);
   if (envs.length === 0) return fleet;
-
   const crew: CrewLayout[] = [];
+
+  // The keel: decks in rows of up to six, every row on the same columns, centred on x = 0.
+  const machines = engineering.length;
+  const perRow = Math.min(DOCKS_PER_ROW, Math.max(1, machines));
+  const deckRows = Math.ceil(machines / perRow);
+  const rowW = perRow * ENV_NODE_W + (perRow - 1) * NODE_GAP;
+  const deckAt = (i: number): Rect => ({ x: -rowW / 2 + (i % perRow) * (ENV_NODE_W + NODE_GAP), y: Math.floor(i / perRow) * (ENV_NODE_H + NODE_GAP), w: ENV_NODE_W, h: ENV_NODE_H });
+  const decksBottom = machines ? deckRows * (ENV_NODE_H + NODE_GAP) - NODE_GAP : 0;
+  const laneY = (k: number) => decksBottom + BUS_TOP + k * LANE;
+  const stationsTop = laneY(Math.max(0, machines - 1)) + BUS_TO_STATIONS;
+  const machineIndex = new Map(engineering.map((env, i) => [env.summary.id, i]));
+  const deckCentre = (envId: string) => { const i = machineIndex.get(envId); return i === undefined ? 0 : deckAt(i).x + ENV_NODE_W / 2; };
+
+  // The wings: two columns around a corridor each, centred under the keel.
   const previews = groups.map(group => layoutStation(group, HULL_PAD, 0, []));
-  const columnW = Math.max(ENV_NODE_W, ...previews.map(station => station.bounds.w));
-  let y = 0, rowH = 0;
-  groups.forEach((group, i) => {
-    if (i > 0 && i % 2 === 0) { y += rowH + STATION_GAP_Y; rowH = 0; }
-    const x = i % 2 === 0 ? columnW - previews[i].bounds.w : columnW + CAMPUS_GAP;
-    const station = layoutStation(group, x + HULL_PAD, y, crew);
-    station.port = { x: i % 2 === 0 ? station.bounds.x + station.bounds.w : station.bounds.x,
-      y: station.interior.y + station.interior.h / 2 };
-    fleet.stations.set(station.key, station);
-    rowH = Math.max(rowH, station.bounds.h);
+  const colW = Math.max(ENV_NODE_W, ...previews.map(station => station.bounds.w));
+  const wings = wingCount(groups.length);
+  const wingW = 2 * colW + CORRIDOR_W;
+  const totalW = wings * wingW + (wings - 1) * WING_GAP;
+  const wingCentre = (w: number) => -totalW / 2 + wingW / 2 + w * (wingW + WING_GAP);
+  type Slot = { wing: number; side: "left" | "right" | "centre" };
+  const slotX = (s: Slot) => s.side === "centre" ? 0 : wingCentre(s.wing) + (s.side === "left" ? -1 : 1) * (CORRIDOR_W / 2 + colW / 2);
+  // Fill row by row; each station takes the free slot in its row nearest the machines that serve
+  // it (shared stations come first, so they sit up top), so lines run short.
+  const rows: Array<Array<{ index: number; slot: Slot }>> = [];
+  groups.forEach((group, index) => {
+    const perRowSlots = 2 * wings;
+    if (!rows.length || rows[rows.length - 1].length >= perRowSlots) rows.push([]);
+    const row = rows[rows.length - 1];
+    const ids = [...new Set(group.members.map(m => m.env.summary.id))];
+    const want = ids.reduce((sum, id) => sum + deckCentre(id), 0) / Math.max(1, ids.length);
+    const free: Slot[] = [];
+    for (let w = 0; w < wings; w++) for (const side of ["left", "right"] as const) if (!row.some(r => r.slot.wing === w && r.slot.side === side)) free.push({ wing: w, side });
+    free.sort((a, b) => Math.abs(slotX(a) - want) - Math.abs(slotX(b) - want));
+    row.push({ index, slot: free[0] });
   });
-  // A shared engineering spine: membership adds a conduit, never another chassis.
-  const nodeX = columnW + (CAMPUS_GAP - ENV_NODE_W) / 2;
+  // A lone station in a one-wing last row sits on the axis, under the keel.
+  const last = rows[rows.length - 1];
+  if (wings === 1 && last?.length === 1) last[0].slot = { wing: 0, side: "centre" };
+
+  let y = stationsTop;
+  const placed = new Map<string, Slot>();
+  for (const row of rows) {
+    let rowH = 0;
+    for (const { index, slot } of row) {
+      const w = previews[index].bounds.w;
+      const x = slot.side === "left" ? wingCentre(slot.wing) - CORRIDOR_W / 2 - w : slot.side === "right" ? wingCentre(slot.wing) + CORRIDOR_W / 2 : -w / 2;
+      const station = layoutStation(groups[index], x + HULL_PAD, y, crew);
+      // The port faces the corridor; a station on the axis takes it on its left side.
+      station.port = { x: slot.side === "left" ? station.bounds.x + station.bounds.w : station.bounds.x, y: station.interior.y + station.interior.h / 2 };
+      fleet.stations.set(station.key, station);
+      placed.set(station.key, slot);
+      rowH = Math.max(rowH, station.bounds.h);
+    }
+    y += rowH + STATION_GAP_Y;
+  }
+
+  // Corridor lanes, one per supply line: lines to the left column take the corridor's left half,
+  // lines to the right its right half, the shallowest port outermost, so no line turns off
+  // across another still heading deeper. Into one port, the outer line takes the upper berth;
+  // round the axis station it is the other way, as the lines wrap its far side. (Lines cross
+  // only on the bus, like interchanges.)
+  const corridorLane = new Map<string, number>();
+  const centreRank = new Map<string, { n: number; of: number }>();
+  for (let w = 0; w < wings; w++) {
+    for (const goingLeft of [true, false]) {
+      const lines: Array<{ key: string; depth: number; order: number }> = [];
+      for (const station of fleet.stations.values()) {
+        const slot = placed.get(station.key)!;
+        if (slot.wing !== w || (slot.side === "right") === goingLeft) continue;
+        const members = [...new Set(station.members.map(m => m.envId))];
+        members.forEach((envId, m) => lines.push({ key: `${envId}|${station.key}`, depth: station.port.y, order: slot.side === "centre" ? -m : m }));
+        if (slot.side === "centre") members.forEach((envId, m) => centreRank.set(`${envId}|${station.key}`, { n: members.length - 1 - m, of: members.length }));
+      }
+      lines.sort((a, b) => a.depth - b.depth || a.order - b.order);
+      const room = CORRIDOR_W / 2 - 16;
+      const pitch = Math.min(LANE, room / Math.max(1, lines.length));
+      lines.forEach((line, n) => corridorLane.set(line.key, wingCentre(w) + (goingLeft ? -1 : 1) * (room - n * pitch)));
+    }
+  }
+
+  // Bus lanes: each machine's drop comes down to its lane and its lines leave it down their
+  // corridors, so every lane a drop or a corridor line passes through is a crossing. Stack the
+  // lanes in the order that makes fewest.
+  const dropX = (index: number) => {
+    const deck = deckAt(index);
+    return Math.floor(index / perRow) < deckRows - 1
+      ? deck.x + ENV_NODE_W + NODE_GAP / 2 + (Math.floor(index / perRow) - (deckRows - 2) / 2) * 6
+      : deck.x + ENV_NODE_W / 2;
+  };
+  const busLines = engineering.map((env, index) => {
+    const id = env.summary.id;
+    const downs = [...fleet.stations.values()].filter(s => s.members.some(m => m.envId === id)).map(s => corridorLane.get(`${id}|${s.key}`)!);
+    const xs = [dropX(index), ...downs];
+    return { drop: dropX(index), downs, lo: Math.min(...xs), hi: Math.max(...xs) };
+  });
+  const busLane = new Map<string, number>();
+  orderLanes(busLines).forEach((index, k) => busLane.set(engineering[index].summary.id, k));
+
+  // The Hermes hall, sized to its operators, centred over the keel.
   const columns = Math.min(4, Math.max(1, operators.length));
   const bridgeW = Math.max(HALL_MIN_W, columns * OPERATOR_PITCH - 8 + 2 * HALL_SIDE);
   // Header, a row of seated operator bays per four operators, and a thin foot.
   const bridgeH = HALL_HEAD + Math.max(1, Math.ceil(operators.length / 4)) * HERMES_BAY_PITCH + HALL_FOOT;
-  const dockRows = Math.ceil(engineering.length / 3);
-  const bridge = { x: nodeX + ENV_NODE_W / 2 - bridgeW / 2,
-    y: -DECK_GAP_Y - dockRows * (ENV_NODE_H + NODE_GAP) - bridgeH,
-    w: bridgeW, h: bridgeH };
+  const bridge = { x: -bridgeW / 2, y: -HALL_TO_DECKS - bridgeH, w: bridgeW, h: bridgeH };
+
   engineering.forEach((env, index) => {
     const key = env.summary.id;
-    const row = Math.floor(index / 3);
-    const rowCount = Math.min(3, engineering.length);
-    const dockX = bridge.x + (bridge.w - rowCount * ENV_NODE_W - (rowCount - 1) * NODE_GAP) / 2
-      + (index % 3) * (ENV_NODE_W + NODE_GAP);
-    const x = hermes.length ? dockX : nodeX;
-    const nodeY = hermes.length ? bridge.y + bridge.h + NODE_GAP + row * (ENV_NODE_H + NODE_GAP)
-      : index * (ENV_NODE_H + NODE_GAP);
+    const deck = deckAt(index);
+    const { x, y: nodeY } = deck;
+    const row = Math.floor(index / perRow);
+    const k = busLane.get(key) ?? index;
+    const busY = laneY(k);
     const projects = [...fleet.stations.values()].filter(station => station.members.some(m => m.envId === key));
     const links = projects.map(station => {
-      const left = station.port.x < nodeX + ENV_NODE_W / 2;
+      const slot = placed.get(station.key)!;
       const members = [...new Set(station.members.map(m => m.envId))];
       const offset = (members.indexOf(key) - (members.length - 1) / 2) * 12;
-      // Each dock column gets its own lane through the gaps (8 px apart across, 6 px apart in the
-      // row gap), so supply lines from neighbouring machines run side by side instead of on top
-      // of each other.
-      const lane = (index % 3) - (rowCount - 1) / 2;
-      const laneX = nodeX + ENV_NODE_W / 2 + (left ? -1 : 1) * (ENV_NODE_W + NODE_GAP) / 2 + lane * 8;
-      const gapY = nodeY + ENV_NODE_H + NODE_GAP / 2 + lane * 6;
-      return { stationKey: station.key,
-        from: hermes.length ? { x: x + ENV_NODE_W / 2, y: nodeY + ENV_NODE_H }
-          : { x: left ? x : x + ENV_NODE_W, y: nodeY + ENV_NODE_H / 2 },
-        to: { x: station.port.x, y: station.port.y + offset },
-        // Use the gaps between dock columns, then the existing project-side ports.
-        // Conduits must not cut through a docked node or a project interior.
-        ...(hermes.length ? { via: [
-          { x: x + ENV_NODE_W / 2, y: gapY },
-          { x: laneX, y: gapY },
-          { x: laneX, y: station.port.y + offset },
-        ] } : {}),
-      };
+      const from = { x: x + ENV_NODE_W / 2, y: nodeY + ENV_NODE_H };
+      const via: Point[] = [];
+      // Down from the deck to its own bus lane: straight from the bottom row, through the gap
+      // beside it from a row above (its column's gaps line up all the way down).
+      if (row < deckRows - 1) {
+        const gapY = nodeY + ENV_NODE_H + NODE_GAP / 2;
+        const gapX = dropX(index);
+        via.push({ x: from.x, y: gapY }, { x: gapX, y: gapY }, { x: gapX, y: busY });
+      } else via.push({ x: from.x, y: busY });
+      // Along the bus to this line's lane in the station's corridor, and down it.
+      const corridorX = Math.round(corridorLane.get(`${key}|${station.key}`)! / 2) * 2;
+      const portY = station.port.y + offset;
+      via.push({ x: corridorX, y: busY });
+      if (slot.side === "centre") {
+        // Round the axis station's left side: out of the corridor in the gap above its row.
+        const { n, of } = centreRank.get(`${key}|${station.key}`)!;
+        const turnY = station.bounds.y - STATION_GAP_Y / 2 + (n - (of - 1) / 2) * LANE;
+        const sideX = station.bounds.x - 24 - (of - 1 - n) * LANE;
+        via.push({ x: corridorX, y: turnY }, { x: sideX, y: turnY }, { x: sideX, y: portY });
+      } else via.push({ x: corridorX, y: portY });
+      return { stationKey: station.key, from, to: { x: station.port.x, y: portY }, via };
     });
     const bay = { x: x + ENV_BAY.x, y: nodeY + ENV_BAY.y, w: ENV_BAY.w, h: ENV_BAY.h };
-    // The first dock row hangs from the hall: a dock wider out than the hall takes its collar at
-    // the nearest point under it. Later rows hang from the dock above, centred.
-    const hatchX = hermes.length && row === 0
-      ? Math.min(bridge.x + bridge.w - HALL_COLLAR_INSET, Math.max(bridge.x + HALL_COLLAR_INSET, x + ENV_NODE_W / 2))
-      : x + ENV_NODE_W / 2;
     const scratch = scratchProject(env);
     let bayCrew: EnvironmentNodeLayout["scratch"];
     if (scratch) {
@@ -528,30 +671,34 @@ export function computeFleetLayout(state: GameState): FleetLayout {
       bayCrew = { projectId: scratch.id, stationKey: station.key, overflow };
     }
     fleet.environmentNodes.set(key, { key, envId: key, color: stationColor(state, key),
-      hull: { x, y: nodeY, w: ENV_NODE_W, h: ENV_NODE_H },
-      plate: { x: x + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links, bay, hatchX,
+      hull: deck,
+      plate: { x: x + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links, bay, hatchX: x + ENV_NODE_W / 2,
       ...(bayCrew ? { scratch: bayCrew } : {}) });
   });
   if (hermes.length) {
     const hull = bridge;
     const envId = state.hermesCatalog?.envId && hermes.some(e => e.summary.id === state.hermesCatalog?.envId)
       ? state.hermesCatalog.envId : hermes[0].summary.id;
+    const nodes = [...fleet.environmentNodes.values()];
+    const top = nodes.slice(0, perRow);
+    const manifoldY = hull.y + hull.h + HALL_TO_DECKS / 2;
     fleet.controlCenter = { envId, envIds: hermes.map(e => e.summary.id), hull,
-      bounds: [...fleet.environmentNodes.values()].reduce((bounds, node) => union(bounds, node.hull), hull),
+      bounds: nodes.reduce((bounds, node) => union(bounds, node.hull), hull),
       operators: operators.map((bot, i) => {
         const row = Math.floor(i / 4);
         const columns = Math.min(4, operators.length - row * 4);
         return { bot, workstation: { x: hull.x + (hull.w - (columns * OPERATOR_PITCH - 8)) / 2 + (i % 4) * OPERATOR_PITCH,
           y: hull.y + HALL_HEAD + row * HERMES_BAY_PITCH, w: 158, h: 116 } };
       }),
-      links: [...fleet.environmentNodes.values()].map((node, index) => ({ envId: node.envId,
-        from: index < 3 ? { x: node.hatchX, y: hull.y + hull.h }
-          : { x: node.hatchX, y: node.hull.y - NODE_GAP },
+      // The top row's collars drop from the manifold; a deck in a later row hangs from the one above.
+      links: nodes.map((node, index) => ({ envId: node.envId,
+        from: index < perRow ? { x: node.hatchX, y: manifoldY } : { x: node.hatchX, y: node.hull.y - NODE_GAP },
         laneX: node.hatchX,
         to: { x: node.hatchX, y: node.hull.y } })),
+      ...(top.length ? { manifold: { stemX: 0, top: hull.y + hull.h, y: manifoldY,
+        x0: Math.min(0, ...top.map(n => n.hatchX)), x1: Math.max(0, ...top.map(n => n.hatchX)) } } : {}),
     };
-  } else if (groups.length > 1) fleet.hub = { x: columnW + CAMPUS_GAP / 2 - 70,
-    y: -116, w: 140, h: 80 };
+  } else if (groups.length > 1) fleet.hub = { x: -70, y: -116, w: 140, h: 80 };
 
   for (const c of crew) fleet.crew.set(c.key, c);
   let bounds: Rect | undefined;

@@ -726,10 +726,14 @@ export class World {
       const title=label(12,ink.text);title.text='OPERATIONS';title.position.set(hub.x+18,hub.y+22);this.operations.addChild(title);
       const count=label(8,ink.muted);count.text=`${this.layout.stations.size} PROJECT MODULES`;count.position.set(hub.x+18,hub.y+48);this.operations.addChild(count);
       this.opsLabels = { title, count };
-      for(const station of this.layout.stations.values()){
-        const left=station.port.x<hub.x, lane=left?hub.x-50:hub.x+hub.w+50;
-        const targetY=hub.y+hub.h/2;
-        pixelPath(g, [station.port, { x: lane, y: station.port.y }, { x: lane, y: targetY }, { x: left ? hub.x : hub.x + hub.w, y: targetY }], 2, ink.line, 0.6);
+      // The head of the ship without Hermes: a stem down from the plate and a beam along the
+      // top deck row, a drop to each deck's roof. (Projects connect through the decks below.)
+      const decks = [...this.layout.environmentNodes.values()].filter((n) => n.hull.y === 0);
+      if (decks.length) {
+        const beamY = -12, cx = hub.x + hub.w / 2;
+        pixelPath(g, [{ x: cx, y: hub.y + hub.h }, { x: cx, y: beamY }], 2, ink.line, 0.6);
+        pixelPath(g, [{ x: Math.min(cx, ...decks.map((n) => n.hatchX)), y: beamY }, { x: Math.max(cx, ...decks.map((n) => n.hatchX)), y: beamY }], 2, ink.line, 0.6);
+        for (const n of decks) pixelPath(g, [{ x: n.hatchX, y: beamY }, { x: n.hatchX, y: 0 }], 2, ink.line, 0.6);
       }
     }
     const b = this.layout.bounds;
@@ -759,6 +763,15 @@ export class World {
     const width = linkWidth(this.zoomGoal ?? this.zoom);
     this.drawnLinkWidth = width;
     const staffed = this.staffed();
+    // The keel's spine: a stem down from the Hermes hall and a beam along the top deck row.
+    const spine = this.layout.controlCenter?.manifold;
+    if (spine) {
+      const online = this.layout.controlCenter!.links.some((l) => state.envs[l.envId]?.connection === "live");
+      pixelBox(g, spine.stemX - 20, spine.top, 40, spine.y - spine.top + 8, c.D, c.k);
+      pixelBox(g, spine.x0 - 20, spine.y - 8, spine.x1 - spine.x0 + 40, 16, c.D, c.k);
+      for (const x of [spine.stemX - 12, spine.stemX + 12]) pixelPath(g, [{ x, y: spine.top }, { x, y: spine.y - 4 }], 2, HERMES_COLOR, online ? 0.55 : 0.15);
+      for (const y of [spine.y - 4, spine.y + 4]) pixelPath(g, [{ x: spine.x0 - 12, y }, { x: spine.x1 + 12, y }], 2, HERMES_COLOR, online ? 0.55 : 0.15);
+    }
     for (const link of this.layout.controlCenter?.links ?? []) {
       const online = state.envs[link.envId]?.connection === 'live';
       const lane = link.laneX;

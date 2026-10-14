@@ -13,10 +13,13 @@ give it orders, watch it work, and respond to approval requests when they come u
 Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-command styling
 (hand-authored pixel sprites, with Night Shift as the default world):
 
-- **Stations**: shared project modules form an orbital campus around an operations hub. Terminal,
-  files, comms, quarters, and archive chambers flank a central commons. Every participating
-  environment has its own compute/engine/power/cooling node attached directly to each project
-  it serves, with its team color; shared repositories keep their crew together. A solid supply
+- **Stations**: the fleet is laid out as a ship. The Hermes hall (or an operations hub) sits on
+  top, the machines' engineering decks hang from its spine in a keel of rows of six, and the
+  project modules spread below in wings: two columns around a corridor, each module beside the
+  machines that serve it, a lone project centred under the keel. Terminal, files, comms, cryo
+  bay, and archive chambers flank a central commons. Every machine runs a supply line in its team
+  color down onto a bus under the decks and along a corridor to each project it serves; lines
+  cross only on the bus, and shared repositories keep their crew together. A solid supply
   line means that machine has crew awake at the station; a project it merely has checked out is
   a dim dotted hairline. Lines thicken as you zoom out, so the network never vanishes, and deck
   callsigns shorten from the middle (TLS…01, TLS…02) so machines stay told apart.
