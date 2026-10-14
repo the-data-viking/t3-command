@@ -19,6 +19,12 @@ export interface Pulse {
 }
 
 export const REPEAT_FAILS = 3;
+
+/** A command as you'd type it: without the shell wrapper agents run it in (`/bin/bash -lc "…"`). */
+export function bareCommand(line: string): string {
+  const m = /^(?:\/(?:usr\/)?bin\/)?(?:ba|z)?sh\s+-l?c\s+(["']?)([\s\S]*?)\1?\s*$/.exec(line.trim());
+  return (m ? m[2] : line).trim();
+}
 export const NO_CHANGE_MS = 60 * 60_000;
 
 export function pulseOf(thread: OrchestrationThread, now: number): Pulse | undefined {
@@ -38,7 +44,7 @@ export function pulseOf(thread: OrchestrationThread, now: number): Pulse | undef
     const failed = p.status === "failed" || (typeof p.exitCode === "number" && p.exitCode !== 0);
     if (!failed || seen.has(id)) continue;
     seen.add(id);
-    const command = (typeof p.detail === "string" && p.detail.trim() ? p.detail : a.summary ?? "").split("\n")[0].trim();
+    const command = bareCommand((typeof p.detail === "string" && p.detail.trim() ? p.detail : a.summary ?? "").split("\n")[0]);
     if (command) failures.set(command, (failures.get(command) ?? 0) + 1);
   }
   const worst = [...failures].sort((a, b) => b[1] - a[1])[0];
