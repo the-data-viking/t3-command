@@ -40,11 +40,15 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
   useEffect(() => { const t = setTimeout(() => setArmed(true), ARM_MS); return () => clearTimeout(t); }, []);
 
   const turnId = thread?.latestTurn?.turnId;
+  const startedAt = thread?.latestTurn?.requestedAt;
   const report = useMemo(() => {
-    const messages = detail?.thread.messages ?? [];
-    const last = [...messages].reverse().find((m) => m.role === "assistant" && m.turnId === turnId && m.text.trim());
+    const written = [...(detail?.thread.messages ?? [])].reverse().filter((m) => m.role === "assistant" && m.text.trim());
+    // Hermes messages carry no turn id: its report is the last thing it wrote since the turn began.
+    const since = startedAt ? Date.parse(startedAt) : NaN;
+    const last = written.find((m) => m.turnId === turnId)
+      ?? written.find((m) => !m.turnId && (!Number.isFinite(since) || Date.parse(m.createdAt) >= since));
     return last?.text.trim();
-  }, [detail, turnId]);
+  }, [detail, turnId, startedAt]);
   const changes = useMemo(() => {
     const checkpoint = detail?.thread.checkpoints.find((c) => c.turnId === turnId);
     return checkpoint ? { files: checkpoint.files.length, ...changeTotals(checkpoint.files) } : undefined;
