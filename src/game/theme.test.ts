@@ -89,6 +89,8 @@ test("every theme keeps text readable, and High Contrast goes further", () => {
     assert.ok(contrast(t["--muted"], t["--surface"]) >= 4.5, `${style}: muted text`);
     assert.ok(contrast(t["--ink"], t["--frame"]) >= 4.5, `${style}: tab labels`);
   }
+  // Control and chip borders show where a control is, on its panel.
+  for (const style of LIVE_STYLES) assert.ok(contrast(hudTokens(style)["--edge-strong"], hudTokens(style)["--surface"]) >= 2.7, `${style}: control borders`);
   const hc = hudTokens("highcontrast");
   assert.ok(contrast(hc["--text"], hc["--surface"]) >= 18);
   assert.ok(contrast(hc["--muted"], hc["--surface"]) >= 10);
