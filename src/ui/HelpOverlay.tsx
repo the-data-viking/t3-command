@@ -17,6 +17,7 @@ const KEYS: Array<[string, string]> = [
   ["F", "Fit the whole fleet"],
   ["Backspace / Alt+←", "Back to where you were before the last jump (8 deep)"],
   ["L / H / T / B", "Comms log / turn history / fleet timeline / work board (missions and orders on top)"],
+  ["D", "Shipping dock: every open PR, by how ready it is to merge, and what's holding it back"],
   ["1–9", "Recall a control group (press again to frame it)"],
   ["Ctrl or Alt 1–9", "Save the squad (or selected crew) as a control group"],
   ["Shift-click", "Add or remove crew from the squad (map or roster)"],
