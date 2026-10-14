@@ -95,3 +95,8 @@ test("a finished squad order's notification opens its replies", () => {
   assert.equal(n.url, "/#replies/d%201");
   assert.equal(shouldPush(DEFAULT_PUSH_RULES, "mission", new Date()), true, "on by default");
 });
+
+test("pushes are signed with an https contact by default (Apple rejects mailto:…@localhost)", async () => {
+  const { DEFAULT_PUSH_SUBJECT } = await import("./push.ts");
+  assert.match(DEFAULT_PUSH_SUBJECT, /^https:\/\//);
+});

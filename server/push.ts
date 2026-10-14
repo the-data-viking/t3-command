@@ -69,6 +69,12 @@ async function writeJson(file: string, value: unknown): Promise<void> {
   await fs.rename(tmp, file);
 }
 
+/**
+ * The contact the server signs pushes with (VAPID "sub"). Apple's push service rejects a
+ * non-routable one ("mailto:…@localhost": 403 BadJwtToken), so it's an https URL unless set.
+ */
+export const DEFAULT_PUSH_SUBJECT = "https://github.com/the-data-viking/t3-command";
+
 export class PushNotifier {
   private readonly dir: string;
   private keys?: { publicKey: string; privateKey: string };
@@ -76,8 +82,11 @@ export class PushNotifier {
   private rules: PushRules = DEFAULT_PUSH_RULES;
   private writes: Promise<void> = Promise.resolve();
 
-  constructor(dataDir: string) {
+  private readonly subject: string;
+
+  constructor(dataDir: string, subject = DEFAULT_PUSH_SUBJECT) {
     this.dir = dataDir;
+    this.subject = subject;
   }
 
   private file(name: string): string {
@@ -90,7 +99,7 @@ export class PushNotifier {
       this.keys = webpush.generateVAPIDKeys();
       await writeJson(this.file("push-vapid.json"), this.keys);
     }
-    webpush.setVapidDetails("mailto:t3-command@localhost", this.keys.publicKey, this.keys.privateKey);
+    webpush.setVapidDetails(this.subject, this.keys.publicKey, this.keys.privateKey);
     this.subs = (await readJson<Saved[]>(this.file("push-subscriptions.json"))) ?? [];
     this.rules = sanitizeRules(await readJson(this.file("push-rules.json"))) ?? DEFAULT_PUSH_RULES;
   }
@@ -154,12 +163,14 @@ export class PushNotifier {
     await this.send(notificationFor(entry, machine, decision), (s) => deviceWants(s.kinds, entry.kind));
   }
 
-  /** A test notification to one device (or all). */
-  async test(endpoint?: string): Promise<number> {
-    return this.send({ title: "T3 Command", body: "Push notifications are working on this device.", url: "/", tag: "test" }, (s) => !endpoint || s.subscription.endpoint === endpoint);
+  /** A test notification to one device (or all): how many went, and why any didn't. */
+  async test(endpoint?: string): Promise<{ sent: number; errors: string[] }> {
+    const errors: string[] = [];
+    const sent = await this.send({ title: "T3 Command", body: "Push notifications are working on this device.", url: "/", tag: "test" }, (s) => !endpoint || s.subscription.endpoint === endpoint, errors);
+    return { sent, errors };
   }
 
-  private async send(payload: PushPayload, to: (s: Saved) => boolean): Promise<number> {
+  private async send(payload: PushPayload, to: (s: Saved) => boolean, errors: string[] = []): Promise<number> {
     let sent = 0;
     const gone: string[] = [];
     await Promise.all(this.subs.filter(to).map(async (s) => {
@@ -168,9 +179,14 @@ export class PushNotifier {
         sent++;
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode;
+        // The push service's own reason ({"reason":"BadJwtToken"} from Apple), so a failure can be fixed.
+        const body = String((err as { body?: unknown }).body ?? "").slice(0, 200);
         // The browser dropped this subscription (uninstalled, permission revoked): forget it.
         if (status === 404 || status === 410) gone.push(s.subscription.endpoint);
-        else console.warn("[push] send failed", status ?? (err as Error).message);
+        else {
+          console.warn("[push] send failed", status ?? (err as Error).message, body);
+          errors.push(`${s.label}: ${status ? `HTTP ${status}` : (err as Error).message}${body ? ` ${body}` : ""}`);
+        }
       }
     }));
     if (gone.length) { this.subs = this.subs.filter((s) => !gone.includes(s.subscription.endpoint)); this.save(); }

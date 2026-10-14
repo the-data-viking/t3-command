@@ -79,7 +79,7 @@ export function AlertsMenu() {
               <span className={pushOn ? "st-done" : "muted"}>{pushOn ? "On for this device" : "Off for this device"}</span>
               <span className="spacer" />
               {pushOn
-                ? <><button className="btn small" disabled={busy} onClick={() => void run(async () => { const sent = await testPush(endpoint); setMessage(sent ? "Test sent." : "Nothing was delivered."); })}>Send test</button>
+                ? <><button className="btn small" disabled={busy} onClick={() => void run(async () => { const { sent, errors } = await testPush(endpoint); setMessage(sent ? "Test sent: it should arrive in a few seconds." : `Not delivered${errors.length ? `: ${errors.join("; ")}` : "."}`); })}>Send test</button>
                   <button className="btn small" disabled={busy} onClick={() => void run(async () => { setStatus(await disablePush()); setEndpoint(undefined); })}>Turn off</button></>
                 : <button className="btn small" disabled={busy || !status} onClick={() => void run(async () => { setStatus(await enablePush(deviceLabel())); setEndpoint(await currentEndpoint()); })}>Turn on</button>}
             </div>
