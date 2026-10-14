@@ -237,15 +237,17 @@ export const BUNK_SLEEPER: Grid = [
   "........................",
 ];
 
+/** Two shelves of books: two-spine clusters with gaps between, and one shorter spine on each, so
+ * it reads as books and not as a fence of bars. */
 export const SHELF: Grid = [
   "kkkkkkkkkkkkkk",
-  "kbkbkTkbkbkbMk",
-  "kbkbkTkbkTkbMk",
-  "kbkbkTkbkTkbMk",
+  "kbbFTTFFFbbTMk",
+  "kbbFTTFbFbbTMk",
+  "kbbFTTFbFbbTMk",
   "kkkkkkkkkkkkkk",
-  "kTkbkbkbkbkTMk",
-  "kTkbkbkbkbkTMk",
-  "kTkbkbkbkbkTMk",
+  "kTFbbFTTFFbbMk",
+  "kTFbbFTTFTbbMk",
+  "kTFbbFTTFTbbMk",
   "kkkkkkkkkkkkkk",
 ];
 

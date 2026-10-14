@@ -23,11 +23,12 @@ export function mixColor(a: number, b: number, k: number): number {
 }
 
 /**
- * The shapes, in world px: a cone widening from a 20-px tube to 48 px over 28 px; an oval floor
- * pool 40×16; a spotlight from an 8-px source to a 40-px floor over 72 px. Three bands each,
- * sparser and fainter outward.
+ * The shapes, in world px: a cone widening from a 20-px tube to 24 px over 28 px (tubes sit 28 px
+ * apart, so each cone keeps a dark break from its neighbour instead of running into one fringe);
+ * an oval floor pool 40×16; a spotlight from an 8-px source to a 40-px floor over 72 px. Three
+ * bands each, sparser and fainter outward.
  */
-const SIZES: Record<Shape, { w: number; h: number }> = { cone: { w: 48, h: 28 }, pool: { w: 40, h: 16 }, spot: { w: 40, h: 72 } };
+const SIZES: Record<Shape, { w: number; h: number }> = { cone: { w: 24, h: 28 }, pool: { w: 40, h: 16 }, spot: { w: 40, h: 72 } };
 
 function texture(shape: Shape, color: number): Texture {
   const key = `${shape}:${color}`;

@@ -852,11 +852,12 @@ export class World {
       if (mode === "off") { g.rect(x, y0, 20, 2).fill(style.colors.k); continue; }
       g.rect(x, y0, 20, 2).fill(mode === "flicker" ? { color: lamp, alpha: 0.5 } : lamp);
       if (mode === "flicker") continue;
-      // Bloom: three rows of 2-px cells fanning out below each tube, each sparser and fainter.
-      for (let row = 0; row < 3; row++) {
-        for (let cx = x - 2 - row * 2; cx < x + 22 + row * 2; cx += 2) {
+      // Bloom: two sparse rows of 2-px cells under each tube, narrowing, so the dark gap between
+      // tubes stays a gap (a fanning bloom ran together into one fringe).
+      for (let row = 0; row < 2; row++) {
+        for (let cx = x + 2 + row * 4; cx < x + 18 - row * 4; cx += 2) {
           if ((cx / 2 + row) % (row + 2) !== 0) continue;
-          g.rect(cx, y0 + 2 + row * 2, 2, 2).fill({ color: lamp, alpha: 0.28 - row * 0.08 });
+          g.rect(cx, y0 + 2 + row * 2, 2, 2).fill({ color: lamp, alpha: 0.24 - row * 0.08 });
         }
       }
     }
