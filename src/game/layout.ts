@@ -84,6 +84,8 @@ export interface EnvironmentNodeLayout {
   links: Array<{ stationKey: string; from: Point; to: Point; via?: Point[] }>;
   /** Standing room for this machine's scratch crew; always drawn, lit only while crewed. */
   bay: Rect;
+  /** Where the docking hatch on its roof sits: under the Hermes hall's collar, else centred. */
+  hatchX: number;
   /** The machine's scratch project, once it has one. */
   scratch?: {
     projectId: string;
@@ -141,6 +143,15 @@ export const BAY_SHOWN = 2;
 const NODE_GAP = 24;
 /** Height of a row of Hermes operator bays (console, chair, name and status). */
 const HERMES_BAY_PITCH = 124;
+/** The Hermes hall is sized to its operators: a header band, their bays, and the archive and
+ * routines beside them. It never spans the docks below; their collars meet it where it is. */
+export const HALL_HEAD = 86;
+const HALL_FOOT = 14;
+const HALL_SIDE = 140;
+const HALL_MIN_W = 600;
+/** Collars stay this far inside the hall's ends, clear of its stepped corners. */
+const HALL_COLLAR_INSET = 72;
+export const OPERATOR_PITCH = 166;
 const CAMPUS_GAP = 400;
 /** Between station rows, and from the engineering decks down to the first row: tight enough that
  * a typical fleet fits at 0.5 zoom on a 1440×900 screen, where the art shows one-to-one. */
@@ -462,9 +473,10 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   });
   // A shared engineering spine: membership adds a conduit, never another chassis.
   const nodeX = columnW + (CAMPUS_GAP - ENV_NODE_W) / 2;
-  const bridgeW = 3 * ENV_NODE_W + 2 * NODE_GAP;
-  // Header, a row of seated operator bays per four operators, then the services strip.
-  const bridgeH = 104 + Math.max(1, Math.ceil(operators.length / 4)) * HERMES_BAY_PITCH + 64;
+  const columns = Math.min(4, Math.max(1, operators.length));
+  const bridgeW = Math.max(HALL_MIN_W, columns * OPERATOR_PITCH - 8 + 2 * HALL_SIDE);
+  // Header, a row of seated operator bays per four operators, and a thin foot.
+  const bridgeH = HALL_HEAD + Math.max(1, Math.ceil(operators.length / 4)) * HERMES_BAY_PITCH + HALL_FOOT;
   const dockRows = Math.ceil(engineering.length / 3);
   const bridge = { x: nodeX + ENV_NODE_W / 2 - bridgeW / 2,
     y: -DECK_GAP_Y - dockRows * (ENV_NODE_H + NODE_GAP) - bridgeH,
@@ -503,6 +515,11 @@ export function computeFleetLayout(state: GameState): FleetLayout {
       };
     });
     const bay = { x: x + ENV_BAY.x, y: nodeY + ENV_BAY.y, w: ENV_BAY.w, h: ENV_BAY.h };
+    // The first dock row hangs from the hall: a dock wider out than the hall takes its collar at
+    // the nearest point under it. Later rows hang from the dock above, centred.
+    const hatchX = hermes.length && row === 0
+      ? Math.min(bridge.x + bridge.w - HALL_COLLAR_INSET, Math.max(bridge.x + HALL_COLLAR_INSET, x + ENV_NODE_W / 2))
+      : x + ENV_NODE_W / 2;
     const scratch = scratchProject(env);
     let bayCrew: EnvironmentNodeLayout["scratch"];
     if (scratch) {
@@ -512,7 +529,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
     }
     fleet.environmentNodes.set(key, { key, envId: key, color: stationColor(state, key),
       hull: { x, y: nodeY, w: ENV_NODE_W, h: ENV_NODE_H },
-      plate: { x: x + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links, bay,
+      plate: { x: x + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links, bay, hatchX,
       ...(bayCrew ? { scratch: bayCrew } : {}) });
   });
   if (hermes.length) {
@@ -524,14 +541,14 @@ export function computeFleetLayout(state: GameState): FleetLayout {
       operators: operators.map((bot, i) => {
         const row = Math.floor(i / 4);
         const columns = Math.min(4, operators.length - row * 4);
-        return { bot, workstation: { x: hull.x + (hull.w - (columns * 166 - 8)) / 2 + (i % 4) * 166,
-          y: hull.y + 104 + row * HERMES_BAY_PITCH, w: 158, h: 116 } };
+        return { bot, workstation: { x: hull.x + (hull.w - (columns * OPERATOR_PITCH - 8)) / 2 + (i % 4) * OPERATOR_PITCH,
+          y: hull.y + HALL_HEAD + row * HERMES_BAY_PITCH, w: 158, h: 116 } };
       }),
       links: [...fleet.environmentNodes.values()].map((node, index) => ({ envId: node.envId,
-        from: index < 3 ? { x: node.hull.x + node.hull.w / 2, y: hull.y + hull.h }
-          : { x: node.hull.x + node.hull.w / 2, y: node.hull.y - NODE_GAP },
-        laneX: node.hull.x + node.hull.w / 2,
-        to: { x: node.hull.x + node.hull.w / 2, y: node.hull.y } })),
+        from: index < 3 ? { x: node.hatchX, y: hull.y + hull.h }
+          : { x: node.hatchX, y: node.hull.y - NODE_GAP },
+        laneX: node.hatchX,
+        to: { x: node.hatchX, y: node.hull.y } })),
     };
   } else if (groups.length > 1) fleet.hub = { x: columnW + CAMPUS_GAP / 2 - 70,
     y: -116, w: 140, h: 80 };
