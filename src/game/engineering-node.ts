@@ -253,7 +253,7 @@ export class EnvironmentNodeSprite {
       this.callsign.visible = !legible;
       const g = this.callsignBack.clear();
       if (!legible) {
-        fitLabel(this.callsign, this.callsignText, this.hull.w - 24, zoom);
+        fitLabel(this.callsign, this.callsignText, this.hull.w - 24, zoom, true);
         const w = this.callsign.width, hh = this.callsign.height;
         g.rect(this.callsign.x - w / 2 - 6 / zoom, this.callsign.y - hh / 2 - 4 / zoom, w + 12 / zoom, hh + 8 / zoom).fill({ color: 0x05080c, alpha: 0.82 });
       }

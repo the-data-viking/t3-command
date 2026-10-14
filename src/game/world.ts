@@ -85,6 +85,7 @@ export class World {
   /** Each room's lamps as last seen (and since when), for switch-on and lights-out (see lampView). */
   private lampSeen = new Map<string, { lit: boolean; at: number; delay: number }>();
   private lampsMoving = false;
+  private drawnLinkWidth = 0;
   private wasAwake = false;
   private lightsOutAt = -Infinity;
   /** Unlit rooms, multiplied by a theme-tinted dim tone. */
@@ -379,9 +380,13 @@ export class World {
     requestAnimationFrame(() => {
       if (this.destroyed) return;
       const area = this.visibleArea();
+      // Frame above the planet's horizon (at 80% of the screen), so the lowest station doesn't
+      // sit half-landed on it.
+      const horizon = this.app.screen.height * 0.8 - 8;
+      const h = Math.max(120, Math.min(area.y + area.h, horizon) - area.y);
       const margin = isPhone() ? 40 : 80;
-      const z = floorZoom(clampZoom(Math.min(maxZoom, Math.min(area.w / (rect.w + margin), area.h / (rect.h + margin)))));
-      this.moveCamera(area.x + area.w / 2 - (rect.x + rect.w / 2) * z, area.y + area.h / 2 - (rect.y + rect.h / 2) * z, z, this.framed);
+      const z = floorZoom(clampZoom(Math.min(maxZoom, Math.min(area.w / (rect.w + margin), h / (rect.h + margin)))));
+      this.moveCamera(area.x + area.w / 2 - (rect.x + rect.w / 2) * z, area.y + h / 2 - (rect.y + rect.h / 2) * z, z, this.framed);
       this.framed = true;
     });
   }
@@ -661,7 +666,8 @@ export class World {
       }
       const links = fingerprint(state.artStyle, this.layout.controlCenter?.links,
         [...this.layout.environmentNodes.values()].map((n) => [n.color, n.links, state.envs[n.envId]?.connection]),
-        this.layout.controlCenter?.links.map((l) => state.envs[l.envId]?.connection === "live"));
+        this.layout.controlCenter?.links.map((l) => state.envs[l.envId]?.connection === "live"),
+        [...this.staffed()].sort());
       if (links !== this.drawnLinks) {
         this.drawnLinks = links;
         this.drawLinks(state);
@@ -739,9 +745,20 @@ export class World {
     }
   }
 
+  /** "envId|stationKey" for each machine with awake crew at a station: what a solid supply line means. */
+  private staffed(): Set<string> {
+    const on = new Set<string>();
+    for (const crew of this.layout.crew.values()) if (!crew.sleeping) on.add(`${crew.envId}|${crew.stationKey}`);
+    return on;
+  }
+
   private drawLinks(state: GameState): void {
     const g = this.links.clear();
     const c = currentStyle().colors;
+    // Never thinner than about two screen pixels, so the network survives zooming out.
+    const width = linkWidth(this.zoomGoal ?? this.zoom);
+    this.drawnLinkWidth = width;
+    const staffed = this.staffed();
     for (const link of this.layout.controlCenter?.links ?? []) {
       const online = state.envs[link.envId]?.connection === 'live';
       const lane = link.laneX;
@@ -755,7 +772,11 @@ export class World {
         // A run of art-pixel cells along the route; an unreachable machine's line is severed (dashed).
         const path = linkPath(link.from, link.to, link.via);
         const reaching = live || state.envs[node.envId]?.connection === "connecting" || state.envs[node.envId]?.connection === "reconnecting";
-        pixelPath(g, path, 2, node.color, live ? 0.6 : reaching ? 0.2 : 0.25, reaching ? 0 : 8);
+        // A solid line means crew from this machine are awake at that station; a project the
+        // machine merely has checked out, with nobody on it, is a dim dotted hairline.
+        const crewed = staffed.has(`${node.envId}|${link.stationKey}`);
+        if (live && !crewed) pixelPath(g, path, Math.max(2, width / 2), node.color, 0.3, 4);
+        else pixelPath(g, path, width, node.color, live ? 0.6 : reaching ? 0.2 : 0.25, reaching ? 0 : 8);
         // Where a line that isn't carrying anything meets the station: a pulled plug, or a parted
         // link while the machine reconnects, just outside the port.
         if (!live && state.envs[node.envId]?.connection !== "needs-update") {
@@ -993,6 +1014,8 @@ export class World {
       sprite.destroy({ children: true });
     }
     this.separateLabels();
+    // Zooming out thickens the supply lines (they'd vanish otherwise): redraw when the width steps.
+    if (linkWidth(this.zoomGoal ?? this.zoom) !== this.drawnLinkWidth) this.drawLinks(state);
     this.glow.begin();
     this.drawLights(state, sel, t, frame);
     this.glow.end();
@@ -1482,6 +1505,17 @@ export class World {
     }
     for (let k = parts.length; k < texts.length; k++) texts[k].visible = false;
     this.fleetRollups.set(s.key, texts);
+    // A placard hanging from the station's own hull, under its lines: zoomed out, a rollup reads
+    // as part of its station, not as a caption over the next station's name below it.
+    const shown = texts.filter((t) => t.visible);
+    if (shown.length) {
+      const g = this.fleetView;
+      const pad = Math.round(3 / this.zoom);
+      const x0 = Math.min(...shown.map((t) => t.x)) - pad, x1 = Math.max(...shown.map((t) => t.x + t.width)) + pad;
+      const y0 = s.hull[11], y1 = Math.max(...shown.map((t) => t.y + t.height)) + pad;
+      g.rect(x0, y0, x1 - x0, y1 - y0).fill({ color: 0x05080c, alpha: 0.78 });
+      g.rect(x0, y0, x1 - x0, Math.round(1 / this.zoom)).fill(mapInk(artStyle).line);
+    }
   }
 
   /** Arrows on the screen edge pointing at off-screen crew who need you. */
@@ -1546,4 +1580,9 @@ export class World {
 }
 
 /** The live map, for hotkeys and panels that need to move the camera. */
+/** Supply-line width in world px: two art pixels, more when zoomed out so it stays about two screen pixels. */
+export function linkWidth(zoom: number): number {
+  return Math.max(2, Math.round(1 / zoom) * 2);
+}
+
 export { worldRef };

@@ -2,7 +2,7 @@
 
 import { Sprite, type Graphics } from "pixi.js";
 import { PixelText } from "./pixel-text";
-import { fitText } from "../art/pixelfont";
+import { fitText, fitTextMiddle } from "../art/pixelfont";
 import * as A from "../art/sprites";
 import type { UnitState } from "../t3/derive";
 import type { Arms, Head } from "../art/render";
@@ -30,10 +30,10 @@ export function crispScale(unit: number, zoom: number): number {
  * Size a label for the zoom at a whole number of screen pixels per font pixel (crisp, never
  * sub-pixel mush), shortened to fit `width` world px.
  */
-export function fitLabel(label: PixelText, full: string, width: number, zoom: number): void {
+export function fitLabel(label: PixelText, full: string, width: number, zoom: number, middle = false): void {
   const k = crispScale(label.unit, zoom);
   label.scale.set(k);
-  label.text = fitText(full, width * zoom, label.unit * zoom * k);
+  label.text = (middle ? fitTextMiddle : fitText)(full, width * zoom, label.unit * zoom * k);
 }
 
 /**
