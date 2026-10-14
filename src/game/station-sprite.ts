@@ -251,9 +251,12 @@ export class StationSprite {
     // of the title over its left end and the antenna mast at its right.
     const rx = i.x + Math.round(i.w * 0.5 / 4) * 4 + Math.round(seed * 10) * 4;
     if (seed > 0.5) {
+      // A dish: a bowl opening upward on a mast, in gear metal (narrowing upward, in the deck's
+      // copper, it read as a ▲ on every roof), with its feed horn over the middle.
       g.rect(rx + 6, hullTop - 10, 4, 10).fill(c.k);
-      for (let row = 0; row < 4; row++) g.rect(rx + row * 2, hullTop - 14 - row * 2, 16 - row * 4, 2).fill(row === 0 ? c.k : c.m);
-      g.rect(rx + 7, hullTop - 22, 2, 4).fill(c.m);
+      DISH.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== ".") g.rect(rx - 2 + x * 2, hullTop - 18 + y * 2, 2, 2).fill(ch === "k" ? c.k : c.g); }));
+      g.rect(rx + 7, hullTop - 24, 2, 6).fill(c.k);
+      g.rect(rx + 7, hullTop - 26, 2, 2).fill(c.g);
     } else {
       g.rect(rx, hullTop - 18, 4, 18).fill(c.k);
       g.rect(rx - 4, hullTop - 14, 12, 2).fill(c.k);
@@ -444,6 +447,9 @@ function roundedPlate(g: Graphics, x: number, y: number, w: number, h: number, r
 }
 
 /** A filled pixel disc of radius `r`, in 2-px rows. */
+/** The roof dish, 10×4 art pixels: outline (k) and gear metal (g), opening upward. */
+const DISH = ["kg......gk", ".kggggggk.", "..kkkkkk..", "....kk...."];
+
 /** A viewport's glass on a station's top hull band (world px); round ones are portholes of radius 4. */
 export interface HullWindow { x: number; y: number; w: number; h: number; round: boolean }
 
