@@ -116,6 +116,14 @@ export class EnvironmentNodeSprite {
     });
   }
 
+  /**
+   * Unreachable: the deck art greys with an opaque tint (not see-through), but its name and
+   * captions keep their colour, so you can still read which machine it is.
+   */
+  setOffline(offline: boolean): void {
+    for (const child of this.root.children) child.tint = offline && !(child instanceof PixelText) ? 0x6a6f76 : 0xffffff;
+  }
+
   /** Rack LEDs fill with measured CPU load and the coolant column with RAM used. */
   updateResources(node: EnvironmentNodeLayout, state: HostState | undefined, connection: string): void {
     const view = hostView(state, connection);

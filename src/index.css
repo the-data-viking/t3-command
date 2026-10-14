@@ -131,7 +131,7 @@ code {
 }
 
 .error {
-  color: var(--alert);
+  color: var(--error);
 }
 
 .count-working {
@@ -218,7 +218,8 @@ code {
   gap: var(--space-3);
   padding: var(--space-1h) var(--space-3);
   flex-wrap: wrap;
-  z-index: var(--z-panel);
+  /* Above side panels: its menus (worlds, spend, limits, update, alerts) open over them. */
+  z-index: var(--z-float);
 }
 
 .logo,
@@ -466,11 +467,13 @@ code {
    kept for approving and accepting (.btn.approve), where it means what it says. */
 .btn.primary {
   border-color: var(--frame);
-  color: var(--bright);
+  background: var(--frame);
+  color: var(--ink);
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: var(--frame);
+  background: var(--bright);
+  border-color: var(--bright);
   color: var(--ink);
 }
 
@@ -810,11 +813,12 @@ code {
   white-space: nowrap;
 }
 
+/* One meaning per tone everywhere: alert is the approval red, bad/error the failure colour. */
 .activity.tone-error {
-  color: var(--alert);
+  color: var(--error);
 }
 .activity.tone-approval {
-  color: var(--question);
+  color: var(--alert);
 }
 
 .activity-icon {
@@ -1110,12 +1114,12 @@ select:focus {
   border-left-color: var(--done);
 }
 .log-line.tone-alert {
-  color: var(--question);
-  border-left-color: var(--question);
-}
-.log-line.tone-bad {
   color: var(--alert);
   border-left-color: var(--alert);
+}
+.log-line.tone-bad {
+  color: var(--error);
+  border-left-color: var(--error);
 }
 
 .hint {
@@ -2289,6 +2293,8 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .receipt-mark { width: 1.2em; text-align: center; flex: none; color: var(--muted); }
 .receipt-crew { flex: 1 1 0; background: none; border: 0; padding: 0; color: var(--text); font: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; text-align: left; }
 .receipt-crew:hover { text-decoration: underline; }
+/* Plain links in panels and dialogs follow the world (a browser-default blue fails on dark slots). */
+.modal a:not(.btn), .panel a:not(.btn) { color: var(--bright); text-decoration: underline; text-underline-offset: 2px; }
 .receipt-status { margin-left: auto; flex: none; color: var(--muted); }
 .receipt { flex-wrap: wrap; }
 .receipt-part { flex: 1 0 100%; padding-left: calc(1.2em + var(--space-1h)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; letter-spacing: 0; }
@@ -2302,7 +2308,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .mission-crew li.failed .mission-who { color: var(--error); }
 .mission-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; letter-spacing: 0; }
 .mission-preview pre { white-space: pre-wrap; font-family: var(--mono); font-size: var(--fs-sm); text-transform: none; letter-spacing: 0; font-weight: 400; margin: var(--space-1) 0 0; padding: var(--space-1h); background: var(--wash); border: 1px solid var(--hairline); max-height: 24vh; overflow-y: auto; }
-@media (max-width: 700px) { .mission-crew { gap: var(--space-2); } .mission-crew li { grid-template-columns: 1fr; gap: var(--space-1); } }
+@media (max-width: 700px) { .mission-field input, .mission-field textarea, .mission-crew input { font-size: 16px; min-height: 44px; } .mission-crew { gap: var(--space-2); } .mission-crew li { grid-template-columns: 1fr; gap: var(--space-1); } }
 .r-reported .receipt-mark, .r-reported .receipt-status { color: var(--done); }
 .r-working .receipt-mark, .r-working .receipt-status { color: var(--working); }
 .r-needs-you .receipt-mark, .r-needs-you .receipt-status { color: var(--alert); }

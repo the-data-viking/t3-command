@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { PixelLabel } from "./PixelArt";
-import { css, hudMaterials, platingMaterials } from "../game/theme";
+import { css, mapInk, platingMaterials } from "../game/theme";
 import { STYLES } from "../art/palettes";
 import { useGame } from "../store";
 import { worldRef } from "../game/world";
@@ -45,7 +45,8 @@ export function Minimap() {
 
       // Stations in the theme's own hull colour; the view box in its frame colour.
       const style = useGame.getState().artStyle;
-      const hull = css(STYLES[style].colors.H), frameColor = css(hudMaterials(style).frame), offline = css(platingMaterials(style).edgeStrong);
+      // The view box is drawn over map space, so it takes map ink (the HUD frame vanishes on light HUDs).
+      const hull = css(STYLES[style].colors.H), frameColor = css(mapInk(style).text), offline = css(platingMaterials(style).edgeStrong);
       ctx.fillStyle = `${hull}33`;
       ctx.strokeStyle = `${hull}aa`;
       for (const r of data.hubs) {
