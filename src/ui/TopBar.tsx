@@ -118,14 +118,24 @@ export function TopBar() {
           const envId = hermesCatalog?.envId ?? hermes[0].summary.id;
           setSelection({ kind: 'hermes', envId }); worldRef.current?.focusStation(envId);
         }}><HermesMark /><span>Hermes <span className="muted">{operators.length}</span></span></button>}
-      <button className="btn menu-closes" onClick={() => useGame.setState({ showEnvManager: true })}>
-        Stations
+      {/* The work views, in view rather than behind a key. */}
+      <button className="btn menu-closes" title="Work board: every crew member's work, missions and orders (B)" onClick={() => useGame.setState({ showBoard: true })}>
+        Board
+      </button>
+      <button className="btn menu-closes" title="Shipping dock: every open PR, by how ready it is to merge (D)" onClick={() => useGame.setState({ showDock: true })}>
+        Dock
+      </button>
+      <button className="btn menu-closes" title="Fleet timeline: every crew member's turns (T)" onClick={() => useGame.setState({ showTimeline: true })}>
+        Timeline
       </button>
       <button className="btn menu-closes" title="Comms log (L)" aria-expanded={showLog} onClick={() => useGame.setState({ showLog: !showLog })}>
         Log
       </button>
       <button className="btn menu-closes" title="Turn and spend history (H)" onClick={() => useGame.setState({ showHistory: true })}>
         History
+      </button>
+      <button className="btn menu-closes" title="The T3 machines in the fleet: add, pair, remove" onClick={() => useGame.setState({ showEnvManager: true })}>
+        Machines
       </button>
       <UpdatePanel />
       {phone && <button className="btn menu-closes" onClick={() => useGame.setState({ showPalette: true })}>Search</button>}

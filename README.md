@@ -63,9 +63,11 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   ◆ question, ● working, ○ monitoring, ✓ report, ✕ failed. With your system's **reduced motion**
   setting the map holds still (no blinking, pulsing or walking; crew are placed), camera moves snap
   and HUD animations stop. Crew portraits are their actual map sprites, and HUD icons are pixel
-  art rather than emoji. On phones the top bar is one row (active, alerts, reports) with a menu holding stations, spend,
-  limits and the rest. The crew roster is a dock along the bottom that opens upward. Panels and
-  dialogs fill the screen. The map pinch-zooms, and a tap just beside a small crew member still
+  art rather than emoji. The top bar has buttons for the work views (**Board**, **Dock**, **Timeline**)
+  beside the log, history and **Machines** (the T3 environments). On phones the top bar is one row
+  (active, alerts, reports) with a menu holding the machines, spend, limits and the rest, and a tab
+  bar along the bottom: **Needs you** (the roster, which opens by itself the first time something
+  needs you), **Board**, **Dock** and **Map**. Panels and dialogs fill the screen. The map pinch-zooms, and a tap just beside a small crew member still
   selects them. Return adds a line in the order box (Send sends), and opening a unit doesn't raise
   the keyboard.
 - **Host resources**: each environment's engineering deck shows whole-host CPU load as lit
@@ -199,7 +201,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   **Building**, **Report ready**, and **In review** (report read, PR still open). Cards show the
   state with its shape, how long it's waited or run, the station, machine and model, what an
   approval or question asks, the last error, and PR chips; **Decide**, **Answer** and **Read
-  report** act from the card, and clicking one goes to its crew member. Crew at camp or idle
+  report** act from the card, and a failed turn has **Fix it** (asks the crew member to find and fix
+  the cause) and **Retry** (sends its last order again), in its panel too, and clicking one goes to its crew member. Crew at camp or idle
   are off the board. A **mission** (⚑) is only ever several crew on one named goal.
 - **Shipping dock** (**D**, the palette, or the work board's header): every open PR in the fleet,
   once each, in four lanes: **Ready to merge** (the host reports checks that ran and passed and a
@@ -361,7 +364,7 @@ which launches `hermes acp` and translates its local Agent Client Protocol strea
 1. Install and configure Hermes on the Command host as the same OS user that runs Command:
    run `hermes setup`, then `hermes acp --check`. Use a Hermes release with ACP session modes
    (`default` and `accept_edits`) and session loading.
-2. Open **Stations → Local Hermes**, enter an existing absolute default working directory on that host,
+2. Open **Machines → Local Hermes**, enter an existing absolute default working directory on that host,
    and choose **Connect Hermes**. No T3 pairing link or additional network listener is needed.
 3. Open **Hermes** in the header or select its large control-center node on the map. Choose a bot
    and **Talk to bot** for its ongoing Bot Chat, or **New task session** for a separate conversation.
@@ -661,7 +664,9 @@ Layout:
 ## Push notifications to your phone
 
 T3 Command can push fleet events to any device that turns it on, even with no tab open: approvals
-and questions, failed turns, turns gone quiet (no update for 20 minutes) or running long, merged
+and questions, failed turns, turns that may be spinning (the same command failing three or more
+times, or an hour with no file change while it keeps working; the server reads the turn's own
+activity, and the roster shows it too), turns gone quiet (no update for 20 minutes) or running long, merged
 PRs, finished jobs, machines going offline and low disks. Open the bell menu in the top bar to
 turn push on for this device, choose which events come through, and set quiet hours (only the
 kinds you allow, approvals by default, get through overnight). Tapping a notification opens T3

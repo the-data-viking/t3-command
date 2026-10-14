@@ -17,6 +17,7 @@ import { requestSummary, waitingSince } from "./queue";
 import { startQueue } from "./queue-run";
 import { useClock } from "./useClock";
 import { pulseOf, pulseText } from "./pulse";
+import { FailedActions } from "./FailedActions";
 import { modelName, stateLabel } from "./util";
 
 /** Each state's shape, so a card's state never rests on colour alone. */
@@ -106,6 +107,7 @@ function BoardCard({ card, onGo }: { card: Card; onGo: () => void }) {
       {(state === "alert" || state === "question") && (
         <button className="btn small board-card-act" onClick={() => { onGo(); openEvent({ envId, threadId: thread.id }); }}>{state === "alert" ? "Decide" : "Answer"}</button>
       )}
+      {state === "error" && <FailedActions envId={envId} thread={thread} />}
       {(column === "report" || column === "review") && (
         <button className="btn small board-card-act" onClick={() => { onGo(); openReview({ envId, threadId: thread.id }); }}>Review</button>
       )}
@@ -136,3 +138,4 @@ function OpenPrs({ thread }: { thread: ThreadShell }) {
     </div>
   );
 }
+

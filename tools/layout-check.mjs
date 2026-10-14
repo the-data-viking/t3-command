@@ -63,7 +63,8 @@ async function run(base) {
       check(view.name, counts.needs === counts.dock, `dock says ${counts.dock} need you, top bar says ${counts.needs}`);
     }
     // A crew member's panel sits below the top bar, never over its controls.
-    if (phone) { await page.tap(".roster-tab"); await page.waitForTimeout(300); }
+    // On a phone the roster opens by itself when something needs you; otherwise its tab opens it.
+    if (phone && !(await page.locator(".crew-row:not(.operator-row)").first().isVisible().catch(() => false))) { await page.tap(".phone-tab"); await page.waitForTimeout(300); }
     await page.locator(".crew-row:not(.operator-row)").first().click();
     await page.waitForTimeout(800);
     const bar = await rect(page, ".topbar"), panel = await rect(page, ".panel");

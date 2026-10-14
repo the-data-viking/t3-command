@@ -93,7 +93,7 @@ export function EnvManager() {
     <div className="modal-backdrop" onClick={close}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <header className="panel-head">
-          <h2>Stations</h2>
+          <h2>Machines</h2>
           <span className="spacer" />
           <button className="icon-btn" onClick={close}>
             ✕

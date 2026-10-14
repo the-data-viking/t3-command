@@ -3,9 +3,9 @@
 // changes while it keeps working. Read from the turn's own activity; these are prompts to look,
 // never a ruling that it's stuck.
 
-import type { OrchestrationThread } from "../t3/types";
-import { elapsed } from "../t3/timing";
-import { testsRun, type TestRun } from "./review";
+import type { OrchestrationThread } from "../t3/types.ts";
+import { elapsed } from "../t3/timing.ts";
+import { testsRun, type TestRun } from "../t3/tests-run.ts";
 
 export interface Pulse {
   /** When a file last changed this turn. */

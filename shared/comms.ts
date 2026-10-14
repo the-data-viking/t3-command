@@ -9,7 +9,7 @@ export type CommsTone = "info" | "good" | "alert" | "bad";
  */
 export type CommsKind =
   | "approval" | "question" | "failed" | "done" | "started" | "monitoring" | "merged" | "quiet"
-  | "offline" | "online" | "disk" | "long-turn" | "update" | "mission" | "info";
+  | "offline" | "online" | "disk" | "long-turn" | "spinning" | "update" | "mission" | "info";
 
 /** Routine entries a log can fold away: work starting and background watching. */
 export const ROUTINE_KINDS: ReadonlySet<CommsKind> = new Set(["started", "monitoring"]);

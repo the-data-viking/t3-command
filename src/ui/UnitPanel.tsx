@@ -9,6 +9,7 @@ import { openReview } from "./review";
 import { allowedDecisions, assessRisk } from "./risk";
 import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
+import { FailedActions } from "./FailedActions";
 import { isHistory, pendingRequests, turnBusy, unitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { contextLevel, modelTier, TIER_LABEL } from "../game/theme";
@@ -126,6 +127,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
           <button className="btn" title="Take this report out of Needs you and the REPORTS count (this browser), until the thread's next turn"
             onClick={() => markReportsRead([{ envId, threadId, turnId: thread.latestTurn!.turnId }])}>✓ Mark read</button>
         )}
+        {!bot && state === "error" && <FailedActions envId={envId} thread={thread} className="btn" />}
         {canHalt && (
           <button className="btn danger" onClick={() => run("Interrupt", () => client?.interrupt(threadId))}>
             ■ Halt
