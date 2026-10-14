@@ -142,7 +142,10 @@ const NODE_GAP = 24;
 /** Height of a row of Hermes operator bays (console, chair, name and status). */
 const HERMES_BAY_PITCH = 124;
 const CAMPUS_GAP = 400;
-const STATION_GAP_Y = 180;
+/** Between station rows, and from the engineering decks down to the first row: tight enough that
+ * a typical fleet fits at 0.5 zoom on a 1440×900 screen, where the art shows one-to-one. */
+const STATION_GAP_Y = 96;
+const DECK_GAP_Y = 80;
 
 export function sortedEnvs(state: GameState): EnvWorld[] {
   return Object.values(state.envs).sort((a, b) => a.summary.addedAt.localeCompare(b.summary.addedAt));
@@ -464,7 +467,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   const bridgeH = 104 + Math.max(1, Math.ceil(operators.length / 4)) * HERMES_BAY_PITCH + 64;
   const dockRows = Math.ceil(engineering.length / 3);
   const bridge = { x: nodeX + ENV_NODE_W / 2 - bridgeW / 2,
-    y: -120 - dockRows * (ENV_NODE_H + NODE_GAP) - bridgeH,
+    y: -DECK_GAP_Y - dockRows * (ENV_NODE_H + NODE_GAP) - bridgeH,
     w: bridgeW, h: bridgeH };
   engineering.forEach((env, index) => {
     const key = env.summary.id;
