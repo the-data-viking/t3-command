@@ -5,7 +5,7 @@ import { contextLevel, css, hudAccent, modelTier, TIER_LABEL } from "../game/the
 import { worldRef } from "../game/world";
 import { openEvent, setSelection, toggleSquad, unitKey, useGame } from "../store";
 import { squadKeys } from "./squad";
-import { followUpFor } from "../t3/followups";
+import { followUpFor, followUpLabel } from "../t3/followups";
 import { requestSummary } from "./queue";
 import { assessRisk } from "./risk";
 import { needsYou as needsYouList } from "./needs-you";
@@ -115,7 +115,7 @@ export function CrewRoster() {
             {(u.state === "alert" || u.state === "question") && detail && (
               <RosterAsk state={u.state} request={pendingRequests(detail.thread)[0]} />
             )}
-            {followUpFor(followUps, u.envId, u.thread.id) && <span className="crew-queued">↻ Follow-up queued{followUps.paused ? " (paused)" : ""}</span>}
+            {(() => { const f = followUpFor(followUps, u.envId, u.thread.id); return f && <span className="crew-queued">↻ {f.total ? followUpLabel(f) : "Follow-up queued"}{followUps.paused ? " (paused)" : ""}</span>; })()}
             <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
             <PlanLine thread={u.thread} detail={detail?.thread} />
             {ctx !== undefined && (

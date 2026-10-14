@@ -2182,8 +2182,9 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 
 /* ---- Follow-ups: an order queued for when a busy crew member's turn ends ---- */
 .order-actions { display: flex; flex-direction: column; gap: var(--space-1); }
+.order-times { min-height: 28px; padding: 0 var(--space-1); background: var(--slot); color: var(--text); border: 1px solid var(--edge-strong); border-radius: var(--radius-control); font: inherit; font-size: var(--fs-sm); }
 .follow-up { display: flex; align-items: center; gap: var(--space-2); margin: 0 var(--space-3) var(--space-1h); padding: var(--space-1h) var(--space-2); border: 1px dashed var(--edge-strong); background: var(--wash); font-size: var(--fs-md); }
-.follow-up-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.follow-up-text { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .crew-queued { color: var(--muted); font-size: var(--fs-xs); }
 
 /* ---- Saved orders ---- */

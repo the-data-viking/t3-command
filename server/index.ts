@@ -271,8 +271,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (pathname === "/api/followups" && method === "GET") return sendJson(res, 200, followUps.view());
   if (pathname === "/api/followups" && method === "POST") {
-    const body = await readJson<{ envId?: string; threadId?: string; text?: string }>(req);
-    try { return sendJson(res, 200, followUps.add(String(body?.envId ?? ""), String(body?.threadId ?? ""), String(body?.text ?? ""))); }
+    const body = await readJson<{ envId?: string; threadId?: string; text?: string; times?: number; startedAfter?: string | null }>(req);
+    const opts = { ...(body?.times !== undefined ? { times: Number(body.times) } : {}),
+      ...(body && "startedAfter" in body ? { startedAfter: typeof body.startedAfter === "string" ? body.startedAfter : null } : {}) };
+    try { return sendJson(res, 200, followUps.add(String(body?.envId ?? ""), String(body?.threadId ?? ""), String(body?.text ?? ""), Date.now(), opts)); }
     catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
   }
   if (pathname === "/api/followups/cancel" && method === "POST") {

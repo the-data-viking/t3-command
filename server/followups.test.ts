@@ -75,3 +75,51 @@ test("only busy crew can have a follow-up, one each, and it can be cancelled", a
   assert.equal(followUps.view().queued.length, 0);
   assert.throws(() => followUps.add("e", "nobody", "x"), /isn't known/);
 });
+
+test("a standing order goes again after each turn it starts, until its count runs out", async () => {
+  const { comms, sent, followUps } = await setup();
+  followUps.observe("e", [shell("a", "running")]);
+  followUps.add("e", "t", "Keep going", Date.now(), { times: 2 });
+  assert.equal(followUps.view().queued[0].total, 2);
+  followUps.observe("e", [shell("a", "completed")]);
+  await tick();
+  assert.deepEqual(sent, ["Keep going"]);
+  assert.equal(followUps.view().queued[0].left, 1, "one more to go, waiting for the turn it started");
+  assert.equal(followUps.view().queued[0].afterTurnId, null);
+  followUps.observe("e", [shell("a", "completed")]);
+  await tick();
+  assert.equal(sent.length, 1, "the old turn doesn't count twice");
+  followUps.observe("e", [shell("b", "running")]);
+  assert.equal(followUps.view().queued[0].afterTurnId, "b");
+  followUps.observe("e", [shell("b", "completed")]);
+  await tick();
+  assert.deepEqual(sent, ["Keep going", "Keep going"]);
+  assert.equal(followUps.view().queued.length, 0);
+  assert.ok(comms.since().some((e) => e.text.startsWith("Standing order 2 of 2 sent to \"Fix CI\"")));
+});
+
+test("a standing order given with an order sent now waits on that order's turn, and stops on a failure", async () => {
+  const { comms, sent, followUps } = await setup();
+  followUps.observe("e", [shell("a", "completed")]);
+  followUps.add("e", "t", "Next step", Date.now(), { times: 3, startedAfter: "a" });
+  assert.equal(followUps.view().queued[0].total, 4, "the order sent now, then three more");
+  // The order's own turn starts and finishes before the server looks: it still counts.
+  followUps.observe("e", [shell("b", "completed")]);
+  await tick();
+  assert.deepEqual(sent, ["Next step"]);
+  followUps.observe("e", [shell("c", "error")]);
+  await tick();
+  assert.equal(followUps.view().queued.length, 0);
+  assert.ok(comms.since().some((e) => /not sent: the turn failed/.test(e.text)));
+  assert.throws(() => followUps.add("e", "t", "x", Date.now(), { times: 11, startedAfter: "c" }), /1–10 times/);
+});
+
+test("a standing order whose send never starts a turn is dropped, not left waiting", async () => {
+  const { comms, followUps } = await setup();
+  followUps.observe("e", [shell("a", "completed")]);
+  const now = Date.now();
+  followUps.add("e", "t", "Next", now - 4 * 60_000, { times: 2, startedAfter: "a" });
+  followUps.observe("e", [shell("a", "completed")]);
+  assert.equal(followUps.view().queued.length, 0);
+  assert.ok(comms.since().some((e) => /didn't start a turn/.test(e.text)));
+});
