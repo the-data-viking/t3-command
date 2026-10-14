@@ -48,7 +48,7 @@ export function TopBar() {
 
   const readReports = useGame((s) => s.readReports);
   const counts = useMemo(() => fleetCounts(envs, readReports), [envs, readReports]);
-  const totals = { working: counts.working + counts.background, monitoring: counts.monitoring, attention: counts.waiting, done: counts.reports, hurt: counts.failed, crew: counts.crew, awake: counts.awake };
+  const totals = { working: counts.working + counts.background, monitoring: counts.monitoring, crew: counts.crew, awake: counts.awake };
 
   return (
     <header ref={bar} className={`topbar hud-frame ${menuOpen ? "menu-open" : ""}`}>
@@ -62,17 +62,7 @@ export function TopBar() {
         <button className="resource optional" title="Monitoring background work (M cycles)" onClick={() => jumpTo("monitoring")}>
           <span className="res-key">MONITORING</span> <span className="res-val violet">{totals.monitoring}</span>
         </button>
-        <button className={`resource ${totals.attention ? "hot" : ""}`} title="Waiting on you (Space cycles)" onClick={() => jumpTo("attention")}>
-          <span className="res-key" data-short="ALERT">ALERTS</span> <span className="res-val">{totals.attention}</span>
-        </button>
-        <button className="resource" title="Reports ready (. cycles)" onClick={() => jumpTo("done")}>
-          <span className="res-key" data-short="RPT">REPORTS</span> <span className="res-val green">{totals.done}</span>
-        </button>
-        {totals.hurt > 0 && (
-          <button className="resource" title="Last turn failed" onClick={() => jumpTo("error")}>
-            <span className="res-key" data-short="FAIL">FAILED</span> <span className="res-val orange">{totals.hurt}</span>
-          </button>
-        )}
+        {/* Approvals, questions, reports and failures are one count: Needs you, beside these. */}
         <DispatchChip />
         <span className="resource dim optional" title="Crew awake / total">
           <span className="res-key">CREW</span> <span className="res-val">

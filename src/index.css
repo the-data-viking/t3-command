@@ -1589,8 +1589,12 @@ button.ftl-tab {
   position: relative;
   width: min(580px, 100%);
   padding: var(--space-5) var(--space-5) var(--space-3);
-  /* Not scrollable itself, so the title tab above the frame isn't clipped; long details scroll. */
+  /* Not scrollable itself, so the title tab above the frame isn't clipped; long details scroll,
+     and the choices below them stay in view. */
   overflow: visible;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 24px);
 }
 
 .event-meta {
@@ -1603,10 +1607,12 @@ button.ftl-tab {
 }
 
 .event-body {
-  max-height: calc(100dvh - 170px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-wrap: anywhere;
 }
+.event-actions { flex: none; padding-top: var(--space-2); }
 
 .question-form {
   display: flex;

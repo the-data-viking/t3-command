@@ -1,4 +1,4 @@
-// The mission board: the whole fleet's work as cards in columns — what needs you, what's being
+// The work board: the whole fleet's work as cards in columns — what needs you, what's being
 // planned, built, reviewed, or waiting to be read — so you can see where everything stands.
 
 import { PixelLabel } from "./PixelArt";
@@ -35,15 +35,15 @@ export function MissionBoard() {
   const total = COLUMNS.reduce((n, c) => n + board[c.id].length, 0);
   return createPortal(
     <div className="modal-backdrop" onClick={close}>
-      <div className="modal board-modal" role="dialog" aria-label="Mission board" onClick={(e) => e.stopPropagation()}>
+      <div className="modal board-modal" role="dialog" aria-label="Work board" onClick={(e) => e.stopPropagation()}>
         <header className="panel-head">
-          <h2 className="title-tab"><PixelLabel text="Mission board" /></h2>
-          <span className="muted small">{total} mission{total === 1 ? "" : "s"} in flight</span>
+          <h2 className="title-tab"><PixelLabel text="Work board" /></h2>
+          <span className="muted small">{total} crew at work</span>
           <span className="spacer" />
           {board["needs-you"].length + board.report.length > 0 && (
             <button className="btn small" onClick={() => { close(); startQueue(); }} title="One card at a time (Q)">▶ Work the queue</button>
           )}
-          <button className="icon-btn" aria-label="Close mission board" onClick={close}>✕</button>
+          <button className="icon-btn" aria-label="Close work board" onClick={close}>✕</button>
         </header>
         <DispatchList onGo={close} />
         <div className="board">
@@ -57,7 +57,7 @@ export function MissionBoard() {
             </section>
           ))}
         </div>
-        <p className="muted small">Missions at camp or idle are off the board. Click a card to go to its crew member.</p>
+        <p className="muted small">Crew at camp or idle are off the board. Click a card to go to its crew member.</p>
       </div>
     </div>,
     document.body,

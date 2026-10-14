@@ -195,6 +195,10 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
               <QuestionForm key={request.requestId} request={request} envId={envId} threadId={threadId} onAnswered={() => { decided.current = true; }} />
             </>
           )}
+        </div>
+        {/* The choices sit outside the scrolling context, so every one is always in view (on a
+            phone, Deny is never below the fold while Approve is showing). */}
+        <div className="event-actions">
           {request?.kind === "user-input" ? (
             <button className="btn" onClick={openLog}>Open the crew log</button>
           ) : <ol className={`event-choices ${armed ? "" : "arming"}`}>
@@ -208,7 +212,7 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
           </ol>}
         </div>
         <div className="event-foot muted">
-          {request?.kind === "user-input" ? "Select or type your answers" : "Press a number to choose"}
+          {request?.kind === "user-input" ? "Select or type your answers" : isPhone() ? "Tap a choice" : "Press a number to choose"}
           {running ? ` · ${left > 0 ? `${left} more in the queue` : "last one"} · ${isPhone() ? "tap outside to stop" : "Esc stops"}`
             : queue.length > 0 ? ` · ${queue.length} more waiting, next after this · Esc stops` : " · Esc to decide later"}
           {running && <button className="link-button queue-skip" onClick={skip}>{isPhone() ? "Later (or swipe left)" : "Later (S)"}</button>}

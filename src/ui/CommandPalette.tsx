@@ -79,7 +79,7 @@ function buildItems(state: GameState): Item[] {
     { id: "go:log", group: "Go to", label: "Comms log", detail: "L", run: () => useGame.setState({ showLog: true }) },
     { id: "go:history", group: "Go to", label: "Turn history", detail: "H", run: () => useGame.setState({ showHistory: true }) },
     { id: "go:timeline", group: "Go to", label: "Fleet timeline", detail: "T", run: () => useGame.setState({ showTimeline: true }) },
-    { id: "go:board", group: "Go to", label: "Mission board", detail: "B", run: () => useGame.setState({ showBoard: true }) },
+    { id: "go:board", group: "Go to", label: "Work board: every crew member's work, missions and orders", detail: "B", run: () => useGame.setState({ showBoard: true }) },
     { id: "go:stations", group: "Go to", label: "Stations (manage machines)", run: () => useGame.setState({ showEnvManager: true }) },
     { id: "go:playbooks", group: "Go to", label: "Saved orders (/name shortcuts)", run: () => useGame.setState({ showPlaybooks: true }) },
     { id: "go:help", group: "Go to", label: "Keyboard and map help", detail: "?", run: () => useGame.setState({ showHelp: true }) },
@@ -115,9 +115,9 @@ function buildItems(state: GameState): Item[] {
   // Squad orders and missions being followed: read their replies, or stop following.
   for (const d of state.dispatches) {
     const p = progressOf(d, state.envs);
-    items.push({ id: `replies:${d.id}`, group: "Mission", label: `Read replies: ${dispatchTitle(d, 60)}`, detail: `${p.reported} of ${p.total} reported`,
+    items.push({ id: `replies:${d.id}`, group: d.mission ? "Mission" : "Order", label: `Read replies: ${dispatchTitle(d, 60)}`, detail: `${p.reported} of ${p.total} reported`,
       run: () => useGame.setState({ replies: d.id }) });
-    items.push({ id: `unfollow:${d.id}`, group: "Mission", label: `Stop following: ${dispatchTitle(d, 60)}`, detail: "the order itself stands",
+    items.push({ id: `unfollow:${d.id}`, group: d.mission ? "Mission" : "Order", label: `${d.mission ? "Close mission" : "Close order"}: ${dispatchTitle(d, 60)}`, detail: "stops following it; nothing is sent",
       run: () => void closeDispatch(d.id).catch((err) => logError("Couldn't stop following it", err)) });
   }
   // Verbs on crew: read a report, give an order, open a PR.

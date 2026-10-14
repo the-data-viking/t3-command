@@ -172,11 +172,12 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   palette open a review of a crew member's latest turn. Its report (what it claims) sits beside what
   Command can observe: its PR's checks from the host, the test and lint commands it actually ran
   this turn and how each ended, and the PR against its base (conflicts, commits behind, reviewers).
-  Below that, the whole branch's changes, file by file. Verdicts: **Accept** (marks it read),
-  **Request changes** (your notes go to the agent as an order; drafts are kept), **Open PR**, or
-  accept and send to camp. Merging stays on GitHub: it can't be undone from here.
-- **One "Needs you"**: the top bar's **▶ Needs you N**, the roster's Needs you group, the mission
-  board's column, the queue run and the tab title all count the same list, in the same order:
+  Below that, the whole branch's changes, file by file. Verdicts: **Mark reviewed** (marks the
+  report read; it isn't an acceptance of the outcome), **Request changes** (your notes go to the
+  agent as an order; drafts are kept), **Open PR**, or mark reviewed and send to camp. Merging stays on GitHub: it can't be undone from here.
+- **One "Needs you"**: the top bar's **▶ Needs you N** (its only urgent count: approvals,
+  questions, failures and reports are all in it; Space and . still jump), the phone dock, the
+  roster's Needs you group, the work board's column, the queue run and the tab title all count the same list, in the same order:
   approvals and questions (longest wait first), plans waiting for approval, failed turns, then
   reports. A failed turn is a triage card: ask the crew member to find and fix the cause, open
   its log, dismiss it ("I've seen it"), or send it to camp; a dismissed failure or read report
@@ -190,13 +191,13 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   waiting and moves on; the run won't bring it back, and the clear card says how many you left. On a
   phone the cards are bottom sheets with full-size choices, and you can swipe: left for later,
   right on a report to mark it read. A swipe never approves anything.
-- **Mission board** (**B**, or the palette): every mission in flight as a card in the column for
-  what it needs next: **Needs you** (approvals, questions, failed turns), **Planning** (plan mode),
+- **Work board** (**B**, or the palette): every crew member's current work as a card in the column
+  for what it needs next, with missions and orders to several crew on top: **Needs you** (approvals, questions, failed turns),
   **Building**, **Report ready**, and **In review** (report read, PR still open). Cards show the
   state with its shape, how long it's waited or run, the station, machine and model, what an
   approval or question asks, the last error, and PR chips; **Decide**, **Answer** and **Read
-  report** act from the card, and clicking one goes to its crew member. Missions at camp or idle
-  are off the board.
+  report** act from the card, and clicking one goes to its crew member. Crew at camp or idle
+  are off the board. A **mission** (⚑) is only ever several crew on one named goal.
 - **Fleet timeline** (**T**, or the command palette): every crew member's turns over the last 6
   hours, 24 hours or 3 days, one lane each, grouped by project. Bars are coloured and named by
   outcome (done, failed, interrupted), and the right edge is live: what's running, or waiting on
@@ -242,7 +243,7 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
 - **Links, reports and catching up**: the address bar follows what's open (`#crew/…`, `#host/…`,
   `#station/…`), so a link opens the same crew member, machine or station on any device once that
   machine connects. **Mark read** on a crew member's report takes it out of Needs you and the
-  REPORTS count in this browser until the thread's next turn (also "Mark all reports read" in the
+  Needs you count in this browser until the thread's next turn (also "Mark all reports read" in the
   palette). After 30 minutes or more away, a **While you were away** card sums up the comms log:
   jobs done, failures, crew waiting on you, and lost machines, disk and long-turn warnings. A
   thread's pull request for its current branch is listed first. Threads that share a title show
@@ -645,7 +646,29 @@ the Command server, which sends it the moment their current turn completes clean
 without a browser open. A follow-up is dropped (and the comms log says why) if the turn fails or
 is interrupted, if another order starts a new turn first, or after 12 hours. There's at most one
 per crew member; it shows in their panel and roster row and can be cancelled, every send is logged
-as "sent by follow-up", and the command palette can pause them all.
+as "sent by follow-up", and the command palette can pause them all. Replacing a queued one is
+logged too.
+
+**Standing orders**: the ×N picker beside Send gives an order 2–10 times. It goes now (or after
+this turn), and the server gives it again after each turn it starts that ends cleanly; it stops at
+a failure, an interruption, your next order, or a send that never starts a turn. A send that
+errors waits to see whether its turn shows up before retrying (with backoff, up to five tries), so
+it's never sent twice.
+
+## Orders to several crew, and missions
+
+An order to two or more picked crew is followed as an **order**: the work board and a top-bar
+**ORDER n/N** chip show each recipient's receipt (sent, queued for after its turn, didn't start,
+working, needs you, reported, failed, or never delivered), worked out from their own turns.
+**Read replies** puts every crew member's answer side by side; **Copy debrief** copies them as
+markdown; **Close order** stops following it.
+
+A **mission** (⚑, **Mission…** in the squad bar) is several crew on one named goal, each with
+their own part. Each gets a brief with the mission, the goal, their part and who else is on it.
+**Follow up…** in its replies orders the same crew again, optionally passing each one what the
+others reported. The server watches every order and mission and says once in the comms log (and
+by push, if you allow it) when everyone's part is over: "Mission "Ship it": 3 of 3 reported".
+Mission crew carry ⚑ on the map and in the roster.
 
 ## Saved orders
 

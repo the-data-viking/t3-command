@@ -187,13 +187,13 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
           </div>
         )}
         <div className="review-actions">
-          <button className="btn approve" disabled={busy} onClick={() => void accept()} title="Mark the report read; it leaves Needs you">Accept</button>
+          <button className="btn approve" disabled={busy} onClick={() => void accept()} title="Mark the report read; it leaves Needs you. (Merging stays on the host.)">Mark reviewed</button>
           {asking
             ? <button className="btn primary" disabled={busy || !notes.trim() || env.connection !== "live"} onClick={() => void requestChanges()}>Send changes</button>
             : <button className="btn" disabled={env.connection !== "live"} onClick={() => setAsking(true)}>Request changes…</button>}
           {ref && <a className="btn" href={ref.url} target="_blank" rel="noreferrer">Open PR ↗</a>}
           <span className="spacer" />
-          <button className="btn" disabled={busy} onClick={() => void camp()}>Accept and send to camp</button>
+          <button className="btn" disabled={busy} onClick={() => void camp()}>Mark reviewed, send to camp</button>
         </div>
       </div>
     </div>,
