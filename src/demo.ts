@@ -222,3 +222,17 @@ export function loadDemoFleet(): void {
     hosts: Object.fromEntries(Object.keys(envs).map((id, i) => [id, { history: [], snapshot: { sampledAt: Date.now(), cpuUtilization: 0.2 + i * 0.25, cpuCount: 8, availableMemoryBytes: 8 * GB, totalMemoryBytes: 24 * GB } }])),
   });
 }
+
+/** The demo's review of "Clear out stale worktrees": its branch diff and PR #72 with checks. */
+export function demoReview(): { diff: string; pr: import("./t3/types").PullRequestDetail } {
+  const diff = [
+    "diff --git a/tools/prune-worktrees.mjs b/tools/prune-worktrees.mjs", "new file mode 100644", "--- /dev/null", "+++ b/tools/prune-worktrees.mjs",
+    "@@ -0,0 +1,6 @@", "+#!/usr/bin/env node", "+// Remove T3 worktrees whose branches are merged or abandoned.", "+import { pruneMerged } from './worktrees.mjs';", "+const removed = await pruneMerged({ dryRun: process.argv.includes('--dry-run') });", "+console.log(`Removed ${removed.length} worktrees`);", "+",
+    "diff --git a/package.json b/package.json", "--- a/package.json", "+++ b/package.json", "@@ -8,6 +8,7 @@", "   \"scripts\": {", "     \"test\": \"node --test\",", "+    \"prune-worktrees\": \"node tools/prune-worktrees.mjs\",", "     \"lint\": \"eslint .\"",
+  ].join("\n");
+  const pr = { repository: "demo/command", number: 72, title: "Remove stale worktrees", body: "", url: "https://github.com/demo/command/pull/72", state: "open", isDraft: false,
+    mergeability: "mergeable", additions: 14, deletions: 212, changedFiles: 6, headBranch: "t3/a3", baseBranch: "main", mergedAt: null,
+    reviewers: [{ login: "njord", name: null }], baseComparison: "behind", behindBy: 3,
+    checks: [{ name: "test", status: "success", description: null, url: null }, { name: "lint", status: "success", description: null, url: null }, { name: "e2e", status: "pending", description: "Queued", url: null }] } as import("./t3/types").PullRequestDetail;
+  return { diff, pr };
+}

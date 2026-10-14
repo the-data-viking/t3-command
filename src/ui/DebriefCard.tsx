@@ -15,6 +15,7 @@ import { needsYou } from "./needs-you";
 import { advanceQueue, finishQueue, queueLength, skipInQueue, stopQueue } from "./queue-run";
 import { useSwipe } from "./useSwipe";
 import { approvePlan } from "./plan";
+import { openReview } from "./review";
 import { isPhone } from "./phone";
 
 /**
@@ -89,7 +90,8 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
     { label: "Open the crew log to revise the plan.", run: openLog },
     { label: "Mark read (decide later in its panel).", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
   ] : [
-    { label: "Open the crew log and diff.", run: openLog },
+    { label: "Review the changes and checks.", run: () => { stopQueue(); openReview({ envId, threadId }); } },
+    { label: "Open the crew log.", run: openLog },
     { label: "Give follow-up orders.", run: openLog },
     { label: "Mark read.", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
     { label: "Accept and send to camp.", tone: "good", run: async () => { if (turnId) markReportsRead([member]); await batchSettle(true, [{ envId, threadId }]); next(); } },

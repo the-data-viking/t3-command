@@ -283,3 +283,25 @@ export interface PendingRequest {
   kind: "approval" | "user-input";
   activity: Activity;
 }
+
+/** T3's pull request detail (`pullRequests.detail`): the parts Command reads. */
+export interface PullRequestDetail {
+  repository: string;
+  number: number;
+  title: string;
+  body: string;
+  url: string;
+  state: "open" | "closed" | "merged";
+  isDraft: boolean;
+  mergeability: "mergeable" | "conflicting" | "unknown";
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  headBranch: string;
+  baseBranch: string;
+  mergedAt: string | null;
+  reviewers: Array<{ login: string; name: string | null; isBot?: boolean }>;
+  checks: Array<{ name: string; status: "pending" | "action-required" | "success" | "failure" | "skipped" | "neutral" | "cancelled"; description: string | null; url: string | null }>;
+  baseComparison?: "up-to-date" | "behind" | "unknown";
+  behindBy?: number;
+}

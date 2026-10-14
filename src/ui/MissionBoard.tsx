@@ -8,7 +8,7 @@ import { worldRef } from "../game/world";
 import { openEvent, setSelection, unitKey, useGame } from "../store";
 import { pendingRequests, type UnitState } from "../t3/derive";
 import { boardOf, COLUMNS, type Card } from "./board";
-import { openDebrief } from "./debrief";
+import { openReview } from "./review";
 import { prState } from "../t3/changes";
 import type { ThreadShell } from "../t3/types";
 import { requestSummary, waitingSince } from "./queue";
@@ -97,8 +97,8 @@ function BoardCard({ card, onGo }: { card: Card; onGo: () => void }) {
       {(state === "alert" || state === "question") && (
         <button className="btn small board-card-act" onClick={() => { onGo(); openEvent({ envId, threadId: thread.id }); }}>{state === "alert" ? "Decide" : "Answer"}</button>
       )}
-      {column === "report" && (
-        <button className="btn small board-card-act" onClick={() => { onGo(); openDebrief({ envId, threadId: thread.id }); }}>Read report</button>
+      {(column === "report" || column === "review") && (
+        <button className="btn small board-card-act" onClick={() => { onGo(); openReview({ envId, threadId: thread.id }); }}>Review</button>
       )}
     </article>
   );
