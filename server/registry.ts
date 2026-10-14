@@ -6,7 +6,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { SUPPORTED_PROTOCOL_VERSIONS, type EnvStatus, type EnvSummary } from "../shared/api.ts";
+import { SUPPORTED_PROTOCOL_VERSIONS, type EnvStatus, type EnvSummary, type T3SelfUpdate } from "../shared/api.ts";
 import { CatalogError, forgetCachedCatalog, readDesktopConnections } from "./desktop-catalog.ts";
 import { createPairingCredential, discover, SshError, SshTunnels, validateTarget, type SshTarget } from "./ssh.ts";
 import { probeHermes } from "./hermes/acp.ts";
@@ -31,6 +31,15 @@ interface EnvironmentDescriptor {
   label?: string;
   serverVersion?: string;
   orchestrationProtocolVersion?: number;
+  capabilities?: { serverSelfUpdate?: string; desktopAppUpdate?: boolean; serverUpdateThreadContinuation?: boolean };
+}
+
+/** A machine's remote-update support from its descriptor; undefined if it can only be relaunched by hand. */
+export function selfUpdateOf(descriptor: EnvironmentDescriptor): T3SelfUpdate | undefined {
+  const c = descriptor.capabilities;
+  const method = c?.serverSelfUpdate;
+  if (method !== "boot-service" && method !== "respawn" && method !== "desktop-managed") return undefined;
+  return { method, desktopAppUpdate: c?.desktopAppUpdate === true, continuesThreads: c?.serverUpdateThreadContinuation === true };
 }
 
 /** Scopes t3-command asks for: read and drive threads. No access management, terminals, or relay. */
@@ -339,6 +348,8 @@ export class Registry {
       const descriptor = await fetchDescriptor(url);
       base.serverVersion = descriptor.serverVersion;
       base.protocolVersion = descriptor.orchestrationProtocolVersion ?? 1;
+      const selfUpdate = selfUpdateOf(descriptor);
+      if (selfUpdate) base.selfUpdate = selfUpdate;
     } catch (err) {
       return set("unreachable", (err as Error).message);
     }

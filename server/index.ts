@@ -25,6 +25,7 @@ import { randomUUID } from "node:crypto";
 import { HostHistoryRecorder } from "./host-history.ts";
 import { t3SocketUrl } from "./t3-socket.ts";
 import { T3Versions } from "./t3-versions.ts";
+import { T3LatestVersion } from "./t3-latest.ts";
 import { LongTurns } from "./long-turns.ts";
 import { HISTORY_RETENTION_DAYS, TIMELINE_MAX_HOURS } from "../shared/history.ts";
 
@@ -79,6 +80,7 @@ setInterval(() => void comms.prune().catch((err) => console.warn("[comms] prune 
 recorder.start();
 // Announce T3 updates on each machine, and protocol changes Command can't follow yet.
 const t3Versions = new T3Versions(config.dataDir, registry, comms);
+const t3Latest = new T3LatestVersion();
 await t3Versions.load();
 t3Versions.start();
 // Note runaway turns (2/6/12/24 h) in the comms log.
@@ -226,6 +228,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (pathname === "/api/storage" && method === "GET") return sendJson(res, 200, storage.views());
   if (pathname === "/api/memory" && method === "GET") return sendJson(res, 200, history.memory());
+  if (pathname === "/api/t3/latest" && method === "GET") return sendJson(res, 200, await t3Latest.get());
   if (pathname === "/api/history/timeline" && method === "GET") {
     const hours = Number(new URL(req.url ?? "/", "http://localhost").searchParams.get("hours") ?? 24);
     if (!Number.isInteger(hours) || hours < 1 || hours > TIMELINE_MAX_HOURS) return sendJson(res, 400, { error: `hours must be 1–${TIMELINE_MAX_HOURS}` });

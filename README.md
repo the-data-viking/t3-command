@@ -130,6 +130,15 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
 - **Screens**: a crew member writing at their console types lines that scroll, with a blinking
   cursor; a terminal in use runs a prompt over scrolling output; a console waiting on you or
   reporting back shows its status shape (▲ ◆ ✓ ✕) dark on the lit screen, matching the badges.
+- **Update T3 on a machine**: a machine's host panel shows its T3 Code version against the newest
+  release on npm (`GET /api/t3/latest`, cached for an hour) and, when it's behind, **Update T3 to
+  …** uses T3's own self-update (`server.updateServer`; for the desktop app, then
+  `server.commitDesktopUpdate`). The confirmation says how it happens (the background service
+  restarts, or the desktop app closes and relaunches), what happens to crew mid-turn there (they
+  carry on when T3 supports it, and Command asks it to), and whether that version already runs
+  elsewhere in the fleet: an unproven release might speak a newer protocol Command can't follow
+  yet. Machines that can't update remotely say how to do it there. The palette lists "Update T3 on
+  …" for every machine that's behind.
 - **Station memory**: stations wear what they've been through. Every merged PR from a project's
   threads is a painted tally mark on its hull (groups of five), every failed turn in the Command
   server's 90-day history a riveted patch plate with soot beside it (up to eight), and the archive's

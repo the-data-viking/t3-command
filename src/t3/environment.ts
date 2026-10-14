@@ -603,6 +603,26 @@ export class EnvironmentClient {
   }
 
   /**
+   * Have this machine's T3 update itself to an exact release. T3 downloads and installs it, then
+   * restarts into it (its background service or the server itself) or, for the desktop app,
+   * prepares the update and relaunches once committed. The connection drops as it restarts and
+   * reconnects to the new version. Running turns carry on when T3 supports it and we ask.
+   */
+  async updateT3(targetVersion: string, continueRunningThreads: boolean): Promise<{ method: string; targetVersion: string }> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    const input = { targetVersion, ...(continueRunningThreads ? { continueRunningThreads: true } : {}) };
+    const result = await this.rpc.request<{ targetVersion: string; method: string; desktopUpdateToken?: string }>("server.updateServer", input, 20 * 60_000);
+    // The desktop app prepares the update and waits to be told to relaunch into it.
+    if (result.method === "desktop-app" && result.desktopUpdateToken) {
+      await this.rpc.request("server.commitDesktopUpdate", { requestId: result.desktopUpdateToken }, 60_000).catch((err: unknown) => {
+        // It relaunches as it acknowledges, so a dropped connection here means it's on its way.
+        if (!(err instanceof RpcError && err.tag === "Disconnected")) throw err;
+      });
+    }
+    return { method: result.method, targetVersion: result.targetVersion };
+  }
+
+  /**
    * Follow a workspace's git state; returns a function to stop. T3 serves its cached status to
    * new subscribers, so ask it to recompute once and treat that result as the first snapshot.
    */
