@@ -3,7 +3,8 @@ import { sfx } from "../game/sfx";
 import { useGame } from "../store";
 import { envClient, logError } from "../t3/environment";
 import type { RuntimeMode, ThreadShell } from "../t3/types";
-import { BUILD_THE_PLAN, needsConfirm, RUNTIME_MODES } from "./posture";
+import { approvePlan } from "./plan";
+import { needsConfirm, RUNTIME_MODES } from "./posture";
 
 /**
  * A crew member's posture in its panel: what it may do without asking, and Plan (propose before
@@ -48,8 +49,7 @@ export function PlanReady({ envId, thread }: { envId: string; thread: ThreadShel
   const approve = async () => {
     setBusy(true);
     try {
-      await client!.setInteractionMode(thread.id, "default");
-      await client!.order(thread.id, BUILD_THE_PLAN, { interactionMode: "default" });
+      await approvePlan(envId, thread.id);
       sfx.order();
     } catch (err) {
       sfx.error();

@@ -22,6 +22,11 @@ test("destructive commands are flagged dangerous, with the reason", () => {
     "find . -name '*.log' -delete",
     "cat ~/.ssh/id_ed25519",
     "terraform destroy -auto-approve",
+    "/bin/zsh -lc 'rm -rf dist'",
+    'bash -lc "rm -rf node_modules"',
+    "rm -f -r build",
+    "rm -v -Rf build",
+    "sh -c 'cd x && sudo rm --recursive y'",
   ]) assert.equal(level(cmd), "danger", cmd);
   assert.deepEqual(assessText("git push --force origin main", "command")?.reasons, ["force-pushes (rewrites remote history)", "uses --force", "pushes straight to main"]);
 });

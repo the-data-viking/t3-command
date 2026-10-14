@@ -16,12 +16,30 @@ export interface Risk {
 interface Rule {
   level: RiskLevel;
   reason: string;
-  test: RegExp;
+  test: RegExp | { test: (text: string) => boolean };
 }
+
+/** Where a command can start: line start, a separator, or a quote (`sh -c 'rm …'`, `bash -lc "…"`). */
+const CMD_START = String.raw`(^|[\s;&|(\`'"])`;
+
+/**
+ * `rm` with a recursive flag anywhere in its arguments: `rm -rf x`, `rm -f -r x`, `rm -v -Rf x`,
+ * `rm --recursive x`, including inside a shell wrapper's quoted command.
+ */
+const recursiveRm = {
+  test(text: string): boolean {
+    const rm = new RegExp(String.raw`${CMD_START}(sudo\s+)?rm\s+([^;&|\n\`'"]*)`, "gi");
+    for (const m of text.matchAll(rm)) {
+      const args = m[3].split(/\s+/);
+      if (args.some((a) => a === "--recursive" || /^-[a-z]*r/i.test(a) && !a.startsWith("--"))) return true;
+    }
+    return false;
+  },
+};
 
 /** Rules for commands. Word-ish boundaries so "rm" inside "perform" or "format" doesn't match. */
 const COMMAND_RULES: Rule[] = [
-  { level: "danger", reason: "deletes files recursively", test: /(^|[\s;&|(])(sudo\s+)?rm\s+(-[a-z]*r[a-z]*f?|-[a-z]*f[a-z]*r|--recursive)\b/i },
+  { level: "danger", reason: "deletes files recursively", test: recursiveRm },
   { level: "danger", reason: "deletes untracked files", test: /\bgit\s+clean\s+-[a-z]*[fdx]/i },
   { level: "danger", reason: "deletes files it finds", test: /\bfind\b[^|;&]*\s-delete\b/i },
   { level: "danger", reason: "force-pushes (rewrites remote history)", test: /\bgit\s+push\b[^;&|]*(\s--force\b|\s-f\b|\s--force-with-lease\b|\s\+\S)/i },
@@ -36,7 +54,7 @@ const COMMAND_RULES: Rule[] = [
   { level: "caution", reason: "reads or writes a .env file", test: /(^|[\s/'"=])\.env(\.\w+)?\b/ },
   { level: "caution", reason: "runs a database migration", test: /\b(migrate|migration|db:push|prisma\s+db\s+push)\b/i },
   { level: "caution", reason: "uses --force", test: /\s--force\b/ },
-  { level: "caution", reason: "runs with sudo", test: /(^|[\s;&|(])sudo\s/ },
+  { level: "caution", reason: "runs with sudo", test: new RegExp(String.raw`${CMD_START}sudo\s`) },
   { level: "caution", reason: "pushes straight to main", test: /\bgit\s+push\b[^;&|]*\s(origin\s+)?(HEAD:)?(main|master)\b/i },
   { level: "caution", reason: "publishes or deploys", test: /\b(npm\s+publish|pnpm\s+publish|cargo\s+publish|gh\s+release\s+create|terraform\s+apply|kubectl\s+apply|vercel\s+--prod|fly\s+deploy)\b/i },
   { level: "caution", reason: "changes permissions recursively", test: /\b(chmod|chown)\s+-R\b|\bchmod\s+(-\w+\s+)?777\b/ },

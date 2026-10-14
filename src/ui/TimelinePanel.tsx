@@ -50,15 +50,6 @@ export function TimelinePanel() {
     return () => { live = false; clearInterval(timer); };
   }, [hours]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopImmediatePropagation();
-      useGame.setState({ showTimeline: false });
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
 
   // The window ends now and slides with the clock between fetches.
   const to = now, from = to - hours * 3_600_000;

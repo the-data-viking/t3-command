@@ -45,3 +45,15 @@ test("a leading /name expands; trailing text is kept; anything else is left alon
   assert.equal(expandPlaybook("please /status", books), "please /status");
   assert.equal(expandPlaybook("/statusx", books), "/statusx");
 });
+
+test("saves at the same moment don't collide on the file", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "playbooks-"));
+  try {
+    const books = new Playbooks(dir);
+    await Promise.all([books.set([{ name: "a", text: "A" }]), books.set([{ name: "b", text: "B" }]), books.set([{ name: "c", text: "C" }])]);
+    assert.deepEqual(JSON.parse(await fs.readFile(path.join(dir, "playbooks.json"), "utf8")), [{ name: "c", text: "C" }]);
+    assert.deepEqual((await fs.readdir(dir)).filter((f) => f.endsWith(".tmp")), []);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

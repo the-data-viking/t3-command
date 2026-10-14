@@ -1,7 +1,7 @@
 // The mission board: the whole fleet's work as cards in columns — what needs you, what's being
 // planned, built, reviewed, or waiting to be read — so you can see where everything stands.
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { createPortal } from "react-dom";
 import { worldRef } from "../game/world";
 import { openEvent, setSelection, unitKey, useGame } from "../store";
@@ -29,15 +29,6 @@ export function MissionBoard() {
   const board = useMemo(() => boardOf(envs, readReports), [envs, readReports]);
   const close = () => useGame.setState({ showBoard: false });
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopImmediatePropagation();
-      close();
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
 
   const total = COLUMNS.reduce((n, c) => n + board[c.id].length, 0);
   return createPortal(

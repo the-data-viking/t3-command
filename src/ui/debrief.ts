@@ -13,5 +13,5 @@ export function unreadReports(): Array<{ envId: string; threadId: string }> {
 }
 
 export function openDebrief(at: { envId: string; threadId: string } | null): void {
-  useGame.setState({ debrief: at });
+  useGame.setState(at ? { debrief: at, event: null } : { debrief: at });
 }

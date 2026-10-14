@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { logError } from "../t3/environment";
 import { PixelLabel } from "./PixelArt";
 import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
@@ -13,6 +14,7 @@ import { batchSettle } from "./squad";
 import { openDebrief, unreadReports } from "./debrief";
 import { advanceQueue, finishQueue, queueLength, skipInQueue, stopQueue } from "./queue-run";
 import { useSwipe } from "./useSwipe";
+import { approvePlan } from "./plan";
 import { isPhone } from "./phone";
 
 /**
@@ -64,7 +66,17 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
     worldRef.current?.focus(sel);
     close();
   };
-  const choices: Array<{ label: string; run: () => void | Promise<void>; tone?: "good" }> = [
+  // A plan-mode crew member's finished turn is a plan to approve, not work to accept: building
+  // it is the next step, and sending it to camp would shelve the plan unbuilt.
+  const plan = thread?.interactionMode === "plan";
+  const choices: Array<{ label: string; run: () => void | Promise<void>; tone?: "good" }> = plan ? [
+    { label: "Approve the plan and build it.", tone: "good", run: async () => {
+      try { await approvePlan(envId, threadId); sfx.order(); if (turnId) markReportsRead([member]); next(); }
+      catch (err) { sfx.error(); logError("Couldn't start building", err); }
+    } },
+    { label: "Open the crew log to revise the plan.", run: openLog },
+    { label: "Mark read (decide later in its panel).", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
+  ] : [
     { label: "Open the crew log and diff.", run: openLog },
     { label: "Give follow-up orders.", run: openLog },
     { label: "Mark read.", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
@@ -80,12 +92,12 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if ((e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable]")) return;
-      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); return; }
-      if (running && (e.key === "s" || e.key === "S")) { e.preventDefault(); e.stopPropagation(); skip(); return; }
+      if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); close(); return; }
+      if (running && (e.key === "s" || e.key === "S")) { e.preventDefault(); e.stopImmediatePropagation(); skip(); return; }
       const n = Number(e.key);
       if (!armed || !Number.isInteger(n) || n < 1 || n > choices.length) return;
       e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       void choose(n - 1);
     };
     window.addEventListener("keydown", onKey, true);
@@ -100,10 +112,10 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
       <div className="event debrief ftl-frame" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Report" {...swipe.handlers} style={swipe.style}>
         {swipe.armed === -1 && <div className="swipe-hint left">Later</div>}
         {swipe.armed === 1 && <div className="swipe-hint right">Mark read</div>}
-        <div className="ftl-tab"><PixelLabel text="Report" /></div>
+        <div className="ftl-tab"><PixelLabel text={plan ? "Plan" : "Report"} /></div>
         <div className="event-meta">{env.summary.label} · {project?.title ?? "?"}</div>
         <div className="event-body">
-          <p className="event-text"><strong>{thread.title || "A crew member"}</strong> finished.</p>
+          <p className="event-text"><strong>{thread.title || "A crew member"}</strong> {plan ? "has a plan for you to approve." : "finished."}</p>
           {report
             ? <div className="debrief-report">{report.length > 900 ? `${report.slice(0, 899)}…` : report}</div>
             : <p className="muted">{detail ? "No written report this turn." : "Loading the report…"}</p>}

@@ -200,7 +200,13 @@ export function setArtStyle(artStyle: ArtStyle): void {
 
 /** High Contrast is an accessibility mode over the worlds: turning it off restores the last world. */
 export function setHighContrast(on: boolean): void {
-  if (on) { setArtStyle("highcontrast"); return; }
+  if (on) {
+    // Remember the world being left, even one chosen before worlds were remembered.
+    const current = useGame.getState().artStyle;
+    try { if (current !== "highcontrast") localStorage.setItem("t3c:world", current); } catch { /* Per-browser convenience only. */ }
+    setArtStyle("highcontrast");
+    return;
+  }
   let world: string | null = null;
   try { world = localStorage.getItem("t3c:world"); } catch { /* Per-browser convenience only. */ }
   setArtStyle((ART_STYLES as readonly string[]).includes(world ?? "") && world !== "highcontrast" ? world as ArtStyle : "flightdeck-nightshift");
@@ -283,7 +289,8 @@ export function openHost(envId: string): void {
 }
 
 export function openEvent(event: GameState["event"]): void {
-  useGame.setState(event ? { event, incoming: null } : { event });
+  // One card at a time: a request card replaces a report card, so their number keys never overlap.
+  useGame.setState(event ? { event, incoming: null, debrief: null } : { event });
 }
 
 function loadVolume(): number {

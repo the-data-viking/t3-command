@@ -41,15 +41,6 @@ export function HistoryPanel() {
     return () => { live = false; };
   }, [days, timeZone]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopImmediatePropagation();
-      useGame.setState({ showHistory: false });
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
 
   const close = () => useGame.setState({ showHistory: false });
   const t = summary?.totals;

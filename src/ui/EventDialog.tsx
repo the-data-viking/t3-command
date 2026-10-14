@@ -145,13 +145,13 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
       if (request?.kind === "user-input" || e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable]")) return;
-      if (running && (e.key === "s" || e.key === "S")) { e.preventDefault(); e.stopPropagation(); skip(); return; }
+      if (running && (e.key === "s" || e.key === "S")) { e.preventDefault(); e.stopImmediatePropagation(); skip(); return; }
       const n = Number(e.key);
       // Not armed yet: the keypress wasn't meant for this card, so leave it to its own handler.
       if (!armed) return;
       if (Number.isInteger(n) && n >= 1 && n <= choices.length) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         void choose(choices[n - 1]);
       }
     };
