@@ -34,7 +34,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
-import { BROKEN_LINK, FLEET_VIEW_ZOOM, fitLabel, linkPath, pixelStamp, SIGNAL_GREY, UNPLUGGED, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
+import { BROKEN_LINK, FLEET_VIEW_ZOOM, fitLabel, linkPath, pixelStamp, SIGNAL_GREY, UNPLUGGED, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkLength, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { domeGlass, hullWindows, nacelles, pixelDisc, roomUnder, StationSprite } from "./station-sprite";
@@ -118,7 +118,7 @@ export class World {
   private podsSeen = new Map<string, number[]>();
   /** Merged PRs leaving: the pod lifting off, then the new tally mark flashing on the hull. */
   private launches: Array<{ x: number; y: number; at: number; tally?: { x: number; y: number } }> = [];
-  private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 } };
+  private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, trunks: [] };
   private zoom = 1;
   private time = 0;
   /** Set once the user pans, zooms or jumps somewhere; until then the view keeps fitting the fleet. */
@@ -779,6 +779,10 @@ export class World {
       pixelBox(g, lane - 20, link.from.y, 40, link.to.y - link.from.y, c.D, c.k);
       for (const x of [lane - 12, lane + 12]) pixelPath(g, [{ x, y: link.from.y }, { x, y: link.to.y }], 2, HERMES_COLOR, online ? 0.55 : 0.15);
     }
+    // The trunks the lines share: the bus under the decks and each corridor down a wing, one casing
+    // (every band's outline first, then every fill, so the overlaps merge).
+    for (const r of this.layout.trunks) g.rect(r.x - 2, r.y - 2, r.w + 4, r.h + 4).fill(c.k);
+    for (const r of this.layout.trunks) g.rect(r.x, r.y, r.w, r.h).fill(c.D);
     for (const node of this.layout.environmentNodes.values()) {
       const live = state.envs[node.envId]?.connection === "live";
       for (const link of node.links) {
@@ -1268,8 +1272,11 @@ export class World {
       const live = state.envs[node.envId]?.connection === "live";
       for (const link of node.links) {
         if (live && workingAt.has(`${node.envId}|${link.stationKey}`)) {
-          for (let k = 0; k < 4; k++) {
-            const p = linkPoint(link.from, link.to, (t * 0.3 + k / 4) % 1, link.via);
+          // One packet per 160 px of route, all moving at 160 px a second.
+          const length = linkLength(link.from, link.to, link.via);
+          const count = Math.max(2, Math.round(length / 160));
+          for (let k = 0; k < count; k++) {
+            const p = linkPoint(link.from, link.to, ((t * 160) / Math.max(1, length) + k / count) % 1, link.via);
             l.rect(Math.round((p.x - 3) / 2) * 2, Math.round((p.y - 3) / 2) * 2, 6, 6).fill(node.color);
           }
         }

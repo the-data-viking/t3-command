@@ -96,12 +96,28 @@ export function linkPath(from: Point, to: Point, via?: Point[]): Point[] {
   return [from, ...(via ?? [{ x: midX, y: from.y }, { x: midX, y: to.y }]), to];
 }
 
+/** Length of a supply route (its legs are axis-aligned). */
+export function linkLength(from: Point, to: Point, via?: Point[]): number {
+  const points = linkPath(from, to, via);
+  let length = 0;
+  for (let i = 1; i < points.length; i++) length += Math.abs(points[i].x - points[i - 1].x) + Math.abs(points[i].y - points[i - 1].y);
+  return length;
+}
+
+/** The point `k` (0–1) of the way along a route by distance, so packets keep one speed round every bend. */
 export function linkPoint(from: Point, to: Point, k: number, via?: Point[]): Point {
   const points = linkPath(from, to, via);
-  const progress = k * (points.length - 1);
-  const i = Math.min(points.length - 2, Math.floor(progress));
-  const a = points[i], b = points[i + 1], t = progress - i;
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  let left = k * linkLength(from, to, via);
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    const leg = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+    if (left <= leg || i === points.length - 1) {
+      const t = leg ? Math.min(1, left / leg) : 0;
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    }
+    left -= leg;
+  }
+  return to;
 }
 
 export function sprite(texture: ReturnType<typeof tex>, x: number, y: number, ax = 0, ay = 0, scale = PX): Sprite {
