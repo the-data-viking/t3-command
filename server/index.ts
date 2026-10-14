@@ -81,6 +81,8 @@ recorder.listen({
   disconnected: (envId, label) => comms.disconnected(envId, label),
   removed: (envId) => { comms.forget(envId); followUps.forget(envId); dispatches.forget(envId); },
 });
+// Follow-up retries and expiries, and orders that never started, come due with time.
+setInterval(() => { followUps.tick(); dispatches.tick(); }, 15_000).unref();
 setInterval(() => void comms.prune().catch((err) => console.warn("[comms] prune failed", (err as Error).message)), 6 * 3_600_000).unref();
 recorder.start();
 // Announce T3 updates on each machine, and protocol changes Command can't follow yet.

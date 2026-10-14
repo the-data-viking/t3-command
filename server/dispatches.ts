@@ -6,16 +6,17 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { clipText, DISPATCH_MAX, DISPATCH_TTL_MS, sanitizeMembers, sanitizeMission, type Dispatch, type DispatchMember } from "../shared/dispatches.ts";
+import { clipText, DISPATCH_MAX, DISPATCH_START_MS, DISPATCH_TTL_MS, sanitizeMembers, sanitizeMission, type Dispatch, type DispatchMember } from "../shared/dispatches.ts";
 import type { ThreadShell } from "../src/t3/types.ts";
 import type { CommsLog } from "./comms.ts";
 
-/** How a member's part ended, or undefined while it's still going (or hasn't started). */
-export function outcome(m: DispatchMember, thread: ThreadShell | undefined, queued: boolean): "reported" | "failed" | "stopped" | "gone" | "unsent" | undefined {
+/** How a member's part ended, or undefined while it's still going (or hasn't started yet). */
+export function outcome(m: DispatchMember, thread: ThreadShell | undefined, queued: boolean, sentAt = Date.now(), now = Date.now()): "reported" | "failed" | "stopped" | "gone" | "unsent" | "unstarted" | undefined {
   if (m.how === "failed" || m.dropped) return "unsent";
   if (!thread || thread.archivedAt) return "gone";
   const turn = thread.latestTurn;
-  if (!turn || turn.turnId === m.baseTurnId) return undefined;
+  // Sent, but no turn of its own after a few minutes: it didn't start (and never will by itself).
+  if (!turn || turn.turnId === m.baseTurnId) return m.how === "sent" && now - sentAt > DISPATCH_START_MS ? "unstarted" : undefined;
   if (queued || turn.state === "running" || thread.hasPendingApprovals || thread.hasPendingUserInput) return undefined;
   return turn.state === "completed" ? "reported" : turn.state === "error" ? "failed" : "stopped";
 }
@@ -115,6 +116,11 @@ export class Dispatches {
     if (threads) this.observe(envId, [...threads.values()]);
   }
 
+  /** Re-judge every order on a clock too: "didn't start" needs time to pass, not a thread update. */
+  tick(now = Date.now()): void {
+    for (const [envId, threads] of this.threads) this.observe(envId, [...threads.values()], now);
+  }
+
   /** A machine removed from the fleet: its crew are gone from every order still playing out. */
   forget(envId: string): void {
     this.observe(envId, []);
@@ -128,15 +134,15 @@ export class Dispatches {
       if (d.finishedAt || !d.members.some((m) => m.envId === envId)) continue;
       // A machine not seen yet can't be judged: wait for it.
       if (d.members.some((m) => !this.threads.has(m.envId))) continue;
-      const ends = d.members.map((m) => outcome(m, this.threads.get(m.envId)!.get(m.threadId), this.queued(m.envId, m.threadId)));
+      const ends = d.members.map((m) => outcome(m, this.threads.get(m.envId)!.get(m.threadId), this.queued(m.envId, m.threadId), d.at, now));
       if (ends.some((e) => e === undefined)) continue;
       // Every send failed just now: give a retry a couple of minutes before calling it.
       if (ends.every((e) => e === "unsent") && now - d.at < 120_000) continue;
       d.finishedAt = now;
       changed = true;
       const reported = ends.filter((e) => e === "reported").length;
-      const rest = (["failed", "stopped", "unsent", "gone"] as const).map((k) => [k, ends.filter((e) => e === k).length] as const).filter(([, n]) => n);
-      const words = { failed: "failed", stopped: "interrupted", unsent: "never sent", gone: "gone" };
+      const rest = (["failed", "stopped", "unsent", "unstarted", "gone"] as const).map((k) => [k, ends.filter((e) => e === k).length] as const).filter(([, n]) => n);
+      const words = { failed: "failed", stopped: "interrupted", unsent: "never sent", unstarted: "didn't start", gone: "gone" };
       const what = d.mission ? `Mission "${d.mission.name}"` : `Squad order "${preview(d.text)}"`;
       this.comms?.add({ tone: rest.length ? "alert" : "good", kind: "mission", dispatchId: d.id,
         text: `${what}: ${reported} of ${d.members.length} reported${rest.map(([k, n]) => `, ${n} ${words[k]}`).join("")}. Replies are ready to read.` });

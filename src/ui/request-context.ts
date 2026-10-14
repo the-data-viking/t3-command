@@ -32,6 +32,14 @@ export function lastWords(text: string, max = 240): string {
 
 const short = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
+/** An order on one line; a mission brief leads with the mission and this member's own part. */
+export function orderSummary(order: string): string {
+  const mission = /^Mission "([^"]+)"/.exec(order);
+  const part = /^Your part: (.+)$/m.exec(order);
+  if (mission) return `Mission "${mission[1]}" · your part: ${part?.[1]?.trim() ?? "not set"}`;
+  return order.replace(/\s+/g, " ");
+}
+
 export function requestContext(env: EnvWorld | undefined, thread: ThreadShell, detail: OrchestrationThread | undefined, request: PendingRequest): RequestContext {
   const turnId = request.activity.turnId ?? thread.latestTurn?.turnId ?? null;
   const asked = Date.parse(request.activity.createdAt);
@@ -55,7 +63,7 @@ export function requestContext(env: EnvWorld | undefined, thread: ThreadShell, d
     thread.branch ? `branch ${thread.branch}` : undefined,
   ].filter((s): s is string => !!s);
   return {
-    order: order ? short(order.replace(/\s+/g, " "), 200) : undefined,
+    order: order ? short(orderSummary(order), 200) : undefined,
     intent: said ? lastWords(said) : undefined,
     where,
     recent: [...calls.values()].slice(-3),

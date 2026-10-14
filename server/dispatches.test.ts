@@ -166,3 +166,21 @@ test("a retry that reaches a failed member reopens a finished order; all-failed 
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("the clock ends an order whose sent member never started, without any thread update", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dispatches-"));
+  try {
+    const store = new Dispatches(dir);
+    const comms = new CommsLog(dir);
+    store.announceTo(comms, () => false);
+    const now = Date.now();
+    store.add("Go", [member("a")], now);
+    store.observe("e", [shell("a", "t1")], now + 1_000);
+    assert.equal(comms.since().length, 0);
+    store.tick(now + 200_000);
+    assert.match(comms.since()[0].text, /^Squad order "Go": 0 of 1 reported, 1 didn't start\./);
+    await store.flush(); await comms.flush();
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

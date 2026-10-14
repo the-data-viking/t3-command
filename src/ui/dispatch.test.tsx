@@ -53,3 +53,9 @@ test("a reply is the crew member's last message in its latest turn, once the ord
   assert.equal(replyOf("sent", thread, detail), undefined, "not reached yet: the latest turn isn't the order's");
   assert.equal(replyOf("reported", thread, undefined), undefined, "not loaded");
 });
+
+test("an order sent now that never starts a turn reads 'didn't start' after three minutes", () => {
+  assert.equal(receiptOf(m("waiting"), envs, 0, 60_000), "sent");
+  assert.equal(receiptOf(m("waiting"), envs, 0, 200_000), "unstarted");
+  assert.equal(receiptOf(m("waiting", "queued"), envs, 0, 200_000), "queued", "queued orders wait for the turn they follow");
+});
