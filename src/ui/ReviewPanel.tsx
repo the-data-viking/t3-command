@@ -18,6 +18,11 @@ import { changesOrder, checksSummary, openReview, reviewPullRequest, testsRun } 
 import { batchSettle } from "./squad";
 import { DEMO, demoReview } from "../demo";
 
+/** The PR snapshot's overall check state, when the host's per-check detail can't be read. */
+function snapshotChecks(state: string | null | undefined): string {
+  return state === "passing" ? "passing (summary)" : state === "failing" ? "failing (summary)" : state === "pending" ? "pending (summary)" : "unavailable";
+}
+
 const CHECK_MARK: Record<string, string> = { success: "✓", skipped: "–", neutral: "–", pending: "…", failure: "✕", cancelled: "✕", "action-required": "!" };
 
 export function ReviewPanel() {
@@ -31,6 +36,8 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
   const thread = env?.threads[threadId];
   const detail = useGame((s) => s.details[unitKey(envId, threadId)]);
   const [diff, setDiff] = useState<ParsedDiff>();
+  /** What the diff covers: the whole branch, or (when T3 can't produce that) the latest turn. */
+  const [diffScope, setDiffScope] = useState<"branch" | "turn">("branch");
   const [diffError, setDiffError] = useState<string>();
   const [pr, setPr] = useState<PullRequestDetail>();
   const [prError, setPrError] = useState<string>();
@@ -49,8 +56,12 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
     const client = envClient(envId);
     if (!client) { setDiffError("this station is not connected"); return; }
     let live = true;
+    // The whole branch; if T3 can't produce that (long threads with pruned checkpoints), every
+    // turn's diff from the start; failing that, just the latest turn's, labelled as such.
     client.fullThreadDiff(threadId, latest)
+      .catch(() => client.turnDiff(threadId, 0, latest))
       .then((d) => { if (live) setDiff(parseDiff(d)); })
+      .catch(() => client.turnDiff(threadId, latest - 1, latest).then((d) => { if (live) { setDiffScope("turn"); setDiff(parseDiff(d)); } }))
       .catch((err: unknown) => { if (live) setDiffError(err instanceof Error ? err.message : String(err)); });
     return () => { live = false; };
   }, [envId, threadId, latest]);
@@ -115,7 +126,7 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
             <div className="review-block">
               <div className="review-row"><strong>Checks</strong>
                 <span className={`review-verdict v-${checks.verdict}`}>
-                  {checks.verdict === "none" ? (ref ? (prError ? "unavailable" : pr ? "none reported" : "loading…") : "no PR")
+                  {checks.verdict === "none" ? (ref ? (prError ? snapshotChecks(ref.snapshot?.checksState) : pr ? "none reported" : "loading…") : "no PR")
                     : `${checks.passing}/${checks.total} passing${checks.failing ? ` · ${checks.failing} failing` : ""}${checks.pending ? ` · ${checks.pending} pending` : ""}`}
                 </span>
               </div>
@@ -146,7 +157,7 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
                   {pr.baseComparison === "behind" && <span className="orange"> · {pr.behindBy ? `${pr.behindBy} commits` : ""} behind {pr.baseBranch}</span>}
                   {pr.reviewers.length > 0 && <span className="muted"> · reviewers {pr.reviewers.map((r) => r.login).join(", ")}</span>}
                 </p>}
-                {prError && <p className="muted small">The host's PR detail is unavailable here ({prError}).</p>}
+                {prError && <p className="muted small">The host's per-check detail isn't available for this PR ({prError}); the summary comes from T3's snapshot.</p>}
               </div>
             )}
             <p className="muted small">Agent claims are on the left; this side is only what T3 and the host report.</p>
@@ -154,7 +165,8 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
         </div>
 
         <section className="review-changes" aria-label="Changes">
-          <h3>Changes on the branch{diff ? ` · ${diff.files.length} files` : ""}</h3>
+          <h3>{diffScope === "turn" ? "Changes in the latest turn" : "Changes on the branch"}{diff ? ` · ${diff.files.length} files` : ""}</h3>
+          {diffScope === "turn" && <p className="muted small">T3 couldn't produce the whole branch's diff for this thread; this is its latest turn only.</p>}
           {!latest && <p className="muted">No checkpoints yet.</p>}
           {latest > 0 && !diff && !diffError && <p className="muted">Loading the diff…</p>}
           {diffError && <p className="small" role="alert">Could not load the diff: {diffError}</p>}

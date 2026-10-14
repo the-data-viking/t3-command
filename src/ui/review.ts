@@ -46,9 +46,12 @@ export function checksSummary(detail: PullRequestDetail | undefined): ChecksSumm
   return { passing, failing, pending, total: checks.length, verdict };
 }
 
-/** The PR a review is about: the one on the thread's current branch, else its newest open, else its newest. */
+/**
+ * The PR a review is about: the one on the thread's current branch, else its newest open, else its
+ * newest. Only PRs T3 has a snapshot of: a bare "linked" reference can't be read from the host.
+ */
 export function reviewPullRequest(thread: ThreadShell): ThreadPullRequest | undefined {
-  const prs = thread.pullRequests ?? [];
+  const prs = (thread.pullRequests ?? []).filter((pr) => pr.snapshot);
   return prs.find((pr) => thread.branch && pr.snapshot?.headBranch === thread.branch && pr.snapshot?.state !== "closed")
     ?? [...prs].filter((pr) => pr.snapshot?.state === "open").sort((a, b) => b.number - a.number)[0]
     ?? [...prs].sort((a, b) => b.number - a.number)[0];
