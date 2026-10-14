@@ -510,6 +510,21 @@ The UI is now at `https://<host>.<your-tailnet>.ts.net/`, with a certificate iss
   from tagged devices have no user identity, so they're rejected by `T3C_ALLOWED_USERS`.
 - You can also restrict who can reach the host on port 443 with your tailnet ACLs.
 
+**A name of its own.** To serve Command at `https://command.<your-tailnet>.ts.net/` without renaming
+the host, run a second, userspace Tailscale node on it as your own device (no tags, so identity
+headers still arrive), and serve from that node too:
+
+```sh
+brew install tailscale   # the open-source tailscaled; the Mac app is untouched
+D=~/.t3-command/tailscale-command; mkdir -p $D
+tailscaled --tun=userspace-networking --statedir=$D --socket=$D/tailscaled.sock --port=0 &
+tailscale --socket=$D/tailscaled.sock up --hostname=command   # approve the login link once
+tailscale --socket=$D/tailscaled.sock serve --bg --https=443 http://127.0.0.1:4773
+```
+
+Keep `tailscaled` running with a launch agent (`RunAtLoad`, `KeepAlive`), and disable key expiry
+for the `command` machine in the admin console so the address doesn't lapse.
+
 ### 4. Add your T3 environments
 
 **Easiest: import from T3 desktop.** If the host runs the T3 Code desktop app and it's already
