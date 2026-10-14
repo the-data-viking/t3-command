@@ -72,7 +72,9 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
   }
 
   const state = unitState(thread);
-  const canHalt = state === "working" || (env.summary.kind === "hermes" && thread.latestTurn?.state === "running");
+  // An unreachable machine's crew are last known: no live timer, and nothing to send them.
+  const live = env.connection === "live";
+  const canHalt = live && (state === "working" || (env.summary.kind === "hermes" && thread.latestTurn?.state === "running"));
   const archived = isHistory(thread);
   const info = detail ? telemetry(detail.thread) : undefined;
   const project = env.projects[thread.projectId];
@@ -117,9 +119,11 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         </div>
       ) : (
       <div className="status-row">
-        <span className={`pill state-${state}`}>{bot ? BOT_STATE_LABELS[state] : stateLabel(thread, state)}</span>
-        {env.summary.kind !== 'hermes' && <PostureControl envId={envId} thread={thread} />}
-        <ThreadTiming thread={thread} detail={detail?.thread} />
+        <span className={`pill state-${live ? state : "sleeping"}`} title={live ? undefined : `${env.summary.label} is unreachable: this is how it was when Command last heard from it`}>
+          {live ? "" : "Last known · "}{bot ? BOT_STATE_LABELS[state] : stateLabel(thread, state)}
+        </span>
+        {env.summary.kind !== 'hermes' && live && <PostureControl envId={envId} thread={thread} />}
+        {live && <ThreadTiming thread={thread} detail={detail?.thread} />}
         <span className="spacer" />
         {!bot && (detail?.thread.checkpoints.length ?? 0) > 0 && (
           <button className="btn" title="Its report beside its checks, tests and the branch's changes" onClick={() => openReview({ envId, threadId })}>Review</button>
@@ -128,13 +132,13 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
           <button className="btn" title="Take this report out of Needs you and the REPORTS count (this browser), until the thread's next turn"
             onClick={() => markReportsRead([{ envId, threadId, turnId: thread.latestTurn!.turnId }])}>✓ Mark read</button>
         )}
-        {!bot && state === "error" && <FailedActions envId={envId} thread={thread} className="btn" />}
+        {!bot && live && state === "error" && <FailedActions envId={envId} thread={thread} className="btn" />}
         {canHalt && (
           <button className="btn danger" onClick={() => run("Interrupt", () => client?.interrupt(threadId))}>
             ■ Halt
           </button>
         )}
-        {state === "sleeping" ? (
+        {!live ? null : state === "sleeping" ? (
           <button className="btn" onClick={() => run("Wake", () => client?.unsettle(threadId))}>
             {bot ? 'Reopen' : 'Wake'}
           </button>
@@ -294,8 +298,10 @@ function PendingCard({ request, envId, threadId }: { request: PendingRequest; en
             title={o.warning}
             onClick={() => {
               setBusy(true);
-              (o.decision === "decline" || o.decision === "cancel" ? sfx.deny : sfx.order)();
-              client?.respondToApproval(threadId, request.requestId, o.decision).catch((err: unknown) => (setBusy(false), logError("Approval", err)));
+              // The acknowledgement sounds once the answer has landed, as on the request card.
+              client?.respondToApproval(threadId, request.requestId, o.decision)
+                .then(() => (o.decision === "decline" || o.decision === "cancel" ? sfx.deny : sfx.order)())
+                .catch((err: unknown) => (setBusy(false), sfx.error(), logError("Approval", err)));
             }}
           >
             {o.label}

@@ -36,7 +36,7 @@ interface Choice {
   run: () => Promise<unknown> | void;
 }
 
-/** FTL-style event box for approvals and questions. Keys 1–9 choose approval actions. */
+/** FTL-style event box for approvals and questions. Keys 1–9 choose an approval action or a question's option. */
 export function EventDialog() {
   const event = useGame((s) => s.event);
   if (!event) return null;
@@ -144,10 +144,12 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (request?.kind === "user-input" || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable]")) return;
       if (running && (e.key === "s" || e.key === "S")) { e.preventDefault(); e.stopImmediatePropagation(); skip(); return; }
+      // A question's options take the number keys in its own form.
+      if (request?.kind === "user-input") return;
       const n = Number(e.key);
       // Not armed yet: the keypress wasn't meant for this card, so leave it to its own handler.
       if (!armed) return;
@@ -192,7 +194,7 @@ function EventBox({ envId, threadId }: { envId: string; threadId: string }) {
               <p className="event-text">
                 <strong>{thread.title || "A crew member"}</strong> needs an answer before continuing:
               </p>
-              <QuestionForm key={request.requestId} request={request} envId={envId} threadId={threadId} onAnswered={() => { decided.current = true; }} />
+              <QuestionForm key={request.requestId} request={request} envId={envId} threadId={threadId} keys={armed} onAnswered={() => { decided.current = true; }} />
             </>
           )}
         </div>

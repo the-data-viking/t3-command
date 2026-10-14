@@ -2301,6 +2301,8 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .tl-group { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-2); }
 .tl-group-name { margin: 0; font-size: var(--fs-2xs); letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
 .tl-tooltip { position: absolute; z-index: var(--z-alert); display: flex; flex-direction: column; gap: 2px; padding: var(--space-1h) var(--space-2); max-width: 320px; pointer-events: none; font-size: var(--fs-sm); background: var(--deep); }
+.tl-tooltip.pinned { pointer-events: auto; }
+.tl-tooltip-actions { display: flex; gap: var(--space-1h); margin-top: var(--space-1); }
 @media (max-width: 640px) { .tl-row { grid-template-columns: 120px 1fr; } }
 
 /* ---- Working the queue ---- */

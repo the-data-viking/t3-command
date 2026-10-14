@@ -71,7 +71,8 @@ const SKY: Record<StyleId, Sky> = {
     stars: [0xffffff, 0xffc6d9, 0xa8f0d0],
     grade: { toward: 0xc58aa8, strength: 0.28 },
   },
-  highcontrast: {},
+  // A bare sky: nothing behind the ship but space.
+  highcontrast: { starDensity: 0 },
 };
 
 interface Layer { sprite: TilingSprite; parallax: number; twinkle?: number }

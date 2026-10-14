@@ -17,10 +17,13 @@ export const BOT_STATE_LABELS: Record<UnitState, string> = {
   monitoring: 'Monitoring', done: 'Report ready', idle: 'On call', sleeping: 'On call',
 };
 export { HERMES_COLOR } from '../game/theme';
+/** Bot identity colours: soft, and never Hermes tan (that means the hall itself). */
+export const BOT_COLORS = [0x9bc9c2, 0xb8bada, 0xe8a898, 0xc0e0b0, 0xd6a0b8];
+
 export function botColor(profile: string): number {
   let hash = 0;
   for (const ch of profile) hash = Math.imul(hash, 31) + ch.charCodeAt(0) | 0;
-  return [0x9bc9c2, 0xb8bada, 0xe1b5a4, 0xb9c7a5, 0xd8c599][(hash >>> 0) % 5];
+  return BOT_COLORS[(hash >>> 0) % BOT_COLORS.length];
 }
 
 /** Persistent identities: a bot's task sessions never become extra operators. */

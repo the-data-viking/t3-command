@@ -28,11 +28,13 @@ export function jumpTo(group: JumpGroup): void {
     .filter((u) => GROUPS[group].includes(u.state) && !(group === "done" && reportRead(readReports, u.envId, u.thread)));
   // Waiting on you: longest wait first, the same order as the roster. Reports: oldest finished
   // first, like the debrief queue. Others: most recent first.
-  const units = group === "attention"
+  const sorted = group === "attention"
     ? found.map((u) => ({ u, key: unitKey(u.envId, u.thread.id), since: waitingSince(u.thread, details[unitKey(u.envId, u.thread.id)]?.thread) })).sort(byWait).map(({ u }) => u)
     : group === "done"
       ? found.sort((a, b) => (a.thread.latestTurn?.completedAt ?? "").localeCompare(b.thread.latestTurn?.completedAt ?? ""))
       : found.sort((a, b) => (a.thread.updatedAt < b.thread.updatedAt ? 1 : -1));
+  // Crew on an unreachable machine come last: their state is only last known, and nothing reaches them.
+  const units = [...sorted.filter((u) => envs[u.envId]?.connection === "live"), ...sorted.filter((u) => envs[u.envId]?.connection !== "live")];
   if (units.length === 0) {
     sfx.deny();
     return;
