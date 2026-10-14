@@ -329,11 +329,11 @@ export class CrewSprite extends Container {
     // Teleporter column, fading as they solidify.
     if (this.arriving) this.drawBeam(f, this.arriving / BEAM_SECONDS, t);
     if (sleeping) {
-      // In stasis: a glint of frost slides along the canopy now and then, and the pod's panel
-      // light at the foot breathes slowly in the world's lamp colour (held still under reduced motion).
+      // In stasis: a glint of frost slides down the glass beside them now and then, and the lamp
+      // in the pod's base breathes slowly in the world's lamp colour (held still under reduced motion).
       const drift = (t * 0.2 + this.seed) % 1;
-      if (drift < 0.45) f.rect(snap(-14 + drift * 60), -8, 2, 2).fill(0xffffff);
-      if ((t * 0.4 + this.seed) % 1 < 0.6) f.rect(-16, 6, 2, 2).fill(currentStyle().light ?? 0xe8f0f8);
+      if (drift < 0.45) f.rect(4, snap(-14 + drift * 60), 2, 2).fill(0xffffff);
+      if ((t * 0.4 + this.seed) % 1 < 0.6) f.rect(-4, 16, 2, 2).fill(currentStyle().light ?? 0xe8f0f8);
       return;
     }
     if (this.offline) {

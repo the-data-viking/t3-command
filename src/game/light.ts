@@ -1,5 +1,6 @@
 // Light you can almost feel, still in pixels (the lit tubes' own bloom is drawn with the room): a pool in
-// front of each console someone is working at, and a spotlight on whoever is waiting on you.
+// front of each console someone is working at. (Whoever waits on you has their console's own wash,
+// ring and raised hand; a spotlight on them read as a beam-out column, and was one cue too many.)
 // Each shape is baked once per colour into a texture and drawn additively from a sprite pool, so
 // a lit fleet costs a few dozen sprites a frame rather than thousands of rects. Only rooms in real
 // use light up; nothing here keeps the render loop running.
@@ -7,11 +8,11 @@
 import { Container, Sprite, Texture } from "pixi.js";
 
 /** A 4×4 ordered-dither matrix: cells light in an even pattern as density rises. */
-const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+export const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
 /** One art pixel in world px. */
 const CELL = 2;
 
-type Shape = "pool" | "spot";
+type Shape = "pool";
 
 const cache = new Map<string, Texture>();
 
@@ -23,11 +24,11 @@ export function mixColor(a: number, b: number, k: number): number {
 }
 
 /**
- * The shapes, in world px: an oval floor pool 40×16; a spotlight from an 8-px source to a 40-px
- * floor over 72 px. Three bands each, sparser and fainter outward. (No cones under the tubes: they
- * dithered over the console screens, whose few pixels carry each crew member's state.)
+ * The shape, in world px: an oval floor pool 40×16, in three bands, sparser and fainter outward.
+ * (No cones under the tubes: they dithered over the console screens, whose few pixels carry each
+ * crew member's state.)
  */
-const SIZES: Record<Shape, { w: number; h: number }> = { pool: { w: 40, h: 16 }, spot: { w: 40, h: 72 } };
+const SIZES: Record<Shape, { w: number; h: number }> = { pool: { w: 40, h: 16 } };
 
 function texture(shape: Shape, color: number): Texture {
   const key = `${shape}:${color}`;
@@ -43,18 +44,12 @@ function texture(shape: Shape, color: number): Texture {
     for (let x = 0; x < w; x += CELL) {
       const cx = x + CELL / 2, cy = y + CELL / 2;
       // How far out from the shape's core this cell is, 0 (core) to 1 (edge); ≥1 is outside.
-      let t: number;
-      if (shape === "pool") t = Math.hypot((cx - w / 2) / (w / 2), (cy - h / 2) / (h / 2));
-      else {
-        // The spot widens from an 8-px source to the floor.
-        const half = (8 + (w - 8) * (cy / h)) / 2;
-        t = Math.abs(cx - w / 2) / half;
-      }
+      const t = Math.hypot((cx - w / 2) / (w / 2), (cy - h / 2) / (h / 2));
       if (t >= 1) continue;
       const band = t < 0.4 ? 0 : t < 0.7 ? 1 : 2;
       const density = [0.75, 0.5, 0.3][band];
       if (BAYER[(y / CELL) & 3][(x / CELL) & 3] / 16 >= density) continue;
-      const alpha = (shape === "spot" ? [0.4, 0.24, 0.12] : [0.26, 0.15, 0.07])[band];
+      const alpha = [0.26, 0.15, 0.07][band];
       ctx.fillStyle = `rgba(${rgb},${alpha})`;
       ctx.fillRect(x, y, CELL, CELL);
     }
@@ -75,7 +70,7 @@ export class LightLayer {
     this.used = 0;
   }
 
-  /** Light of `shape` in `color`, centred on x, with its top at y (spot) or centred (pool). */
+  /** Light of `shape` in `color`, centred on (x, y). */
   add(shape: Shape, color: number, x: number, y: number): void {
     let s = this.sprites[this.used];
     if (!s) {
@@ -87,7 +82,7 @@ export class LightLayer {
     }
     const tex = texture(shape, color);
     if (s.texture !== tex) s.texture = tex;
-    s.anchor.set(0.5, shape === "pool" ? 0.5 : 0);
+    s.anchor.set(0.5, 0.5);
     s.position.set(Math.round(x / CELL) * CELL, Math.round(y / CELL) * CELL);
     s.visible = true;
     this.used++;

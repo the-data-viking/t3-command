@@ -107,7 +107,7 @@ function drawScene(ctx: Ctx, style: Style, frame: number, t: number): void {
 
   // Bridge consoles and crew.
   const consoles: Array<{ x: number; screen: number; crew?: Crew; badge?: S.Grid }> = [
-    { x: 3, screen: frame % 2 ? SCREEN.working : 0x9ff0ff, crew: { silhouette: "round", tier: "standard", team: TEAM.amber, x: 0, y: 0, arms: frame % 2 ? "typeA" : "typeB" } },
+    { x: 3, screen: SCREEN.working, crew: { silhouette: "round", tier: "standard", team: TEAM.amber, x: 0, y: 0, arms: frame % 2 ? "typeA" : "typeB" } },
     { x: 7.5, screen: frame % 2 ? SCREEN.alert : 0x7a1820, crew: { silhouette: "angular", tier: "heavy", team: TEAM.blue, x: 0, y: 0 }, badge: S.BADGE_ALERT },
     { x: 12, screen: SCREEN.done, crew: { silhouette: "round", tier: "light", team: TEAM.pink, x: 0, y: 0 }, badge: S.BADGE_DONE },
   ];
