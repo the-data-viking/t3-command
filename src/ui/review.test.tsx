@@ -41,3 +41,18 @@ test("the PR under review: the current branch's, else the newest open, else the 
   assert.equal(reviewPullRequest(t(null, [{ number: 646, repository: "r", url: "", snapshot: null }, pr(3, "merged")]))?.number, 3, "a bare linked reference isn't reviewable");
   assert.match(changesOrder("  rename foo  "), /Review feedback[\s\S]*\n\nrename foo$/);
 });
+
+test("doubts: a report's claims that the evidence doesn't back up", async () => {
+  const { doubts } = await import("./review");
+  const none = { passing: 0, failing: 0, pending: 0, total: 0, verdict: "none" as const };
+  const pending = { passing: 2, failing: 0, pending: 1, total: 3, verdict: "pending" as const };
+  const report = "Opened PR #72; checks are green. All tests pass.";
+  assert.deepEqual(doubts(report, [], pending, [72]), [
+    { claim: "Says checks are green", evidence: "1 still pending" },
+    { claim: "Says tests pass", evidence: "no test command ran this turn" },
+  ]);
+  assert.deepEqual(doubts(report, [{ command: "npm test", outcome: "failed" }], { ...pending, pending: 0, failing: 1, verdict: "failing" }, [9]).map((d) => d.evidence),
+    ["1 failing", "npm test failed this turn", "no such PR is linked to this crew member"]);
+  assert.deepEqual(doubts(report, [{ command: "npm test", outcome: "passed" }], { ...none, passing: 3, total: 3, verdict: "passing" }, [72]), [], "everything backs it up");
+  assert.deepEqual(doubts("Refactored the loader.", [], none, []), [], "no claims, no doubts");
+});

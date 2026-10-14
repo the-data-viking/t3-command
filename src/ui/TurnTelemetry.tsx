@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { pulseOf, pulseText } from "./pulse";
 import { compactions, latestPlan, quietness, quietText, tokenLabel, turnBreakdown } from "../t3/progress";
 import { elapsed } from "../t3/timing";
 import type { OrchestrationThread, ThreadShell } from "../t3/types";
@@ -32,6 +33,7 @@ export function TurnTelemetry({ shell, detail }: { shell: ThreadShell; detail: O
   const turn = turnBreakdown(detail, now);
   const compacted = compactions(detail);
   const quiet = quietness(shell, detail, now);
+  const pulse = running ? pulseOf(detail, now) : undefined;
   if (!plan && !turn && !compacted.last) return null;
   const showPlan = plan && (plan.current || !running);
   return (
@@ -40,6 +42,12 @@ export function TurnTelemetry({ shell, detail }: { shell: ThreadShell; detail: O
         <div className={`tele-row ${quiet.kind === "quiet" ? "quiet-row" : ""}`}>
           <span className="tele-key">{quiet.kind === "quiet" ? "QUIET" : "LONG RUN"}</span>
           <span className="tele-val" title={quietText(quiet)}>{quietText(quiet)}</span>
+        </div>
+      )}
+      {pulse && (pulse.lastChangeAt || pulse.tests.length > 0 || pulse.repeatFail || pulse.noChangeMs) && (
+        <div className={`tele-row ${pulse.repeatFail || pulse.noChangeMs ? "quiet-row" : ""}`}>
+          <span className="tele-key">PULSE</span>
+          <span className="tele-val" title="Is the turn moving? From its own activity. A sign to look at, not a ruling that it's stuck.">{pulseText(pulse, now)}</span>
         </div>
       )}
       {showPlan && (

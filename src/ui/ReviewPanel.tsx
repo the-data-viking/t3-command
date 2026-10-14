@@ -14,7 +14,7 @@ import { DiffFiles } from "./DiffFiles";
 import { useDraft } from "./drafts";
 import { MessageMarkdown } from "./MessageMarkdown";
 import { PixelLabel } from "./PixelArt";
-import { changesOrder, checksSummary, openReview, reviewPullRequest, testsRun } from "./review";
+import { changesOrder, checksSummary, doubts, openReview, reviewPullRequest, testsRun } from "./review";
 import { batchSettle } from "./squad";
 import { DEMO, demoReview } from "../demo";
 
@@ -89,6 +89,8 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
   const report = [...(detail?.thread.messages ?? [])].reverse().find((m) => m.role === "assistant" && m.turnId === turnId && m.text.trim())?.text;
   const tests = detail ? testsRun(detail.thread) : [];
   const checks = checksSummary(pr);
+  // Where the report and the evidence disagree: shown first, and Mark reviewed stops looking like approval.
+  const doubtful = doubts(report, tests, checks, (thread.pullRequests ?? []).map((p) => p.number));
   const project = env.projects[thread.projectId];
 
   const act = async (run: () => Promise<void> | void) => {
@@ -118,6 +120,13 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
         </header>
         <p className="muted small">{[env.summary.label, project?.title, thread.branch && `branch ${thread.branch}`].filter(Boolean).join(" · ")}</p>
 
+        {doubtful.length > 0 && (
+          <div className="review-doubts" role="note">
+            <strong>⚠ Doesn't add up</strong>
+            <ul>{doubtful.map((d) => <li key={d.claim}>{d.claim}, but {d.evidence}.</li>)}</ul>
+            <span className="muted small">Pattern matching on the report: a reason to look, not a verdict.</span>
+          </div>
+        )}
         <div className="review-columns">
           <section className="review-claims" aria-label="What the agent says">
             <h3>What it says</h3>
@@ -187,7 +196,7 @@ function Review({ envId, threadId }: { envId: string; threadId: string }) {
           </div>
         )}
         <div className="review-actions">
-          <button className="btn approve" disabled={busy} onClick={() => void accept()} title="Mark the report read; it leaves Needs you. (Merging stays on the host.)">Mark reviewed</button>
+          <button className={`btn${doubtful.length ? "" : " approve"}`} disabled={busy} onClick={() => void accept()} title="Mark the report read; it leaves Needs you. (Merging stays on the host.)">Mark reviewed</button>
           {asking
             ? <button className="btn primary" disabled={busy || !notes.trim() || env.connection !== "live"} onClick={() => void requestChanges()}>Send changes</button>
             : <button className="btn" disabled={env.connection !== "live"} onClick={() => setAsking(true)}>Request changes…</button>}
