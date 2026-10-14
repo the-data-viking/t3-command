@@ -3,7 +3,8 @@
 // or waiting on you right now from the live fleet.
 
 import type { TimelineView, TurnRecord } from "../../shared/history";
-import type { EnvWorld } from "../store";
+import type { EnvWorld, GameState } from "../store";
+import { waitingSince } from "./queue";
 import { allUnits } from "./util";
 
 export type BarTone = "done" | "error" | "interrupted" | "working" | "alert" | "question";
@@ -14,6 +15,8 @@ export interface Bar {
   tone: BarTone;
   /** Still going: ends at "now". */
   live: boolean;
+  /** The part of a live turn spent waiting on you (drawn hatched), as opposed to the agent working. */
+  waiting?: boolean;
   record?: TurnRecord;
 }
 
@@ -32,7 +35,7 @@ export interface Group { project: string; lanes: Lane[]; last: number }
 
 const TONE: Record<TurnRecord["outcome"], BarTone> = { completed: "done", error: "error", interrupted: "interrupted" };
 
-export function buildTimeline(view: TimelineView, envs: Record<string, EnvWorld>, now: number): Group[] {
+export function buildTimeline(view: TimelineView, envs: Record<string, EnvWorld>, now: number, details: GameState["details"] = {}): Group[] {
   const lanes = new Map<string, Lane & { project: string }>();
   const lane = (envId: string, threadId: string, title: string, machine: string, project: string) => {
     const key = `${envId}:${threadId}`;
@@ -61,7 +64,13 @@ export function buildTimeline(view: TimelineView, envs: Record<string, EnvWorld>
     const started = Date.parse(turn.startedAt ?? turn.requestedAt);
     if (!Number.isFinite(started)) continue;
     const l = lane(u.envId, u.thread.id, u.thread.title || "Untitled", env.summary.label, env.projects[u.thread.projectId]?.title ?? "No project");
-    l.bars.push({ start: Math.max(view.from, started), end: now, tone: u.state === "alert" || u.state === "question" ? u.state : "working", live: true });
+    const start = Math.max(view.from, started);
+    if (u.state === "alert" || u.state === "question") {
+      // Truth: the agent worked until it asked; only the time since is waiting on you.
+      const asked = Math.min(now, Math.max(start, waitingSince(u.thread, details[`${u.envId}:${u.thread.id}`]?.thread)));
+      if (asked > start) l.bars.push({ start, end: asked, tone: "working", live: false });
+      l.bars.push({ start: asked, end: now, tone: u.state, live: true, waiting: true });
+    } else l.bars.push({ start, end: now, tone: "working", live: true });
     l.last = now;
   }
   const groups = new Map<string, Group>();

@@ -37,7 +37,7 @@ export function SpendTelemetry() {
     <details ref={disclosure} className="spend-menu" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="resource" aria-controls="spend-breakdown" aria-expanded={open} title="Today's API-equivalent estimate; open station breakdowns">
         <span className="res-key">EST. TODAY</span>
-        <span className="res-val green">{spend.costUsd === undefined ? "—" : formatSpend(spend.costUsd)}{spend.partial && spend.costUsd !== undefined ? "*" : ""}</span>
+        <span className="res-val">{spend.costUsd === undefined ? "—" : formatSpend(spend.costUsd)}{spend.partial && spend.costUsd !== undefined ? "*" : ""}</span>
       </summary>
     </details>
     {open && createPortal(<section ref={panel} id="spend-breakdown" className="spend-breakdown hud-frame" aria-label="Today's estimated spend">

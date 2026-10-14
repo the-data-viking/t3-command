@@ -9,7 +9,7 @@ import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { currentStyle, PX, tex } from "./textures";
 import { mapInk, STATUS } from "./theme";
-import { fitLabel, hash, pixelFrame, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
+import { fitLabel, FLEET_VIEW_ZOOM, hash, pixelFrame, sprite, steppedPlate, SCREEN_OFF } from "./map-common";
 import { worldRef } from "./world-ref";
 import { dockedPrs, JOBS_PER_SHELF, MAX_PATCHES, MAX_PODS, podSpot, stationMemory, tallyBand, type DockedPr, type StationMemory } from "./memory";
 
@@ -26,6 +26,8 @@ export class StationSprite {
   private fitWidth = 0;
   /** PR numbers under the cargo pods, shown only close up. */
   private podLabels: PixelText[] = [];
+  /** The cargo pods, hidden in the fleet view (its caption counts them instead). */
+  private pods?: Container;
   private drawn?: string;
   /** Console sprites by "x,y" of their layout point, so screens can be updated live. */
   readonly consoles = new Map<string, Sprite>();
@@ -208,6 +210,7 @@ export class StationSprite {
    */
   setZoom(zoom: number): void {
     for (const l of this.podLabels) l.visible = zoom >= 1;
+    if (this.pods) this.pods.visible = zoom >= FLEET_VIEW_ZOOM;
     if (this.title) fitLabel(this.title, this.titleText, this.fitWidth, zoom);
     if (this.sub) {
       this.sub.visible = zoom >= 0.45;
@@ -263,11 +266,10 @@ export class StationSprite {
   /**
    * Kestrel's FTL ship: long slot ports along the top band, a stepped dorsal spine on the roof
    * (clear of the nameplate on the left and the antenna on the right), and twin engine nacelles
-   * on the side away from the network port, their exhausts glowing in the world's lamp colour.
+   * on the side away from the network port. Their exhaust is drawn by the world, lit only while crew are on duty.
    */
   private drawFtlExterior(g: Graphics, s: StationLayout, h: { x: number; y: number; w: number; h: number }, hullTop: number, i: { x: number; y: number; w: number; h: number }): void {
     const style = currentStyle(), c = style.colors;
-    const lamp = style.light ?? c.w;
     const band = i.y - hullTop;
     if (band >= 14) {
       const wy = hullTop + Math.round((band - 6) / 2 / 2) * 2;
@@ -284,10 +286,7 @@ export class StationSprite {
     g.rect(sx + 4, hullTop - 10, sw - 8, 2).fill(c.h);
     for (let x = sx + 12; x < sx + sw - 8; x += 16) g.rect(x, hullTop - 6, 2, 6).fill(c.D);
     // Twin nacelles on struts, away from the port.
-    const right = s.port.x < h.x + h.w / 2;
-    const nw = 44, nh = 18;
-    for (const ny of [h.y + 18, h.y + h.h - 18 - nh]) {
-      const nx = right ? h.x + h.w + 8 : h.x - 8 - nw;
+    for (const { nx, ny, nw, nh, right } of nacelles(s)) {
       // A pylon in hull plating, outlined, from the hull to the nacelle.
       g.rect(right ? h.x + h.w - 2 : nx + nw - 2, ny + 4, 12, 10).fill(c.k);
       g.rect(right ? h.x + h.w - 2 : nx + nw, ny + 6, 12, 6).fill(c.H);
@@ -296,15 +295,8 @@ export class StationSprite {
       g.rect(nx + 4, ny + 2, nw - 8, 2).fill(c.w);
       g.rect(nx + 4, ny + nh - 4, nw - 8, 2).fill(c.D);
       g.rect(nx + 14, ny + 6, 16, 6).fill(c.q);
-      // Exhaust: the nozzle and a dithered glow trailing out behind it.
-      const ex = right ? nx + nw : nx - 4;
-      g.rect(ex, ny + 4, 4, nh - 8).fill(c.k);
-      for (let k = 0; k < 4; k++) {
-        for (let r = 0; r < nh - 8; r += 2) {
-          if ((k + r / 2) % 2 !== 0 && k > 0) continue;
-          g.rect(right ? ex + 4 + k * 2 : ex - 2 - k * 2, ny + 4 + r, 2, 2).fill({ color: lamp, alpha: 0.9 - k * 0.22 });
-        }
-      }
+      // The nozzle; its glow is drawn by the world only while the station is on duty.
+      g.rect(right ? nx + nw : nx - 4, ny + 4, 4, nh - 8).fill(c.k);
     }
   }
 
@@ -351,6 +343,7 @@ export class StationSprite {
    */
   private drawMemory(g: Graphics, s: StationLayout, m: StationMemory, hullTop: number, hullBottom: number, i: { x: number; y: number; w: number; h: number }): void {
     const c = currentStyle().colors;
+    const ink = currentStyle().memoryInk ?? c.w;
     const band = tallyBand(i, hullBottom);
     const bandTop = i.y + i.h + 4, bandH = hullBottom - 6 - bandTop;
     if (band) {
@@ -359,9 +352,9 @@ export class StationSprite {
       for (let gi = 0; gi < groups; gi++) {
         const x0 = i.x + 10 + gi * 24;
         const marks = Math.min(5, m.merged - gi * 5);
-        for (let k = 0; k < Math.min(4, marks); k++) g.rect(x0 + k * 4, y, 2, 8).fill(c.w);
+        for (let k = 0; k < Math.min(4, marks); k++) g.rect(x0 + k * 4, y, 2, 8).fill(ink);
         // The fifth strikes through the four, as a stepped diagonal.
-        if (marks === 5) for (let k = 0; k < 9; k++) g.rect(x0 - 2 + k * 2, y + 6 - Math.floor(k / 2) * 2, 2, 2).fill(c.w);
+        if (marks === 5) for (let k = 0; k < 9; k++) g.rect(x0 - 2 + k * 2, y + 6 - Math.floor(k / 2) * 2, 2, 2).fill(ink);
       }
     }
     const patches = Math.min(m.failed, MAX_PATCHES);
@@ -396,7 +389,11 @@ export class StationSprite {
    */
   private drawPods(prs: DockedPr[], hullBottom: number, i: { x: number; y: number; w: number; h: number }): void {
     this.podLabels = [];
+    this.pods = undefined;
     if (!prs.length) return;
+    const pods = new Container();
+    this.pods = pods;
+    this.root.addChild(pods);
     const c = currentStyle().colors;
     const ink = mapInk(useGame.getState().artStyle);
     const top = hullBottom + 4;
@@ -423,12 +420,12 @@ export class StationSprite {
         sfx.select();
         window.open(pr.url, "_blank", "noopener");
       });
-      this.root.addChild(pod);
+      pods.addChild(pod);
       const label = new PixelText(7, ink.muted);
       label.text = `#${pr.number}`;
       label.anchor.set(0.5, 0);
       label.position.set(x + 12, y + 16);
-      this.root.addChild(label);
+      pods.addChild(label);
       this.podLabels.push(label);
     });
     if (prs.length > MAX_PODS) {
@@ -436,7 +433,7 @@ export class StationSprite {
       more.text = `+${prs.length - MAX_PODS}`;
       more.anchor.set(1, 0);
       more.position.set(i.x + i.w - 30 - MAX_PODS * 28 + 20, top + 10);
-      this.root.addChild(more);
+      pods.addChild(more);
     }
   }
 
@@ -461,4 +458,16 @@ function pixelDisc(g: Graphics, cx: number, cy: number, r: number, color: number
     const half = Math.round(Math.sqrt(Math.max(0, r * r - (y + 1) ** 2)) / 2) * 2;
     if (half > 0) g.rect(cx - half, cy + y, half * 2, 2).fill(color);
   }
+}
+
+/** Kestrel's twin nacelles beside a station's hull, away from its network port (world px). */
+export function nacelles(s: StationLayout): Array<{ nx: number; ny: number; nw: number; nh: number; right: boolean; ex: number }> {
+  const xs = s.hull.filter((_, k) => k % 2 === 0), ys = s.hull.filter((_, k) => k % 2 === 1);
+  const h = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  const right = s.port.x < h.x + h.w / 2;
+  const nw = 44, nh = 18;
+  return [h.y + 18, h.y + h.h - 18 - nh].map((ny) => {
+    const nx = right ? h.x + h.w + 8 : h.x - 8 - nw;
+    return { nx, ny, nw, nh, right, ex: right ? nx + nw : nx - 4 };
+  });
 }

@@ -4,7 +4,7 @@
 import { FLIGHT_KIT, flightCrew } from "../art/flightdeck";
 import { STYLES, type StyleId } from "../art/palettes";
 import { rasterize } from "../art/render";
-import { hudMaterials, hudTokens, STATUS, TEAM_COLORS } from "../game/theme";
+import { hudMaterials, hudTokens, PROVIDER_VISOR, STATUS, TEAM_COLORS } from "../game/theme";
 
 const thumbs = new Map<string, string>();
 
@@ -32,7 +32,7 @@ export function themeThumbnail(id: StyleId): string {
   rect(col.p, 2, 6, 31, H - 8);
   for (let x = 2; x < 33; x += 8) rect(col.P, x, 6, 1, H - 8);
   ctx.drawImage(rasterize(FLIGHT_KIT.CONSOLE, style, { screen: STATUS.working }), 2, 8);
-  ctx.drawImage(rasterize(flightCrew("round", "standard"), style, { team: TEAM_COLORS[0], visor: 0xe2884f }), 18, 6);
+  ctx.drawImage(rasterize(flightCrew("round", "standard"), style, { team: TEAM_COLORS[0], visor: PROVIDER_VISOR.claudeAgent }), 18, 6);
   // The HUD: a panel corner in the theme's chrome.
   const m = hudMaterials(id);
   const chrome = m.chrome ?? { corner: "round", radius: 7, width: 3 };

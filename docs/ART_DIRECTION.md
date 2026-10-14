@@ -10,8 +10,10 @@ Bridge rooms use cool alloy decking; quarters use warmer acoustic panels; system
 archives keep the neutral utility deck. Material changes should make a station easier to
 read without competing with crew, labels, or attention badges.
 
-The live themes are Night Shift (the default), Kestrel (warm FTL hull), Signal (an ink-blue
-palette), Pastel Ops (a light HUD over dusk space) and High Contrast.
+The live theming is three **worlds** plus an accessibility mode: Night Shift (the default, with
+Night and Day variants; Day was the "Signal" theme), Kestrel (warm FTL ship) and Pastel Ops (a
+light HUD over dusk space), and High Contrast as a switch over them. Each world has its own
+palette, HUD chrome, sky body, lamp colour, hull silhouette and memory-mark ink.
 
 ## Review
 
@@ -79,17 +81,27 @@ colors and generated `--on-<state>` pill inks, into CSS variables. They are set 
 whenever the palette toggles. The stylesheet (`src/index.css`, one FTL chrome layer) derives
 only translucent variants with `color-mix()`.
 
-- Each theme is its own place (`theme.test.ts` keeps every pair apart on HUD and map materials):
-  - **Night Shift**, the default: a graveyard-shift engineering bay, graphite decks, cool grey frames.
-  - **Kestrel**: FTL's warm hull, ivory plating on walnut decks under a bronze-and-leather HUD.
-  - **Signal**: a daylight ops room, the cool light HUD (slate on pale panels) over porcelain hulls.
-  - **Pastel Ops**: cozy candy ops, the warm light HUD (plum on cream) over dusk space.
-  - **High Contrast**: maximum legibility, black wells, white frames, the darkest decks.
+- Each world is its own place (`theme.test.ts` keeps every pair apart on HUD and map materials):
+  - **Night Shift · Night**, the default: a graveyard-shift engineering bay, graphite decks, cool
+    grey frames, a crescent moon, cold fluorescent lamps, the industrial hull.
+  - **Night Shift · Day**: the same station by day, the cool light HUD (slate on pale panels)
+    over porcelain hulls, a sun whose glare thins the stars.
+  - **Kestrel**: FTL's warm hull, ivory plating on walnut decks under a bronze-and-leather HUD, a
+    ringed giant, sodium lamps, ship hulls (angular corners, dorsal spine, twin nacelles whose
+    exhaust burns only while crew are on duty).
+  - **Pastel Ops**: cozy candy ops, the warm light HUD (plum on cream) over dusk space, a pale
+    moon, pink lamps, soft hulls (rounded, portholes, a glass dome).
+  - **High Contrast** (a mode, not a world): maximum legibility, opaque black wells, white frames,
+    visible structural lines, the darkest decks, a bare sky.
 - Materials change per style. Status colors, the one "done / healthy" green and the gauge ramp
-  never change meaning. Light HUDs (Signal, Pastel) hand-tune darker versions in `hud.tokens` so
-  they read on pale panels; `theme.test.ts` holds each at 4.5:1 on every panel and apart from each other.
-- Selection is white on the map (crew ring, station outline, box select) and the bright frame
-  colour in the HUD. It never borrows a status colour: green already means "report ready".
+  never change meaning. Light HUDs (Day, Pastel) hand-tune darker versions in `hud.tokens` so
+  they read on pale panels; `theme.test.ts` holds each at 4.5:1 on every panel, apart from each
+  other, and apart from the caution and critical gauges (the risk lens's colours).
+- Green means approved or done, never chrome: the main action and selected options use the
+  frame colour (`.btn.primary`); only approving and accepting use green (`.btn.approve`).
+  Cautions (waiting long, stale, quiet, invalid) use the caution gauge (`.orange`), not failure orange.
+- Selection is white on a one-art-pixel dark outline on the map (crew ring, station outline,
+  box select; squad members dashed in the fleet view) and the bright frame colour in the HUD. It never borrows a status colour: green already means "report ready".
 - Context-left bars and host CPU/RAM meters use their own gauge ramp (green → amber → magenta).
   A full context or a busy host never borrows the approval red or question yellow.
 - Status badges are drawn in `V` and filled with `STATUS[state]`, so a badge is always the colour

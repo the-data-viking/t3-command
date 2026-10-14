@@ -36,7 +36,7 @@ import { HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
 import { FLEET_VIEW_ZOOM, linkPath, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
-import { StationSprite } from "./station-sprite";
+import { nacelles, StationSprite } from "./station-sprite";
 import { EnvironmentNodeSprite } from "./engineering-node";
 
 // ---- World -----------------------------------------------------------------------------
@@ -76,7 +76,7 @@ export class World {
   private crewLabels = new Container();
   /** Fleet-view rollup lines under each station ("2 WORKING · 1 WAITING 22M · 1 PR"). */
   private fleetLabels = new Container();
-  private fleetRollups = new Map<string, PixelText>();
+  private fleetRollups = new Map<string, PixelText[]>();
   private overlay = new Graphics();
   private edge = new Graphics();
   private edgeHits = new Container();
@@ -777,6 +777,19 @@ export class World {
     }
   }
 
+  /** Kestrel's nacelle exhaust: a dithered glow trailing from each nozzle in the lamp colour, flickering a little. */
+  private exhaust(g: Graphics, s: StationLayout, strength: number, frame: number): void {
+    const lamp = currentStyle().light ?? 0xffffff;
+    for (const n of nacelles(s)) {
+      for (let k = 0; k < 4; k++) {
+        for (let r = 0; r < n.nh - 8; r += 2) {
+          if ((k + r / 2 + (frame & 1)) % 2 !== 0 && k > 0) continue;
+          g.rect(n.right ? n.ex + 4 + k * 2 : n.ex - 2 - k * 2, n.ny + 4 + r, 2, 2).fill({ color: lamp, alpha: (0.9 - k * 0.22) * strength });
+        }
+      }
+    }
+  }
+
   /**
    * A room's ceiling strip, in the world's lamp colour: lit with a dithered bloom falling from it,
    * dark when the room is, or catching for a frame in a brownout.
@@ -967,6 +980,11 @@ export class World {
       .filter((s) => s.members.length && s.members.every((m) => state.envs[m.envId]?.connection !== "live")).map((s) => s.key));
     for (const s of this.layout.stations.values()) {
       const u = stationUse.get(s.key);
+      // Kestrel's engines burn only while the station has crew on duty, and catch in a brownout.
+      if (currentStyle().hull === "ftl") {
+        const burn = onDuty.has(s.key) ? 1 : offline.has(s.key) && !reducedMotion() && hash(`${s.key}:x${frame}`) > 0.9 ? 0.5 : 0;
+        if (burn) this.exhaust(g, s, burn, frame);
+      }
       const bridge = s.rooms.bridge?.rect;
       // Lighting follows observed use: the bridge while crew are on duty, a system room while
       // someone works there. Everything else (idle rooms, quarters, archive) sits in shadow.
@@ -1112,13 +1130,20 @@ export class World {
     // Glyphs are 5 cells on a 6-cell dark tile, packed edge to edge so a room holds as many as it can.
     const pitch = 6 * cell;
     const now = Date.now();
-    const glyph = (x: number, y: number, state: UnitState, color: number, selected: boolean, waitedMs = 0) => {
+    const glyph = (x: number, y: number, state: UnitState, color: number, selected: boolean, waitedMs = 0, inSquad = false) => {
       // A dark tile under each glyph, so it reads on light floors too; white-framed when selected.
       g.rect(x - cell, y - cell, 6 * cell, 6 * cell).fill({ color: 0x0b0d10, alpha: 0.8 });
       // Someone waiting on you gets a frame in their colour that thickens with the wait: from
       // 2 minutes, thicker from 15. The rollup line under the station gives the minutes.
       if (waitedMs >= 120_000) pixelFrame(g, x - cell, y - cell, 6 * cell, 6 * cell, color, 1, Math.max(1, Math.round(cell * (waitedMs >= 900_000 ? 0.5 : 0.25))));
       if (selected) pixelFrame(g, x - cell, y - cell, 6 * cell, 6 * cell, SELECTION, 1, cell);
+      // In the squad: a dashed white frame (every other cell), so a box-select shows what it caught.
+      else if (inSquad) {
+        for (let k = 0; k < 6; k += 2) {
+          g.rect(x - cell + k * cell, y - cell, cell, cell).fill(SELECTION).rect(x - cell + (k + 1) * cell, y + 4 * cell, cell, cell).fill(SELECTION);
+          g.rect(x - cell, y + (k + 1) * cell - cell, cell, cell).fill(SELECTION).rect(x + 4 * cell, y + k * cell - cell, cell, cell).fill(SELECTION);
+        }
+      }
       for (const [cx, cy] of cells(STATUS_GLYPHS[state])) g.rect(x + cx * cell, y + cy * cell, cell, cell).fill(color);
     };
     /** Lay glyphs out in rows inside a rect; false (and nothing drawn) if they don't all fit. */
@@ -1131,7 +1156,7 @@ export class World {
         const waiting = sprite.state === "alert" || sprite.state === "question";
         const waited = waiting ? now - waitingSince(sprite.thread, state.details[sprite.key]?.thread) : 0;
         glyph(r.x + 2 * cell + (k % cols) * pitch, r.y + 2 * cell + Math.floor(k / cols) * pitch, sprite.state,
-          sprite.offline ? 0x59626c : STATUS[sprite.state], selected, waited);
+          sprite.offline ? 0x59626c : STATUS[sprite.state], selected, waited, sprite.inSquad);
       });
       return true;
     };
@@ -1167,9 +1192,9 @@ export class World {
       }
       this.drawRollup(s, crew, now);
     }
-    for (const [key, text] of this.fleetRollups) {
+    for (const [key, texts] of this.fleetRollups) {
       if (this.layout.stations.has(key)) continue;
-      text.destroy();
+      for (const text of texts) text.destroy();
       this.fleetRollups.delete(key);
     }
     // Hermes operators become glyphs in their bays, like crew (their figures hide at this scale).
@@ -1193,23 +1218,32 @@ export class World {
     const prs = dockedPrs(useGame.getState(), s);
     const failing = prs.filter((pr) => pr.checks === "failing").length;
     const span = (ms: number) => ms >= 3_600_000 ? `${Math.floor(ms / 3_600_000)}H` : `${Math.max(1, Math.floor(ms / 60_000))}M`;
-    const parts = [
-      waiting.length ? `${waiting.length} WAITING ${span(oldest)}` : "",
-      working ? `${working} WORKING` : "",
-      prs.length ? `${prs.length} PR${prs.length === 1 ? "" : "S"}${failing ? ` · ${failing} FAILING` : ""}` : "",
-    ].filter(Boolean);
-    let text = this.fleetRollups.get(s.key);
-    if (!text) {
-      text = new PixelText(10, mapInk(artStyle).text);
-      this.fleetRollups.set(s.key, text);
-      this.fleetLabels.addChild(text);
-    }
-    // A station whose crew are all on unreachable machines says so: its counts are last known.
+    // Each part in its own job's colour: only the waiting count is red, failing checks are the
+    // failure colour, and the rest is plain ink. A station whose crew are all on unreachable
+    // machines says so, and everything about it is greyed: its counts are last known.
+    const ink = mapInk(artStyle);
     const offline = crew.length > 0 && crew.every((c) => c.offline);
-    text.fill = offline ? mapInk(artStyle).muted : waiting.length ? STATUS.alert : mapInk(artStyle).muted;
-    text.text = offline ? `NO SIGNAL · LAST KNOWN ${parts.join(" · ") || "QUIET"}` : parts.join(" · ") || "QUIET";
-    text.position.set(s.interior.x, s.interior.y + s.interior.h + 24);
-    text.scale.set(crispScale(text.unit, this.zoom));
+    const parts: Array<[string, number]> = [];
+    if (offline) parts.push(["NO SIGNAL · LAST KNOWN", ink.muted]);
+    if (waiting.length) parts.push([`${waiting.length} WAITING ${span(oldest)}`, offline ? ink.muted : STATUS.alert]);
+    if (working) parts.push([`${working} WORKING`, offline ? ink.muted : STATUS.working]);
+    if (prs.length) parts.push([`${prs.length} PR${prs.length === 1 ? "" : "S"}`, ink.muted]);
+    if (failing) parts.push([`${failing} FAILING`, offline ? ink.muted : STATUS.error]);
+    if (parts.length === (offline ? 1 : 0)) parts.push(["QUIET", ink.muted]);
+    const texts = this.fleetRollups.get(s.key) ?? [];
+    let x = s.interior.x;
+    parts.forEach(([value, color], k) => {
+      let text = texts[k];
+      if (!text) { text = new PixelText(10, color); texts[k] = text; this.fleetLabels.addChild(text); }
+      text.visible = true;
+      text.fill = color;
+      text.text = k < parts.length - 1 ? `${value} · ` : value;
+      text.scale.set(crispScale(text.unit, this.zoom));
+      text.position.set(Math.round(x), s.interior.y + s.interior.h + 24);
+      x += text.width;
+    });
+    for (let k = parts.length; k < texts.length; k++) texts[k].visible = false;
+    this.fleetRollups.set(s.key, texts);
   }
 
   /** Arrows on the screen edge pointing at off-screen crew who need you. */

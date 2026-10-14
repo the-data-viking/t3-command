@@ -14,7 +14,9 @@ export const STATUS: Record<UnitState, number> = {
   error: 0xff7a3d,
   done: 0x5dff9a,
   idle: 0x9aa7bd,
-  sleeping: 0x4a5266,
+  // Lifted from #4a5266 so "asleep" reads on the dark glyph tiles (4.8:1, not 2.5:1), with pill
+  // text still at 4.5:1.
+  sleeping: 0x747e98,
 };
 
 /** Selection on the map: the picked crew member and the box-select, in a colour no status uses. */
@@ -151,7 +153,8 @@ export function applyHudTheme(styleId: StyleId): void {
  * Distinct station colors, chosen to stay clear of the status and gauge colors above (no amber,
  * orange, red, magenta or violet; see theme.test.ts for the separation each keeps).
  */
-export const TEAM_COLORS = [0x3ec7b3, 0x5b7cff, 0xa8d65a, 0x2fa36b, 0xb07f4a, 0x1f9fd6];
+// Olive, not bronze, in the fifth slot: bronze read as Kestrel's own chrome.
+export const TEAM_COLORS = [0x3ec7b3, 0x5b7cff, 0xa8d65a, 0x2fa36b, 0x8a8f3c, 0x1f9fd6];
 
 /**
  * A station or bot colour as the HUD should show it: as is on dark HUDs, deepened to readable

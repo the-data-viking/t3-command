@@ -279,7 +279,7 @@ function PendingCard({ request, envId, threadId }: { request: PendingRequest; en
         {options.map((o) => (
           <button
             key={o.decision}
-            className={`btn ${o.decision === "decline" || o.decision === "cancel" ? "danger" : "primary"}`}
+            className={`btn ${o.decision === "decline" || o.decision === "cancel" ? "danger" : "approve"}`}
             disabled={busy}
             title={o.warning}
             onClick={() => {

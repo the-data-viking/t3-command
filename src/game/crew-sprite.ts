@@ -12,7 +12,7 @@ import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { CrewMotion } from "./crew-motion";
 import { quietness } from "../t3/progress";
-import { crewTex, PX, tex } from "./textures";
+import { crewTex, currentStyle, PX, tex } from "./textures";
 import { contextLevel, DEFAULT_VISOR, GAUGE, HUD, hudMaterials, mapInk, modelTier, PROVIDER_VISOR, providerSilhouette, SELECTION, STATUS, type Silhouette, type Tier } from "./theme";
 import { label, hash, truncate, WALK_SPEED, CREW_SPACING, BEAM_SECONDS, SPARK_MS, reducedMotion, BADGES, figureBoost, crispScale, pixelFrame, pixelOval, REPORT_MS, seatedPose } from "./map-common";
 
@@ -458,18 +458,21 @@ export class CrewSprite extends Container {
     if (cycle > 0.4) return;
     const k = cycle / 0.4;
     // The flash: a 5-cell pixel star for the first half of the burst.
-    if (k < 0.5) f.rect(8, -34, 2, 6).fill(0xffd166).rect(6, -32, 6, 2).fill(0xffd166);
+    // In the failure colour and a pale hot white: never question yellow.
+    if (k < 0.5) f.rect(8, -34, 2, 6).fill(STATUS.error).rect(6, -32, 6, 2).fill(STATUS.error);
     for (let j = 0; j < 8; j++) {
       const a = (j / 8) * Math.PI * 2 + this.seed * 6;
       const r = 4 + k * 16;
       if (k > 0.8 && j % 2) continue;
-      f.rect(snap(10 + Math.cos(a) * r), snap(-30 + Math.sin(a) * r * 0.7 + k * k * 10), 2, 2).fill(j % 2 ? 0xffd166 : 0xffffff);
+      f.rect(snap(10 + Math.cos(a) * r), snap(-30 + Math.sin(a) * r * 0.7 + k * k * 10), 2, 2).fill(j % 2 ? STATUS.error : 0xffe0c8);
     }
   }
 
   private drawRing(selected: boolean, t: number, sleeping: boolean): void {
     const r = this.ring.clear();
     if (sleeping) {
+      // White on a dark outline, so it reads on pale decks too.
+      if (selected) pixelFrame(r, -28, -12, 56, 24, currentStyle().colors.k);
       if (selected) pixelFrame(r, -26, -10, 52, 20, SELECTION);
       if (this.inSquad) pixelFrame(r, -30, -14, 60, 28, SELECTION, 0.5);
       return;
@@ -478,6 +481,8 @@ export class CrewSprite extends Container {
     // members wear a second, wider and dimmer ring.
     if (this.inSquad) pixelOval(r, 0, 0, 20, 8, SELECTION, 0.5);
     if (selected) {
+      // White on a one-art-pixel dark outline (art bible rule 3), so it reads on pale decks too.
+      pixelOval(r, 0, 0, 18, 8, currentStyle().colors.k);
       pixelOval(r, 0, 0, 16, 6, SELECTION);
     } else if (!this.offline && !this.atConsole && (this.state === "alert" || this.state === "question")) {
       // Away from their console (seated, the console pulses instead: one ask ring, not two).
