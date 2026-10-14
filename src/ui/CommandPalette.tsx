@@ -17,6 +17,7 @@ import { fuzzyFilter } from "./fuzzy";
 import { jumpTo } from "./hotkeys";
 import { batchSettle, currentPick } from "./squad";
 import { THEME_NAMES } from "./themes";
+import { closeDispatch, dispatchTitle, progressOf } from "./dispatch";
 import { allUnits, reportRead, STATE_LABELS } from "./util";
 
 /** A verb that takes text: picking it turns the palette's box into a prompt for that text. */
@@ -31,7 +32,7 @@ interface Prompt {
 
 interface Item {
   id: string;
-  group: "Crew" | "Station" | "Machine" | "Go to" | "Action" | "Order" | "Report" | "PR" | "Theme";
+  group: "Crew" | "Station" | "Machine" | "Go to" | "Action" | "Order" | "Report" | "Mission" | "PR" | "Theme";
   label: string;
   detail?: string;
   run: () => void;
@@ -110,6 +111,14 @@ function buildItems(state: GameState): Item[] {
   if (state.followUps.queued.length || state.followUps.paused) {
     items.push({ id: "act:followups", group: "Action", label: state.followUps.paused ? `Resume follow-ups (${state.followUps.queued.length} queued)` : `Pause all ${state.followUps.queued.length} follow-ups`,
       run: () => void pauseFollowUps(!state.followUps.paused).catch((err) => logError("Couldn't change follow-ups", err)) });
+  }
+  // Squad orders and missions being followed: read their replies, or stop following.
+  for (const d of state.dispatches) {
+    const p = progressOf(d, state.envs, state.followUps);
+    items.push({ id: `replies:${d.id}`, group: "Mission", label: `Read replies: ${dispatchTitle(d, 60)}`, detail: `${p.reported} of ${p.total} reported`,
+      run: () => useGame.setState({ replies: d.id }) });
+    items.push({ id: `unfollow:${d.id}`, group: "Mission", label: `Stop following: ${dispatchTitle(d, 60)}`, detail: "the order itself stands",
+      run: () => void closeDispatch(d.id).catch((err) => logError("Couldn't stop following it", err)) });
   }
   // Verbs on crew: read a report, give an order, open a PR.
   for (const u of unread) {
