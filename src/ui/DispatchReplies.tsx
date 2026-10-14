@@ -12,9 +12,9 @@ import { markReportsRead, setSelection, unitKey, useGame } from "../store";
 import { envClient, logError } from "../t3/environment";
 import { turnBusy } from "../t3/derive";
 import { closeDispatch, dispatchTitle, progressOf, RECEIPT, recordDispatch, replyOf, updateDispatch, type ReceiptStatus } from "./dispatch";
-import type { DispatchMember } from "../../shared/dispatches";
+import { groupOf, type DispatchMember } from "../../shared/dispatches";
 import { useDraft } from "./drafts";
-import { debriefMarkdown, followUpBrief, type SharedReply } from "./mission";
+import { debriefMarkdown, followUpBrief, type DebriefRound, type SharedReply } from "./mission";
 import { confirmReplacing, orderCrew, wouldReplace } from "./squad";
 import { MessageMarkdown } from "./MessageMarkdown";
 import { PixelLabel } from "./PixelArt";
@@ -70,6 +70,14 @@ function Replies({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string>();
   const shared: SharedReply[] = cards.map((c) => ({ title: c.thread?.title || c.member.title, reply: c.reply, status: RECEIPT[c.status].label, part: c.member.part }));
+  // Every round of this order or mission, in order: tabs to move between them, one debrief for all.
+  const allDispatches = useGame((s) => s.dispatches);
+  const rounds = useMemo(() => allDispatches.filter((d) => groupOf(d) === groupOf(dispatch)).sort((a, b) => (a.round ?? 1) - (b.round ?? 1)), [allDispatches, dispatch]);
+  const debriefRounds: DebriefRound[] = rounds.map((r) => ({ round: r.round ?? 1, order: r.text,
+    replies: progressOf(r, envs).receipts.map(({ member, status }) => {
+      const t = envs[member.envId]?.threads[member.threadId];
+      return { title: t?.title || member.title, status: RECEIPT[status].label, part: member.part, reply: replyOf(status, t, details[unitKey(member.envId, member.threadId)], member) };
+    }) }));
   // Who a follow-up can reach: still aboard, on a connected T3 station.
   const reachable = cards.filter((c) => c.thread && !c.thread.archivedAt && envs[c.member.envId]?.connection === "live" && envs[c.member.envId]?.summary.kind !== "hermes");
   const replied = cards.filter((c) => c.reply).length;
@@ -89,7 +97,8 @@ function Replies({ id }: { id: string }) {
     try {
       // Read what's been answered: the follow-up is the response to it.
       markReportsRead(unread.map((c) => ({ envId: c.member.envId, threadId: c.member.threadId, turnId: c.turnId! })));
-      const next = await recordDispatch(dispatch.mission ? dispatch.text : text.trim(), receipts, dispatch.mission);
+      // The next round of the same mission (or order): one thread of work on the board, not copies.
+      const next = await recordDispatch(text.trim(), receipts, dispatch.mission, groupOf(dispatch));
       clearText();
       setAsking(false);
       (failed ? sfx.error : sfx.order)();
@@ -118,7 +127,7 @@ function Replies({ id }: { id: string }) {
   };
   const copyDebrief = async () => {
     try {
-      await navigator.clipboard.writeText(debriefMarkdown({ mission: dispatch.mission, order: dispatch.text, replies: shared }));
+      await navigator.clipboard.writeText(debriefMarkdown({ mission: dispatch.mission, order: rounds[0]?.text ?? dispatch.text, replies: shared, rounds: debriefRounds }));
       setNote("Debrief copied as markdown.");
     } catch { setNote("Couldn't copy: the browser blocked the clipboard."); }
   };
@@ -146,6 +155,14 @@ function Replies({ id }: { id: string }) {
         </header>
         <p className="muted small">{progress.reported} of {progress.total} reported{progress.needsYou ? ` · ${progress.needsYou} waiting on you` : ""}</p>
         {dispatch.mission && <p className="dispatch-goal small"><strong>Goal:</strong> {dispatch.mission.goal}</p>}
+        {rounds.length > 1 && (
+          <div className="round-tabs" role="tablist" aria-label="Rounds">
+            {rounds.map((r) => (
+              <button key={r.id} role="tab" aria-selected={r.id === dispatch.id} className={`btn small${r.id === dispatch.id ? " primary" : ""}`}
+                title={r.text.split("\n")[0]} onClick={() => useGame.setState({ replies: r.id })}>Round {r.round ?? 1}</button>
+            ))}
+          </div>
+        )}
         <div className="replies">
           {cards.map(({ member, status, thread, reply, unread: fresh }) => (
             <article key={`${member.envId}:${member.threadId}`} className={`reply r-${status}${fresh ? " unread" : ""}`}>

@@ -72,12 +72,13 @@ export function progressOf(d: Dispatch, envs: Record<string, EnvWorld>): Dispatc
 
 /** The order's first line (a mission's name, after ⚑: ◆ means a question), short enough for a row. */
 export function dispatchTitle(d: Dispatch, max = 80): string {
-  const line = d.mission ? `⚑ ${d.mission.name}` : d.text.split("\n").find((l) => l.trim())?.trim() ?? "";
+  const line = d.mission ? `⚑ ${d.mission.name}${d.round ? ` · round ${d.round}` : ""}` : d.text.split("\n").find((l) => l.trim())?.trim() ?? "";
   return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
-export function recordDispatch(text: string, members: DispatchMember[], mission?: MissionInfo): Promise<Dispatch> {
-  return fetchJson<Dispatch>("/api/dispatches", { method: "POST", body: JSON.stringify({ text, members, ...(mission ? { mission } : {}) }) });
+/** `missionId`: this is the next round of that mission. */
+export function recordDispatch(text: string, members: DispatchMember[], mission?: MissionInfo, missionId?: string): Promise<Dispatch> {
+  return fetchJson<Dispatch>("/api/dispatches", { method: "POST", body: JSON.stringify({ text, members, ...(mission ? { mission } : {}), ...(missionId ? { round: { missionId } } : {}) }) });
 }
 
 export function updateDispatch(id: string, members: DispatchMember[]): Promise<Dispatch> {

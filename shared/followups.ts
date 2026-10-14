@@ -36,6 +36,19 @@ export const FOLLOW_UP_TTL_MS = 12 * 3_600_000;
 export const STANDING_MAX = 10;
 /** A send that hasn't started a turn after this long is taken as not having landed. */
 export const STANDING_START_MS = 3 * 60_000;
+/** What an agent replies when a standing order has nothing left to do; the repeats then stop. */
+export const NOTHING_LEFT = "NOTHING LEFT";
+/**
+ * A standing order's repeat waits this long after a clean turn, so a Command browser that sees
+ * the agent say NOTHING LEFT can cancel it first.
+ */
+export const STANDING_GRACE_MS = 20_000;
+
+/** The line a standing order carries, so the agent knows how to stop it. */
+export function standingNote(times: number): string {
+  return `(This order repeats: up to ${times - 1} more time${times === 2 ? "" : "s"}, after each turn that ends cleanly. If there's nothing left to do, reply with exactly ${NOTHING_LEFT} and the repeats stop.)`;
+}
+
 /** A send that keeps failing is given up (and said so) after this many tries. */
 export const SEND_ATTEMPTS = 5;
 /** First wait before resending a failed send; it doubles each time. */

@@ -44,7 +44,13 @@ export interface Dispatch {
   mission?: MissionInfo;
   /** When the Command server saw every member's part of it end (and said so in the comms log). */
   finishedAt?: number;
+  /** A later round of a mission: the first round's id, and this round's number (2, 3, …). */
+  missionId?: string;
+  round?: number;
 }
+
+/** The id that ties a mission's rounds together (a plain order is its own group). */
+export const groupOf = (d: Pick<Dispatch, "id" | "missionId">): string => d.missionId ?? d.id;
 
 /** An order sent now whose turn hasn't started after this long didn't start. */
 export const DISPATCH_START_MS = 3 * 60_000;

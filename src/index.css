@@ -2383,6 +2383,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .review-modal { width: min(1100px, 100%); }
 /* A squad order's replies: one card per crew member it went to. */
 .replies-modal { width: min(1320px, 100%); }
+.round-tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .replies-modal .squad-queue, .mission-modal .squad-queue { white-space: normal; display: flex; align-items: flex-start; gap: var(--space-1); }
 .replies { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: var(--space-2); max-height: 66vh; overflow-y: auto; align-items: start; }
 .reply { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-1h) var(--space-2); background: var(--slot); border: 1px solid var(--edge); border-left: 3px solid var(--edge-strong); border-radius: var(--radius-control); min-width: 0; }

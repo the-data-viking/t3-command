@@ -6,7 +6,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { FOLLOW_UP_MAX_CHARS, FOLLOW_UP_TTL_MS, SEND_ATTEMPTS, SEND_BACKOFF_MS, STANDING_MAX, STANDING_START_MS, type FollowUp, type FollowUpsView } from "../shared/followups.ts";
+import { FOLLOW_UP_MAX_CHARS, FOLLOW_UP_TTL_MS, SEND_ATTEMPTS, SEND_BACKOFF_MS, STANDING_GRACE_MS, STANDING_MAX, STANDING_START_MS, type FollowUp, type FollowUpsView } from "../shared/followups.ts";
 import type { ThreadShell } from "../src/t3/types.ts";
 import type { CommsLog } from "./comms.ts";
 
@@ -33,6 +33,9 @@ export function decide(f: FollowUp, thread: ThreadShell | undefined, now: number
   if (!turn) return { action: "wait" };
   if (turn.turnId !== f.afterTurnId) return { action: "drop", reason: "another order started a new turn first" };
   if (turn.state === "running" || thread.hasPendingApprovals || thread.hasPendingUserInput) return { action: "wait" };
+  // A standing order's repeat waits a moment after a clean turn: a browser that sees the agent
+  // say NOTHING LEFT cancels it in that window.
+  if (turn.state === "completed" && f.total && turn.completedAt && now - Date.parse(turn.completedAt) < STANDING_GRACE_MS) return { action: "wait" };
   if (turn.state === "completed") return { action: "send" };
   return { action: "drop", reason: `the turn ${turn.state === "error" ? "failed" : "was interrupted"}` };
 }

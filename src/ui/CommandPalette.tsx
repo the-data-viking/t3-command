@@ -18,6 +18,7 @@ import { jumpTo } from "./hotkeys";
 import { batchSettle, currentPick } from "./squad";
 import { THEME_NAMES } from "./themes";
 import { closeDispatch, dispatchTitle, progressOf } from "./dispatch";
+import { groupOf } from "../../shared/dispatches";
 import { allUnits, reportRead, STATE_LABELS } from "./util";
 
 /** A verb that takes text: picking it turns the palette's box into a prompt for that text. */
@@ -113,7 +114,10 @@ function buildItems(state: GameState): Item[] {
       run: () => void pauseFollowUps(!state.followUps.paused).catch((err) => logError("Couldn't change follow-ups", err)) });
   }
   // Squad orders and missions being followed: read their replies, or stop following.
-  for (const d of state.dispatches) {
+  // Each order or mission once, by its newest round.
+  const newest = new Map<string, (typeof state.dispatches)[number]>();
+  for (const d of state.dispatches) { const g = groupOf(d); const have = newest.get(g); if (!have || (d.round ?? 1) > (have.round ?? 1)) newest.set(g, d); }
+  for (const d of newest.values()) {
     const p = progressOf(d, state.envs);
     items.push({ id: `replies:${d.id}`, group: d.mission ? "Mission" : "Order", label: `Read replies: ${dispatchTitle(d, 60)}`, detail: `${p.reported} of ${p.total} reported`,
       run: () => useGame.setState({ replies: d.id }) });
