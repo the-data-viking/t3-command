@@ -142,6 +142,10 @@ export interface ControlCenterLayout {
 export const TILE = 32;
 /** How many settled crew each station keeps aboard, most recently settled first. */
 export const QUARTERS_SHOWN = 3;
+/** Where the cryo bay's k-th stasis pod stands: its centre, the 48-px-tall pod's foot on the floor. */
+export function podAt(q: Rect, k: number): Point {
+  return { x: q.x + TILE * 1.5 + k * TILE * 1.5, y: q.y + q.h - 28 };
+}
 const HULL_PAD = 22;
 export const ENV_NODE_W = 288;
 export const ENV_NODE_H = 152;
@@ -323,7 +327,7 @@ function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLa
   asleep.forEach((c, k) => {
     const envId = c.ref.env.summary.id;
     crew.push({ key: unitKey(envId, c.thread.id), envId, threadId: c.thread.id,
-      stationKey: key, color: teamColor(c.ref.index), home: { x: q.x + T * 1.5 + k * T * 1.5, y: q.y + q.h - T / 2 },
+      stationKey: key, color: teamColor(c.ref.index), home: podAt(q, k),
       homeRoom: 'quarters', sleeping: true });
   });
 

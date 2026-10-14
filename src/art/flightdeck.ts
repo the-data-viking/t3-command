@@ -186,9 +186,9 @@ function flightCrewBehind(silhouette: Silhouette, tier: Tier, arms: Arms, head: 
     // Typing: one elbow up while the other is down, swapping each beat.
     ? [[0, arms === 'typeB' ? 11 : 13, 2, 2, 'k'], [1, arms === 'typeB' ? 11 : 13, 1, 1, 'W'], [14, arms === 'typeA' ? 11 : 13, 2, 2, 'k'], [14, arms === 'typeA' ? 11 : 13, 1, 1, 'W']]
     : arms === 'raise' || arms === 'raiseB'
-      // A hand up beside the helmet, waving a pixel higher every other beat: a lit glove with a
-      // thumb out, a dark cuff, then the sleeve down to the shoulder.
-      ? ((y: number): PixelBox[] => [[0, 13, 2, 2, 'k'], [13, y, 3, 11 - y + 2, 'k'], [14, y, 1, 2, 'w'], [13, y + 1, 1, 1, 'w'], [14, y + 3, 1, 12 - y - 3, 'W']])(arms === 'raiseB' ? 2 : 3)
+      // A hand up beside the helmet, waving a pixel higher every other beat: a 2×2 lit glove in its
+      // own outline over a two-pixel sleeve down to the shoulder (a one-pixel arm read as an aerial).
+      ? ((y: number): PixelBox[] => [[0, 13, 2, 2, 'k'], [12, y + 2, 4, 11 - y, 'k'], [13, y + 3, 2, 9 - y, 'W'], [12, y - 1, 4, 4, 'k'], [13, y, 2, 2, 'w']])(arms === 'raiseB' ? 2 : 3)
       : arms === 'relax'
         // Leaning back, hands behind the head: elbows out level with the helmet.
         ? [[0, 6, 4, 2, 'k'], [1, 6, 2, 1, 'W'], [12, 6, 4, 2, 'k'], [13, 6, 2, 1, 'W']]

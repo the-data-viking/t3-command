@@ -5,7 +5,7 @@ import { PixelText } from "./pixel-text";
 import * as A from "../art/sprites";
 import { setSelection, useGame, type GameState } from "../store";
 import { skyLight } from "./backdrop";
-import { QUARTERS_SHOWN, stationDrawKey, systemFixtureX, TILE, type Room, type RoomKind, type StationLayout, type SystemRoom } from "./layout";
+import { podAt, QUARTERS_SHOWN, stationDrawKey, systemFixtureX, type Room, type RoomKind, type StationLayout, type SystemRoom } from "./layout";
 import { sfx } from "./sfx";
 import { gesturing } from "./gesture";
 import { currentStyle, PX, tex } from "./textures";
@@ -141,7 +141,7 @@ export class StationSprite {
     // Quarters are a cryo bay: three stasis pods (sleepers are drawn by their crew sprites, in their own pod).
     const q = s.rooms.quarters?.rect;
     if (q) {
-      for (let k = 0; k < QUARTERS_SHOWN; k++) fixtures.addChild(sprite(tex(A.CRYO_EMPTY), q.x + TILE * 1.5 + k * TILE * 1.5, q.y + q.h - TILE / 2, 0.5, 0.5));
+      for (let k = 0; k < QUARTERS_SHOWN; k++) { const at = podAt(q, k); fixtures.addChild(sprite(tex(A.CRYO_EMPTY), at.x, at.y, 0.5, 0.5)); }
     }
     // Archive shelves, filling with finished work: one shelf unit per few clean turns.
     const ar = s.rooms.archive?.rect;

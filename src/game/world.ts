@@ -28,7 +28,7 @@ import { doorState } from "./crew-motion";
 import { RenderLoop, type DrawResult } from "./render-loop";
 import { Backdrop } from "./backdrop";
 import { consoleScreen, terminalScreen } from "./screens";
-import { LightLayer, mixColor } from "./light";
+import { BAYER, LightLayer, mixColor } from "./light";
 import { dockedPrs, podSpot, stationMemory, tallyMark } from "./memory";
 import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
@@ -80,7 +80,7 @@ export class World {
   private stationLayer = new Container();
   private environmentLayer = new Container();
   private lights = new Graphics();
-  /** Additive light: console pools and the spotlight on whoever waits on you. */
+  /** Additive light: the floor pools in front of working consoles. */
   private glow = new LightLayer();
   /** Each room's lamps as last seen (and since when), for switch-on and lights-out (see lampView). */
   private lampSeen = new Map<string, { lit: boolean; at: number; delay: number }>();
@@ -1121,10 +1121,6 @@ export class World {
         u.attention = true;
         if (sprite.state === "alert") u.approval = true;
         if (lay.console && !lay.sleeping && sprite.atConsole) asking.push({ ...lay.console, color: STATUS[sprite.state] });
-        // A spotlight from the ceiling onto whoever is waiting on you: stage light, not another red.
-        // It starts below the console screen (cy-18…cy-10; a seated crew member sits at cy+27), so
-        // the ▲ or ◆ on the screen stays clean.
-        if (!lay.sleeping && !sprite.offline && this.glowing) this.glow.add("spot", currentStyle().light ?? 0xe8f0f8, sprite.pos.x, sprite.pos.y - 34);
       }
       stationUse.set(lay.stationKey, u);
       if (!lay.sleeping) {
@@ -1206,11 +1202,11 @@ export class World {
       if (currentStyle().hull === "soft" && lamps.bridge === "on") {
         for (const glass of domeGlass(s)) g.rect(glass.x, glass.y, glass.w, glass.h).fill({ color: currentStyle().light ?? 0xffdcec, alpha: 0.45 });
       }
-      // System screens show use, like the bridge consoles: lit and flickering while crew work
+      // System screens show use, like the bridge consoles: lit (steady) while crew work
       // there, violet on comms when only background tasks are being watched, dark otherwise.
       for (const [kind, fixture] of this.stations.get(s.key)?.systems ?? []) {
         const on = !!u?.[kind];
-        const screen = !on ? SCREEN_OFF : kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : frame % 2 ? STATUS.working : 0x9ff0ff;
+        const screen = !on ? SCREEN_OFF : kind === "comms" && u?.monitoringOnly ? STATUS.monitoring : STATUS.working;
         const next = tex(on && kind === "terminal" ? terminalScreen(frame) : fixture.grid, { screen });
         if (fixture.sprite.texture !== next) fixture.sprite.texture = next;
       }
@@ -1429,8 +1425,10 @@ export class World {
         g.rect(r.x + cell, r.y, r.w - 2 * cell, cell).fill(lamp);
         for (let y = r.y + cell; y < r.y + Math.min(r.h, 6 * cell); y += cell) {
           const row = (y - r.y) / cell;
+          // Ordered dither, thinning row by row (a stepped modulo fell as diagonal rain).
+          const density = [0.5, 0.32, 0.18, 0.08, 0.03][row - 1] ?? 0;
           for (let x = r.x + cell; x < r.x + r.w - cell; x += cell) {
-            if (((x - r.x) / cell + row) % (row + 1) !== 0) continue;
+            if (BAYER[row & 3][((x - r.x) / cell) & 3] / 16 >= density) continue;
             g.rect(x, y, cell, cell).fill({ color: lamp, alpha: 0.32 - row * 0.05 });
           }
         }

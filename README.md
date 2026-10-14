@@ -64,7 +64,7 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   gets a pip for each beside the head (amber, then magenta past 12 hours). Rooms are lit only
   while in use: a bridge while its station has crew on duty, a system room while someone works
   there. Crew walk to quarters, a cryo bay of stasis pods, when their thread settles (frost
-  glints along the canopy, the pod's panel light breathes) and back when it wakes, doors slide
+  glints down the glass of their upright pod, its base lamp breathes) and back when it wakes, doors slide
   open as they pass, and a freshly recruited crew member beams in at their seat. Camera jumps
   ease into place.
 - **Readable at any zoom**: map labels use a 5×7 pixel font that matches the art. Zoomed out they
@@ -145,7 +145,7 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   Light is drawn additively in dithered pixels (it stays off the console screens, whose few pixels
   carry each crew member's state): lit tubes bloom just under the ceiling, a working
   console throws a pool onto the floor (lamp-coloured, only a quarter toward its screen's hue),
-  and whoever is waiting on you stands in a spotlight. Zoomed out, the fleet view is night lights
+  and whoever is waiting on you lights their own console. Zoomed out, the fleet view is night lights
   from orbit: rooms with crew in them glow under their lamps, empty rooms go dark, and an
   unreachable machine's rooms stay dark. Each hull's row of windows is drawn large enough to read
   there, lit over occupied rooms: a station's signature from far away. High Contrast skips the light. The layout is compact

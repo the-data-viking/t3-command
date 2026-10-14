@@ -161,11 +161,15 @@ function dimmed(color: number, k: number): number {
   return (m(16) << 16) | (m(8) << 8) | m(0);
 }
 
-/** Console screen color for a crew member's state; blinks and flicker alternate per frame. */
+/**
+ * Console screen color for a crew member's state; only the ones waiting on you blink. Working holds
+ * a steady field: its scrolling text already shows the work, and a whole-screen flicker gave
+ * routine work the urgency of an ask.
+ */
 export function screenColor(state: UnitState, frame: number, atConsole: boolean): number {
   switch (state) {
     case "working":
-      return atConsole ? (frame % 2 ? STATUS.working : 0x9ff0ff) : dimmed(STATUS.working, 0.55);
+      return atConsole ? STATUS.working : dimmed(STATUS.working, 0.55);
     case "monitoring":
       return dimmed(STATUS.monitoring, 0.3);
     case "alert":
