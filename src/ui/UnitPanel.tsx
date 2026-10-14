@@ -30,7 +30,7 @@ import { worldRef } from '../game/world';
 
 import { ActivityView, ToolActivityGroup } from "./TranscriptActivity";
 import { transcriptEntries } from "./transcript";
-import { CrewPortrait, PixelIcon } from "./PixelArt";
+import { CrewPortrait, PixelIcon, PixelLabel } from "./PixelArt";
 import { stationColor } from "../game/layout";
 import { HermesPermissions } from './HermesPermissions';
 import { isPhone, usePhone } from './phone';
@@ -90,6 +90,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
       <header className="panel-head">
         {bot ? <BotPortrait profile={bot.name} /> : <div className="portrait sprite-portrait"><CrewPortrait instanceId={thread.modelSelection.instanceId} model={thread.modelSelection.model} team={stationColor(useGame.getState(), envId)} /></div>}
         <div className="panel-title">
+          <span className="title-tab panel-kind"><PixelLabel text={bot ? "Operator" : "Crew"} /></span>
           <h2 title={unitName}>{unitName}</h2>
           {bot && <div className="muted small">Hermes operator · {bot.name}{thread.hermesBotChat ? ' · ongoing conversation' : ' · task session'}</div>}
           <div className="muted small">
@@ -426,7 +427,7 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
         </button>
         {busy && (
           <button className="btn" disabled={sending || !text.trim()} title="The Command server sends it when this turn ends cleanly (Alt+Enter)" onClick={() => void queue()}>
-            After turn ↻
+            After turn <PixelIcon name="repeat" />
           </button>
         )}
         <select className="order-times" value={times} disabled={disabled || sending} aria-label="Times to give this order"

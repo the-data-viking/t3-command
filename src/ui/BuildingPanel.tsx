@@ -15,7 +15,7 @@ import { HermesPanel } from "./HermesPanel";
 import type { RecruitWorkspace } from "../t3/workspace";
 import { WorkspacePicker } from "./WorkspacePicker";
 import { GitStatus } from "./GitStatus";
-import { PixelIcon } from "./PixelArt";
+import { PixelIcon, PixelLabel } from "./PixelArt";
 import { isScratch } from "../t3/scratch";
 
 
@@ -90,6 +90,7 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
       <header className="panel-head">
         <div className="portrait building" />
         <div className="panel-title">
+          <span className="title-tab panel-kind"><PixelLabel text="Station" /></span>
           <h2 title={project.title}>{project.title}</h2>
           <div className="muted small" title={project.workspaceRoot}>
             {project.workspaceRoot}

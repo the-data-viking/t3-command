@@ -11,6 +11,7 @@ import { openHost } from '../store';
 import { envClient } from '../t3/environment';
 import type { RuntimeMode } from '../t3/types';
 import { HermesPermissions } from './HermesPermissions';
+import { PixelLabel } from "./PixelArt";
 
 export function HermesMark({ className = '' }: { className?: string }) {
   return <span className={`hermes-mark ${className}`} aria-hidden="true"><svg viewBox="0 0 40 40" fill="none">
@@ -63,7 +64,7 @@ export function HermesControlCenter({ envId, profile }: { envId: string; profile
   };
 
   return <aside className="panel hermes-control" aria-label="Hermes control center">
-    <header className="panel-head"><HermesMark /><div className="panel-title"><div className="ops-eyebrow">Operations</div>
+    <header className="panel-head"><HermesMark /><div className="panel-title"><span className="title-tab panel-kind"><PixelLabel text="Operations" /></span>
       <h2>Hermes control center</h2><div className="muted small">Persistent operators · memory · routines</div></div>
       <button className="icon-btn" aria-label="Close control center" onClick={() => setSelection(null)}>✕</button></header>
     <div className="ops-summary"><span><strong>{operators.length}</strong> operators</span>

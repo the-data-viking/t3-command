@@ -6,7 +6,7 @@ import { providerVersions, type ProviderVersion } from "../t3/providers";
 import { methodText, t3UpdateOffer } from "../t3/t3-update";
 import { sfx } from "../game/sfx";
 import { HostHistoryChart } from "./HostHistoryChart";
-import { PixelMeter } from "./PixelArt";
+import { PixelMeter, PixelLabel } from "./PixelArt";
 import { loadLevel } from "../game/theme";
 import { ScratchBay } from "./ScratchBay";
 import { StorageSection } from "./StorageSection";
@@ -21,7 +21,7 @@ export function HostPanel({ envId }: { envId: string }) {
   return (
     <aside className="panel host-panel" aria-label="Engineering host resources">
       <header className="panel-head">
-        <div className="panel-title"><h2>{env?.summary.label ?? "Host"}</h2><div className="muted small">Engineering · whole-host resources{env?.summary.serverVersion && env.summary.kind !== "hermes" ? ` · T3 ${env.summary.serverVersion} (protocol v${env.summary.protocolVersion ?? 1})` : ""}</div></div>
+        <div className="panel-title"><span className="title-tab panel-kind"><PixelLabel text="Machine" /></span><h2>{env?.summary.label ?? "Host"}</h2><div className="muted small">Engineering · whole-host resources{env?.summary.serverVersion && env.summary.kind !== "hermes" ? ` · T3 ${env.summary.serverVersion} (protocol v${env.summary.protocolVersion ?? 1})` : ""}</div></div>
         <button className="icon-btn" title="Close host details" aria-label="Close host details" onClick={() => useGame.setState({ hostPanel: null })}>✕</button>
       </header>
       <div className="host-body">
