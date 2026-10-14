@@ -1,3 +1,4 @@
+import { useDraft } from './drafts';
 import { useEffect, useState } from 'react';
 import { HERMES_EDIT_PERMISSIONS, type HermesJobs } from '../../shared/hermes';
 import { worldRef } from '../game/world';
@@ -107,7 +108,7 @@ export function HermesControlCenter({ envId, profile }: { envId: string; profile
 
 function NewBotTask({ envId, profile, disabled }: { envId: string; profile: string; disabled: boolean }) {
   const env = useGame(s => s.envs[envId]);
-  const [text, setText] = useState('');
+  const [text, setText, clearText] = useDraft(`hermes-task:${envId}:${profile}`);
   const [mode, setMode] = useState<RuntimeMode>('approval-required');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
@@ -119,6 +120,7 @@ function NewBotTask({ envId, profile, disabled }: { envId: string; profile: stri
       const client = envClient(envId); if (!client) throw new Error('Hermes is not connected');
       const threadId = await client.recruit({ projectId: project.id, text: text.trim(), hermesProfile: profile,
         modelSelection: { instanceId: 'hermes', model: 'default' }, runtimeMode: mode });
+      clearText();
       setSelection({ kind: 'unit', envId, threadId });
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setSending(false); }
