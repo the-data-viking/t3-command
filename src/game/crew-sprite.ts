@@ -56,6 +56,10 @@ export class CrewSprite extends Container {
   /** Followed thread detail, for spotting a turn that has gone quiet. */
   private detail?: OrchestrationThread;
   private quiet = false;
+  /** Working, but nothing has happened in a while: drawn still (no typing, a held screen), not busy. */
+  get isQuiet(): boolean {
+    return this.state === "working" && this.quiet;
+  }
   private quietCheckedAt = 0;
   tier: Tier = "standard";
   silhouette: Silhouette = "round";
@@ -254,7 +258,8 @@ export class CrewSprite extends Container {
       this.figure.scale.set(PX);
       this.badge.visible = false;
     } else {
-      const working = this.state === "working" && !this.offline && (this.atConsole || this.atStation);
+      // A quiet turn holds still: typing would show activity that isn't happening.
+      const working = this.state === "working" && !this.quiet && !this.offline && (this.atConsole || this.atStation);
       // At a console the crew member sits in the chair, below the screen, instead of standing in front of it.
       const seated = this.atConsole && !moving;
       // Seated at a console they're seen from behind, facing its screen; walking, the body rises
@@ -262,7 +267,7 @@ export class CrewSprite extends Container {
       const legs: Legs = moving ? WALK[Math.floor(t * 8) % 4] : seated ? "behind" : "idle";
       this.figure.y = seated ? 14 : moving && legs === "walkB" ? -PX : 0;
       this.lift = seated ? 14 : 0;
-      const pose = seated ? seatedPose(this.state, frame, t, this.seed, this.offline) : { arms: (working ? (frame % 2 ? "typeA" : "typeB") : "idle") as Arms, head: "" as const };
+      const pose = seated ? seatedPose(this.state, this.isQuiet ? 0 : frame, this.isQuiet ? 0 : t, this.seed, this.offline) : { arms: (working ? (frame % 2 ? "typeA" : "typeB") : "idle") as Arms, head: "" as const };
       // At a system they face its fixture, which stands to their left. Facing left is a mirrored
       // texture relit from the upper left, not a flipped sprite (that would light them from the right).
       const facing = seated ? 1 : this.atStation && !moving ? -1 : this.motion.facing;

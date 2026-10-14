@@ -1043,8 +1043,9 @@ export class World {
         if (sprite.state === "alert") u.approval = true;
         if (lay.console && !lay.sleeping && sprite.atConsole) asking.push({ ...lay.console, color: STATUS[sprite.state] });
         // A spotlight from the ceiling onto whoever is waiting on you: stage light, not another red.
-        // It starts below the console screen, so the ▲ or ◆ on the screen stays clean.
-        if (!lay.sleeping && !sprite.offline && this.glowing) this.glow.add("spot", currentStyle().light ?? 0xe8f0f8, sprite.pos.x, sprite.pos.y - 40);
+        // It starts below the console screen (cy-18…cy-10; a seated crew member sits at cy+27), so
+        // the ▲ or ◆ on the screen stays clean.
+        if (!lay.sleeping && !sprite.offline && this.glowing) this.glow.add("spot", currentStyle().light ?? 0xe8f0f8, sprite.pos.x, sprite.pos.y - 34);
       }
       stationUse.set(lay.stationKey, u);
       if (!lay.sleeping) {
@@ -1060,8 +1061,10 @@ export class World {
         const con = this.stations.get(lay.stationKey)?.consoles.get(`${lay.console.x},${lay.console.y}`);
         if (con) {
           const live = state.envs[sprite.envId]?.connection === "live";
-          const grid = live ? consoleScreen(sprite.state, frame, sprite.atConsole) : A.CONSOLE;
-          const next = tex(grid, { screen: live ? screenColor(sprite.state, frame, sprite.atConsole) : SCREEN_OFF });
+          // A quiet turn's screen holds its last frame: scrolling text would claim work in progress.
+          const shown = sprite.isQuiet ? 0 : frame;
+          const grid = live ? consoleScreen(sprite.state, shown, sprite.atConsole) : A.CONSOLE;
+          const next = tex(grid, { screen: live ? screenColor(sprite.state, shown, sprite.atConsole) : SCREEN_OFF });
           if (con.texture !== next) con.texture = next;
           // A team-colored tab on each console shows whose desk it is.
           g.rect(lay.console.x - 26, lay.console.y - 26, 4, 12).fill(sprite.team);
@@ -1097,9 +1100,9 @@ export class World {
         // A brownout on a station whose machines have all dropped off: its lamps catch now and then.
         const flicker = !lit && kind === "bridge" && offline.has(s.key) && !reducedMotion() && hash(`${s.key}:${frame}`) > 0.86;
         lamps[kind] = lit ? "on" : flicker ? "flicker" : "off";
-        const tubes = this.ceilingLight(g, r, lamps[kind]);
-        // Lit rooms: a dithered cone of lamp light falling from every tube.
-        if (lit && this.glowing) for (const x of tubes) this.glow.add("cone", currentStyle().light ?? 0xe8f0f8, x, r.y + 4);
+        // Lit rooms: the tubes and their short bloom. (Cones falling from them dithered over the
+        // console screens below, whose few pixels are the state cue: the light stays up top.)
+        this.ceilingLight(g, r, lamps[kind]);
         if (!lit) { shade.rect(r.x, r.y, r.w, r.h).fill(dim); continue; }
         if (kind === "bridge") continue;
         // Screen light spilling from the system's fixture into its room, dithered.
@@ -1159,11 +1162,13 @@ export class World {
     this.doorsOpen = doorsOpen;
 
     // Each crew member waiting on you lights their own console: a dithered wash in their state's
-    // colour and a ring that grows in art-pixel steps. The roof beacons say which station.
+    // colour over the desk below the screen, and a ring that grows in art-pixel steps around the
+    // screen (cy-18…cy-10, 32 wide), never across it: the ▲ or ◆ on it is the shape cue. The roof
+    // beacons say which station.
     for (const c of asking) {
-      lightSpill(g, c.x, c.y - 10, c.color);
+      lightSpill(g, c.x, c.y - 2, c.color);
       const k = reducedMotion() ? 0.5 : (frame % 4) / 4;
-      pixelOval(g, c.x, c.y - 18, 22 + k * 12, 12 + k * 6, c.color, 0.9 - k * 0.6);
+      pixelOval(g, c.x, c.y - 14, 26 + k * 12, 14 + k * 6, c.color, 0.9 - k * 0.6);
     }
 
     // Supply lines: one per (node, station it crews); packets flow while that crew is working.

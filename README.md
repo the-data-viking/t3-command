@@ -128,7 +128,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   while the room is in use and dark otherwise. The viewports along the top of each hull show the
   lamp of the room under them, so from outside you can tell which rooms are in use. A station
   whose machines have all dropped off browns out: its bridge lamps (and windows) catch now and then.
-  Light is drawn additively in dithered pixels: a cone falls from every lit tube, a working
+  Light is drawn additively in dithered pixels (it stays off the console screens, whose few pixels
+  carry each crew member's state): lit tubes bloom just under the ceiling, a working
   console throws a pool onto the floor (lamp-coloured, only a quarter toward its screen's hue),
   and whoever is waiting on you stands in a spotlight. Zoomed out, the fleet view is night lights
   from orbit: rooms with crew in them glow under their lamps, empty rooms go dark, and an

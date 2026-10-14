@@ -1,4 +1,4 @@
-// Light you can almost feel, still in pixels: dithered cones under lit ceiling tubes, a pool in
+// Light you can almost feel, still in pixels (the lit tubes' own bloom is drawn with the room): a pool in
 // front of each console someone is working at, and a spotlight on whoever is waiting on you.
 // Each shape is baked once per colour into a texture and drawn additively from a sprite pool, so
 // a lit fleet costs a few dozen sprites a frame rather than thousands of rects. Only rooms in real
@@ -11,7 +11,7 @@ const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
 /** One art pixel in world px. */
 const CELL = 2;
 
-type Shape = "cone" | "pool" | "spot";
+type Shape = "pool" | "spot";
 
 const cache = new Map<string, Texture>();
 
@@ -23,12 +23,11 @@ export function mixColor(a: number, b: number, k: number): number {
 }
 
 /**
- * The shapes, in world px: a cone widening from a 20-px tube to 24 px over 28 px (tubes sit 28 px
- * apart, so each cone keeps a dark break from its neighbour instead of running into one fringe);
- * an oval floor pool 40×16; a spotlight from an 8-px source to a 40-px floor over 72 px. Three
- * bands each, sparser and fainter outward.
+ * The shapes, in world px: an oval floor pool 40×16; a spotlight from an 8-px source to a 40-px
+ * floor over 72 px. Three bands each, sparser and fainter outward. (No cones under the tubes: they
+ * dithered over the console screens, whose few pixels carry each crew member's state.)
  */
-const SIZES: Record<Shape, { w: number; h: number }> = { cone: { w: 24, h: 28 }, pool: { w: 40, h: 16 }, spot: { w: 40, h: 72 } };
+const SIZES: Record<Shape, { w: number; h: number }> = { pool: { w: 40, h: 16 }, spot: { w: 40, h: 72 } };
 
 function texture(shape: Shape, color: number): Texture {
   const key = `${shape}:${color}`;
@@ -47,10 +46,9 @@ function texture(shape: Shape, color: number): Texture {
       let t: number;
       if (shape === "pool") t = Math.hypot((cx - w / 2) / (w / 2), (cy - h / 2) / (h / 2));
       else {
-        const top = shape === "cone" ? 20 : 8;
-        const half = (top + (w - top) * (cy / h)) / 2;
-        const across = Math.abs(cx - w / 2) / half;
-        t = Math.max(across, shape === "spot" ? 0 : cy / h * 0.9);
+        // The spot widens from an 8-px source to the floor.
+        const half = (8 + (w - 8) * (cy / h)) / 2;
+        t = Math.abs(cx - w / 2) / half;
       }
       if (t >= 1) continue;
       const band = t < 0.4 ? 0 : t < 0.7 ? 1 : 2;
@@ -77,7 +75,7 @@ export class LightLayer {
     this.used = 0;
   }
 
-  /** Light of `shape` in `color`, centred on x, with its top at y (cone, spot) or centred (pool). */
+  /** Light of `shape` in `color`, centred on x, with its top at y (spot) or centred (pool). */
   add(shape: Shape, color: number, x: number, y: number): void {
     let s = this.sprites[this.used];
     if (!s) {

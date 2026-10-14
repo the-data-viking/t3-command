@@ -6,7 +6,7 @@ import { setSelection, useGame, type Selection } from '../store';
 import { botColor, BOT_STATE_LABELS, HERMES_COLOR, type BotOperator } from '../t3/bots';
 import type { UnitState } from '../t3/derive';
 import { HALL_HEAD, type ControlCenterLayout, type Rect } from './layout';
-import { GAUGE, mapInk, platingMaterials, modelTier, providerSilhouette, STATUS } from './theme';
+import { GAUGE, mapInk, platingMaterials, modelTier, providerSilhouette, SELECTION, STATUS } from './theme';
 import { crewTex, currentStyle, PX, tex } from './textures';
 import { crispScale, figureBoost, fitLabel, hash, pixelDiamond, seatedPose, steppedPlate } from './map-common';
 
@@ -219,8 +219,9 @@ export class ControlCenterSprite {
       // Selection: corner brackets on the art grid.
       const x0 = r.x - 4, y0 = r.y - 4, x1 = r.x + r.w + 4, y1 = r.y + r.h + 4, L = 16;
       for (const [x, y, dx, dy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]] as const) {
-        g.rect(dx > 0 ? x : x - L, dy > 0 ? y : y - 4, L, 4).fill(HERMES_COLOR);
-        g.rect(dx > 0 ? x : x - 4, dy > 0 ? y : y - L, 4, L).fill(HERMES_COLOR);
+        // Selection white, as everywhere else on the map (tan is Hermes's identity, not "selected").
+        g.rect(dx > 0 ? x : x - L, dy > 0 ? y : y - 4, L, 4).fill(SELECTION);
+        g.rect(dx > 0 ? x : x - 4, dy > 0 ? y : y - L, 4, L).fill(SELECTION);
       }
     }
   }

@@ -269,6 +269,11 @@ export class Backdrop {
 
   /** Follow the camera at each layer's depth; twinkle with the animation clock. */
   update(width: number, height: number, camX: number, camY: number, t: number): void {
+    // On a phone-width screen the sky body and the horizon are drawn at 2/3 (their 3-px cells at 2
+    // px, still whole): full size, a ringed giant swamped the stations and the horizon was a slab.
+    const scale = width < 800 ? 2 / 3 : 1;
+    this.body?.sprite.scale.set(scale);
+    this.horizon?.scale.set(scale);
     if (this.body) {
       // Far away: it barely moves as you pan.
       this.body.sprite.position.set(Math.round(width * this.body.x + camX * 0.015), Math.round(height * this.body.y + camY * 0.015));
