@@ -76,6 +76,12 @@ const SKY: Record<StyleId, Sky> = {
 
 interface Layer { sprite: TilingSprite; parallax: number; twinkle?: number }
 
+/** A world's sky in brief, for the picker's thumbnail: its grade, its light and its planet. */
+export function skyPreview(style: StyleId): { grade?: { toward: number; strength: number }; body?: { kind: "moon" | "sun" | "ringed"; color: number; shade: number; ring?: number }; planet?: [number, number, number] } {
+  const sky = SKY[style] ?? SKY["flightdeck-nightshift"];
+  return { grade: sky.grade, planet: sky.planet, ...(sky.body ? { body: { kind: sky.body.kind, color: sky.body.color, shade: sky.body.shade, ring: sky.body.ring } } : {}) };
+}
+
 /** The colour of a world's sky body's light (rim light on the hulls), if it has one. */
 export function skyLight(style: StyleId): number | undefined {
   return (SKY[style] ?? SKY["flightdeck-nightshift"]).body?.glow;
