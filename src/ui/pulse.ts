@@ -27,6 +27,16 @@ export function bareCommand(line: string): string {
 }
 export const NO_CHANGE_MS = 60 * 60_000;
 
+/**
+ * A shell command that writes files (sed -i, a heredoc into python or a file, redirection, tee, a
+ * patch, a commit…): agents edit through the shell as much as through edit tools, and those edits
+ * are progress too. A heuristic, so it only ever makes "no file changes" less likely to fire.
+ */
+const WRITES = /\bsed\s+-i|\bperl\s+-[a-z]*i|<<\s*['"]?\w|(^|[^<>&0-9])>>?\s*[^\s&>]|\btee\b|\bapply_patch\b|\bpatch\s|\bgit\s+(commit|apply|am|cherry-pick|merge|rebase|mv|rm)\b|\b(mv|cp|rm|mkdir|touch)\s/;
+export function writesFiles(command: string): boolean {
+  return WRITES.test(bareCommand(command));
+}
+
 export function pulseOf(thread: OrchestrationThread, now: number): Pulse | undefined {
   const turn = thread.latestTurn;
   if (!turn) return undefined;
@@ -36,7 +46,10 @@ export function pulseOf(thread: OrchestrationThread, now: number): Pulse | undef
   const seen = new Set<string>();
   for (const a of mine) {
     const p = a.payload ?? {};
-    if (p.itemType === "file_change" && (a.kind === "tool.completed" || p.status === "completed")) {
+    const done = a.kind === "tool.completed" || p.status === "completed";
+    const ok = p.status !== "failed" && !(typeof p.exitCode === "number" && p.exitCode !== 0);
+    const shellEdit = p.itemType === "command_execution" && ok && writesFiles(typeof p.detail === "string" ? p.detail : a.summary ?? "");
+    if ((p.itemType === "file_change" || shellEdit) && done) {
       const at = Date.parse(a.createdAt);
       if (Number.isFinite(at)) lastChangeAt = Math.max(lastChangeAt ?? 0, at);
     }

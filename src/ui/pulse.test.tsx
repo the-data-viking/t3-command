@@ -22,6 +22,15 @@ test("a turn's pulse: last file change, tests, a command failing again and again
   assert.equal(pulseOf(thread([], "completed"), T0 + 200 * 60_000)!.noChangeMs, undefined, "a finished turn isn't 'not changing'");
 });
 
+test("edits made through the shell count as file changes", async () => {
+  const { writesFiles } = await import("./pulse");
+  for (const cmd of [`/bin/zsh -lc "sed -i '' 's/a/b/' x.ts"`, `bash -c "python3 - <<'EOF'"`, "cat > notes.md", "echo hi >> log.txt", "git commit -m wip", "cp a b"]) assert.ok(writesFiles(cmd), cmd);
+  for (const cmd of ["npm test", "git status --short", "grep -n foo src/x.ts", "ls -la", "npx tsc -b 2>&1 | head", "node a.js 2>&1"]) assert.ok(!writesFiles(cmd), cmd);
+  const edited = pulseOf(thread([tool("s1", 70, { itemType: "command_execution", status: "completed", exitCode: 0, detail: "sed -i '' 's/a/b/' x.ts" })]), T0 + 80 * 60_000)!;
+  assert.equal(edited.lastChangeAt, T0 + 70 * 60_000);
+  assert.equal(edited.noChangeMs, undefined);
+});
+
 test("a repeated command reads as typed, without the shell wrapper agents run it in", async () => {
   const { bareCommand } = await import("./pulse");
   assert.equal(bareCommand(`/bin/bash -lc "python3 check.py --all"`), "python3 check.py --all");
