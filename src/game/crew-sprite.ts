@@ -505,7 +505,13 @@ export class CrewSprite extends Container {
     if (sleeping) {
       // White on a dark outline, so it reads on pale decks too.
       if (selected) pixelFrame(r, -28, -12, 56, 24, currentStyle().colors.k);
-      if (selected) pixelFrame(r, -26, -10, 52, 20, SELECTION);
+      if (selected) {
+        // White between two one-art-pixel dark rings, so it reads on pale floors as well as dark.
+        const k = currentStyle().colors.k;
+        pixelFrame(r, -28, -12, 56, 24, k);
+        pixelFrame(r, -24, -8, 48, 16, k);
+        pixelFrame(r, -26, -10, 52, 20, SELECTION);
+      }
       if (this.inSquad) pixelFrame(r, -30, -14, 60, 28, SELECTION, 0.5);
       return;
     }

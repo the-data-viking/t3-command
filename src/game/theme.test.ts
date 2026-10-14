@@ -130,6 +130,15 @@ test("station colours stay clear of every status and gauge colour, and of each o
   assert.ok(deltaE(GAUGE.critical, STATUS.alert) >= 40);
 });
 
+test("hull plating and trunks stay clear of Hermes tan, so the hall's trim reads as its own", () => {
+  for (const id of ART_STYLES) {
+    const s = STYLES[id];
+    // The large areas: hull plate, its shade and the cryo bay's floor (the 1-px highlight may be ivory).
+    for (const code of ["H", "D", "q"]) assert.ok(deltaE(s.colors[code], HERMES_COLOR) >= 15, `${id} ${code} vs Hermes tan`);
+    if (s.trunk !== undefined) assert.ok(deltaE(s.trunk, HERMES_COLOR) >= 15, `${id} trunk vs Hermes tan`);
+  }
+});
+
 test("bot colours stay clear of Hermes tan, which means the hall", () => {
   for (const bot of BOT_COLORS) assert.ok(deltaE(bot, HERMES_COLOR) >= 15, `bot #${bot.toString(16)} vs Hermes tan`);
 });
