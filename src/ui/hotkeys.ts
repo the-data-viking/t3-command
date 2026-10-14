@@ -75,6 +75,7 @@ export function installHotkeys(): () => void {
     if (state.showPalette || state.showHelp) return; // They handle their own keys.
     if (e.key === "Escape") {
       if (state.photo) useGame.setState({ photo: false });
+      else if (state.showNewRequest) useGame.setState({ showNewRequest: false });
       else if (state.event) { stopQueue(); openEvent(null); }
       else if (state.review) openReview(null);
       else if (state.replies) useGame.setState({ replies: null });
@@ -93,6 +94,8 @@ export function installHotkeys(): () => void {
       return;
     }
     if (typing(e.target)) return;
+    // The New request sheet is open: keys are for it (typing lands there once its form is ready).
+    if (state.showNewRequest) return;
     // Back to where you were before the last jump: Backspace, or Alt+← as in a browser.
     if ((e.key === "Backspace" && !e.ctrlKey && !e.metaKey && !e.altKey) || (e.altKey && e.key === "ArrowLeft")) {
       if (worldRef.current?.back()) { e.preventDefault(); sfx.select(); }
@@ -127,6 +130,7 @@ export function installHotkeys(): () => void {
       d: () => useGame.setState((s) => ({ showDock: !s.showDock })),
       p: () => useGame.setState((s) => ({ photo: !s.photo })),
       q: () => startQueue(),
+      n: () => useGame.setState({ showNewRequest: true }),
     };
     const action = actions[e.key];
     if (!action) return;

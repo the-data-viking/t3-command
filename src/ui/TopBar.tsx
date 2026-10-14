@@ -135,6 +135,9 @@ export function TopBar() {
           const envId = hermesCatalog?.envId ?? hermes[0].summary.id;
           setSelection({ kind: 'hermes', envId }); worldRef.current?.focusStation(envId);
         }}><HermesMark /><span>Hermes <span className="muted">{operators.length}</span></span></button>}
+      <button className="btn menu-closes new-request-btn" title="New request: start a crew member on any project (N)" onClick={() => useGame.setState({ showNewRequest: true })}>
+        + New
+      </button>
       {/* The work views, in view rather than behind a key. */}
       <button className="btn menu-closes" title="Work board: every crew member's work, missions and orders (B)" onClick={() => useGame.setState({ showBoard: true })}>
         Board

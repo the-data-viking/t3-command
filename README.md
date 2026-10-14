@@ -219,6 +219,12 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   waiting and moves on; the run won't bring it back, and the clear card says how many you left. On a
   phone the cards are bottom sheets with full-size choices, and you can swipe: left for later,
   right on a report to mark it read. A swipe never approves anything.
+- **New request** (**N**, **+ New** in the top bar, or the palette): start a crew member on any
+  project without finding its station first. The project you last used comes first (then the most
+  recently active); the machine is suggested for you, reachable, its disk not about to fill and the
+  least busy, with its reason shown ("20% CPU · disk 48% · nobody working here"), and can be
+  changed. The rest is the recruit form (model, permissions, plan first, workspace), and the
+  request text is one draft, kept whichever project or machine you pick.
 - **Work board** (**B**, or the palette): every crew member's current work as a card in the column
   for what it needs next, with missions and orders to several crew on top: **Needs you** (approvals, questions, failed turns),
   **Building**, **Report ready**, and **In review** (report read, PR still open). Cards show the

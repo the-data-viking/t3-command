@@ -91,6 +91,8 @@ export interface GameState {
   showBoard: boolean;
   /** The shipping dock: every open PR, by how ready it is to merge. */
   showDock: boolean;
+  /** The New request sheet (N). */
+  showNewRequest: boolean;
   /**
    * When a hotkey last jumped to a crew member (performance.now()). Selecting one puts the cursor
    * in their order box, except just after a jump, so the next hotkey still works; O or Enter (or a
@@ -304,6 +306,7 @@ export const useGame = create<GameState>()(() => ({
   showTimeline: false,
   showBoard: false,
   showDock: false,
+  showNewRequest: false,
   jumpedAt: -Infinity,
   notify: loadNotify(),
   event: null,

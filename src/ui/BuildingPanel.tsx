@@ -139,14 +139,19 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
   );
 }
 
-export function RecruitForm({ envId, projectId }: { envId: string; projectId: string }) {
+/**
+ * The recruit form: a new crew member on this project and machine. `draftKey` shares one typed
+ * order across forms (the New request sheet keeps it whichever project you pick); `onRecruited`
+ * runs once the thread exists.
+ */
+export function RecruitForm({ envId, projectId, draftKey, onRecruited }: { envId: string; projectId: string; draftKey?: string; onRecruited?: () => void }) {
   const env = useGame((s) => s.envs[envId]);
   const project = env?.projects[projectId];
   const providers = usable(env?.providers ?? []);
   const prefs = useMemo(() => loadPrefs(envId), [envId]);
 
   const [hermesProfile, setHermesProfile] = useState(prefs.hermesProfile ?? "default");
-  const [text, setText, clearText] = useDraft(`recruit:${envId}:${projectId}`);
+  const [text, setText, clearText] = useDraft(draftKey ?? `recruit:${envId}:${projectId}`);
   const [selection, setSelectionState] = useState<ModelSelection | undefined>(() =>
     defaultSelection(providers, [prefs.modelSelection, project?.defaultModelSelection]),
   );
@@ -188,6 +193,7 @@ export function RecruitForm({ envId, projectId }: { envId: string; projectId: st
       addLog({ tone: "good", text: `New worker recruited at ${project?.title ?? "base"}`, envId, threadId });
       clearText();
       setSelection({ kind: "unit", envId, threadId });
+      onRecruited?.();
     } catch (err) {
       setRecruitError(err instanceof Error ? err.message : String(err));
       sfx.error();
