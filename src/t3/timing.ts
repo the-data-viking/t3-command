@@ -1,5 +1,5 @@
-import { pendingRequests } from "./derive";
-import type { OrchestrationThread, ThreadShell } from "./types";
+import { pendingRequests } from "./derive.ts";
+import type { OrchestrationThread, ThreadShell } from "./types.ts";
 
 export function threadTimes(thread: ThreadShell, detail: OrchestrationThread | undefined, now: number) {
   const waiting = thread.hasPendingApprovals || thread.hasPendingUserInput;

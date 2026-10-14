@@ -9,7 +9,9 @@ import { followUpFor, followUpLabel } from "../t3/followups";
 import { requestSummary } from "./queue";
 import { assessRisk } from "./risk";
 import { needsYou as needsYouList, needsYouCounts } from "./needs-you";
-import type { PendingRequest } from "../t3/types";
+import type { OrchestrationThread, PendingRequest } from "../t3/types";
+import { elapsed } from "../t3/timing";
+import { pulseOf, pulseText } from "./pulse";
 import { pendingRequests } from "../t3/derive";
 import type { UnitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
@@ -42,9 +44,12 @@ export function CrewRoster() {
   const hermesCatalog = useGame(s => s.hermesCatalog);
   const operators = botOperators({ envs, hermesCatalog });
   const phone = usePhone();
-  // On phones the roster is a dock along the bottom, closed until asked for so the map shows.
+  // On phones the roster is a dock along the bottom, closed until asked for so the map shows,
+  // except that the first time something needs you it opens on that list: the phone's home is
+  // what's waiting on you, not the map.
   const [collapsed, setCollapsed] = useState(isPhone);
   const pick = () => { if (phone) setCollapsed(true); };
+  const openedForYou = useRef(false);
 
   const crew = useMemo(
     () =>
@@ -74,6 +79,11 @@ export function CrewRoster() {
   // The same count as the top bar's Needs you: everything waiting on you, reports included.
   const readReports = useGame((s) => s.readReports);
   const waiting = useMemo(() => needsYouCounts(needsYouList({ envs, details, readReports })).total, [envs, details, readReports]);
+  useEffect(() => {
+    if (!phone || openedForYou.current || waiting === 0) return;
+    openedForYou.current = true;
+    setCollapsed(false);
+  }, [phone, waiting]);
   // A report or failure you've seen waits with the crew on duty until its thread's next turn.
   const read = (u: UnitRef) => (u.state === "done" || u.state === "error") && reportRead(readReports, u.envId, u.thread);
   // The same list, in the same order, as the top bar, board and queue (needs-you.ts): approvals
@@ -125,6 +135,7 @@ export function CrewRoster() {
             )}
             {(() => { const f = followUpFor(followUps, u.envId, u.thread.id); return f && <span className="crew-queued">↻ {f.total ? followUpLabel(f) : "Follow-up queued"}{followUps.paused ? " (paused)" : ""}</span>; })()}
             {missions.has(`${u.envId}:${u.thread.id}`) && <span className="crew-queued crew-mission" title="On this mission (work board, B)">⚑ {missions.get(`${u.envId}:${u.thread.id}`)}</span>}
+            {u.state === "working" && detail && <SpinLine thread={detail.thread} />}
             <ThreadTiming thread={u.thread} detail={detail?.thread} compact />
             <PlanLine thread={u.thread} detail={detail?.thread} />
             {ctx !== undefined && (
@@ -140,17 +151,35 @@ export function CrewRoster() {
     );
   };
 
+  // What needs you: first on the phone, where this list is home; after the operators on desktop.
+  const needsBlock = needsYou.length > 0 && (
+            <>
+              <div className="roster-heading">Needs you</div>
+              <ol className="crew-list">{needsYou.map(row)}</ol>
+            </>
+          );
   return (
     <aside className={`crew-roster ftl-frame ${collapsed ? "collapsed" : ""}`}>
-      <button className="ftl-tab roster-tab" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
-        {/* On the phone dock what needs you comes first, so it's never the part cut off. */}
-        {phone && waiting > 0 && <span className="needs-count hot">{waiting} need{waiting === 1 ? "s" : ""} you · </span>}
-        {/* The tab's name in the map's pixel font, like every other frame tab. */}
-        <PixelLabel text="Crew" /> <span className={urgent ? "count hot" : "count"}>{crew.length}</span>{operators.length > 0 && <span className="operator-count"> · {operators.length} operators</span>}
-        {" "}{phone ? (collapsed ? "▴" : "▾") : collapsed ? "▸" : "▾"}
-      </button>
+      {phone ? (
+        // The phone's tab bar: what needs you (this list), the work board, the shipping dock, the map.
+        <nav className="phone-tabs" aria-label="Views">
+          <button className={`phone-tab${collapsed ? "" : " active"}`} aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
+            {waiting > 0 ? <span className="needs-count hot">{waiting} need{waiting === 1 ? "s" : ""} you</span> : <span>Crew <span className="count">{crew.length}</span></span>}
+          </button>
+          <button className="phone-tab" onClick={() => { setCollapsed(true); useGame.setState({ showBoard: true }); }}>Board</button>
+          <button className="phone-tab" onClick={() => { setCollapsed(true); useGame.setState({ showDock: true }); }}>Dock</button>
+          <button className="phone-tab" onClick={() => { setCollapsed(true); useGame.setState({ showBoard: false, showDock: false, showTimeline: false, showLog: false, showHistory: false }); }}>Map</button>
+        </nav>
+      ) : (
+        <button className="ftl-tab roster-tab" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
+          {/* The tab's name in the map's pixel font, like every other frame tab. */}
+          <PixelLabel text="Crew" /> <span className={urgent ? "count hot" : "count"}>{crew.length}</span>{operators.length > 0 && <span className="operator-count"> · {operators.length} operators</span>}
+          {" "}{collapsed ? "▸" : "▾"}
+        </button>
+      )}
       {!collapsed && (
         <div className="roster-body">
+          {phone && needsBlock}
           {operators.length > 0 && <><div className="roster-heading hermes-roster-heading">Hermes operators</div>
             <ol className="crew-list">{operators.map(bot => <li key={bot.name}><button className={`crew-row operator-row row-${bot.state} ${selection?.kind === 'hermes' && selection.profile === bot.name ? 'active' : ''}`} onClick={() => {
               const pending = bot.sessions.find(s => envs[s.envId]?.connection === 'live' && (s.state === 'alert' || s.state === 'question'));
@@ -161,12 +190,7 @@ export function CrewRoster() {
             }}><BotPortrait profile={bot.name} /><span className="crew-text"><span className="crew-name">{bot.title}</span>
               <span className="crew-sub"><span className={`crew-state st-${bot.observed ? bot.state : 'idle'}`}>{bot.observed ? BOT_STATE_LABELS[bot.state] : 'Unobserved'}</span><span className="muted"> · operator</span></span>
             </span></button></li>)}</ol></>}
-          {needsYou.length > 0 && (
-            <>
-              <div className="roster-heading">Needs you</div>
-              <ol className="crew-list">{needsYou.map(row)}</ol>
-            </>
-          )}
+          {!phone && needsBlock}
           <div className="roster-heading">On duty</div>
           <ol className="crew-list">{onDuty.length ? onDuty.map(row) : <li className="muted small empty">Nobody on duty.</li>}</ol>
         </div>
@@ -184,4 +208,15 @@ function RosterAsk({ state, request }: { state: string; request: PendingRequest 
       {risk ? requestSummary(request, 44)?.replace(/^▲ /, "") : requestSummary(request, 44)}
     </span>
   );
+}
+
+/**
+ * A running turn that may be spinning, from its own activity: the same command failing again and
+ * again, or an hour with no file change. A prompt to look (the pulse on the board says more).
+ */
+function SpinLine({ thread }: { thread: OrchestrationThread }) {
+  const p = pulseOf(thread, Date.now());
+  if (!p?.repeatFail && !p?.noChangeMs) return null;
+  const why = p.repeatFail ? `${p.repeatFail.command} failed ${p.repeatFail.count}×` : `no file changes in ${elapsed(p.noChangeMs!)}`;
+  return <span className="crew-spin" title={`May be spinning: ${pulseText(p, Date.now())}`}>⟳ may be spinning: {why}</span>;
 }

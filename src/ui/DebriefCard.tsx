@@ -16,6 +16,7 @@ import { advanceQueue, finishQueue, queueLength, skipInQueue, stopQueue } from "
 import { useSwipe } from "./useSwipe";
 import { approvePlan } from "./plan";
 import { openReview } from "./review";
+import { answerFailure, fixOrder } from "./failed";
 import { isPhone } from "./phone";
 
 /**
@@ -73,12 +74,8 @@ function Debrief({ envId, threadId }: { envId: string; threadId: string }) {
   // A failed turn is a triage card: ask the crew member to fix it, look, dismiss, or stand it down.
   const failed = thread?.latestTurn?.state === "error" || thread?.session?.status === "error";
   const error = thread?.session?.lastError?.trim();
-  const fixOrder = `Your last turn failed${error ? `: ${error.split("\n")[0].slice(0, 300)}` : ""}. Find the cause, fix it, and tell me what you changed and how you verified it.`;
   const choices: Array<{ label: string; run: () => void | Promise<void>; tone?: "good" }> = failed ? [
-    { label: "Ask it to find and fix the cause.", tone: "good", run: async () => {
-      try { await envClient(envId)?.order(threadId, fixOrder); sfx.order(); if (turnId) markReportsRead([member]); next(); }
-      catch (err) { sfx.error(); logError("Couldn't send the fix order", err); }
-    } },
+    { label: "Ask it to find and fix the cause.", tone: "good", run: async () => { if (thread && await answerFailure(envId, thread, fixOrder(thread), "fix order")) next(); } },
     { label: "Open the crew log.", run: openLog },
     { label: "Dismiss: I've seen it.", run: () => { if (turnId) markReportsRead([member]); sfx.select(); next(); } },
     { label: "Send to camp.", run: async () => { if (turnId) markReportsRead([member]); await batchSettle(true, [{ envId, threadId }]); next(); } },

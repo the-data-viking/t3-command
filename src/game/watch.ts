@@ -6,7 +6,8 @@ import { unitKey, useGame, type GameState } from "../store";
 import { envClient } from "../t3/environment";
 import { isHistory, unitState } from "../t3/derive";
 
-const ACTIVE = new Set(["working", "monitoring", "alert", "question"]);
+// Failed ones too: their last order is what Retry sends again.
+const ACTIVE = new Set(["working", "monitoring", "alert", "question", "error"]);
 /** Upper bound on automatic subscriptions, so a huge fleet can't open hundreds of streams. */
 const MAX_WATCHED = 40;
 

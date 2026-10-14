@@ -115,7 +115,7 @@ const t3Latest = new T3LatestVersion();
 await t3Versions.load();
 t3Versions.start();
 // Note runaway turns (2/6/12/24 h) in the comms log.
-const longTurns = new LongTurns(registry, recorder, comms);
+const longTurns = new LongTurns(registry, recorder, comms, readThread);
 longTurns.start();
 // Whole-host CPU/RAM history per machine.
 const hostHistory = new HostHistoryRecorder(config.dataDir, registry, recorder);

@@ -100,7 +100,7 @@ export function HermesControlCenter({ envId, profile }: { envId: string; profile
       <div className="ops-endpoints">{targets.map(target => <button className="btn" key={target.summary.id} onClick={() => {
         openHost(target.summary.id); worldRef.current?.focusEngineering(target.summary.id);
       }}><span>{target.summary.label}</span><span className="muted small">{target.connection === 'live' ? 'Online' : target.connection} · engineering</span></button>)}</div>
-      {!targets.length && <p className="muted small">Connect a T3 Code environment from Stations.</p>}
+      {!targets.length && <p className="muted small">Connect a T3 Code environment from Machines.</p>}
     </div>
     {manage && <HermesPanel envId={envId} initialProfile={manage.profile} initialTab={manage.tab} onClose={() => { setManage(undefined); void refreshHermesBots(); }} />}
   </aside>;

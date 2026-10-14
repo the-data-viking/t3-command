@@ -425,7 +425,7 @@ code {
   font-weight: 700;
 }
 
-/* Connection colors (used by chips and the Stations list). */
+/* Connection colors (used by chips and the Machines list). */
 .conn-live {
   color: var(--text);
 }
@@ -2109,6 +2109,14 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
   .crew-roster .roster-tab { position: static; order: -1; width: 100%; min-height: var(--touch-target); border: none; border-top: 3px solid var(--frame); border-radius: 0; padding: 0 var(--space-3); justify-content: flex-start; background: var(--surface); color: var(--frame); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .crew-roster .roster-tab .count, .crew-roster .roster-tab .operator-count { color: var(--bright); }
   .crew-roster .roster-tab .needs-count.hot { color: var(--alert); }
+  /* The phone's tab bar along the bottom: what needs you, the board, the dock, the map. */
+  .phone-tabs { order: -1; display: flex; width: 100%; border-top: 3px solid var(--frame); background: var(--surface); }
+  .phone-tab { flex: 1 1 0; min-height: var(--touch-target); background: none; border: 0; border-right: 1px solid var(--edge); color: var(--frame); font: 700 var(--fs-xs)/1 var(--display); letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 var(--space-1); }
+  .phone-tab:first-child { flex: 1.6 1 0; }
+  .phone-tab:last-child { border-right: 0; }
+  .phone-tab.active { color: var(--bright); box-shadow: inset 0 -3px 0 var(--bright); }
+  .phone-tab .needs-count.hot { color: var(--alert); }
+  .phone-tab .count { color: var(--bright); }
   .crew-row { min-height: 52px; }
 
   /* Panels and dialogs take the screen below the top bar. */
@@ -2225,6 +2233,8 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .follow-up { display: flex; align-items: center; gap: var(--space-2); margin: 0 var(--space-3) var(--space-1h); padding: var(--space-1h) var(--space-2); border: 1px dashed var(--edge-strong); background: var(--wash); font-size: var(--fs-md); }
 .follow-up-text { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .crew-queued { color: var(--muted); font-size: var(--fs-xs); }
+/* May be spinning: a caution (amber), not a failure. */
+.crew-spin { display: block; color: var(--gauge-high); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- Saved orders ---- */
 .playbook-list { list-style: none; margin: 0 0 var(--space-1) 0; padding: var(--space-1) 0; background: var(--shade); border: 1px solid var(--hairline); }
