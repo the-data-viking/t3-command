@@ -75,3 +75,11 @@ test("widget ids come from each .html in the listing", () => {
     { path: ".t3/widgets/sub.html", kind: "directory" },
   ]), ["gpu-load", "runs"]);
 });
+
+test("a map pin keeps the zoom it was pinned at; a screen pin has none", () => {
+  assert.equal(sanitizePin(pin("a", { zoom: 0.5 }))?.zoom, 0.5);
+  assert.equal(sanitizePin(pin("a", { zoom: 99 }))?.zoom, 16);
+  assert.equal(sanitizePin(pin("a", { zoom: -1 }))?.zoom, undefined);
+  assert.equal(sanitizePin(pin("a", { mode: "screen", zoom: 0.5 }))?.zoom, undefined);
+  assert.equal("zoom" in sanitizePin(pin("a"))!, false);
+});

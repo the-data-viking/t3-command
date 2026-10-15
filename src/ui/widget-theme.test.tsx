@@ -6,26 +6,19 @@ import { hudWidgetTheme, mix, moduleMaterials, readableOn, themeCss } from "./wi
 
 const hex = (s: string) => parseInt(s.slice(1), 16);
 
-test("a module is drawn in its world's hull, wall and deck, with the station's team colour", () => {
+test("a module's room is its world's deck and walls, with the station's team colour", () => {
   const m = moduleMaterials("nightshift", 0x3ec7b3);
   const c = STYLES.nightshift.colors;
-  assert.equal(m.vars["--module-hull"], css(c.H));
-  assert.equal(m.vars["--module-outline"], css(c.k));
-  assert.equal(m.vars["--module-wall"], css(STYLES.nightshift.wall));
-  assert.equal(m.vars["--module-team"], "#3ec7b3");
+  assert.equal(m.vars["--module-deck"], css(c.f));
   assert.equal(m.theme.bg, css(c.f));
+  assert.equal(m.theme.line, css(STYLES.nightshift.wall));
   assert.equal(m.theme.accent, "#3ec7b3");
-  assert.equal(moduleMaterials("flightdeck", 0).silhouette, "ftl");
-  assert.equal(moduleMaterials("pastel", 0).silhouette, "soft");
-  assert.equal(moduleMaterials("signal", 0).silhouette, "industrial");
 });
 
-test("module text reads on every world's hull and deck, pale ones included", () => {
+test("module text reads on every world's deck, pale ones included", () => {
   for (const id of Object.keys(STYLES) as StyleId[]) {
     const m = moduleMaterials(id, 0x5b7cff);
-    const c = STYLES[id].colors;
-    assert.ok(contrastRatio(hex(m.vars["--module-text"]), c.H) >= 4.5, `${id} hull text`);
-    assert.ok(contrastRatio(hex(m.theme.text), c.f) >= 4.5, `${id} deck text`);
+    assert.ok(contrastRatio(hex(m.theme.text), STYLES[id].colors.f) >= 4.5, `${id} deck text`);
   }
 });
 
