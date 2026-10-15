@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { crispScale, figureBoost, FLEET_VIEW_ZOOM, floorZoom, snapZoom, ZOOM_STEPS } from "./map-common";
+import { crispScale, figureBoost, FLEET_VIEW_ZOOM, floorZoom, settleZoom, snapZoom, ZOOM_STEPS } from "./map-common";
 
 test("labels land on whole screen pixels per font pixel, never below one", () => {
   for (const [unit, zoom] of [[1, 0.9], [1, 1.5], [2, 0.33], [1, 0.2], [3, 1.25]]) {
@@ -49,4 +49,17 @@ test("supply lines stay about two screen pixels wide at every zoom step", async 
     assert.equal(linkWidth(z) % 2, 0, "whole art pixels");
   }
   assert.equal(linkWidth(1), 2);
+});
+
+test("a wheel or pinch zoom rests on a step, at least one step the way it went", () => {
+  // One notch in from 0.5 reaches ~0.57: nearest is still 0.5, so it goes on to 1.
+  assert.equal(settleZoom(0.5, 0.57), 1);
+  assert.equal(settleZoom(1, 0.86), 0.5);
+  // Far enough, the nearest step wins.
+  assert.equal(settleZoom(0.5, 1.9), 2);
+  assert.equal(settleZoom(1, 0.3), 1 / 3);
+  // A gesture that barely moved stays put, and the ends hold.
+  assert.equal(settleZoom(1, 1.01), 1);
+  assert.equal(settleZoom(3, 3.5), 3);
+  assert.equal(settleZoom(0.125, 0.11), 0.125);
 });
