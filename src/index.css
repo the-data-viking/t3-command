@@ -2567,10 +2567,8 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .unit-panel:has(.widgets[open]) .transcript { min-height: 140px; }
 .widgets > summary { cursor: pointer; padding: var(--space-1) 0; }
 .widget-list { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: var(--space-2); max-height: 38vh; overflow-y: auto; }
-.widget-card { flex: none; border: 2px solid var(--edge-strong); border-radius: var(--radius-control); background: var(--deep); overflow: hidden; }
 .widget-bar { display: flex; align-items: center; gap: var(--space-1h); padding: var(--space-1) var(--space-1h); background: var(--surface); border-bottom: 2px solid var(--edge-strong); cursor: grab; touch-action: none; user-select: none; min-width: 0; }
 .widget-bar:active { cursor: grabbing; }
-.widget-grab { color: var(--muted); }
 .widget-title { font-family: var(--display); font-weight: 700; font-size: var(--fs-sm); letter-spacing: 1px; text-transform: uppercase; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 button.widget-title { background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
 button.widget-title:hover { color: var(--bright); text-decoration: underline; }
@@ -2579,11 +2577,27 @@ button.widget-title:hover { color: var(--bright); text-decoration: underline; }
 .widget-body { position: relative; flex: 1 1 auto; min-height: 0; background: var(--deep); }
 .widget-frame { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
 .widget-note { padding: var(--space-2); font-size: var(--fs-sm); }
-.widget-card .widget-note { padding: var(--space-1h) var(--space-2); }
-/* In a narrow panel the buttons wrap under the title rather than squeezing it out. */
-.widget-card .widget-bar { flex-wrap: wrap; row-gap: var(--space-1); }
-.widget-card .widget-title { min-width: 6em; }
 .widget-dragging iframe { pointer-events: none; }
+
+/* In the panel a widget is a station module, in the world's own materials (widget-theme.ts): stepped
+   hull plating with its one-pixel outline, light and shade bands, a port in the station's team colour,
+   and the page in a walled room on the deck. Pinned, it's HUD chrome (.widget-window). */
+.widget-card { flex: none; position: relative; padding: 2px; background: var(--module-outline); clip-path: var(--module-cut); }
+.widget-card.industrial { --module-cut: polygon(0 8px, 4px 8px, 4px 4px, 8px 4px, 8px 0, calc(100% - 8px) 0, calc(100% - 8px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 8px, 100% 8px, 100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px), calc(100% - 8px) 100%, 8px 100%, 8px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px)); }
+.widget-card.ftl { --module-cut: polygon(0 12px, 4px 12px, 4px 8px, 8px 8px, 8px 4px, 12px 4px, 12px 0, calc(100% - 12px) 0, calc(100% - 12px) 4px, calc(100% - 8px) 4px, calc(100% - 8px) 8px, calc(100% - 4px) 8px, calc(100% - 4px) 12px, 100% 12px, 100% calc(100% - 12px), calc(100% - 4px) calc(100% - 12px), calc(100% - 4px) calc(100% - 8px), calc(100% - 8px) calc(100% - 8px), calc(100% - 8px) calc(100% - 4px), calc(100% - 12px) calc(100% - 4px), calc(100% - 12px) 100%, 12px 100%, 12px calc(100% - 4px), 8px calc(100% - 4px), 8px calc(100% - 8px), 4px calc(100% - 8px), 4px calc(100% - 12px), 0 calc(100% - 12px)); }
+.widget-card.soft { --module-cut: none; border-radius: 14px; overflow: hidden; }
+.module-hull { position: relative; display: flex; flex-direction: column; gap: var(--space-1h); padding: 9px 10px 11px; background: var(--module-hull); color: var(--module-text); clip-path: var(--module-cut); }
+.widget-card.soft .module-hull { border-radius: 12px; }
+.module-hull::before, .module-hull::after { content: ""; position: absolute; left: 14px; right: 14px; height: 4px; pointer-events: none; }
+.module-hull::before { top: 2px; background: var(--module-light); }
+.module-hull::after { bottom: 2px; background: var(--module-shade); }
+.widget-card .widget-bar { background: none; border: 0; padding: 0; flex-wrap: wrap; row-gap: var(--space-1); }
+.widget-card .widget-title { min-width: 6em; color: var(--module-text); }
+.widget-card .widget-age { color: var(--module-muted); }
+.widget-card .widget-age.stale { color: var(--gauge-high); }
+.module-port { flex: none; width: 6px; height: 14px; background: var(--module-team); box-shadow: 0 0 0 2px var(--module-outline); margin: 0 var(--space-1) 0 2px; }
+.widget-room { position: relative; border: 4px solid var(--module-wall); background-color: var(--module-deck); background-image: var(--module-floor); background-size: 32px 32px; image-rendering: pixelated; }
+.widget-card .widget-note { padding: var(--space-1) 2px 0; color: var(--module-muted); }
 .widget-dragging, .widget-dragging * { cursor: grabbing !important; }
 
 .widget-ghost { position: fixed; z-index: var(--z-alert); pointer-events: none; display: grid; place-items: center; border: 2px dashed var(--frame); border-radius: var(--radius-control); background: color-mix(in srgb, var(--surface) 70%, transparent); color: var(--bright); font-family: var(--display); font-size: var(--fs-sm); letter-spacing: 1px; text-transform: uppercase; }

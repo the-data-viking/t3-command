@@ -23,6 +23,12 @@ test("the policy and t3widget API go ahead of the page, after any doctype", () =
   assert.match(WIDGET_CSP, /connect-src 'none'/);
 });
 
+test("the page carries its theme, and theme-only messages leave its data alone", () => {
+  const doc = widgetDocument("<head></head>", { n: 1 }, undefined, ":root{--t3-bg:#000}</style>");
+  assert.match(doc, /<style id="t3-theme">:root\{--t3-bg:#000\}\/style><\/style>/);
+  assert.match(doc, /if\(!\("data" in m\)\)return;/);
+});
+
 test("data embedded in the page can't close its script", () => {
   const doc = widgetDocument("<p></p>", { note: "</script><script>alert(1)</script>" }, "2026-10-14T00:00:00.000Z");
   assert.equal(doc.match(/<\/script>/g)?.length, 1);

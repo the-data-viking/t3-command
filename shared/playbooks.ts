@@ -17,7 +17,8 @@ How widgets work:
 - In the page, read data with t3widget.onData((data, updatedAt) => render(data)): it's called with the current data (if any) and on every change. t3widget.data holds the latest.
 - The page runs in a sandboxed iframe. Inline <script> and <style> work, as do scripts, styles, fonts and images from https URLs (a charting library from a CDN, say). Network requests (fetch, XHR, WebSocket), cookies, localStorage, popups and navigation are blocked: every piece of data comes through the JSON file.
 - <title> is the widget's name. Optional: <meta name="t3-widget-size" content="420x260"> (its size in px when pinned) and <meta name="t3-widget-stale-after" content="300"> (seconds without an update before it's flagged stale; default 600).
-- Design for a small window (about 360-480 px wide, 200-320 px tall) with its own dark background: compact, the most important numbers first, readable at a glance. Handle missing or partial data gracefully.
+- Style it with Command's colours, so it matches wherever it's shown (a station module in the crew panel, HUD chrome when pinned) and follows the map's theme: var(--t3-bg) is the page's default background, then var(--t3-surface) for cards, var(--t3-text) and var(--t3-muted) for text, var(--t3-line) for borders, var(--t3-accent), and var(--t3-ok), var(--t3-warn), var(--t3-bad) for good, needs-attention and failed; var(--t3-font) is a monospace stack. They change live, so don't hard-code colours.
+- Design for a small window (about 360-480 px wide, 200-320 px tall): compact, the most important numbers first, readable at a glance. Handle missing or partial data gracefully.
 - To change the page, rewrite the HTML; Command picks it up within 30 s. To remove the widget, stop its feeder and delete its files.
 
 When it's up, tell me the widget's id, what it shows, and how its feeder runs and stops.`;
