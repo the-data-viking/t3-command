@@ -34,3 +34,9 @@ export function transcriptEntries(thread: Pick<OrchestrationThread, "messages" |
   }
   return grouped.slice(-limit);
 }
+
+/** Native cron deliveries are stored as user rows, but are not human orders. */
+export function scheduledReportTitle(message: Pick<Message, 'role' | 'text'>): string | undefined {
+  if (message.role !== 'user') return;
+  return /^\[Cronjob "([^"\r\n]{1,200})" output — scheduled job, not the user\.[^\]\r\n]*\](?:\r?\n|$)/.exec(message.text)?.[1];
+}

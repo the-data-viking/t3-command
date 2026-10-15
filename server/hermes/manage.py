@@ -56,7 +56,7 @@ def session_data(home, workspace, create=True):
             sid = row['id']
         messages = []
         for msg in db.get_messages(sid, limit=200, latest=True):
-            if msg.get('role') not in ('user', 'assistant') or not isinstance(msg.get('content'), str):
+            if msg.get('role') not in ('user', 'assistant') or not isinstance(msg.get('content'), str) or not msg['content'].strip():
                 continue
             stamp = msg.get('timestamp')
             if isinstance(stamp, (int, float)):

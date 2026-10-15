@@ -463,6 +463,19 @@ update the canonical Bot Chat; existing task sessions may retain their model cho
 Group-room and shared Kanban management are not yet exposed. Avoid concurrently driving the same bot from another
 Hermes client; Command's ownership guard covers Command stations only.
 
+For local fleet supervision, keep scheduled work in isolated native cron conversations with
+`no_agent: false` and `deliver: local`, rather than delivering wake-up prompts into the human's
+Bot Chat. Reports remain available under **Routines → History**. The maintenance watcher reports
+completed turns, pending approvals/questions and failures; streaming progress and session timestamps
+do not wake the reviewer. Historical native cron deliveries in Bot Chat appear as collapsed
+**Scheduled report** entries, with the complete original payload available on expansion.
+
+`node tools/configure-hermes-maintenance.mjs` previews the migration for the existing hourly fleet
+and response-supervisor routines; add `--apply` to install it. It uses Hermes's native runtime and
+job APIs, backs up definitions/scripts under `HERMES_HOME/maintenance`, preserves enabled state,
+and retains queued report evidence while suppressing unstarted deliveries into direct Bot Chat.
+Already running agents and maintenance workers finish normally.
+
 Management panels reuse shared in-memory reads (15 seconds for profiles, 5 seconds for routines)
 and refresh cached forms without discarding unsaved edits. **Refresh** bypasses those caches.
 Independent reads use at most three isolated helpers; mutations wait for active reads, run

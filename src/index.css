@@ -820,6 +820,15 @@ code {
   font-style: italic;
 }
 
+.msg.scheduled-report summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.msg.scheduled-report[open] summary {
+  margin-bottom: var(--space-2);
+}
+
 .cursor {
   animation: blink 1s steps(2) infinite;
   color: var(--working);

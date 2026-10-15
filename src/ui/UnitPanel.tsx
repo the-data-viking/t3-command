@@ -16,6 +16,7 @@ import { contextLevel, modelTier, TIER_LABEL } from "../game/theme";
 import { envClient, logError } from "../t3/environment";
 import type { ApprovalDecision, Message, PendingRequest } from "../t3/types";
 import { modelName, providerName, reportRead, stateLabel, timeAgo } from "./util";
+import { ScheduledReport } from './ScheduledReport';
 import { ThreadImage } from "./ThreadImage";
 
 import { MessageMarkdown } from "./MessageMarkdown";
@@ -29,7 +30,7 @@ import { BotPortrait } from './HermesControlCenter';
 import { worldRef } from '../game/world';
 
 import { ActivityView, ToolActivityGroup } from "./TranscriptActivity";
-import { transcriptEntries } from "./transcript";
+import { scheduledReportTitle, transcriptEntries } from "./transcript";
 import { CrewPortrait, PixelIcon, PixelLabel } from "./PixelArt";
 import { stationColor } from "../game/layout";
 import { HermesPermissions } from './HermesPermissions';
@@ -236,6 +237,8 @@ function MessageView({ message, unitName, envId, threadId, onImageLoad }: { mess
         fileName: a.name, mimeType: a.mimeType, disposition: "inline" }} alt={a.name} onLoad={onImageLoad} />
     ))}
   </>;
+  const scheduledTitle = useGame.getState().envs[envId]?.summary.kind === 'hermes' ? scheduledReportTitle(message) : undefined;
+  if (scheduledTitle) return <ScheduledReport title={scheduledTitle} createdAt={message.createdAt}>{content}</ScheduledReport>;
   if (message.role === "reasoning") {
     return (
       <details className="msg reasoning">
