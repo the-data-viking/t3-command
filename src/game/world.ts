@@ -34,7 +34,7 @@ import { ControlCenterSprite } from "./control-center";
 import { HERMES_COLOR } from "../t3/bots";
 import { currentStyle, tex } from "./textures";
 import { GAUGE, HUD, mapInk, SELECTION, STATUS, platingMaterials } from "./theme";
-import { BROKEN_LINK, FLEET_VIEW_ZOOM, fitLabel, linkPath, pixelStamp, SIGNAL_GREY, UNPLUGGED, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, snapZoom, label, linkLength, linkPoint, CAMERA_SECONDS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
+import { BROKEN_LINK, FLEET_VIEW_ZOOM, fitLabel, linkPath, pixelStamp, SIGNAL_GREY, UNPLUGGED, pixelArrow, pixelBox, pixelFrame, pixelPath, crispScale, floorZoom, settleZoom, snapZoom, label, linkLength, linkPoint, CAMERA_SECONDS, GLIDE_RATE, GLIDE_SETTLE_MS, FADE_SECONDS, RECRUIT_WINDOW_MS, clampZoom, DOOR_ART, reducedMotion, SCREEN_OFF, screenColor, lightSpill, shadeColor, steppedPlate, chamferOutline, pixelOval, hash } from "./map-common";
 import { worldRef } from "./world-ref";
 import { CrewSprite } from "./crew-sprite";
 import { domeGlass, hullWindows, nacelles, pixelDisc, roomUnder, StationSprite } from "./station-sprite";
@@ -147,6 +147,12 @@ export class World {
   private fittedBounds?: string;
   /** Eased camera move in progress, as the world point at screen center plus zoom. */
   private tween?: { from: CameraView; to: CameraView; elapsed: number };
+  /**
+   * A wheel or pinch zoom in progress: the zoom glides toward its goal around the point under the
+   * pointer (sx, sy, over world point wx, wy), then settles on the nearest crisp step once input
+   * stops. `from`: the step it began at. `held`: fingers are still down, so it doesn't settle yet.
+   */
+  private glide?: { sx: number; sy: number; wx: number; wy: number; at: number; held: boolean; from: number };
   /** The first fit after loading snaps; later moves ease. */
   private framed = false;
   /** Environments whose crew were already aboard; crew new to them after that beam in. */
@@ -259,6 +265,8 @@ export class World {
     const lift = (e: FederatedPointerEvent) => {
       touches.delete(e.pointerId);
       if (touches.size < 2) pinch = null;
+      // The pinch is over: its zoom settles from now.
+      if (!pinch && this.glide?.held) { this.glide.held = false; this.glide.at = performance.now(); this.invalidate(); }
       // Lifting the fingers after a pinch isn't a tap on whatever is under them.
       if (touches.size === 0) endGesture();
     };
@@ -279,7 +287,7 @@ export class World {
         const next = pinchState();
         this.userMoved = true;
         this.camera.position.set(this.camera.x + next.x - pinch.x, this.camera.y + next.y - pinch.y);
-        this.zoomAt(next.x, next.y, next.distance / pinch.distance);
+        this.zoomAt(next.x, next.y, next.distance / pinch.distance, true);
         pinch = next;
         return;
       }
@@ -287,13 +295,15 @@ export class World {
       const dx = e.global.x - drag.x;
       const dy = e.global.y - drag.y;
       if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
-      if (drag.moved && !drag.box) this.zoomGoal = undefined;
+      if (drag.moved && !drag.box && !this.glide) this.zoomGoal = undefined;
       if (drag.moved && drag.box) {
         this.selectBox = { x: Math.min(drag.x, e.global.x), y: Math.min(drag.y, e.global.y), w: Math.abs(dx), h: Math.abs(dy) };
         this.invalidate();
       } else if (drag.moved) {
         this.userMoved = true;
         this.camera.position.set(Math.round(drag.camX + dx), Math.round(drag.camY + dy));
+        // A zoom still gliding keeps its screen anchor, over whatever is there now.
+        if (this.glide) { this.glide.wx = (this.glide.sx - this.camera.x) / this.zoom; this.glide.wy = (this.glide.sy - this.camera.y) / this.zoom; }
         this.invalidate();
       }
     });
@@ -321,7 +331,11 @@ export class World {
         this.userMoved = true;
         this.tween = undefined;
         const rect = this.app.canvas.getBoundingClientRect();
-        this.zoomAt(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-e.deltaY * 0.0015));
+        // Line and page deltas (Firefox's wheel) in pixels, like everyone else's.
+        const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 800 : 1);
+        // A mouse wheel's notch heads straight for its step; a trackpad's stream glides until it stops.
+        const notch = !e.ctrlKey && Math.abs(dy) >= 40;
+        this.zoomAt(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-dy * 0.0015), false, notch);
       },
       { passive: false },
     );
@@ -355,6 +369,7 @@ export class World {
     // Moves always settle on a crisp zoom step (the tween may pass through others on the way).
     const z = snapZoom(clampZoom(zoom));
     this.zoomGoal = undefined;
+    this.glide = undefined;
     const to = { cx: (width / 2 - x) / z, cy: (height / 2 - y) / z, zoom: z };
     if (!animate || reducedMotion()) { this.tween = undefined; this.applyView(to); }
     else this.tween = { from: this.view(), to, elapsed: 0 };
@@ -376,17 +391,52 @@ export class World {
   }
 
   /**
-   * Wheel and pinch accumulate a continuous goal, but the map is drawn at the nearest crisp step,
-   * so zooming clicks between sharp levels instead of passing through blurry ones.
+   * Wheel and pinch accumulate a continuous goal. The zoom glides toward it around the point under
+   * the pointer (a pinch follows the fingers exactly), and once input stops it settles on the
+   * nearest crisp step (see stepGlide), so the map is only ever at rest at a sharp level. With
+   * reduced motion it clicks straight between steps.
    */
-  private zoomAt(sx: number, sy: number, factor: number): void {
+  private zoomAt(sx: number, sy: number, factor: number, direct = false, settleNow = false): void {
     const wx = (sx - this.camera.x) / this.zoom;
     const wy = (sy - this.camera.y) / this.zoom;
+    this.tween = undefined;
     this.zoomGoal = clampZoom((this.zoomGoal ?? this.zoom) * factor);
-    this.setZoom(snapZoom(this.zoomGoal));
-    this.camera.position.set(sx - wx * this.zoom, sy - wy * this.zoom);
-    this.snapCamera();
+    if (reducedMotion()) {
+      this.glide = undefined;
+      this.setZoom(snapZoom(this.zoomGoal));
+      this.camera.position.set(sx - wx * this.zoom, sy - wy * this.zoom);
+      this.snapCamera();
+    } else {
+      this.glide = { sx, sy, wx, wy, at: performance.now() - (settleNow ? GLIDE_SETTLE_MS : 0), held: direct, from: this.glide?.from ?? snapZoom(this.zoom) };
+      if (direct) {
+        this.setZoom(this.zoomGoal);
+        this.camera.position.set(sx - wx * this.zoom, sy - wy * this.zoom);
+      }
+    }
     this.invalidate();
+  }
+
+  /** Advance a wheel or pinch zoom (see zoomAt); returns whether it's still moving. */
+  private stepGlide(dt: number): boolean {
+    const g = this.glide;
+    if (!g || this.zoomGoal === undefined) { this.glide = undefined; return false; }
+    const settling = !g.held && performance.now() - g.at >= GLIDE_SETTLE_MS;
+    const target = settling ? settleZoom(g.from, this.zoomGoal) : this.zoomGoal;
+    // Exponential approach, eased geometrically so zooming in and out feel the same.
+    const z = this.zoom * (target / this.zoom) ** (1 - Math.exp(-dt * GLIDE_RATE));
+    const done = settling && Math.abs(Math.log(target / z)) < 0.002;
+    this.setZoom(done ? target : z);
+    this.camera.position.set(g.sx - g.wx * this.zoom, g.sy - g.wy * this.zoom);
+    if (!done) return true;
+    this.snapCamera();
+    this.glide = undefined;
+    this.zoomGoal = undefined;
+    return false;
+  }
+
+  /** The zoom the camera is settling on: what labels and figures are sized for while it moves. */
+  private settlingZoom(): number {
+    return this.tween?.to.zoom ?? (this.glide && this.zoomGoal !== undefined ? settleZoom(this.glide.from, this.zoomGoal) : this.zoom);
   }
 
   /**
@@ -1165,7 +1215,8 @@ export class World {
     // Crew on a mission still playing out: the newest such mission each is on.
     const missions = new Map<string, string>();
     for (const d of state.dispatches) if (d.mission && !d.finishedAt) for (const m of d.members) if (!missions.has(unitKey(m.envId, m.threadId))) missions.set(unitKey(m.envId, m.threadId), d.mission.name);
-    const panning = this.stepCamera(dt);
+    const gliding = this.stepGlide(dt);
+    const panning = this.stepCamera(dt) || gliding;
     if (this.fade) {
       this.fade.alpha -= dt / FADE_SECONDS;
       if (this.fade.alpha <= 0) { this.fade.destroy({ texture: true }); this.fade = undefined; }
@@ -1194,7 +1245,7 @@ export class World {
       sprite.inSquad = squad.has(key);
       sprite.mission = missions.get(key);
       sprite.offline = state.envs[sprite.envId]?.connection !== "live";
-      sprite.tick(lay, s, t, dt, frame, selected, this.zoom, this.tween?.to.zoom ?? this.zoom);
+      sprite.tick(lay, s, t, dt, frame, selected, this.zoom, this.settlingZoom());
     }
     for (const sprite of this.departing) {
       if (sprite.departTick(t, dt)) continue;
@@ -1210,7 +1261,7 @@ export class World {
     this.drawFleetView(state, sel);
     // Labels are sized for the zoom the camera is settling on, not each in-between frame of a
     // move; otherwise they jump between whole-pixel sizes and re-truncate as the camera eases.
-    const labelZoom = this.tween?.to.zoom ?? this.zoom;
+    const labelZoom = this.settlingZoom();
     if (this.layout.controlCenter) this.controlCenter?.update(this.layout.controlCenter, sel, labelZoom, frame);
     for (const station of this.stations.values()) station.setZoom(labelZoom);
     for (const node of this.environmentNodes.values()) node.setZoom(labelZoom);

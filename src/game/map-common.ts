@@ -60,6 +60,19 @@ export function snapZoom(z: number): number {
   return best;
 }
 
+/**
+ * Where a wheel or pinch zoom that began at step `from` and reached `goal` comes to rest: the
+ * nearest step, except that a gesture that moved at all goes at least one step its way, so a
+ * single wheel notch never springs back to where it started.
+ */
+export function settleZoom(from: number, goal: number): number {
+  const nearest = snapZoom(goal);
+  if (nearest !== from || Math.abs(Math.log(goal / from)) < 0.03) return nearest;
+  const i = ZOOM_STEPS.indexOf(from);
+  if (i < 0) return nearest;
+  return ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, i + (goal > from ? 1 : -1)))];
+}
+
 /** The largest zoom step that's no more than `z` (for framing: never crop what should fit). */
 export function floorZoom(z: number): number {
   return [...ZOOM_STEPS].reverse().find((s) => s <= z + 1e-6) ?? ZOOM_STEPS[0];
@@ -138,6 +151,10 @@ export const SPARK_MS = 60_000;
 /** How long the report-ready sparkle lasts. */
 export const REPORT_MS = 1600;
 export const CAMERA_SECONDS = 0.35;
+/** A wheel or pinch zoom glides toward its goal at this rate (per second, exponential)… */
+export const GLIDE_RATE = 16;
+/** …and settles on the nearest crisp step once input has stopped this long (ms). */
+export const GLIDE_SETTLE_MS = 140;
 /** Theme changes crossfade from the old look over this long. */
 export const FADE_SECONDS = 0.45;
 /** Rooms nobody is using sit in this much shadow; crew and lit rooms stay bright. */
