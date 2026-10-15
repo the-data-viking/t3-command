@@ -121,7 +121,7 @@ export class World {
   private podsSeen = new Map<string, number[]>();
   /** Merged PRs leaving: the pod dropping away into space. */
   private launches: Array<{ x: number; y: number; at: number }> = [];
-  private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, trunks: [] };
+  private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, trunks: [], junctions: [] };
   private zoom = 1;
   private time = 0;
   /** Set once the user pans, zooms or jumps somewhere; until then the view keeps fitting the fleet. */
@@ -838,10 +838,9 @@ export class World {
       pixelBox(g, lane - 20, link.from.y, 40, link.to.y - link.from.y, c.D, c.k);
       for (const x of [lane - 12, lane + 12]) pixelPath(g, [{ x, y: link.from.y }, { x, y: link.to.y }], 2, HERMES_COLOR, online ? 0.55 : 0.15);
     }
-    // The trunks the lines share: the bus under the decks and each corridor down a wing, one casing
-    // (every band's outline first, then every fill, so the overlaps merge).
-    for (const r of this.layout.trunks) g.rect(r.x - 2, r.y - 2, r.w + 4, r.h + 4).fill(c.k);
-    for (const r of this.layout.trunks) g.rect(r.x, r.y, r.w, r.h).fill(currentStyle().trunk ?? c.D);
+    // The trunks the lines share (the bus, each corridor, each deck's drop, each run into a port)
+    // as one casing; clamps and junction boxes go on over the lines, below.
+    this.drawCasing(g, this.layout.trunks);
     for (const node of this.layout.environmentNodes.values()) {
       const live = state.envs[node.envId]?.connection === "live";
       for (const link of node.links) {
@@ -863,6 +862,92 @@ export class World {
         }
       }
     }
+    // Strapped down: clamps across the cables every 48 px, on the trunks and the Hermes spine.
+    const spineRuns = spine ? [{ x: spine.stemX - 20, y: spine.top, w: 40, h: spine.y - spine.top + 8 }, { x: spine.x0 - 20, y: spine.y - 8, w: spine.x1 - spine.x0 + 40, h: 16 }] : [];
+    this.drawClamps(g, [...this.layout.trunks, ...spineRuns]);
+    for (const j of this.layout.junctions) this.drawJunction(g, j);
+  }
+
+  /** The trunk material: its fill, and the lit and shaded tones of its edges. */
+  private trunkTones(): { fill: number; light: number; shade: number; k: number } {
+    const style = currentStyle(), fill = style.trunk ?? style.colors.D;
+    return { fill, light: mixColor(fill, 0xffffff, 0.24), shade: mixColor(fill, 0x000000, 0.35), k: style.colors.k };
+  }
+
+  /**
+   * The overlapping trunk rects as one casing in art-pixel cells: a dark outline, the trunk fill,
+   * and a lit top and left edge and shaded bottom and right edge (upper-left light, as everywhere),
+   * traced round the merged shape rather than each rect.
+   */
+  private drawCasing(g: Graphics, rects: Rect[]): void {
+    if (!rects.length) return;
+    const { fill, light, shade, k } = this.trunkTones();
+    for (const r of rects) g.rect(r.x - 2, r.y - 2, r.w + 4, r.h + 4).fill(k);
+    for (const r of rects) g.rect(r.x, r.y, r.w, r.h).fill(fill);
+    const C = 2;
+    const x0 = Math.min(...rects.map((r) => r.x)), y0 = Math.min(...rects.map((r) => r.y));
+    const cols = Math.ceil((Math.max(...rects.map((r) => r.x + r.w)) - x0) / C) + 2, rows = Math.ceil((Math.max(...rects.map((r) => r.y + r.h)) - y0) / C) + 2;
+    const mask = new Uint8Array(cols * rows);
+    for (const r of rects) {
+      for (let cy = Math.floor((r.y - y0) / C); cy < Math.ceil((r.y + r.h - y0) / C); cy++)
+        for (let cx = Math.floor((r.x - x0) / C); cx < Math.ceil((r.x + r.w - x0) / C); cx++) mask[cy * cols + cx] = 1;
+    }
+    const on = (cx: number, cy: number) => cx >= 0 && cy >= 0 && cx < cols && cy < rows && mask[cy * cols + cx] === 1;
+    // Runs along each row (top and bottom edges) and down each column (left and right edges).
+    for (let cy = 0; cy < rows; cy++) {
+      for (const [dy, color] of [[-1, light], [1, shade]] as const) {
+        let start = -1;
+        for (let cx = 0; cx <= cols; cx++) {
+          const edge = on(cx, cy) && !on(cx, cy + dy);
+          if (edge && start < 0) start = cx;
+          if (!edge && start >= 0) { g.rect(x0 + start * C, y0 + cy * C, (cx - start) * C, C).fill(color); start = -1; }
+        }
+      }
+    }
+    for (let cx = 0; cx < cols; cx++) {
+      for (const [dx, color] of [[-1, light], [1, shade]] as const) {
+        let start = -1;
+        for (let cy = 0; cy <= rows; cy++) {
+          const edge = on(cx, cy) && !on(cx + dx, cy);
+          if (edge && start < 0) start = cy;
+          if (!edge && start >= 0) { g.rect(x0 + cx * C, y0 + start * C, C, (cy - start) * C).fill(color); start = -1; }
+        }
+      }
+    }
+  }
+
+  /** Clamps across a run every 48 px (on a shared grid, so overlapping runs share their straps), with a lit bolt head each end. */
+  private drawClamps(g: Graphics, rects: Rect[]): void {
+    const { light, k } = this.trunkTones();
+    const STEP = 48;
+    for (const r of rects) {
+      const along = r.w >= r.h;
+      const from = along ? r.x : r.y, len = along ? r.w : r.h;
+      if (len < 40) continue;
+      for (let p = Math.ceil((from + 12) / STEP) * STEP; p <= from + len - 12; p += STEP) {
+        if (along) {
+          g.rect(p, r.y - 2, 4, r.h + 4).fill(k);
+          g.rect(p, r.y - 2, 4, 2).fill(light).rect(p, r.y + r.h, 4, 2).fill(light);
+        } else {
+          g.rect(r.x - 2, p, r.w + 4, 4).fill(k);
+          g.rect(r.x - 2, p, 2, 4).fill(light).rect(r.x + r.w, p, 2, 4).fill(light);
+        }
+      }
+    }
+  }
+
+  /** A junction box where a corridor leaves the bus: a housing over the lines' interchange, bolted at the corners, with vents and a pilot lamp in the world's lamp colour (never a status colour). */
+  private drawJunction(g: Graphics, j: Rect): void {
+    const { fill, light, shade, k } = this.trunkTones();
+    const face = mixColor(fill, 0xffffff, 0.1), lamp = currentStyle().light ?? 0xe8f0f8;
+    g.rect(j.x - 2, j.y - 2, j.w + 4, j.h + 4).fill(k);
+    g.rect(j.x, j.y, j.w, j.h).fill(face);
+    g.rect(j.x, j.y, j.w, 2).fill(light).rect(j.x, j.y, 2, j.h).fill(light);
+    g.rect(j.x, j.y + j.h - 2, j.w, 2).fill(shade).rect(j.x + j.w - 2, j.y, 2, j.h).fill(shade);
+    for (const [bx, by] of [[j.x + 4, j.y + 4], [j.x + j.w - 6, j.y + 4], [j.x + 4, j.y + j.h - 6], [j.x + j.w - 6, j.y + j.h - 6]]) g.rect(bx, by, 2, 2).fill(k);
+    // Vents across the middle, and the pilot lamp.
+    for (let y = j.y + 8; y <= j.y + j.h - 10; y += 4) g.rect(j.x + 10, y, Math.max(4, j.w - 20), 2).fill(shade);
+    g.rect(j.x + j.w - 8, j.y + 2, 4, 2).fill(lamp);
   }
 
   /** Snapshot the map as it looks now, to fade out over the restyled one (no hard cut). */
