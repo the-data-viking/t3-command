@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { EnvSummary } from "../../shared/api";
 import { updateEnv, useGame, type EnvWorld } from "../store";
-import { refreshHermesBots } from "./hermes";
+import { invalidateHermesReads, refreshHermesBots } from "./hermes";
 
 const env = (id: string, kind: "t3" | "hermes" = "t3") => ({
   summary: { id, label: id, kind } as EnvSummary, connection: "live", synced: true, providers: [], projects: {}, threads: {},
@@ -29,16 +29,16 @@ test("an unchanged Hermes profile refresh keeps the catalog identity, so the map
   globalThis.fetch = (async () => new Response(JSON.stringify(bots), { status: 200 })) as typeof fetch;
   try {
     useGame.setState({ envs: { h: env("h", "hermes") }, hermesCatalog: undefined });
-    await refreshHermesBots();
+    await refreshHermesBots(true);
     const first = useGame.getState().hermesCatalog;
     assert.deepEqual(first?.bots, bots);
-    await refreshHermesBots();
+    await refreshHermesBots(true);
     assert.equal(useGame.getState().hermesCatalog, first);
     bots.push({ ...bots[0], name: "money", title: "Money Guy", isDefault: false });
-    await refreshHermesBots();
+    await refreshHermesBots(true);
     assert.notEqual(useGame.getState().hermesCatalog, first);
     assert.equal(useGame.getState().hermesCatalog?.bots.length, 2);
   } finally {
-    globalThis.fetch = realFetch;
+    globalThis.fetch = realFetch; invalidateHermesReads();
   }
 });

@@ -5,7 +5,7 @@ import { worldRef } from '../game/world';
 import { css, hudAccent } from '../game/theme';
 import { setSelection, useGame } from '../store';
 import { botColor, botOperators, BOT_STATE_LABELS } from '../t3/bots';
-import { hermesRequest, refreshHermesBots } from '../t3/hermes';
+import { cachedHermes, hermesRequest, refreshHermesBots } from '../t3/hermes';
 import { HermesPanel } from './HermesPanel';
 import { openHost } from '../store';
 import { envClient } from '../t3/environment';
@@ -34,10 +34,10 @@ export function HermesControlCenter({ envId, profile }: { envId: string; profile
   const env = envs[envId];
   const targets = Object.values(envs).filter(e => e.summary.kind !== 'hermes');
   const [manage, setManage] = useState<{ profile: string; tab?: 'identity' | 'routines' }>();
-  const [jobs, setJobs] = useState<HermesJobs>();
+  const selectedProfile = selected?.name;
+  const [jobs, setJobs] = useState<HermesJobs | undefined>(() => selectedProfile ? cachedHermes(envId, 'jobs.list', selectedProfile) : undefined);
   const [error, setError] = useState<string>();
   const [opening, setOpening] = useState(false);
-  const selectedProfile = selected?.name;
   const botChat = selected?.sessions.find(s => s.thread.hermesBotChat && envs[s.envId]?.connection === 'live');
   useEffect(() => { void refreshHermesBots(); }, []);
   useEffect(() => {
@@ -46,7 +46,7 @@ export function HermesControlCenter({ envId, profile }: { envId: string; profile
     const load = () => hermesRequest<HermesJobs>(envId, 'jobs.list', selectedProfile, undefined, controller.signal)
       .then(result => { if (!controller.signal.aborted) { setJobs(result); setError(undefined); } })
       .catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e)); });
-    setJobs(undefined); setError(undefined); void load();
+    setJobs(cachedHermes(envId, 'jobs.list', selectedProfile)); setError(undefined); void load();
     const timer = setInterval(() => { if (!document.hidden) void load(); }, 30_000);
     return () => { controller.abort(); clearInterval(timer); };
   }, [envId, selectedProfile]);

@@ -12,16 +12,19 @@ export interface HermesBot {
   skillCount: number;
   isDefault: boolean;
 }
-export interface HermesBotDetail extends HermesBot {
+export interface HermesBotIdentity extends HermesBot {
   soul: string;
   memory: string;
   userMemory: string;
   memoryProvider: string;
+}
+export interface HermesCapabilities {
   skills: Array<{ name: string; enabled: boolean }>;
   toolsets: string[];
   availableToolsets: Array<{ name: string; description: string }>;
   mcpServers: Array<{ name: string; enabled: boolean }>;
 }
+export interface HermesBotDetail extends HermesBotIdentity, HermesCapabilities {}
 export interface HermesJob {
   id: string;
   name: string;
@@ -67,6 +70,17 @@ export interface HermesSession {
   source?: string;
   messages: Array<{ id: string; role: 'user' | 'assistant'; text: string; createdAt: string }>;
 }
-export type HermesAction = 'profiles.list' | 'profiles.path' | 'profiles.get' | 'profiles.create' | 'profiles.update' | 'profiles.delete'
+export type HermesAction = 'profiles.list' | 'profiles.path' | 'profiles.get' | 'profiles.identity' | 'profiles.capabilities' | 'profiles.create' | 'profiles.update' | 'profiles.delete'
   | 'jobs.list' | 'jobs.create' | 'jobs.update' | 'jobs.pause' | 'jobs.resume' | 'jobs.trigger' | 'jobs.delete'
   | 'jobs.runs' | 'jobs.output' | 'session.open' | 'session.read';
+
+/** Only these operations are safe to coalesce/cache; everything else is a write barrier. */
+export const HERMES_READ_ACTIONS: ReadonlySet<string> = new Set([
+  'profiles.list', 'profiles.path', 'profiles.get', 'profiles.identity', 'profiles.capabilities',
+  'jobs.list', 'jobs.runs', 'jobs.output', 'session.read',
+]);
+export function hermesReadTtl(action: string): number {
+  if (action === 'profiles.list' || action === 'profiles.get' || action === 'profiles.identity' || action === 'profiles.capabilities') return 15_000;
+  if (action === 'jobs.list') return 5_000;
+  return 0; // Live transcript/history/path reads only coalesce while in flight.
+}

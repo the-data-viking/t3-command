@@ -72,6 +72,12 @@ test('native Hermes bot memory, canonical chats, and paused jobs remain profile 
   assert.equal(bot.memory, 'ISOLATED BOT MEMORY');
   assert.equal(bot.userMemory, 'ISOLATED USER MEMORY');
   assert.equal(bot.soul, 'Test instructions');
+  assert.equal('skills' in bot, true, 'legacy detail reads keep their full response');
+  const identity = await manager.request('profiles.identity', 'validation-bot');
+  assert.equal('skills' in (identity as object), false, 'identity reads do not enumerate capabilities');
+  const capabilities = await manager.request<{ skills: unknown[]; availableToolsets: unknown[] }>('profiles.capabilities', 'validation-bot');
+  assert.ok(Array.isArray(capabilities.skills));
+  assert.ok(capabilities.availableToolsets.length > 0);
   const baseline = await manager.request<{ memory: string }>('profiles.get');
   assert.equal(baseline.memory, '');
   const metadataFile = path.join(dir, 'profiles', 'validation-bot', 'profile.yaml');
@@ -181,4 +187,44 @@ with _config_profile_scope('validation-bot'):
   assert.equal(deleted.deleted, true);
   const list = await manager.request<Array<{ name: string }>>('profiles.list');
   assert.ok(!list.some(bot => bot.name === 'validation-bot'));
+});
+
+test('management bounds concurrent readers, fences writes, deduplicates and invalidates cached reads', async () => {
+  const manager = new HermesManager('unused');
+  const events: string[] = [];
+  const releases = new Map<string, () => void>();
+  // Control completion directly so the ordering assertions do not depend on wall time.
+  Object.defineProperty(manager, 'invoke', { value: async (req: { action: string; profile: string }) => {
+    const id = `${req.action}:${req.profile}`;
+    events.push(`start:${id}`);
+    await new Promise<void>(resolve => releases.set(id, resolve));
+    events.push(`end:${id}`);
+    return id;
+  } });
+  const flush = async () => { for (let i = 0; i < 15; i++) await Promise.resolve(); };
+  const read = (name: string) => manager.request('profiles.get', name);
+  const reads = ['one', 'two', 'three', 'four'].map(read);
+  const duplicate = read('one');
+  const write = manager.request('profiles.update', 'writer');
+  const after = read('one');
+  await flush();
+  assert.deepEqual(events, ['start:profiles.get:one', 'start:profiles.get:two', 'start:profiles.get:three']);
+  releases.get('profiles.get:one')!(); await reads[0]; await duplicate; await flush();
+  assert.ok(events.includes('start:profiles.get:four'));
+  assert.ok(!events.includes('start:profiles.update:writer'));
+  for (const name of ['two', 'three', 'four']) releases.get(`profiles.get:${name}`)!();
+  await Promise.all(reads); await flush();
+  assert.equal(events.at(-1), 'start:profiles.update:writer');
+  releases.get('profiles.update:writer')!(); await write; await flush();
+  assert.equal(events.at(-1), 'start:profiles.get:one', 'read after mutation cannot share the old promise');
+  releases.get('profiles.get:one')!(); await after; await flush();
+  const cached = read('one'); await flush();
+  assert.equal(events.at(-1), 'start:profiles.get:one', 'the read during a write was not cached');
+  releases.get('profiles.get:one')!(); await cached; await flush();
+  const count = events.length;
+  await read('one');
+  assert.equal(events.length, count, 'a subsequent read uses cache');
+  const forced = manager.request('profiles.get', 'one', {}, '', true); await flush();
+  assert.equal(events.length, count + 1);
+  releases.get('profiles.get:one')!(); await forced;
 });
