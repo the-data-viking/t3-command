@@ -46,7 +46,8 @@ export function moduleMaterials(styleId: StyleId, team: number): ModuleMaterials
   const ink = mapInk(styleId);
   const floorText = readableOn(c.f, [ink.text, c.k]);
   return {
-    vars: { "--module-deck": css(c.f) },
+    // The deck under the page, and the map's label ink for a nameplate over space.
+    vars: { "--module-deck": css(c.f), "--module-ink": css(ink.text), "--module-ink-muted": css(ink.muted) },
     theme: {
       bg: css(c.f),
       surface: css(c.F),

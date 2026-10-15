@@ -49,10 +49,11 @@ Ask for one with the `/widget` saved order (it carries the spec below), e.g.
   the deck. Its age turns amber ("stale") when the data is older than the page allows, and says so
   when the data file is unreadable or the machine is unreachable.
 - **Pinning:** drag a widget's title bar onto the map, or use **Pin to map** / **Pin to screen**.
-  - A *map* pin is part of the map. It's anchored to a world spot and keeps the size it was
+  - A *map* pin is part of the map, drawn as a module like the stations around it (nameplate,
+    hull, walled room on the deck). It's anchored to a world spot and keeps the size it was
     pinned at relative to the map: pinned at 0.5× zoom, it doubles when you zoom to 1× and halves
     at 0.25×, like the stations around it. Off screen, it becomes an edge marker you can click.
-  - A *screen* pin stays put while the map moves.
+  - A *screen* pin stays put while the map moves, in HUD chrome like the other windows.
   - Drag a pinned window's title bar to move it and its corner to resize it. ⌖/▭ switches between
     map and screen, ✕ unpins it, and its title selects the crew member.
 - **Pins are kept on the Command server** (`widget-pins.json`, owner-only) and shared by every
