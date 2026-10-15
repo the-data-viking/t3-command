@@ -673,6 +673,28 @@ of project stations and seats its crew in the machine's engineering bay. The hos
 **Set up scratch bay** calls `projects.ensureScratch`; servers without it get a plain
 `project.create` at `~/.t3/scratch` with `createWorkspaceRootIfMissing`.
 
+### Adding and retiring projects (New project)
+
+* **Existing folder / empty folder:** `project.create {projectId, title, workspaceRoot,
+  createWorkspaceRootIfMissing, defaultModelSelection: null, createdAt}`. T3 expands `~`, refuses a
+  second active project on the same folder, and computes `repositoryIdentity` itself. For an empty
+  folder Command then sends `vcs.init {cwd, kind: "git"}` with the root T3 normalised.
+* **Browsing:** `filesystem.browse {partialPath, cwd?}` → `{parentPath, entries:[{name, fullPath}]}`.
+  This lists directories only. A path ending in `/` (or `~`) lists that folder, hidden ones
+  included; otherwise it lists siblings matching the last segment. Unreadable folders give `[]`,
+  missing ones an error.
+* **Clone:** `projectClone.start {projectId, title, remoteUrl, destinationPath, createdAt}` →
+  `{projectId, cwd, remoteUrl, repository}`. `destinationPath` is the final folder; it must not
+  exist or must be empty, and its parents are created. T3 adds the project immediately, then clones in
+  the background. `subscribeProjectClones {}` streams the whole list on every change:
+  `[{projectId, remoteUrl, destinationPath, phase: running|done|failed|cancelled,
+  stage: connecting|counting|receiving|resolving|checkout, percent, detail, error, …}]`.
+  `projectClone.cancel|retry {projectId}` → `{applied}`. Deleting the project discards an
+  unfinished clone.
+* **Retire:** `project.delete {projectId, force?}`. Without `force`, T3 refuses while the project
+  has any non-deleted thread (archived ones count). With `force`, it deletes those threads first.
+  The folder is never touched.
+
 ### Comms log and host history (Command server)
 
 The history recorder's per-machine shell subscriptions also feed `server/comms.ts`. The first

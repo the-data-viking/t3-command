@@ -18,8 +18,10 @@ import type {
   AssetUrl,
   ImageResource,
   ApprovalDecision,
+  FolderListing,
   InteractionMode,
   ModelSelection,
+  ProjectClone,
   PullRequestDetail,
   Provider,
   RuntimeMode,
@@ -449,6 +451,91 @@ export class EnvironmentClient {
         createWorkspaceRootIfMissing: true, defaultModelSelection: null, createdAt: new Date().toISOString() });
       return projectId;
     }
+  }
+
+  /**
+   * Folders on this machine matching a typed path (filesystem.browse): a path ending in "/" lists
+   * that folder, otherwise its siblings starting with the last segment. `~` is this machine's home.
+   */
+  async browseFolders(partialPath: string): Promise<FolderListing> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    return this.rpc.request<FolderListing>("filesystem.browse", { partialPath }, 15_000);
+  }
+
+  /**
+   * Add a folder on this machine as a T3 project. With `createIfMissing` T3 makes the folder, and
+   * `initGit` then makes it a repository so crew can work in worktrees. T3 refuses a second project
+   * on the same folder.
+   */
+  async addProject(opts: { title: string; workspaceRoot: string; createIfMissing?: boolean; initGit?: boolean }): Promise<string> {
+    const projectId = uuid();
+    await this.dispatch({ type: "project.create", projectId, title: opts.title, workspaceRoot: opts.workspaceRoot,
+      createWorkspaceRootIfMissing: opts.createIfMissing === true, defaultModelSelection: null, createdAt: new Date().toISOString() });
+    if (opts.initGit) {
+      const root = await this.projectRoot(projectId);
+      await this.rpc!.request("vcs.init", { cwd: root, kind: "git" }, 30_000);
+    }
+    return projectId;
+  }
+
+  /**
+   * Remove a project from T3 on this machine; its folder stays on disk. T3 refuses while the project
+   * has threads unless `withThreads`, which deletes those threads (and their conversations) too.
+   */
+  retireProject(projectId: string, withThreads: boolean): Promise<unknown> {
+    return this.dispatch({ type: "project.delete", projectId, ...(withThreads ? { force: true } : {}) });
+  }
+
+  /** The project's folder as T3 normalised it, once its shell event has arrived. */
+  private projectRoot(projectId: string): Promise<string> {
+    const now = () => useGame.getState().envs[this.id]?.projects[projectId]?.workspaceRoot;
+    return new Promise((resolve, reject) => {
+      const found = now();
+      if (found) return resolve(found);
+      const timer = setTimeout(() => { unsubscribe(); reject(new Error("The new project didn't appear on this machine")); }, 15_000);
+      const unsubscribe = useGame.subscribe(() => {
+        const root = now();
+        if (root) { clearTimeout(timer); unsubscribe(); resolve(root); }
+      });
+    });
+  }
+
+  /**
+   * Clone a repository into `destinationPath` (which must not exist, or be empty) as a new project.
+   * T3 adds the project straight away and clones in the background; follow it with watchClones.
+   */
+  async cloneProject(opts: { title: string; remoteUrl: string; destinationPath: string }): Promise<string> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    const projectId = uuid();
+    try {
+      await this.rpc.request("projectClone.start", { projectId, title: opts.title, remoteUrl: opts.remoteUrl,
+        destinationPath: opts.destinationPath, createdAt: new Date().toISOString() }, 60_000);
+    } catch (err) {
+      if (err instanceof Error && /Unknown request tag/.test(err.message)) throw new Error(`T3 on ${this.summary.label} can't clone repositories; update it, or clone there and add the folder`);
+      throw err;
+    }
+    return projectId;
+  }
+
+  /** Every tracked clone on this machine, now and after each change; returns a function to stop. */
+  watchClones(onList: (clones: ProjectClone[]) => void, onError: (message: string) => void): () => void {
+    const rpc = this.rpc;
+    if (!rpc?.isOpen) { onError(`${this.summary.label} is not connected`); return () => {}; }
+    let stopped = false;
+    const cancel = rpc.stream<ProjectClone[]>("subscribeProjectClones", {}, (lists) => { if (!stopped && lists.length) onList(lists[lists.length - 1]); }, (err) => {
+      if (err && err.tag !== "Disconnected" && !stopped) onError(err.message);
+    });
+    return () => { stopped = true; cancel(); };
+  }
+
+  cancelClone(projectId: string): Promise<unknown> {
+    if (!this.rpc?.isOpen) return Promise.reject(new RpcError("Disconnected", `${this.summary.label} is not connected`));
+    return this.rpc.request("projectClone.cancel", { projectId });
+  }
+
+  retryClone(projectId: string): Promise<unknown> {
+    if (!this.rpc?.isOpen) return Promise.reject(new RpcError("Disconnected", `${this.summary.label} is not connected`));
+    return this.rpc.request("projectClone.retry", { projectId });
   }
 
   /** Send a follow-up message to an existing thread, keeping its model and modes (unless overridden). */

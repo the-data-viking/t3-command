@@ -135,7 +135,61 @@ export function BuildingPanel({ envId, projectId }: { envId: string; projectId: 
           </button>
         )}
       </div>
+      {env.summary.kind !== "hermes" && <RetireProject key={`retire:${envId}:${projectId}`} envId={envId} projectId={projectId} />}
     </aside>
+  );
+}
+
+/**
+ * Retire a project: remove it from T3 on this machine (the folder stays on disk). Its threads go
+ * with it, so it says how many and asks first; never while crew are mid-turn there.
+ */
+function RetireProject({ envId, projectId }: { envId: string; projectId: string }) {
+  const env = useGame((s) => s.envs[envId]);
+  const elsewhere = useGame((s) => groupFor(s, envId, projectId)?.members.filter((m) => m.env.summary.id !== envId).map((m) => m.env.summary.label).join(", ") ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const project = env?.projects[projectId];
+  if (!env || !project) return null;
+  const threads = Object.values(env.threads).filter((t) => t.projectId === projectId);
+  const running = threads.filter((t) => t.latestTurn?.state === "running").length;
+  const machine = env.summary.label;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+  const retire = async () => {
+    const lines = [
+      `Retire “${project.title}” on ${machine}?`,
+      `T3 there stops listing it. The folder ${project.workspaceRoot} stays on disk.`,
+      threads.length ? `Its ${plural(threads.length, "conversation")} (archived ones included) will be deleted from T3 too.` : "It has no conversations.",
+      elsewhere ? `It stays on ${elsewhere}.` : "",
+    ].filter(Boolean);
+    if (!window.confirm(lines.join("\n\n"))) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await envClient(envId)!.retireProject(projectId, threads.length > 0);
+      sfx.building();
+      addLog({ tone: "info", text: `Project ${project.title} retired on ${machine}`, envId });
+      setSelection(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      sfx.error();
+      logError(`Retiring ${project.title} on ${machine} failed`, err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <details className="retire-project">
+      <summary className="small muted">Retire project</summary>
+      <p className="muted small">Removes it from T3 on {machine}{elsewhere ? ` (it stays on ${elsewhere})` : ""}. The folder stays on disk{threads.length ? `; its ${plural(threads.length, "conversation")} are deleted from T3` : ""}.</p>
+      {running > 0 && <p className="orange small">{plural(running, "crew member")} {running === 1 ? "is" : "are"} mid-turn here. Wait for them or stop them first.</p>}
+      {error && <p className="orange small" role="alert">{error}</p>}
+      <button className="btn wide danger" disabled={busy || running > 0 || env.connection !== "live"} onClick={() => void retire()}>
+        {busy ? "Retiring…" : `Retire on ${machine}`}
+      </button>
+    </details>
   );
 }
 

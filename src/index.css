@@ -2100,6 +2100,22 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 .new-request-where select { width: 100%; min-width: 0; }
 @media (max-width: 700px) { .new-request-where { grid-template-columns: 1fr; } }
 .new-request .recruit h3 { display: none; }
+.new-project { display: flex; flex-direction: column; gap: var(--space-2); }
+.new-project-modes { flex-wrap: wrap; }
+.new-project-modes .tab { flex: 1; padding: var(--space-1h) var(--space-2); }
+.new-project-field select { width: 100%; min-width: 0; }
+.new-project-field, .new-project-field > label { display: flex; flex-direction: column; gap: var(--space-1); }
+.new-project-field input { width: 100%; min-width: 0; }
+.new-project-check { display: flex; align-items: center; gap: var(--space-1); }
+.new-project-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+.folder-list { max-height: 168px; overflow-y: auto; border: 1px solid var(--hairline); display: flex; flex-direction: column; }
+.folder-list p { margin: var(--space-1) var(--space-2); }
+.folder-row { flex-shrink: 0; background: none; border: 0; border-bottom: 1px solid var(--hairline); color: inherit; font: inherit; font-size: var(--fs-sm); text-align: left; padding: var(--space-1) var(--space-2); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-row:hover, .folder-row:focus-visible { background: var(--hairline); }
+.clone-progress { width: 100%; }
+.retire-project { margin-top: var(--space-3); }
+.retire-project summary { cursor: pointer; }
+.retire-project[open] summary { margin-bottom: var(--space-1); }
 .fleet-line { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--edge); }
 .more-list > .btn { width: 100%; justify-content: flex-start; }
 /* Every popover stays on screen, whatever wraps where. */

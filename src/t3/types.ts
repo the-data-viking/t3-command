@@ -270,6 +270,29 @@ export type VcsStatusEvent =
   | { _tag: "localUpdated"; local: VcsLocalStatus }
   | { _tag: "remoteUpdated"; remote: VcsRemoteStatus | null };
 
+/** filesystem.browse: the folder listed and its subfolders (hidden ones only when asked for). */
+export interface FolderListing {
+  parentPath: string;
+  entries: Array<{ name: string; fullPath: string }>;
+}
+
+/** One clone T3 is tracking (subscribeProjectClones); kept after it ends. */
+export interface ProjectClone {
+  projectId: string;
+  remoteUrl: string;
+  destinationPath: string;
+  phase: "running" | "done" | "failed" | "cancelled";
+  /** git's own clone stages, in order. */
+  stage: "connecting" | "counting" | "receiving" | "resolving" | "checkout";
+  /** Percent of the current stage. */
+  percent: number | null;
+  /** Transfer size and rate, from git's progress line. */
+  detail: string | null;
+  error: string | null;
+  startedAt: string;
+  endedAt: string | null;
+}
+
 export type ServerConfigEvent =
   | { type: "snapshot"; config: ServerConfig }
   | { type: "providerStatuses"; payload: { providers: Provider[] } }
