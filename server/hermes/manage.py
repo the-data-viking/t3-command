@@ -116,22 +116,27 @@ def main(req):
     from hermes_cli.web_server_profiles import _config_profile_scope
     with _config_profile_scope(name):
         from hermes_cli.config import load_config, save_config
-        from hermes_cli.skills_config import get_disabled_skills, save_disabled_skills, _list_all_skills
         cfg = load_config()
-        if action == 'profiles.get':
-            from toolsets import TOOLSETS
-            toolsets = (cfg.get('platform_toolsets') or {}).get('acp', ['hermes-acp'])
-            disabled = get_disabled_skills(cfg, 'acp')
+        if action in ('profiles.get', 'profiles.identity'):
             result = summary(found)
             result.update(soul=safe_file(home / 'SOUL.md'), memory=safe_file(home / 'memories' / 'MEMORY.md'),
                           userMemory=safe_file(home / 'memories' / 'USER.md'),
-                          memoryProvider=(cfg.get('memory') or {}).get('provider', 'local') or 'local',
-                          skills=[dict(name=s['name'], enabled=s['name'] not in disabled) for s in _list_all_skills()],
-                          toolsets=toolsets,
-                          availableToolsets=[dict(name=n, description=t.get('description', '')) for n, t in TOOLSETS.items()],
-                          mcpServers=[dict(name=n, enabled=c.get('enabled', True))
-                                      for n, c in (cfg.get('mcp_servers') or {}).items() if isinstance(c, dict)])
-            return result
+                          memoryProvider=(cfg.get('memory') or {}).get('provider', 'local') or 'local')
+            if action == 'profiles.identity':
+                return result
+        if action in ('profiles.get', 'profiles.capabilities'):
+            from toolsets import TOOLSETS
+            from hermes_cli.skills_config import get_disabled_skills, _list_all_skills
+            disabled = get_disabled_skills(cfg, 'acp')
+            capabilities = dict(skills=[dict(name=s['name'], enabled=s['name'] not in disabled) for s in _list_all_skills()],
+                        toolsets=(cfg.get('platform_toolsets') or {}).get('acp', ['hermes-acp']),
+                        availableToolsets=[dict(name=n, description=t.get('description', '')) for n, t in TOOLSETS.items()],
+                        mcpServers=[dict(name=n, enabled=c.get('enabled', True))
+                                    for n, c in (cfg.get('mcp_servers') or {}).items() if isinstance(c, dict)])
+            if action == 'profiles.get':
+                result.update(capabilities)
+                return result
+            return capabilities
         if action == 'profiles.update':
             # Only explicit fields change; credentials and unrelated settings never leave Hermes.
             if ('model' in body and body['model'] != found.model) or ('provider' in body and body['provider'] != found.provider):
@@ -165,6 +170,7 @@ def main(req):
             if 'toolsets' in body or 'mcpServers' in body:
                 save_config(cfg)
             if 'skills' in body:
+                from hermes_cli.skills_config import get_disabled_skills, save_disabled_skills, _list_all_skills
                 from agent.skill_utils import ESSENTIAL_SKILLS
                 installed = {s['name'] for s in _list_all_skills()}
                 if any(s['name'] not in installed for s in body['skills']):

@@ -463,6 +463,11 @@ update the canonical Bot Chat; existing task sessions may retain their model cho
 Group-room and shared Kanban management are not yet exposed. Avoid concurrently driving the same bot from another
 Hermes client; Command's ownership guard covers Command stations only.
 
+Management panels reuse shared in-memory reads (15 seconds for profiles, 5 seconds for routines)
+and refresh cached forms without discarding unsaved edits. **Refresh** bypasses those caches.
+Independent reads use at most three isolated helpers; mutations wait for active reads, run
+exclusively, and invalidate cached results. Capabilities load when their tab is first opened.
+
 Management requires a Hermes launcher supporting `--print-runtime-command` and the native
 profiles, cron, and SessionDB APIs (verified against Hermes 0.21.6). The server runs a JSON helper
 inside Hermes's own runtime/bootstrap. Credentials and raw configuration never reach the browser.

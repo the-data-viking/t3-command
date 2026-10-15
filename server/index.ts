@@ -408,7 +408,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     const envId = decodeURIComponent(hermesMatch[1]);
     const env = registry.get(envId);
     if (!env?.hermes) return sendJson(res, 404, { error: "Unknown Hermes station" });
-    const body = await readJson<{ action: HermesAction | 'chat.open'; profile?: string; body?: Record<string, unknown> }>(req);
+    const body = await readJson<{ action: HermesAction | 'chat.open'; profile?: string; body?: Record<string, unknown>; fresh?: boolean }>(req);
     const profile = body.profile ?? 'default';
     try {
       if (body.action === 'chat.open') {
@@ -419,7 +419,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       const mutatingProfile = ['profiles.update', 'profiles.delete'].includes(body.action);
       const release = mutatingProfile ? acquireBot(profile, 'management') : undefined;
       try {
-        const result = await hermesManager.request(body.action, profile, body.body, env.hermes.workspaceRoot);
+        const result = await hermesManager.request(body.action, profile, body.body, env.hermes.workspaceRoot, body.fresh === true);
         return sendJson(res, 200, result);
       } finally { release?.(); }
     } catch (err) {

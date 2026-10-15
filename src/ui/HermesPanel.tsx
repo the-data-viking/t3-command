@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useState } from 'react';
-import type { HermesAction, HermesBot, HermesBotDetail, HermesJob, HermesJobs, HermesRun } from '../../shared/hermes';
-import { hermesRequest } from '../t3/hermes';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { HermesAction, HermesBot, HermesBotIdentity, HermesCapabilities, HermesJob, HermesJobs, HermesRun } from '../../shared/hermes';
+import { cachedHermes, hermesRequest, invalidateHermesReads } from '../t3/hermes';
 import { refreshHermesBots } from '../t3/hermes';
 import { setSelection, useGame } from '../store';
 
@@ -11,22 +11,24 @@ type Tab = 'identity' | 'memory' | 'capabilities' | 'routines';
 
 export function HermesPanel({ envId, onClose, initialProfile = 'default', initialTab = 'identity' }: { envId: string; onClose: () => void; initialProfile?: string; initialTab?: Tab }) {
   const env = useGame(s => s.envs[envId]);
-  const [bots, setBots] = useState<HermesBot[]>([]);
+  const [bots, setBots] = useState<HermesBot[]>(() => cachedHermes<HermesBot[]>(envId, 'profiles.list') ?? []);
   const [profile, setProfile] = useState(initialProfile);
   const [error, setError] = useState<string>();
   const [creating, setCreating] = useState(false);
   const [warning, setWarning] = useState<string>();
   const [revision, setRevision] = useState(0);
-  const reload = useCallback(() => {
-    return hermesRequest<HermesBot[]>(envId, 'profiles.list').then(bots => { setBots(bots); void refreshHermesBots(); }).catch(e => setError(message(e)));
+  const reload = useCallback(async (fresh = false) => {
+    await refreshHermesBots(fresh);
+    const catalog = useGame.getState().hermesCatalog;
+    if (catalog?.envId === envId) { setBots(catalog.bots); setError(catalog.error); }
   }, [envId]);
-  useEffect(() => { void reload(); }, [reload, revision]);
+  useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); onClose(); } };
     window.addEventListener('keydown', key, true);
     return () => window.removeEventListener('keydown', key, true);
   }, [onClose]);
-  const refresh = () => setRevision(n => n + 1);
+  const refresh = () => { invalidateHermesReads(); setRevision(n => n + 1); void reload(true); };
   return createPortal(<div className="modal-backdrop" onClick={onClose}>
     <section className="modal hermes-modal" role="dialog" aria-modal="true" aria-labelledby="hermes-heading" onClick={e => e.stopPropagation()}>
       <header className="panel-head"><div><h2 id="hermes-heading">Hermes bots & routines</h2><span className="muted small">{env?.summary.label}</span></div>
@@ -43,7 +45,7 @@ export function HermesPanel({ envId, onClose, initialProfile = 'default', initia
         </nav>
         <div className="hermes-content">
           {creating ? <NewBot envId={envId} bots={bots} onCreated={name => { setProfile(name); setCreating(false); refresh(); }} />
-            : <BotEditor key={`${envId}:${profile}:${revision}`} envId={envId} profile={profile} initialTab={initialTab} onSaved={() => void reload()} onDeleted={warning => { setWarning(warning); setProfile('default'); refresh(); }} onClose={onClose} />}
+            : <BotEditor key={`${envId}:${profile}:${revision}`} envId={envId} profile={profile} initialTab={initialTab} fresh={revision > 0} onSaved={() => void reload()} onDeleted={warning => { setWarning(warning); setProfile('default'); refresh(); }} onClose={onClose} />}
         </div>
       </div>
     </section>
@@ -74,19 +76,21 @@ function NewBot({ envId, bots, onCreated }: { envId: string; bots: HermesBot[]; 
   </form>;
 }
 
-function BotEditor({ envId, profile, onSaved, onDeleted, onClose, initialTab }: { envId: string; profile: string; onSaved: () => void; onDeleted: (warning?: string) => void; onClose: () => void; initialTab: Tab }) {
-  const [bot, setBot] = useState<HermesBotDetail>();
+function BotEditor({ envId, profile, onSaved, onDeleted, onClose, initialTab, fresh }: { fresh: boolean; envId: string; profile: string; onSaved: () => void; onDeleted: (warning?: string) => void; onClose: () => void; initialTab: Tab }) {
+  const [bot, setBot] = useState<HermesBotIdentity | undefined>(() => cachedHermes(envId, 'profiles.identity', profile));
+  const edited = useRef(false);
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [capabilitiesOpened, setCapabilitiesOpened] = useState(initialTab === 'capabilities');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   useEffect(() => {
     const controller = new AbortController();
-    hermesRequest<HermesBotDetail>(envId, 'profiles.get', profile, undefined, controller.signal).then(setBot)
+    hermesRequest<HermesBotIdentity>(envId, 'profiles.identity', profile, undefined, controller.signal, fresh).then(value => { if (!controller.signal.aborted && !edited.current) setBot(value); })
       .catch(e => { if (!controller.signal.aborted) setError(message(e)); });
     return () => controller.abort();
-  }, [envId, profile]);
-  const edit = (patch: Partial<HermesBotDetail>) => setBot(b => b ? { ...b, ...patch } : b);
+  }, [envId, profile, fresh]);
+  const edit = (patch: Partial<HermesBotIdentity>) => { edited.current = true; setBot(b => b ? { ...b, ...patch } : b); };
   const perform = async (action: HermesAction | 'chat.open', body?: Record<string, unknown>) => {
     setBusy(true); setError(undefined); setNotice(undefined);
     try {
@@ -106,7 +110,7 @@ function BotEditor({ envId, profile, onSaved, onDeleted, onClose, initialTab }: 
     </div>
     <p className="muted small">Bot Chat keeps one ongoing conversation. You can ask this bot to message another bot by name; Hermes handles the handoff. Routine deliveries appear here as the native chat refreshes.</p>
     <div className="hermes-tabs" role="tablist" aria-label="Bot settings">
-      {(['identity', 'memory', 'capabilities', 'routines'] as Tab[]).map(t => <button key={t} role="tab" aria-selected={tab === t} className={`btn ${tab === t ? 'primary' : ''}`} onClick={() => setTab(t)}>{t[0].toUpperCase() + t.slice(1)}</button>)}
+      {(['identity', 'memory', 'capabilities', 'routines'] as Tab[]).map(t => <button key={t} role="tab" aria-selected={tab === t} className={`btn ${tab === t ? 'primary' : ''}`} onClick={() => { setTab(t); if (t === 'capabilities') setCapabilitiesOpened(true); }}>{t[0].toUpperCase() + t.slice(1)}</button>)}
     </div>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {tab === 'identity' && <form onSubmit={e => { e.preventDefault(); void perform('profiles.update', { title: bot.title, description: bot.description, soul: bot.soul, ...(bot.model ? { model: bot.model, provider: bot.provider } : {}) }); }}>
@@ -123,20 +127,49 @@ function BotEditor({ envId, profile, onSaved, onDeleted, onClose, initialTab }: 
       <label className="hermes-field">User preferences (USER.md)<textarea rows={7} value={bot.userMemory} onChange={e => edit({ userMemory: e.target.value })} /></label>
       <button className="btn primary" disabled={busy}>Save memory</button>
     </form>}
-    {tab === 'capabilities' && <form onSubmit={e => { e.preventDefault(); void perform('profiles.update', { skills: bot.skills, toolsets: bot.toolsets, mcpServers: bot.mcpServers }); }}>
-      <h3>Skills</h3><div className="hermes-checklist">{bot.skills.map(skill => <label key={skill.name}><input type="checkbox" checked={skill.enabled} onChange={e => edit({ skills: bot.skills.map(s => s.name === skill.name ? { ...s, enabled: e.target.checked } : s) })} />{skill.name}</label>)}</div>
-      <h3>Tools for T3 Command sessions</h3><p className="muted small">Toolsets can overlap. “hermes-acp” provides the standard coding tools; add “cronjob” for scheduling through chat. A routine uses Hermes’s separate cron tool configuration.</p>
-      <div className="hermes-checklist">{bot.availableToolsets.map(tool => <label key={tool.name} title={tool.description}><input type="checkbox" checked={bot.toolsets.includes(tool.name)} onChange={e => edit({ toolsets: e.target.checked ? [...bot.toolsets, tool.name] : bot.toolsets.filter(t => t !== tool.name) })} />{tool.name}</label>)}</div>
-      <h3>MCP servers</h3><p className="muted small">Enable or disable servers already configured in Hermes. Credentials stay on the host.</p>
-      {bot.mcpServers.length ? <div className="hermes-checklist">{bot.mcpServers.map(server => <label key={server.name}><input type="checkbox" checked={server.enabled} onChange={e => edit({ mcpServers: bot.mcpServers.map(s => s.name === server.name ? { ...s, enabled: e.target.checked } : s) })} />{server.name}</label>)}</div> : <p className="muted">No MCP servers configured.</p>}
-      <button className="btn primary" disabled={busy}>Save capabilities</button>
-    </form>}
+    {capabilitiesOpened && <div hidden={tab !== 'capabilities'}><Capabilities envId={envId} profile={profile} fresh={fresh} onSaved={onSaved} /></div>}
     {tab === 'routines' && <Routines key={profile} envId={envId} profile={profile} />}
   </>;
 }
 
+
+function Capabilities({ envId, profile, onSaved, fresh }: { fresh: boolean; envId: string; profile: string; onSaved: () => void }) {
+  const [data, setData] = useState<HermesCapabilities | undefined>(() => cachedHermes(envId, 'profiles.capabilities', profile));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const [notice, setNotice] = useState<string>();
+  const edited = useRef(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    hermesRequest<HermesCapabilities>(envId, 'profiles.capabilities', profile, undefined, controller.signal, fresh)
+      .then(value => { if (!controller.signal.aborted && !edited.current) setData(value); })
+      .catch(e => { if (!controller.signal.aborted) setError(message(e)); });
+    return () => controller.abort();
+  }, [envId, profile, fresh]);
+  const edit = (patch: Partial<HermesCapabilities>) => { edited.current = true; setData(value => value ? { ...value, ...patch } : value); };
+  const save = async () => {
+    if (!data) return;
+    setBusy(true); setError(undefined); setNotice(undefined);
+    try {
+      await hermesRequest(envId, 'profiles.update', profile, { skills: data.skills, toolsets: data.toolsets, mcpServers: data.mcpServers });
+      setNotice('Saved. Changes apply on the bot’s next turn.'); onSaved();
+    } catch (e) { setError(message(e)); } finally { setBusy(false); }
+  };
+  if (!data) return <p role={error ? 'alert' : undefined}>{error || 'Loading capabilities…'}</p>;
+  return <>{error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
+    <form onSubmit={e => { e.preventDefault(); void save(); }}>
+      <h3>Skills</h3><div className="hermes-checklist">{data.skills.map(skill => <label key={skill.name}><input type="checkbox" checked={skill.enabled} onChange={e => edit({ skills: data.skills.map(s => s.name === skill.name ? { ...s, enabled: e.target.checked } : s) })} />{skill.name}</label>)}</div>
+      <h3>Tools for T3 Command sessions</h3><p className="muted small">Toolsets can overlap. “hermes-acp” provides the standard coding tools; add “cronjob” for scheduling through chat. A routine uses Hermes’s separate cron tool configuration.</p>
+      <div className="hermes-checklist">{data.availableToolsets.map(tool => <label key={tool.name} title={tool.description}><input type="checkbox" checked={data.toolsets.includes(tool.name)} onChange={e => edit({ toolsets: e.target.checked ? [...data.toolsets, tool.name] : data.toolsets.filter(t => t !== tool.name) })} />{tool.name}</label>)}</div>
+      <h3>MCP servers</h3><p className="muted small">Enable or disable servers already configured in Hermes. Credentials stay on the host.</p>
+      {data.mcpServers.length ? <div className="hermes-checklist">{data.mcpServers.map(server => <label key={server.name}><input type="checkbox" checked={server.enabled} onChange={e => edit({ mcpServers: data.mcpServers.map(s => s.name === server.name ? { ...s, enabled: e.target.checked } : s) })} />{server.name}</label>)}</div> : <p className="muted">No MCP servers configured.</p>}
+      <button className="btn primary" disabled={busy}>Save capabilities</button>
+    </form>
+  </>;
+}
+
 function Routines({ envId, profile }: { envId: string; profile: string }) {
-  const [data, setData] = useState<HermesJobs>();
+  const [data, setData] = useState<HermesJobs | undefined>(() => cachedHermes(envId, 'jobs.list', profile));
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<HermesJob | 'new'>();
