@@ -30,37 +30,23 @@ export function readableOn(bg: number, candidates: number[]): number {
 }
 
 export interface ModuleMaterials {
-  /** CSS variables for the module card (see .widget-card in index.css). */
+  /** CSS variables for the module's room (see .widget-room in index.css); the hull is drawn (module-hull.ts). */
   vars: Record<string, string>;
   theme: WidgetTheme;
-  silhouette: "industrial" | "ftl" | "soft";
 }
 
 /**
- * A station module's materials in a world: hull plate (H) with its light (h) and shade (D) bands,
- * the one-pixel outline (k), the room's walls and deck (f), and ink that reads on each. Map label
- * ink is made for space and dark plating; pale hulls take the outline colour instead.
+ * The room of a station module in a world: its deck (f, F) and walls, the station's team colour,
+ * and ink that reads on the deck. Map label ink is made for space and dark plating; pale decks take
+ * the outline colour (k) instead.
  */
 export function moduleMaterials(styleId: StyleId, team: number): ModuleMaterials {
   const style = STYLES[styleId];
   const c = style.colors;
   const ink = mapInk(styleId);
-  const hullText = readableOn(c.H, [ink.text, c.k]);
-  const hullMuted = mix(hullText, c.H, 0.35);
   const floorText = readableOn(c.f, [ink.text, c.k]);
   return {
-    silhouette: style.hull ?? "industrial",
-    vars: {
-      "--module-outline": css(c.k),
-      "--module-hull": css(c.H),
-      "--module-light": css(c.h),
-      "--module-shade": css(c.D),
-      "--module-wall": css(style.wall),
-      "--module-deck": css(c.f),
-      "--module-text": css(hullText),
-      "--module-muted": css(hullMuted),
-      "--module-team": css(team),
-    },
+    vars: { "--module-deck": css(c.f) },
     theme: {
       bg: css(c.f),
       surface: css(c.F),

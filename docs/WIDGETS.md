@@ -43,13 +43,15 @@ Ask for one with the `/widget` saved order (it carries the spec below), e.g.
   `projects.readFile`. A new widget is announced in the comms log. Threads sharing a workspace
   (no worktree) share its widgets. Hermes operators have no workspace files, so no widgets.
 - **Crew panel:** a WIDGETS section lists the workspace's widgets, live, with the data's age. Each is
-  drawn as a module of the station, in the world's materials: stepped hull plating, a port in the
-  station's team colour, and the page in a walled room on the deck. It
-  turns amber ("stale") when the data is older than the page allows, and says so when the data
-  file is unreadable or the machine is unreachable.
+  drawn as a module of the station, in the world's materials: its nameplate above the hull, then
+  the hull plating with the world's corners, light and shade bands, ribs and viewports (lit while
+  the widget is live), a port plate in the station's team colour, and the page in a walled room on
+  the deck. Its age turns amber ("stale") when the data is older than the page allows, and says so
+  when the data file is unreadable or the machine is unreachable.
 - **Pinning:** drag a widget's title bar onto the map, or use **Pin to map** / **Pin to screen**.
-  - A *map* pin is anchored to a world spot. It moves when you pan, keeps its size when you zoom,
-    and becomes an edge marker you can click when it's off screen.
+  - A *map* pin is part of the map. It's anchored to a world spot and keeps the size it was
+    pinned at relative to the map: pinned at 0.5× zoom, it doubles when you zoom to 1× and halves
+    at 0.25×, like the stations around it. Off screen, it becomes an edge marker you can click.
   - A *screen* pin stays put while the map moves.
   - Drag a pinned window's title bar to move it and its corner to resize it. ⌖/▭ switches between
     map and screen, ✕ unpins it, and its title selects the crew member.

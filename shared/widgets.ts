@@ -26,9 +26,11 @@ export interface WidgetPin {
   /** Top-left corner: world px for "map", screen px for "screen". */
   x: number;
   y: number;
-  /** Size in screen px (a map pin keeps its size at every zoom). */
+  /** Size in px at its own scale: a screen pin's on screen, a map pin's at the zoom it was pinned at. */
   w: number;
   h: number;
+  /** A map pin's map zoom when pinned: it's drawn at (current zoom ÷ this), growing and shrinking with the map. */
+  zoom?: number;
 }
 
 export const PIN_SIZE = { minW: 200, maxW: 1600, minH: 120, maxH: 1200 } as const;
@@ -44,12 +46,13 @@ export function sanitizePin(input: unknown): WidgetPin | undefined {
   const id = str(p.id, 80), envId = str(p.envId, 200), threadId = str(p.threadId, 200), cwd = str(p.cwd, 4096);
   const widget = typeof p.widget === "string" && WIDGET_ID.test(p.widget) ? p.widget : undefined;
   const mode = p.mode === "map" || p.mode === "screen" ? p.mode : undefined;
-  const x = num(p.x), y = num(p.y), w = num(p.w), h = num(p.h);
+  const x = num(p.x), y = num(p.y), w = num(p.w), h = num(p.h), zoom = num(p.zoom);
   if (!id || !envId || !threadId || !cwd || !widget || !mode || x === undefined || y === undefined || w === undefined || h === undefined) return undefined;
   return {
     id, envId, threadId, cwd, widget, mode,
     x: clamp(Math.round(x), -1e7, 1e7), y: clamp(Math.round(y), -1e7, 1e7),
     w: clamp(Math.round(w), PIN_SIZE.minW, PIN_SIZE.maxW), h: clamp(Math.round(h), PIN_SIZE.minH, PIN_SIZE.maxH),
+    ...(mode === "map" && zoom !== undefined && zoom > 0 ? { zoom: clamp(zoom, 0.02, 16) } : {}),
   };
 }
 

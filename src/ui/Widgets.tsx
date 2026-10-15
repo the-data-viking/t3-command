@@ -1,16 +1,17 @@
 // Agent widgets on screen: listed in the crew's panel, dragged out onto the map to pin them, and
 // shown pinned either anchored to a spot on the map or fixed on screen (see src/t3/widgets.ts).
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { PIN_SIZE, type PinMode, type WidgetPin } from "../../shared/widgets";
-import { STYLES } from "../art/palettes";
+import { STYLES, type StyleId } from "../art/palettes";
 import { rasterize } from "../art/render";
 import * as A from "../art/sprites";
 import { stationColor } from "../game/layout";
 import { hudTokens } from "../game/theme";
 import { worldRef } from "../game/world";
 import { PixelLabel } from "./PixelArt";
+import { HULL_PAD, drawModuleHull } from "./module-hull";
 import { hudWidgetTheme, moduleMaterials, themeCss } from "./widget-theme";
 import { hudInsets } from "./hud-insets";
 import { setSelection, useGame } from "../store";
@@ -48,13 +49,21 @@ function showPin(pin: WidgetPin): void {
   if (pin.mode !== "map" || !cam || !map) return;
   const inset = hudInsets();
   const dx = (inset.left - inset.right) / 2, dy = (inset.top - inset.bottom) / 2;
-  worldRef.current?.centerOn(pin.x + (pin.w / 2 - dx) / cam.zoom, pin.y + (pin.h / 2 - dy) / cam.zoom);
+  const zoom = pin.zoom ?? 1;
+  worldRef.current?.centerOn(pin.x + pin.w / 2 / zoom - dx / cam.zoom, pin.y + pin.h / 2 / zoom - dy / cam.zoom);
+}
+
+/** How much a pin is scaled now: a map pin grows and shrinks with the map from the zoom it was pinned at. */
+function pinScale(pin: WidgetPin, camZoom: number | undefined): number {
+  return pin.mode === "map" && camZoom ? camZoom / (pin.zoom ?? 1) : 1;
 }
 
 /** Pin a widget with its top-left corner at a screen point (relative to the map). */
-function pinAt(base: Omit<WidgetPin, "mode" | "x" | "y">, mode: PinMode, sx: number, sy: number): void {
+function pinAt(base: Omit<WidgetPin, "mode" | "x" | "y" | "zoom">, mode: PinMode, sx: number, sy: number): void {
+  const zoom = worldRef.current?.cameraTransform()?.zoom;
   const at = mode === "map" ? screenToWorld(sx, sy) : { x: sx, y: sy };
-  if (at) void putPin({ ...base, mode, x: at.x, y: at.y });
+  // A map pin keeps the size it was dropped at relative to the map: the zoom it was pinned at.
+  if (at) void putPin({ ...base, mode, x: at.x, y: at.y, ...(mode === "map" && zoom ? { zoom } : {}) });
 }
 
 /** Iframes swallow pointer events: while anything is being dragged, they let them through. */
@@ -71,8 +80,40 @@ function useModule(envId: string) {
   return useMemo(() => {
     const m = moduleMaterials(artStyle, team);
     const floor = rasterize(A.FLOOR, STYLES[artStyle]).toDataURL();
-    return { silhouette: m.silhouette, style: { ...m.vars, "--module-floor": `url(${floor})` } as CSSProperties, theme: themeCss(m.theme) };
+    return { artStyle, team, style: { ...m.vars, "--module-floor": `url(${floor})` } as CSSProperties, theme: themeCss(m.theme) };
   }, [artStyle, team]);
+}
+
+/** Hull plating around its contents, drawn to fit (module-hull.ts) and redrawn as it resizes. */
+function ModuleHull({ artStyle, team, lit, children }: { artStyle: StyleId; team: number; lit: boolean; children: ReactNode }) {
+  const hull = useRef<HTMLDivElement>(null);
+  const art = useRef<HTMLCanvasElement>(null);
+  useLayoutEffect(() => {
+    const el = hull.current, canvas = art.current;
+    if (!el || !canvas) return;
+    const draw = () => {
+      // Whole art pixels: an even size, at the screen's own resolution.
+      const w = Math.floor(el.clientWidth / 2) * 2, h = Math.floor(el.clientHeight / 2) * 2, dpr = window.devicePixelRatio || 1;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawModuleHull(ctx, w, h, artStyle, team, lit);
+    };
+    draw();
+    const observer = new ResizeObserver(draw);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [artStyle, team, lit]);
+  return (
+    <div className="module-hull" ref={hull} style={{ padding: `${HULL_PAD.top}px ${HULL_PAD.side}px ${HULL_PAD.bottom}px` }}>
+      <canvas ref={art} className="module-hull-art" aria-hidden />
+      {children}
+    </div>
+  );
 }
 
 /** Pinned, a widget is HUD chrome, and its page takes the HUD's colours. */
@@ -137,6 +178,9 @@ function WidgetCard({ envId, threadId, cwd, id }: { envId: string; threadId: str
   const feed = useWidgetFeed(envId, cwd, id);
   const pin = useGame((s) => s.widgetPins.find((p) => p.envId === envId && p.cwd === cwd && p.widget === id));
   const materials = useModule(envId);
+  const now = useClock(true, 10000);
+  // Its viewports are lit while the widget is live, as a station's are while its rooms are.
+  const lit = !feed.offline && !feed.dataError && feed.page !== undefined && !isStale(feed, now || Date.now());
   const title = feed.meta.title ?? id;
   const size = pinSize(feed.meta);
   const base = { id: pin?.id ?? crypto.randomUUID(), envId, threadId: pin?.threadId ?? threadId, cwd, widget: id, w: pin?.w ?? size.w, h: pin?.h ?? size.h };
@@ -182,27 +226,26 @@ function WidgetCard({ envId, threadId, cwd, id }: { envId: string; threadId: str
   };
 
   return (
-    <div className={`widget-card ${materials.silhouette} ${pin ? "pinned" : ""}`} style={materials.style}>
-      <div className="module-hull">
-        <header className="widget-bar" title="Drag onto the map to pin it there"
-          onPointerDown={onPointerDown} onPointerMove={onPointerMove}
-          onPointerUp={(e) => endDrag(e, true)} onPointerCancel={(e) => endDrag(e, false)}>
-          <span className="module-port" aria-hidden />
-          <span className="widget-title" title={`${title} · .t3/widgets/${id}.html`}><PixelLabel text={title} /></span>
-          <WidgetAge feed={feed} />
-          <span className="spacer" />
-          {pin ? <>
-            {pin.mode === "map" && <button className="btn small" onClick={() => showPin(pin)} title="Go to it on the map">Show</button>}
-            <button className="btn small" onClick={() => void removePin(pin.id)} title={`Pinned ${pin.mode === "map" ? "to the map" : "on screen"}: take it off`}>Unpin</button>
-          </> : <>
-            <button className="btn small" onClick={() => pinHere("map")} title="Pin it to the map, where it moves with the map (or drag it there)">Pin to map</button>
-            <button className="btn small" onClick={() => pinHere("screen")} title="Pin it on screen, where it stays while the map moves">Pin to screen</button>
-          </>}
-        </header>
-        {pin
-          ? <div className="widget-note">Pinned {pin.mode === "map" ? "to the map" : "on screen"}. Drag the title bar onto the map to move it.</div>
-          : <div className="widget-room" style={{ height: Math.min(size.h, 300) }}><WidgetFrame feed={feed} title={title} theme={materials.theme} /></div>}
-      </div>
+    <div className={`widget-card ${pin ? "pinned" : ""}`} style={materials.style}>
+      <header className="widget-bar" title="Drag onto the map to pin it there"
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+        onPointerUp={(e) => endDrag(e, true)} onPointerCancel={(e) => endDrag(e, false)}>
+        <span className="widget-title" title={`${title} · .t3/widgets/${id}.html`}><PixelLabel text={title} /></span>
+        <WidgetAge feed={feed} />
+        <span className="spacer" />
+        {pin ? <>
+          {pin.mode === "map" && <button className="btn small" onClick={() => showPin(pin)} title="Go to it on the map">Show</button>}
+          <button className="btn small" onClick={() => void removePin(pin.id)} title={`Pinned ${pin.mode === "map" ? "to the map" : "on screen"}: take it off`}>Unpin</button>
+        </> : <>
+          <button className="btn small" onClick={() => pinHere("map")} title="Pin it to the map, where it moves and scales with the map (or drag it there)">Pin to map</button>
+          <button className="btn small" onClick={() => pinHere("screen")} title="Pin it on screen, where it stays while the map moves">Pin to screen</button>
+        </>}
+      </header>
+      {pin
+        ? <div className="widget-note">Pinned {pin.mode === "map" ? "to the map" : "on screen"}. Drag the title bar onto the map to move it.</div>
+        : <ModuleHull artStyle={materials.artStyle} team={materials.team} lit={lit}>
+          <div className="widget-room" style={{ height: Math.min(size.h, 300) }}><WidgetFrame feed={feed} title={title} theme={materials.theme} /></div>
+        </ModuleHull>}
       {ghost && createPortal(
         <div className={`widget-ghost ${ghost.over ? "" : "cannot"}`} style={{ left: ghost.x, top: ghost.y, width: base.w, height: base.h }}>
           <span>{ghost.over ? `Pin ${title} here` : "Drop it on the map"}</span>
@@ -242,7 +285,7 @@ function PinnedWidget({ pin }: { pin: WidgetPin }) {
   const box = useRef<HTMLDivElement>(null);
   const marker = useRef<HTMLButtonElement>(null);
   const [offscreen, setOffscreen] = useState(false);
-  const op = useRef<{ kind: "move" | "resize"; x: number; y: number; start: WidgetPin; zoom: number; moved: boolean } | undefined>(undefined);
+  const op = useRef<{ kind: "move" | "resize"; x: number; y: number; start: WidgetPin; zoom: number; scale: number; moved: boolean } | undefined>(undefined);
   const title = feed.meta.title ?? pin.widget;
 
   // A map pin follows the camera every frame; only what changed is written.
@@ -255,13 +298,14 @@ function PinnedWidget({ pin }: { pin: WidgetPin }) {
       const at = worldToScreen(current.current.x, current.current.y);
       const map = mapRect();
       if (!at || !map) return;
-      const { w, h } = current.current;
+      const scale = pinScale(current.current, worldRef.current?.cameraTransform()?.zoom);
+      const w = current.current.w * scale, h = current.current.h * scale;
       // Off screen, its marker keeps clear of the HUD, which opens and closes on its own.
       const inset = offscreen ? hudInsets() : undefined;
       const key = `${at.x}|${at.y}|${w}|${h}|${map.width}|${map.height}|${inset ? Object.values(inset).join(",") : ""}`;
       if (key === last) return;
       last = key;
-      if (box.current) box.current.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
+      if (box.current) box.current.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px) scale(${scale})`;
       const off = at.x > map.width - VISIBLE_PX || at.x + w < VISIBLE_PX || at.y > map.height - VISIBLE_PX || at.y + h < VISIBLE_PX;
       setOffscreen(off);
       if (off && inset && marker.current) {
@@ -278,7 +322,8 @@ function PinnedWidget({ pin }: { pin: WidgetPin }) {
     if (e.button !== 0 || (kind === "move" && (e.target as HTMLElement).closest("button"))) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    op.current = { kind, x: e.clientX, y: e.clientY, start: p, zoom: worldRef.current?.cameraTransform()?.zoom ?? 1, moved: false };
+    const zoom = worldRef.current?.cameraTransform()?.zoom ?? 1;
+    op.current = { kind, x: e.clientX, y: e.clientY, start: p, zoom, scale: pinScale(p, zoom), moved: false };
   };
   const onMove = (e: ReactPointerEvent<HTMLElement>) => {
     const o = op.current;
@@ -288,7 +333,8 @@ function PinnedWidget({ pin }: { pin: WidgetPin }) {
     if (!o.moved) dragging(true);
     o.moved = true;
     const s = o.start;
-    if (o.kind === "resize") setMoving({ ...s, w: clamp(s.w + dx, PIN_SIZE.minW, PIN_SIZE.maxW), h: clamp(s.h + dy, PIN_SIZE.minH, PIN_SIZE.maxH) });
+    // A scaled map pin's size is in its own (unscaled) px: the pointer moves it scale× as far.
+    if (o.kind === "resize") setMoving({ ...s, w: clamp(s.w + dx / o.scale, PIN_SIZE.minW, PIN_SIZE.maxW), h: clamp(s.h + dy / o.scale, PIN_SIZE.minH, PIN_SIZE.maxH) });
     else if (s.mode === "map") setMoving({ ...s, x: s.x + dx / o.zoom, y: s.y + dy / o.zoom });
     else setMoving({ ...s, x: s.x + dx, y: s.y + dy });
   };
@@ -304,12 +350,15 @@ function PinnedWidget({ pin }: { pin: WidgetPin }) {
   /** Switch between anchored to the map and fixed on screen, staying where it is now. */
   const toggleMode = () => {
     const map = mapRect();
+    const zoom = worldRef.current?.cameraTransform()?.zoom;
     if (p.mode === "map") {
-      const at = worldToScreen(p.x, p.y);
-      if (at && map) void putPin({ ...p, mode: "screen", x: clamp(at.x, 0, map.width - VISIBLE_PX), y: clamp(at.y, 0, map.height - VISIBLE_PX) });
+      // On screen it keeps the size it has on the map right now.
+      const at = worldToScreen(p.x, p.y), scale = pinScale(p, zoom);
+      const w = clamp(Math.round(p.w * scale), PIN_SIZE.minW, PIN_SIZE.maxW), h = clamp(Math.round(p.h * scale), PIN_SIZE.minH, PIN_SIZE.maxH);
+      if (at && map) void putPin({ ...p, mode: "screen", x: clamp(at.x, 0, map.width - VISIBLE_PX), y: clamp(at.y, 0, map.height - VISIBLE_PX), w, h, zoom: undefined });
     } else {
       const at = screenToWorld(p.x, p.y);
-      if (at) void putPin({ ...p, mode: "map", x: at.x, y: at.y });
+      if (at && zoom) void putPin({ ...p, mode: "map", x: at.x, y: at.y, zoom });
     }
   };
 
@@ -331,7 +380,7 @@ function PinnedWidget({ pin }: { pin: WidgetPin }) {
         <WidgetAge feed={feed} />
         <span className="spacer" />
         <button className="icon-btn widget-mode" onClick={toggleMode}
-          title={p.mode === "map" ? "Anchored to the map: switch to fixed on screen" : "Fixed on screen: switch to anchored to the map"}>
+          title={p.mode === "map" ? "Anchored to the map (scales with it): switch to fixed on screen" : "Fixed on screen: switch to anchored to the map"}>
           {p.mode === "map" ? "⌖" : "▭"}
         </button>
         <button className="icon-btn" onClick={() => void removePin(pin.id)} title="Unpin">✕</button>

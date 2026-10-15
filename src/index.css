@@ -2579,25 +2579,16 @@ button.widget-title:hover { color: var(--bright); text-decoration: underline; }
 .widget-note { padding: var(--space-2); font-size: var(--fs-sm); }
 .widget-dragging iframe { pointer-events: none; }
 
-/* In the panel a widget is a station module, in the world's own materials (widget-theme.ts): stepped
-   hull plating with its one-pixel outline, light and shade bands, a port in the station's team colour,
-   and the page in a walled room on the deck. Pinned, it's HUD chrome (.widget-window). */
-.widget-card { flex: none; position: relative; padding: 2px; background: var(--module-outline); clip-path: var(--module-cut); }
-.widget-card.industrial { --module-cut: polygon(0 8px, 4px 8px, 4px 4px, 8px 4px, 8px 0, calc(100% - 8px) 0, calc(100% - 8px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 8px, 100% 8px, 100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px), calc(100% - 8px) 100%, 8px 100%, 8px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px)); }
-.widget-card.ftl { --module-cut: polygon(0 12px, 4px 12px, 4px 8px, 8px 8px, 8px 4px, 12px 4px, 12px 0, calc(100% - 12px) 0, calc(100% - 12px) 4px, calc(100% - 8px) 4px, calc(100% - 8px) 8px, calc(100% - 4px) 8px, calc(100% - 4px) 12px, 100% 12px, 100% calc(100% - 12px), calc(100% - 4px) calc(100% - 12px), calc(100% - 4px) calc(100% - 8px), calc(100% - 8px) calc(100% - 8px), calc(100% - 8px) calc(100% - 4px), calc(100% - 12px) calc(100% - 4px), calc(100% - 12px) 100%, 12px 100%, 12px calc(100% - 4px), 8px calc(100% - 4px), 8px calc(100% - 8px), 4px calc(100% - 8px), 4px calc(100% - 12px), 0 calc(100% - 12px)); }
-.widget-card.soft { --module-cut: none; border-radius: 14px; overflow: hidden; }
-.module-hull { position: relative; display: flex; flex-direction: column; gap: var(--space-1h); padding: 9px 10px 11px; background: var(--module-hull); color: var(--module-text); clip-path: var(--module-cut); }
-.widget-card.soft .module-hull { border-radius: 12px; }
-.module-hull::before, .module-hull::after { content: ""; position: absolute; left: 14px; right: 14px; height: 4px; pointer-events: none; }
-.module-hull::before { top: 2px; background: var(--module-light); }
-.module-hull::after { bottom: 2px; background: var(--module-shade); }
-.widget-card .widget-bar { background: none; border: 0; padding: 0; flex-wrap: wrap; row-gap: var(--space-1); }
-.widget-card .widget-title { min-width: 6em; color: var(--module-text); }
-.widget-card .widget-age { color: var(--module-muted); }
-.widget-card .widget-age.stale { color: var(--gauge-high); }
-.module-port { flex: none; width: 6px; height: 14px; background: var(--module-team); box-shadow: 0 0 0 2px var(--module-outline); margin: 0 var(--space-1) 0 2px; }
-.widget-room { position: relative; border: 4px solid var(--module-wall); background-color: var(--module-deck); background-image: var(--module-floor); background-size: 32px 32px; image-rendering: pixelated; }
-.widget-card .widget-note { padding: var(--space-1) 2px 0; color: var(--module-muted); }
+/* In the panel a widget is a station module: its nameplate above, then the hull, drawn to fit on a
+   canvas in the world's own materials (module-hull.ts), around a walled room on the deck. Pinned,
+   it's HUD chrome (.widget-window). */
+.widget-card { flex: none; display: flex; flex-direction: column; gap: var(--space-1h); }
+.widget-card .widget-bar { background: none; border: 0; padding: 0 var(--space-1); flex-wrap: wrap; row-gap: var(--space-1); }
+.widget-card .widget-title { min-width: 6em; color: var(--text); }
+.module-hull { position: relative; }
+.module-hull-art { position: absolute; left: 0; top: 0; pointer-events: none; image-rendering: pixelated; }
+.widget-room { position: relative; background-color: var(--module-deck); background-image: var(--module-floor); background-size: 32px 32px; image-rendering: pixelated; }
+.widget-card .widget-note { padding: 0 var(--space-1); }
 .widget-dragging, .widget-dragging * { cursor: grabbing !important; }
 
 .widget-ghost { position: fixed; z-index: var(--z-alert); pointer-events: none; display: grid; place-items: center; border: 2px dashed var(--frame); border-radius: var(--radius-control); background: color-mix(in srgb, var(--surface) 70%, transparent); color: var(--bright); font-family: var(--display); font-size: var(--fs-sm); letter-spacing: 1px; text-transform: uppercase; }
@@ -2605,7 +2596,7 @@ button.widget-title:hover { color: var(--bright); text-decoration: underline; }
 
 /* Over the map, under every HUD piece (later siblings at the same level). */
 .widget-layer { position: absolute; inset: 0; z-index: var(--z-hud); pointer-events: none; overflow: hidden; }
-.widget-window { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; pointer-events: auto; background: var(--deep); border: var(--frame-width, 3px) solid var(--frame); border-radius: var(--frame-radius, 7px); corner-shape: var(--corner-shape, round); box-shadow: inset 0 0 0 2px var(--ink), 0 0 0 2px var(--ink), 0 8px 22px rgba(0, 0, 0, 0.55); overflow: hidden; }
+.widget-window { position: absolute; left: 0; top: 0; transform-origin: 0 0; display: flex; flex-direction: column; pointer-events: auto; background: var(--deep); border: var(--frame-width, 3px) solid var(--frame); border-radius: var(--frame-radius, 7px); corner-shape: var(--corner-shape, round); box-shadow: inset 0 0 0 2px var(--ink), 0 0 0 2px var(--ink), 0 8px 22px rgba(0, 0, 0, 0.55); overflow: hidden; }
 .widget-window .widget-bar .icon-btn { min-width: 24px; min-height: 24px; font-size: var(--fs-sm); padding: 0 var(--space-1); }
 .widget-grip { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; touch-action: none; background: linear-gradient(135deg, transparent 50%, var(--frame) 50%); }
 .widget-marker { position: absolute; left: 0; top: 0; pointer-events: auto; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: var(--space-1) var(--space-2); background: var(--surface); border: 2px solid var(--frame); border-radius: var(--radius-control); color: var(--text); font-family: var(--display); font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
