@@ -37,6 +37,7 @@ import { HermesPermissions } from './HermesPermissions';
 import { isPhone, usePhone } from './phone';
 import { TurnTelemetry } from './TurnTelemetry';
 import { contextWarning } from '../t3/progress';
+import { ThreadWidgets } from './Widgets';
 
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
   const panelWidth = usePanelWidth();
@@ -197,6 +198,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
       {!archived && <FailureNote thread={thread} />}
       {!archived && <PullRequestChips thread={thread} />}
       {!archived && detail && !bot && <TurnChanges env={env} thread={thread} detail={detail.thread} state={state} />}
+      {!archived && env.summary.kind !== 'hermes' && <ThreadWidgets envId={envId} threadId={threadId} />}
 
       <div
         className="transcript"

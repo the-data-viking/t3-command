@@ -128,6 +128,12 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   dropping later turns. It only appears while the agent is idle on a provider that supports rollback,
   and asks for confirmation first. A module's panel shows the checkout's branch, ahead/behind,
   uncommitted files and the branch's pull request while it's open.
+- **Agent widgets**: an agent can put up a small live dashboard. It writes a page and a JSON file
+  under `.t3/widgets/` in its workspace and keeps a feeder process rewriting the JSON. The
+  `/widget` saved order gives it the spec. The crew panel shows its widgets live, with how old
+  their data is (amber once stale). Drag one onto the map to pin it, anchored to that spot or fixed
+  on screen, then move and resize it. Pins are shared by every device and go when the thread is
+  archived. See [`docs/WIDGETS.md`](docs/WIDGETS.md).
 - **Turn history**: **History** (or **H**) shows what the fleet got done over 7, 30 or 90 days.
   It covers turns per day (done, failed, interrupted), typical and slowest turn times, long-running
   turns (running over an hour right now, and the longest finished ones by agent time), failure rate

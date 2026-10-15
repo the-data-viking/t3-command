@@ -599,6 +599,18 @@ export class EnvironmentClient {
     return result.diff;
   }
 
+  /** A directory inside a workspace (projects.listEntries); git-ignored entries are included. */
+  async listWorkspaceDir(cwd: string, directoryPath: string): Promise<Array<{ path: string; kind: string }>> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    return (await this.rpc.request<{ entries: Array<{ path: string; kind: string }> }>("projects.listEntries", { cwd, directoryPath }, 15_000)).entries;
+  }
+
+  /** A file inside a workspace (projects.readFile): at most 1 MB, `truncated` past that. */
+  async readWorkspaceFile(cwd: string, relativePath: string): Promise<{ contents: string; truncated: boolean }> {
+    if (!this.rpc?.isOpen) throw new RpcError("Disconnected", `${this.summary.label} is not connected`);
+    return this.rpc.request<{ contents: string; truncated: boolean }>("projects.readFile", { cwd, relativePath }, 15_000);
+  }
+
   /**
    * Restore the agent's files and conversation to just after turn `turnCount`, dropping later
    * turns. Destructive: callers confirm first.

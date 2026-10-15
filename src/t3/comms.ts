@@ -7,6 +7,8 @@ import type { FollowUpsView } from "../../shared/followups";
 import type { PrStates } from "../../shared/pr-states";
 import { applyPrStates, mergeReadMarks, mergeServerLog, setReadSink, useGame } from "../store";
 import { fetchJson } from "./environment";
+import type { WidgetPin } from "../../shared/widgets";
+import { applyPins } from "./widgets";
 
 export function connectComms(): () => void {
   if (typeof EventSource === "undefined") return () => {};
@@ -29,6 +31,10 @@ export function connectComms(): () => void {
   // What GitHub says of PRs T3 still calls open: all of them on connect, then each change.
   source.addEventListener("prs", (event) => {
     try { applyPrStates(JSON.parse((event as MessageEvent).data) as PrStates); } catch { /* Skip a bad frame. */ }
+  });
+  // Pinned widgets: the whole list on connect, then on each change.
+  source.addEventListener("widget-pins", (event) => {
+    try { applyPins(JSON.parse((event as MessageEvent).data) as WidgetPin[]); } catch { /* Skip a bad frame. */ }
   });
   // Report read marks are shared through the server: every mark on connect, then each change.
   source.addEventListener("read", (event) => {

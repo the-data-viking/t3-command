@@ -5,6 +5,7 @@ import type { Dispatch } from "../shared/dispatches";
 import { withPrStates, type PrStates } from "../shared/pr-states";
 import type { FollowUpsView } from "../shared/followups";
 import { DEFAULT_PLAYBOOKS, type Playbook } from "../shared/playbooks";
+import type { WidgetPin } from "../shared/widgets";
 import type { EnvSummary, MeResponse, T3Latest } from "../shared/api";
 import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
 import type { UsageState } from "./t3/usage";
@@ -132,6 +133,10 @@ export interface GameState {
   memory: FleetMemory;
   /** The newest T3 release on npm, for offering machine updates. */
   t3Latest: T3Latest | null;
+  /** Agent widgets found in each workspace: workspaceKey(envId, cwd) → widget ids. */
+  widgets: Record<string, string[]>;
+  /** Widgets pinned to the map or the screen (the Command server's list). */
+  widgetPins: WidgetPin[];
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
@@ -325,6 +330,8 @@ export const useGame = create<GameState>()(() => ({
   showPlaybooks: false,
   memory: {},
   t3Latest: null,
+  widgets: {},
+  widgetPins: [],
 }));
 
 /** Returning the same env from `fn` is a no-op: subscribers (the map, panels) are not notified. */
