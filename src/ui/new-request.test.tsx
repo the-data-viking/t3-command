@@ -23,3 +23,20 @@ test("projects: the last one used first, then the most recently active", () => {
   assert.deepEqual(projectOrder([old, recent], undefined).map((g) => g.key), ["recent", "old"]);
   assert.deepEqual(projectOrder([old, recent], "old").map((g) => g.key), ["old", "recent"]);
 });
+
+test("routing levels: Prefer outranks a quieter Normal machine, Manual only is never auto-picked", () => {
+  const g = group([env("a"), env("b"), env("c")]);
+  const hosts = { a: host(0.3), b: host(0.2), c: host(0) } as never;
+  const choices = machineChoices(g, hosts, {}, { a: "prefer", c: "manual" });
+  assert.deepEqual(choices.map((c) => c.envId), ["a", "b", "c"]);
+  assert.deepEqual(choices.map((c) => c.auto), [true, true, false]);
+  assert.match(choices[0].reason, /preferred/);
+  assert.match(choices[2].reason, /manual only/);
+  assert.equal(choices[2].ok, true, "still yours to pick by hand");
+  assert.deepEqual(machineChoices(g, hosts, {}, { b: "less" }).map((c) => c.envId), ["c", "a", "b"]);
+});
+
+test("a machine's load counts as measured only once its CPU is known", () => {
+  const choices = machineChoices(group([env("a"), env("b")]), { a: host(0.5) } as never, {});
+  assert.deepEqual(Object.fromEntries(choices.map((c) => [c.envId, c.measured])), { a: true, b: false });
+});

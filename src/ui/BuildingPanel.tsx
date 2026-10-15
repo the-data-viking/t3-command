@@ -8,7 +8,9 @@ import { css, hudAccent } from "../game/theme";
 import { addLog, setSelection, useGame } from "../store";
 import { isHistory, unitState } from "../t3/derive";
 import { envClient, logError } from "../t3/environment";
-import type { ModelSelection, Provider, RuntimeMode } from "../t3/types";
+import type { ModelSelection, RuntimeMode } from "../t3/types";
+import { isMyDefault, providerDefault, startingSelection, usableProviders } from "../t3/model-defaults";
+import { makeDefault } from "../t3/prefs";
 import { STATE_LABELS, timeAgo } from "./util";
 import { HermesBotPicker } from "./HermesBotPicker";
 import { HermesPanel } from "./HermesPanel";
@@ -19,8 +21,8 @@ import { PixelIcon, PixelLabel } from "./PixelArt";
 import { isScratch } from "../t3/scratch";
 
 
+/** This browser's last recruit settings on a machine. The model isn't one: that's your Command default. */
 interface RecruitPrefs {
-  modelSelection?: ModelSelection;
   runtimeMode?: RuntimeMode;
   hermesProfile?: string;
   /** Recruits start in plan mode: they propose a plan, and build only once you approve it. */
@@ -41,22 +43,6 @@ function savePrefs(envId: string, prefs: RecruitPrefs): void {
   } catch {
     // Per-browser convenience only.
   }
-}
-
-function usable(providers: Provider[]): Provider[] {
-  return providers.filter((p) => p.enabled && p.installed && p.models.length > 0);
-}
-
-function defaultSelection(providers: Provider[], preferred: Array<ModelSelection | null | undefined>): ModelSelection | undefined {
-  for (const sel of preferred) {
-    if (!sel) continue;
-    const provider = providers.find((p) => p.instanceId === sel.instanceId);
-    if (provider?.models.some((m) => m.slug === sel.model)) return sel;
-  }
-  const provider = providers[0];
-  if (!provider) return undefined;
-  const model = provider.models.find((m) => m.isDefault) ?? provider.models[0];
-  return { instanceId: provider.instanceId, model: model.slug };
 }
 
 export function BuildingPanel({ envId, projectId }: { envId: string; projectId: string }) {
@@ -201,14 +187,16 @@ function RetireProject({ envId, projectId }: { envId: string; projectId: string 
 export function RecruitForm({ envId, projectId, draftKey, onRecruited }: { envId: string; projectId: string; draftKey?: string; onRecruited?: () => void }) {
   const env = useGame((s) => s.envs[envId]);
   const project = env?.projects[projectId];
-  const providers = usable(env?.providers ?? []);
+  const providers = usableProviders(env?.providers ?? []);
   const prefs = useMemo(() => loadPrefs(envId), [envId]);
+  const commandPrefs = useGame((s) => s.prefs);
+  const sources = { prefs: commandPrefs, t3: env?.t3Defaults, projectId, projectDefault: project?.defaultModelSelection };
 
   const [hermesProfile, setHermesProfile] = useState(prefs.hermesProfile ?? "default");
   const [text, setText, clearText] = useDraft(draftKey ?? `recruit:${envId}:${projectId}`);
-  const [selection, setSelectionState] = useState<ModelSelection | undefined>(() =>
-    defaultSelection(providers, [prefs.modelSelection, project?.defaultModelSelection]),
-  );
+  // Set once you change the model here; until then it follows your defaults (which may load late).
+  const [selection, setSelectionState] = useState<ModelSelection>();
+  const [savingDefault, setSavingDefault] = useState(false);
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>(prefs.runtimeMode ?? "full-access");
   const [planFirst, setPlanFirst] = useState(!!prefs.planFirst);
   const canPlan = env?.summary.kind !== "hermes";
@@ -218,8 +206,8 @@ export function RecruitForm({ envId, projectId, draftKey, onRecruited }: { envId
   }));
   const [recruitError, setRecruitError] = useState<string>();
 
-  // Providers arrive after connecting; pick a default once they do.
-  const current = selection ?? defaultSelection(providers, [prefs.modelSelection, project?.defaultModelSelection]);
+  // Providers and defaults arrive after connecting; start from them once they do.
+  const current = selection ?? startingSelection(providers, sources);
   const provider = providers.find((p) => p.instanceId === current?.instanceId);
   const runtimeModes = provider?.runtimeModes?.length ? provider.runtimeModes : RUNTIME_MODES;
   const currentRuntimeMode = runtimeModes.some((mode) => mode.id === runtimeMode) ? runtimeMode : runtimeModes[0].id;
@@ -242,7 +230,7 @@ export function RecruitForm({ envId, projectId, draftKey, onRecruited }: { envId
       // Scratch isn't a repository: T3 gives the thread its own folder inside it instead.
       const threadId = await envClient(envId)!.recruit({ projectId, text: task, modelSelection: current, runtimeMode: currentRuntimeMode,
         interactionMode: canPlan && planFirst ? "plan" : "default", workspace: isScratch(project) ? undefined : workspace, hermesProfile });
-      savePrefs(envId, { modelSelection: current, runtimeMode: currentRuntimeMode, hermesProfile, planFirst });
+      savePrefs(envId, { runtimeMode: currentRuntimeMode, hermesProfile, planFirst });
       sfx.recruit();
       addLog({ tone: "good", text: `New worker recruited at ${project?.title ?? "base"}`, envId, threadId });
       clearText();
@@ -282,9 +270,7 @@ export function RecruitForm({ envId, projectId, draftKey, onRecruited }: { envId
         <select
           value={current?.instanceId}
           onChange={(e) => {
-            const p = providers.find((x) => x.instanceId === e.target.value)!;
-            const m = p.models.find((x) => x.isDefault) ?? p.models[0];
-            setSelectionState({ instanceId: p.instanceId, model: m.slug });
+            setSelectionState(providerDefault(providers.find((x) => x.instanceId === e.target.value)!, sources));
           }}
         >
           {providers.map((p) => (
@@ -323,6 +309,14 @@ export function RecruitForm({ envId, projectId, draftKey, onRecruited }: { envId
             </option>
           ))}
         </select>
+        {current && env?.summary.kind !== "hermes" && (isMyDefault(commandPrefs, current)
+          ? <span className="small muted default-mark" title="New requests start on this model on every machine that has it">★ Default</span>
+          : <button className="btn small" disabled={savingDefault} title="Start new requests on this provider and model, on every machine and device"
+            onClick={() => {
+              setSavingDefault(true);
+              makeDefault(current).catch((err) => { setRecruitError(`Couldn't save the default: ${err instanceof Error ? err.message : String(err)}`); sfx.error(); })
+                .finally(() => setSavingDefault(false));
+            }}>☆ Make default</button>)}
       </div>
       {canPlan && (
         <label className="plan-first small" title="The recruit proposes a plan first; it builds only after you approve the plan in its panel.">

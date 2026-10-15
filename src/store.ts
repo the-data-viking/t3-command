@@ -6,8 +6,9 @@ import { withPrStates, type PrStates } from "../shared/pr-states";
 import type { FollowUpsView } from "../shared/followups";
 import { DEFAULT_PLAYBOOKS, type Playbook } from "../shared/playbooks";
 import type { WidgetPin } from "../shared/widgets";
+import { EMPTY_PREFS, type CommandPrefs } from "../shared/prefs";
 import type { EnvSummary, MeResponse, T3Latest } from "../shared/api";
-import type { OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
+import type { ModelSelection, OrchestrationThread, ProjectShell, Provider, ThreadShell } from "./t3/types";
 import type { UsageState } from "./t3/usage";
 import type { HostState } from "./t3/host";
 import type { StorageView } from "../shared/storage";
@@ -25,7 +26,14 @@ export interface EnvWorld {
   projects: Record<string, ProjectShell>;
   threads: Record<string, ThreadShell>;
   providers: Provider[];
+  /** The machine's own T3 default model: server-wide, and per-project overrides. */
+  t3Defaults?: T3ModelDefaults;
   usage?: UsageState;
+}
+
+export interface T3ModelDefaults {
+  model: ModelSelection | null;
+  projects: Record<string, ModelSelection>;
 }
 
 export interface ThreadDetail {
@@ -139,6 +147,8 @@ export interface GameState {
   widgets: Record<string, string[]>;
   /** Widgets pinned to the map or the screen (the Command server's list). */
   widgetPins: WidgetPin[];
+  /** Default models and routing levels (the Command server's, shared by every device). */
+  prefs: CommandPrefs;
 }
 
 export const unitKey = (envId: string, threadId: string): string => `${envId}:${threadId}`;
@@ -335,6 +345,7 @@ export const useGame = create<GameState>()(() => ({
   t3Latest: null,
   widgets: {},
   widgetPins: [],
+  prefs: EMPTY_PREFS,
 }));
 
 /** Returning the same env from `fn` is a no-op: subscribers (the map, panels) are not notified. */

@@ -9,6 +9,7 @@ import { applyPrStates, mergeReadMarks, mergeServerLog, setReadSink, useGame } f
 import { fetchJson } from "./environment";
 import type { WidgetPin } from "../../shared/widgets";
 import { applyPins } from "./widgets";
+import { sanitizePrefs } from "../../shared/prefs";
 
 export function connectComms(): () => void {
   if (typeof EventSource === "undefined") return () => {};
@@ -35,6 +36,10 @@ export function connectComms(): () => void {
   // Pinned widgets: the whole list on connect, then on each change.
   source.addEventListener("widget-pins", (event) => {
     try { applyPins(JSON.parse((event as MessageEvent).data) as WidgetPin[]); } catch { /* Skip a bad frame. */ }
+  });
+  // Default models and routing levels: all of them on connect, then on each change.
+  source.addEventListener("prefs", (event) => {
+    try { useGame.setState({ prefs: sanitizePrefs(JSON.parse((event as MessageEvent).data)) }); } catch { /* Skip a bad frame. */ }
   });
   // Report read marks are shared through the server: every mark on connect, then each change.
   source.addEventListener("read", (event) => {

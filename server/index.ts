@@ -27,6 +27,7 @@ import { PrStatesWatcher } from "./pr-states.ts";
 import type { OrchestrationThread } from "../src/t3/types.ts";
 import { Playbooks } from "./playbooks.ts";
 import { WidgetPins } from "./widget-pins.ts";
+import { Prefs } from "./prefs.ts";
 import { randomUUID } from "node:crypto";
 import { HostHistoryRecorder } from "./host-history.ts";
 import { t3SocketUrl } from "./t3-socket.ts";
@@ -99,6 +100,8 @@ const playbooks = new Playbooks(config.dataDir);
 await playbooks.load();
 const widgetPins = new WidgetPins(config.dataDir);
 await widgetPins.load();
+const prefs = new Prefs(config.dataDir);
+await prefs.load();
 const prDetails = new PrDetails();
 const prStates = new PrStatesWatcher(prDetails);
 const dispatches = new Dispatches(config.dataDir);
@@ -110,7 +113,7 @@ recorder.listen({
   observe: (envId, threads) => { comms.observe(envId, threads); followUps.observe(envId, threads); dispatches.observe(envId, threads); prStates.observe(envId, threads); widgetPins.observe(envId, threads); },
   connected: (envId, label) => comms.connected(envId, label),
   disconnected: (envId, label) => comms.disconnected(envId, label),
-  removed: (envId) => { comms.forget(envId); followUps.forget(envId); dispatches.forget(envId); prStates.forget(envId); widgetPins.forget(envId); },
+  removed: (envId) => { comms.forget(envId); followUps.forget(envId); dispatches.forget(envId); prStates.forget(envId); widgetPins.forget(envId); prefs.forget(envId); },
 });
 // Follow-up retries and expiries, and orders that never started, come due with time.
 setInterval(() => { followUps.tick(); dispatches.tick(); }, 15_000).unref();
@@ -283,17 +286,25 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       send("dispatches", dispatches.all());
       send("prs", prStates.all());
       send("widget-pins", widgetPins.all());
+      send("prefs", prefs.all());
       const offRead = readState.subscribe((changed) => send("read", changed));
       const offFollowUps = followUps.subscribe((view) => send("followups", view));
       const offDispatches = dispatches.subscribe((list) => send("dispatches", list));
       const offPrs = prStates.subscribe((states) => send("prs", states));
       const offPins = widgetPins.subscribe((pins) => send("widget-pins", pins));
-      return () => { offRead(); offFollowUps(); offDispatches(); offPrs(); offPins(); };
+      const offPrefs = prefs.subscribe((p) => send("prefs", p));
+      return () => { offRead(); offFollowUps(); offDispatches(); offPrs(); offPins(); offPrefs(); };
     });
   }
   if (pathname === "/api/playbooks" && method === "GET") return sendJson(res, 200, playbooks.all());
   if (pathname === "/api/playbooks" && method === "PUT") {
     try { return sendJson(res, 200, await playbooks.set((await readJson<{ playbooks?: unknown }>(req))?.playbooks)); }
+    catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
+  }
+  // Default models and routing levels, shared by every device. PATCH merges; null clears.
+  if (pathname === "/api/prefs" && method === "GET") return sendJson(res, 200, prefs.all());
+  if (pathname === "/api/prefs" && method === "PATCH") {
+    try { return sendJson(res, 200, prefs.update(await readJson<unknown>(req))); }
     catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
   }
   if (pathname === "/api/widget-pins" && method === "GET") return sendJson(res, 200, widgetPins.all());
@@ -584,6 +595,7 @@ async function shutdown(): Promise<void> {
   await comms.flush();
   await readState.flush();
   await widgetPins.flush();
+  await prefs.flush();
   await push.flush();
   await followUps.flush();
   await dispatches.flush();
