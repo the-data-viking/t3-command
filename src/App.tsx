@@ -45,6 +45,8 @@ import { connectComms } from "./t3/comms";
 import { DEMO, loadDemoFleet } from "./demo";
 import { installDeepLinks } from "./ui/deeplink";
 import { installQuietWatch, installTitleBadge, notifyAttention } from "./ui/attention";
+import { WidgetLayer } from "./ui/Widgets";
+import { installWidgetDiscovery } from "./t3/widgets";
 
 const ENV_REFRESH_MS = 30_000;
 
@@ -128,6 +130,7 @@ export default function App() {
     const offQuiet = installQuietWatch();
     const offComms = DEMO ? () => {} : connectComms();
     const offLinks = installDeepLinks();
+    const offWidgets = DEMO ? () => {} : installWidgetDiscovery();
     return () => {
       clearInterval(timer);
       clearInterval(storageTimer);
@@ -142,6 +145,7 @@ export default function App() {
       offQuiet();
       offComms();
       offLinks();
+      offWidgets();
     };
   }, []);
 
@@ -166,6 +170,7 @@ export default function App() {
   return (
     <div className="game">
       <MapView />
+      <WidgetLayer />
       <TopBar />
       <CrewRoster />
       <Minimap />

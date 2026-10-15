@@ -7,12 +7,28 @@ export interface Playbook {
   text: string;
 }
 
+/** The spec agents get from /widget (docs/WIDGETS.md has the long form). */
+const WIDGET_PLAYBOOK = `Build me a T3 Command widget: a small live dashboard I can watch in T3 Command instead of asking you for updates. What it should show is below.
+
+How widgets work:
+- Put one self-contained page at .t3/widgets/<id>.html in your current working directory (<id>: lowercase letters, digits and dashes, up to 40 characters). A workspace can have several widgets. Keep .t3/ out of git: add it to .git/info/exclude.
+- Put its data at .t3/widgets/<id>.json (at most 1 MB). T3 Command re-reads it every few seconds while the widget is on screen and hands it to the page without reloading it. Write it atomically (write <id>.json.tmp, then mv), with a top-level "updatedAt" (ISO 8601) so Command can flag the widget when updates stop.
+- Feed the data from a live process that keeps running after your turn ends: a small script started with nohup ... & (or tmux/launchd) that recomputes the JSON every 30-60 s from logs, files or commands. Keep it cheap and idempotent, log to .t3/widgets/<id>.log, write its PID to .t3/widgets/<id>.pid, and have it write a final JSON and exit once what it watches is finished. Check the feeder is running and the JSON updates before you report back.
+- In the page, read data with t3widget.onData((data, updatedAt) => render(data)): it's called with the current data (if any) and on every change. t3widget.data holds the latest.
+- The page runs in a sandboxed iframe. Inline <script> and <style> work, as do scripts, styles, fonts and images from https URLs (a charting library from a CDN, say). Network requests (fetch, XHR, WebSocket), cookies, localStorage, popups and navigation are blocked: every piece of data comes through the JSON file.
+- <title> is the widget's name. Optional: <meta name="t3-widget-size" content="420x260"> (its size in px when pinned) and <meta name="t3-widget-stale-after" content="300"> (seconds without an update before it's flagged stale; default 600).
+- Design for a small window (about 360-480 px wide, 200-320 px tall) with its own dark background: compact, the most important numbers first, readable at a glance. Handle missing or partial data gracefully.
+- To change the page, rewrite the HTML; Command picks it up within 30 s. To remove the widget, stop its feeder and delete its files.
+
+When it's up, tell me the widget's id, what it shows, and how its feeder runs and stops.`;
+
 export const DEFAULT_PLAYBOOKS: Playbook[] = [
   { name: "wrapup", text: "Wrap up: commit your work, push the branch, open a PR, and summarize what changed and how you verified it." },
   { name: "status", text: "Give me a short status: where you are, what's left, and anything blocking you or needing my decision." },
   { name: "rebase", text: "Rebase on the latest main, resolve any conflicts, rerun the tests, and push." },
   { name: "explain", text: "Explain the changes you've made so far, file by file, and why." },
   { name: "tests", text: "Run the full test suite, fix anything failing, and tell me what you ran and the result." },
+  { name: "widget", text: WIDGET_PLAYBOOK },
 ];
 
 export const PLAYBOOK_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;

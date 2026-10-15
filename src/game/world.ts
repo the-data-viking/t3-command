@@ -575,6 +575,12 @@ export class World {
     return undefined;
   }
 
+  /** Where the camera is: a world point (wx, wy) is drawn at screen (x + wx·zoom, y + wy·zoom). */
+  cameraTransform(): { x: number; y: number; zoom: number } | undefined {
+    if (!this.initialized) return undefined;
+    return { x: this.camera.x, y: this.camera.y, zoom: this.zoom };
+  }
+
   /** Center on a world point; minimap drags follow the pointer directly, clicks ease. */
   centerOn(x: number, y: number, animate = true): void {
     if (!this.initialized) return;
