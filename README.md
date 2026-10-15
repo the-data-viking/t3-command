@@ -132,7 +132,8 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   under `.t3/widgets/` in its workspace and keeps a feeder process rewriting the JSON. The
   `/widget` saved order gives it the spec. The crew panel shows its widgets live, with how old
   their data is (amber once stale). Each is drawn as a module of the station. Drag one onto the map to pin it,
-  anchored to that spot (scaling with the map from the zoom it was pinned at) or fixed on screen,
+  anchored to that spot as a module of the map (scaling with it from the zoom it was pinned at) or
+  fixed on screen as a HUD window,
   then move and resize it. Pins are shared by every device and go when the thread is
   archived. See [`docs/WIDGETS.md`](docs/WIDGETS.md).
 - **Turn history**: **History** (or **H**) shows what the fleet got done over 7, 30 or 90 days.

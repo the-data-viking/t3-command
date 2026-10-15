@@ -84,32 +84,41 @@ function useModule(envId: string) {
   }, [artStyle, team]);
 }
 
-/** Hull plating around its contents, drawn to fit (module-hull.ts) and redrawn as it resizes. */
-function ModuleHull({ artStyle, team, lit, children }: { artStyle: StyleId; team: number; lit: boolean; children: ReactNode }) {
+/** Its viewports are lit while the widget is live, as a station's are while its rooms are. */
+function useLit(feed: WidgetFeed): boolean {
+  const now = useClock(true, 10000);
+  return !feed.offline && !feed.dataError && feed.page !== undefined && !isStale(feed, now || Date.now());
+}
+
+/**
+ * Hull plating around its contents, drawn to fit (module-hull.ts) and redrawn as it resizes.
+ * `unit`: CSS px per world px, so a map pin's plating matches the stations' pixel for pixel.
+ */
+function ModuleHull({ artStyle, team, lit, unit = 1, className = "", children }: { artStyle: StyleId; team: number; lit: boolean; unit?: number; className?: string; children: ReactNode }) {
   const hull = useRef<HTMLDivElement>(null);
   const art = useRef<HTMLCanvasElement>(null);
   useLayoutEffect(() => {
     const el = hull.current, canvas = art.current;
     if (!el || !canvas) return;
     const draw = () => {
-      // Whole art pixels: an even size, at the screen's own resolution.
-      const w = Math.floor(el.clientWidth / 2) * 2, h = Math.floor(el.clientHeight / 2) * 2, dpr = window.devicePixelRatio || 1;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
+      // Whole art pixels: an even size in world px, at the screen's own resolution.
+      const w = Math.floor(el.clientWidth / unit / 2) * 2, h = Math.floor(el.clientHeight / unit / 2) * 2, dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(w * unit * dpr);
+      canvas.height = Math.round(h * unit * dpr);
+      canvas.style.width = `${w * unit}px`;
+      canvas.style.height = `${h * unit}px`;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.setTransform(dpr * unit, 0, 0, dpr * unit, 0, 0);
       drawModuleHull(ctx, w, h, artStyle, team, lit);
     };
     draw();
     const observer = new ResizeObserver(draw);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [artStyle, team, lit]);
+  }, [artStyle, team, lit, unit]);
   return (
-    <div className="module-hull" ref={hull} style={{ padding: `${HULL_PAD.top}px ${HULL_PAD.side}px ${HULL_PAD.bottom}px` }}>
+    <div className={`module-hull ${className}`} ref={hull} style={{ padding: `${HULL_PAD.top * unit}px ${HULL_PAD.side * unit}px ${HULL_PAD.bottom * unit}px` }}>
       <canvas ref={art} className="module-hull-art" aria-hidden />
       {children}
     </div>
@@ -178,9 +187,7 @@ function WidgetCard({ envId, threadId, cwd, id }: { envId: string; threadId: str
   const feed = useWidgetFeed(envId, cwd, id);
   const pin = useGame((s) => s.widgetPins.find((p) => p.envId === envId && p.cwd === cwd && p.widget === id));
   const materials = useModule(envId);
-  const now = useClock(true, 10000);
-  // Its viewports are lit while the widget is live, as a station's are while its rooms are.
-  const lit = !feed.offline && !feed.dataError && feed.page !== undefined && !isStale(feed, now || Date.now());
+  const lit = useLit(feed);
   const title = feed.meta.title ?? id;
   const size = pinSize(feed.meta);
   const base = { id: pin?.id ?? crypto.randomUUID(), envId, threadId: pin?.threadId ?? threadId, cwd, widget: id, w: pin?.w ?? size.w, h: pin?.h ?? size.h };
@@ -277,6 +284,9 @@ function PinnedWidget({ pin }: { pin: WidgetPin }) {
   const threadTitle = useGame((s) => s.envs[pin.envId]?.threads[pin.threadId]?.title);
   const feed = useWidgetFeed(pin.envId, pin.cwd, pin.widget);
   const hudTheme = useHudTheme();
+  // On the map it's part of the world, a module like the stations around it; on screen, HUD chrome.
+  const materials = useModule(pin.envId);
+  const lit = useLit(feed);
   const viewport = useViewport();
   const [moving, setMoving] = useState<WidgetPin>();
   const p = moving ?? pin;
@@ -373,21 +383,38 @@ function PinnedWidget({ pin }: { pin: WidgetPin }) {
     ? { width: p.w, height: p.h, transform: `translate(${clamp(p.x, VISIBLE_PX - p.w, viewport.w - VISIBLE_PX)}px, ${clamp(p.y, 0, viewport.h - 32)}px)` }
     : { width: p.w, height: p.h, visibility: offscreen ? "hidden" as const : undefined };
 
+  const bar = (
+    <header className="widget-bar" onPointerDown={begin("move")} onPointerMove={onMove} onPointerUp={end} onPointerCancel={end}>
+      <button className="widget-title" onClick={select} title={`${title}: from ${threadTitle || "a crew member"} (select them)`}>
+        {p.mode === "map" ? <PixelLabel text={title} /> : title}
+      </button>
+      <WidgetAge feed={feed} />
+      <span className="spacer" />
+      <button className="icon-btn widget-mode" onClick={toggleMode}
+        title={p.mode === "map" ? "Anchored to the map (scales with it): switch to fixed on screen" : "Fixed on screen: switch to anchored to the map"}>
+        {p.mode === "map" ? "⌖" : "▭"}
+      </button>
+      <button className="icon-btn" onClick={() => void removePin(pin.id)} title="Unpin">✕</button>
+    </header>
+  );
+  const grip = <div className="widget-grip" title="Resize" onPointerDown={begin("resize")} onPointerMove={onMove} onPointerUp={end} onPointerCancel={end} />;
+
   return <>
-    <div ref={box} className={`widget-window ${p.mode}`} style={style}>
-      <header className="widget-bar" onPointerDown={begin("move")} onPointerMove={onMove} onPointerUp={end} onPointerCancel={end}>
-        <button className="widget-title" onClick={select} title={`${title}: from ${threadTitle || "a crew member"} (select them)`}>{title}</button>
-        <WidgetAge feed={feed} />
-        <span className="spacer" />
-        <button className="icon-btn widget-mode" onClick={toggleMode}
-          title={p.mode === "map" ? "Anchored to the map (scales with it): switch to fixed on screen" : "Fixed on screen: switch to anchored to the map"}>
-          {p.mode === "map" ? "⌖" : "▭"}
-        </button>
-        <button className="icon-btn" onClick={() => void removePin(pin.id)} title="Unpin">✕</button>
-      </header>
-      <div className="widget-body"><WidgetFrame feed={feed} title={title} theme={hudTheme} /></div>
-      <div className="widget-grip" title="Resize" onPointerDown={begin("resize")} onPointerMove={onMove} onPointerUp={end} onPointerCancel={end} />
-    </div>
+    {p.mode === "map" ? (
+      <div ref={box} className="widget-window map module-pin" style={{ ...style, ...materials.style }}>
+        {bar}
+        <ModuleHull artStyle={materials.artStyle} team={materials.team} lit={lit} unit={p.zoom ?? 1} className="fill">
+          <div className="widget-room"><WidgetFrame feed={feed} title={title} theme={materials.theme} /></div>
+        </ModuleHull>
+        {grip}
+      </div>
+    ) : (
+      <div ref={box} className="widget-window screen" style={style}>
+        {bar}
+        <div className="widget-body"><WidgetFrame feed={feed} title={title} theme={hudTheme} /></div>
+        {grip}
+      </div>
+    )}
     {offscreen && <button ref={marker} className="widget-marker" onClick={() => showPin(p)} title={`Go to ${title} on the map`}>⌖ {title}</button>}
   </>;
 }
