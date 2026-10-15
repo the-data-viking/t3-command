@@ -285,3 +285,17 @@ test('every line runs inside a trunk along the bus and down its corridor', () =>
     }
   }
 });
+
+test('each wing gets a junction box over its corridor head, and every deck its cased drop', () => {
+  for (const [machines, projects] of [[1, 1], [5, 5], [6, 15]]) {
+    const layout = computeFleetLayout(fleet(machines, projects));
+    assert.ok(layout.junctions.length >= 1, `${machines}×${projects}: a junction box`);
+    const inside = (x: number, y: number) => layout.trunks.some(r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
+    for (const node of layout.environmentNodes.values()) {
+      if (!node.links.length) continue;
+      const from = node.links[0].from;
+      assert.ok(inside(from.x, from.y + 2), `${node.envId}'s drop leaves its deck inside a casing`);
+      for (const link of node.links) assert.ok(inside(link.to.x - Math.sign(link.to.x - link.via!.at(-1)!.x) * 4, link.to.y), `${node.envId} → ${link.stationKey} enters its port inside a casing`);
+    }
+  }
+});

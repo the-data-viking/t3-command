@@ -119,9 +119,12 @@ export interface FleetLayout {
   crew: Map<string, CrewLayout>;
   bounds: Rect;
   hub?: Rect;
-  /** The cable runs supply lines share, as overlapping rects: one band per bus lane, and each
-   * corridor narrowing as its lines turn off. Drawn as one casing under the lines. */
+  /** The cable runs supply lines share, as overlapping rects: one band per bus lane, each
+   * corridor narrowing as its lines turn off, each deck's drop onto the bus and each line's last
+   * run into its port. Drawn as one casing under the lines. */
   trunks: Rect[];
+  /** Junction boxes where a wing's corridor leaves the bus: housings over the lines' interchange. */
+  junctions: Rect[];
 }
 
 export interface ControlCenterLayout {
@@ -486,6 +489,9 @@ const snapRect = (x: number, y: number, w: number, h: number): Rect => {
   return { x: x0, y: y0, w: Math.round((x + w) / 2) * 2 - x0, h: Math.round((y + h) / 2) * 2 - y0 };
 };
 
+/** Casing around one straight leg of a line. */
+const segmentCase = (a: Point, b: Point): Rect => snapRect(Math.min(a.x, b.x) - TRUNK_PAD, Math.min(a.y, b.y) - TRUNK_PAD, Math.abs(b.x - a.x) + 2 * TRUNK_PAD, Math.abs(b.y - a.y) + 2 * TRUNK_PAD);
+
 type BusLine = { drop: number; downs: number[]; lo: number; hi: number };
 
 /** Crossings if `below`'s lane sits under `above`'s: its drop through `above`'s lane, and
@@ -532,7 +538,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   const hermes = envs.filter(env => env.summary.kind === 'hermes');
   const engineering = envs.filter(env => env.summary.kind !== 'hermes');
   const operators = hermes.length ? botOperators(state) : [];
-  const fleet: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, trunks: [] };
+  const fleet: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, trunks: [], junctions: [] };
   const groups = groupProjects(envs);
   if (envs.length === 0) return fleet;
   const crew: CrewLayout[] = [];
@@ -688,8 +694,17 @@ export function computeFleetLayout(state: GameState): FleetLayout {
       const exitY = slot.side === "centre" ? via[via.length - 2].y : portY;
       const left = Math.min(corridorX - TRUNK_PAD, mid - 2), right = Math.max(corridorX + TRUNK_PAD, mid + 2);
       fleet.trunks.push(snapRect(left, laneY(0) - TRUNK_PAD, right - left, exitY - laneY(0) + 2 * TRUNK_PAD));
-      return { stationKey: station.key, from, to: { x: station.port.x, y: portY }, via };
+      // And its own run out of the corridor into the port.
+      const to = { x: station.port.x, y: portY };
+      const out = [...via.slice(via.findIndex((p) => p.y === exitY && p.x === corridorX)), to];
+      for (let n = 1; n < out.length; n++) fleet.trunks.push(segmentCase(out[n - 1], out[n]));
+      return { stationKey: station.key, from, to, via };
     });
+    // The deck's drop onto the bus, once for all its lines: from the hatch to its lane.
+    if (links.length) {
+      const drop = [links[0].from, ...links[0].via.slice(0, links[0].via.findIndex((p) => p.y === busY) + 1)];
+      for (let n = 1; n < drop.length; n++) fleet.trunks.push(segmentCase(drop[n - 1], drop[n]));
+    }
     const bay = { x: x + ENV_BAY.x, y: nodeY + ENV_BAY.y, w: ENV_BAY.w, h: ENV_BAY.h };
     const scratch = scratchProject(env);
     let bayCrew: EnvironmentNodeLayout["scratch"];
@@ -703,6 +718,14 @@ export function computeFleetLayout(state: GameState): FleetLayout {
       plate: { x: x + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links, bay, hatchX: x + ENV_NODE_W / 2,
       ...(bayCrew ? { scratch: bayCrew } : {}) });
   });
+  // A junction box where each wing's corridor leaves the bus, over the lines' interchange.
+  if (machines) for (let w = 0; w < wings; w++) {
+    const xs = [...fleet.stations.values()].filter((s) => placed.get(s.key)?.wing === w)
+      .flatMap((s) => [...new Set(s.members.map((m) => m.envId))].map((envId) => corridorLane.get(`${envId}|${s.key}`)!));
+    if (!xs.length) continue;
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    fleet.junctions.push(snapRect(x0 - 12, laneY(0) - 12, x1 - x0 + 24, laneY(machines - 1) - laneY(0) + 24));
+  }
   if (hermes.length) {
     const hull = bridge;
     const envId = state.hermesCatalog?.envId && hermes.some(e => e.summary.id === state.hermesCatalog?.envId)
