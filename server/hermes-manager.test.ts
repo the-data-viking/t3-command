@@ -31,6 +31,7 @@ test('management uses trusted runtime bootstrap and stdin without shell interpol
     let text = ''; for await (const chunk of process.stdin) text += chunk;
     const req = JSON.parse(text);
     if (req.action === 'profiles.delete') { console.log(JSON.stringify({error:'Cannot delete default'})); process.exitCode=1; }
+    else if (req.action === 'profiles.path') console.log(JSON.stringify({result:{home:${JSON.stringify(dir)}}}));
     else console.log(JSON.stringify({result:{...req, argv:process.argv.slice(2)}}));
   `);
   const runtime = [process.execPath, fixture, '-c', "import runpy; runpy.run_module('hermes_cli.main', run_name='__main__', alter_sys=True)"];
@@ -41,6 +42,13 @@ test('management uses trusted runtime bootstrap and stdin without shell interpol
   assert.equal(response.body.prompt, prompt);
   assert.equal(response.profile, 'ci-watcher');
   assert.ok(response.argv.some(arg => arg.includes('runpy.run_path(sys.argv[1]')));
+  const chat = await manager.acpLaunch('ci-watcher', true);
+  const task = await manager.acpLaunch('ci-watcher', false);
+  assert.equal(path.basename(chat.args.at(-1)!), 'bot.py');
+  assert.equal(task.args.at(-1), '--task-session');
+  assert.equal(task.args.at(-2), chat.args.at(-1));
+  assert.equal(chat.env.HERMES_HOME, dir);
+  assert.equal(task.env.HERMES_HOME, dir);
   await assert.rejects(fs.stat(sentinel), { code: 'ENOENT' });
   await assert.rejects(manager.request('profiles.get', '../escape'), /Invalid Hermes profile/);
   await assert.rejects(manager.request('profiles.delete'), /Cannot delete default/);

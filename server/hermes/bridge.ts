@@ -444,7 +444,10 @@ export class HermesBridge {
     const t = entry.thread;
     const existing = this.runtimes.get(t.id);
     if (existing) { await existing.ready; return existing; }
-    const launch = entry.botChat && this.manager ? await this.manager.botLaunch(entry.profile ?? 'default')
+    // Native task sessions need the same delegation drain as canonical Bot Chat.
+    // Preserve explicit custom ACP launchers (including protocol fixtures).
+    const launch = this.manager && (entry.botChat || (this.launch.args.length === 1 && this.launch.args[0] === 'acp'))
+      ? await this.manager.acpLaunch(entry.profile ?? 'default', !!entry.botChat)
       : { command: this.launch.command, args: entry.profile && entry.profile !== 'default' ? ['-p', entry.profile, ...this.launch.args] : this.launch.args, env: undefined };
     const runtime: Runtime = {
       acp: new AcpProcess(launch.command, launch.args, this.project.workspaceRoot,
@@ -514,7 +517,8 @@ export class HermesBridge {
   }
 
   private finish(t: SavedThread["thread"], state: "completed" | "interrupted" | "error", error?: string): void {
-    // Fresh process per turn reloads profile memory/model/capabilities after other tasks.
+    // The adapter keeps session/prompt open through background delegation and its
+    // follow-up replies. Only then is it safe to release this process and bot lease.
     const runtime = this.runtimes.get(t.id);
     this.runtimes.delete(t.id);
     runtime?.acp.close();

@@ -399,7 +399,7 @@ from the stock app's, and you can revoke it there at any time.
 T3 Command can also launch [Hermes Agent](https://github.com/NousResearch/hermes-agent) workers
 on the same machine as the Command server. Hermes has its own control center for persistent
 operators, separate from T3 environments and repository-defined projects. T3 Code needs no provider changes. The browser uses the same authenticated Command server,
-which launches `hermes acp` and translates its local Agent Client Protocol stream into crew state.
+which runs Hermes's ACP adapter inside its native runtime and translates the stream into crew state.
 
 1. Install and configure Hermes on the Command host as the same OS user that runs Command:
    run `hermes setup`, then `hermes acp --check`. Use a Hermes release with ACP session modes
@@ -423,7 +423,12 @@ restarts and applies it to each new turn. During a running turn, a change applie
 edit checks; pending approval requests still need a response. These settings govern Command
 conversations, independently of Hermes Desktop chats and scheduled routines.
 
-Closing or reconnecting the browser leaves workers running. Command stores its transcripts and
+Closing a chat panel or reconnecting the browser leaves workers running. With the native launcher,
+background delegated agents keep the turn **Working** after the parent replies. Command waits
+for their results and runs the parent's follow-up before releasing the process and bot ownership.
+**Halt** also interrupts those delegated agents; redeployment stays blocked while they run.
+This applies to both Bot Chat and new task sessions. Explicit custom ACP launchers retain their
+own background-work lifecycle. Command stores its transcripts and
 Hermes session IDs in owner-only files under `T3C_DATA_DIR`. After a Command host restart, prior
 running turns become interrupted; the next order reloads the saved Hermes session. Removing a
 Hermes base stops its processes and deletes Command's transcripts; Hermes's own saved sessions
@@ -476,7 +481,9 @@ T3C_HERMES_ARGS='["-m","acp_adapter"]' npm start
 `T3C_HERMES_COMMAND` defaults to `hermes`; `T3C_HERMES_ARGS` defaults to `["acp"]` and must be a
 JSON array of strings. These settings are server-only; the browser chooses the workspace, never
 an executable or shell command. Verification uses an ACP fixture through the actual HTTP and
-WebSocket server; a configured real Hermes installation is still needed for a model-backed smoke test.
+WebSocket server. `T3C_TEST_HERMES_COMMAND=/absolute/path/to/hermes npm test` also checks native
+delegation, durable result delivery, and panel/browser disconnects in isolated test homes without
+model calls; a configured real Hermes installation is still needed for a model-backed smoke test.
 
 ### Protocol versions
 

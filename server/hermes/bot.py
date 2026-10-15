@@ -18,6 +18,71 @@ from acp_adapter.session import SessionManager
 from hermes_constants import get_hermes_home
 
 
+class CommandACPAgent(HermesACPAgent):
+    """Keep the owning ACP prompt alive through delegated work and its follow-up.
+
+    Command releases the process/lease when session/prompt returns. Native ACP
+    returns after the parent's first reply, while daemon delegation workers and
+    their completion queue still belong to that same process.
+    """
+
+    async def _prompt_once(self, prompt, session_id, **kwargs):
+        return await super().prompt(prompt, session_id, **kwargs)
+
+    async def cancel(self, session_id, **kwargs):
+        await super().cancel(session_id, **kwargs)
+        # The stable ACP key also covers children started before head compression.
+        from tools.async_delegation import interrupt_for_session
+        await asyncio.to_thread(interrupt_for_session, session_key=session_id, reason='acp_cancel')
+
+    async def prompt(self, prompt, session_id, **kwargs):
+        from acp.schema import PromptResponse
+        from tools.async_delegation import (
+            claim_event_delivery, complete_event_delivery, has_live_for_session, release_event_delivery,
+        )
+        from tools.process_registry import process_registry
+
+        result = await self._prompt_once(prompt, session_id, **kwargs)
+        state = await asyncio.to_thread(self.session_manager.get_session, session_id)
+        if state is None:
+            return result
+
+        def cancelled():
+            return state.cancel_event is not None and state.cancel_event.is_set()
+
+        while result.stop_reason == 'end_turn' and not cancelled():
+            # Read liveness BEFORE draining: finalizing stays live until the native
+            # worker has durably saved and enqueued its result. Reversing this order
+            # can miss that last result and let Command kill its owner.
+            live = await asyncio.to_thread(has_live_for_session, session_key=session_id)
+            notifications = await asyncio.to_thread(
+                process_registry.drain_notifications, session_key=session_id,
+                owns_event=lambda event: event.get('type') == 'async_delegation'
+                and event.get('session_key') == session_id,
+            )
+            for event, text in notifications:
+                if cancelled():
+                    return PromptResponse(stop_reason='cancelled')
+                claim = await asyncio.to_thread(claim_event_delivery, event, 't3-command-acp')
+                if claim is None:
+                    continue
+                try:
+                    # Use Hermes's normal prompt path so streaming, approvals,
+                    # persistence and further delegations behave like the first turn.
+                    result = await self._prompt_once([acp.text_block(text)], session_id, **kwargs)
+                    if result.stop_reason != 'end_turn' or cancelled():
+                        await asyncio.to_thread(release_event_delivery, event, claim)
+                        return PromptResponse(stop_reason='cancelled') if cancelled() else result
+                    await asyncio.to_thread(complete_event_delivery, event, claim)
+                except BaseException:
+                    await asyncio.to_thread(release_event_delivery, event, claim)
+                    raise
+            if not live and not notifications:
+                break
+            await asyncio.sleep(0.2)
+        return PromptResponse(stop_reason='cancelled') if cancelled() else result
+
+
 class BotSessionManager(SessionManager):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -94,7 +159,8 @@ def main():
         start_background_mcp_discovery(logger=logger, thread_name='t3-command-bot-mcp')
     except Exception:
         logger.debug('MCP discovery failed', exc_info=True)
-    agent = HermesACPAgent(session_manager=BotSessionManager())
+    manager = SessionManager() if '--task-session' in sys.argv else BotSessionManager()
+    agent = CommandACPAgent(session_manager=manager)
     try:
         asyncio.run(acp.run_agent(agent, use_unstable_protocol=True))
     finally:

@@ -39,10 +39,10 @@ export class HermesManager {
     return this.runtime;
   }
 
-  async botLaunch(profile: string): Promise<{ command: string; args: string[]; env: NodeJS.ProcessEnv }> {
+  async acpLaunch(profile: string, botChat: boolean): Promise<{ command: string; args: string[]; env: NodeJS.ProcessEnv }> {
     const runtime = await this.runtimeCommand();
     const { home } = await this.request<{ home: string }>('profiles.path', profile);
-    return { command: runtime[0], args: [...runtime.slice(1, -1), fileURLToPath(new URL('./bot.py', import.meta.url))],
+    return { command: runtime[0], args: [...runtime.slice(1, -1), fileURLToPath(new URL('./bot.py', import.meta.url)), ...(!botChat ? ['--task-session'] : [])],
       env: { ...process.env, HERMES_HOME: home } };
   }
 
