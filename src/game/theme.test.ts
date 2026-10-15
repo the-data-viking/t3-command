@@ -8,13 +8,16 @@ import { BOT_COLORS } from "../t3/bots";
 import { BADGES } from "./map-common";
 import { ART_STYLES } from "../store";
 import { STYLES } from "../art/palettes";
+import { moduleMaterials } from "../ui/widget-theme";
 
 const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const stylesheet = fs.readFileSync(path.join(src, "index.css"), "utf8");
 const components = fs.readdirSync(path.join(src, "ui")).filter((f) => f.endsWith(".tsx"))
   .map((f) => fs.readFileSync(path.join(src, "ui", f), "utf8")).join("\n");
 /** Set per element at runtime: team/visor/bot colors, portrait size, measured top bar height. */
-const RUNTIME = new Set(["--team", "--visor", "--size", "--bot", "--topbar-bottom"]);
+const RUNTIME = new Set(["--team", "--visor", "--size", "--bot", "--topbar-bottom",
+  // A widget card's station materials (and its deck texture), set on the card from the world's palette.
+  ...Object.keys(moduleMaterials("flightdeck-nightshift", 0).vars), "--module-floor"]);
 const LIVE_STYLES = ART_STYLES;
 
 test("every CSS variable the HUD reads is generated from the theme or derived in the stylesheet", () => {

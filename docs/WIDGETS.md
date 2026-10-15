@@ -24,6 +24,11 @@ Ask for one with the `/widget` saved order (it carries the spec below), e.g.
   inline scripts and styles, plus scripts, styles, fonts and images from `https:` URLs, are
   allowed. Network requests (`fetch`, XHR, WebSocket), cookies, `localStorage`, popups, forms and
   navigation are blocked. All data comes through the JSON file.
+- **Theme:** style the page with Command's colours so it matches where it's shown and follows the
+  map's theme: `--t3-bg` (the page's default background), `--t3-surface`, `--t3-text`, `--t3-muted`,
+  `--t3-line`, `--t3-accent`, `--t3-ok`, `--t3-warn`, `--t3-bad`, and `--t3-font` (a monospace
+  stack). In the crew panel they're the station's materials (deck, walls, the station's team colour
+  as the accent); pinned, they're the HUD's. They change live, without a reload.
 - **Optional meta tags:** `<title>` names the widget.
   `<meta name="t3-widget-size" content="420x260">` is its size when pinned (default 380×240), and
   `<meta name="t3-widget-stale-after" content="300">` is how many seconds without an update before
@@ -37,7 +42,9 @@ Ask for one with the `/widget` saved order (it carries the spec below), e.g.
   of each live thread on connected T3 machines, using T3's `projects.listEntries` and
   `projects.readFile`. A new widget is announced in the comms log. Threads sharing a workspace
   (no worktree) share its widgets. Hermes operators have no workspace files, so no widgets.
-- **Crew panel:** a WIDGETS section lists the workspace's widgets, live, with the data's age. It
+- **Crew panel:** a WIDGETS section lists the workspace's widgets, live, with the data's age. Each is
+  drawn as a module of the station, in the world's materials: stepped hull plating, a port in the
+  station's team colour, and the page in a walled room on the deck. It
   turns amber ("stale") when the data is older than the page allows, and says so when the data
   file is unreadable or the machine is unreachable.
 - **Pinning:** drag a widget's title bar onto the map, or use **Pin to map** / **Pin to screen**.

@@ -1,10 +1,17 @@
 // Agent widgets on screen: listed in the crew's panel, dragged out onto the map to pin them, and
 // shown pinned either anchored to a spot on the map or fixed on screen (see src/t3/widgets.ts).
 
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { PIN_SIZE, type PinMode, type WidgetPin } from "../../shared/widgets";
+import { STYLES } from "../art/palettes";
+import { rasterize } from "../art/render";
+import * as A from "../art/sprites";
+import { stationColor } from "../game/layout";
+import { hudTokens } from "../game/theme";
 import { worldRef } from "../game/world";
+import { PixelLabel } from "./PixelArt";
+import { hudWidgetTheme, moduleMaterials, themeCss } from "./widget-theme";
 import { hudInsets } from "./hud-insets";
 import { setSelection, useGame } from "../store";
 import { isStale, pinSize, putPin, refreshWorkspaceWidgets, removePin, threadCwd, useWidgetFeed, widgetDocument, workspaceKey, type WidgetFeed } from "../t3/widgets";
@@ -57,17 +64,40 @@ function dragging(on: boolean): void {
 
 const updatedAt = (f: WidgetFeed) => f.dataAt === undefined ? undefined : new Date(f.dataAt).toISOString();
 
-/** The page in a sandboxed frame: no same-origin access, its data posted in as it changes. */
-function WidgetFrame({ feed, title }: { feed: WidgetFeed; title: string }) {
+/** A widget in the panel is a station module: the world's hull, walls and deck, and the station's team colour. */
+function useModule(envId: string) {
+  const artStyle = useGame((s) => s.artStyle);
+  const team = useGame((s) => stationColor(s, envId));
+  return useMemo(() => {
+    const m = moduleMaterials(artStyle, team);
+    const floor = rasterize(A.FLOOR, STYLES[artStyle]).toDataURL();
+    return { silhouette: m.silhouette, style: { ...m.vars, "--module-floor": `url(${floor})` } as CSSProperties, theme: themeCss(m.theme) };
+  }, [artStyle, team]);
+}
+
+/** Pinned, a widget is HUD chrome, and its page takes the HUD's colours. */
+function useHudTheme(): string {
+  const artStyle = useGame((s) => s.artStyle);
+  return useMemo(() => {
+    const tokens = hudTokens(artStyle);
+    return themeCss(hudWidgetTheme((name) => tokens[name] ?? ""));
+  }, [artStyle]);
+}
+
+/** The page in a sandboxed frame: no same-origin access, its data and theme posted in as they change. */
+function WidgetFrame({ feed, title, theme }: { feed: WidgetFeed; title: string; theme: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const latest = useRef(feed);
   latest.current = feed;
-  // Rebuilt only when the page changes; data changes are posted in without a reload.
-  const doc = useMemo(() => feed.page === undefined ? undefined : widgetDocument(feed.page, latest.current.data, updatedAt(latest.current)), [feed.page]);
+  const latestTheme = useRef(theme);
+  latestTheme.current = theme;
+  // Rebuilt only when the page changes; data and theme changes are posted in without a reload.
+  const doc = useMemo(() => feed.page === undefined ? undefined : widgetDocument(feed.page, latest.current.data, updatedAt(latest.current), latestTheme.current), [feed.page]);
   const post = useCallback(() => {
-    frame.current?.contentWindow?.postMessage({ type: "t3-widget-data", data: latest.current.data, updatedAt: updatedAt(latest.current) }, "*");
+    frame.current?.contentWindow?.postMessage({ type: "t3-widget-data", data: latest.current.data, updatedAt: updatedAt(latest.current), theme: latestTheme.current }, "*");
   }, []);
   useEffect(post, [feed.data, feed.dataAt, post]);
+  useEffect(() => { frame.current?.contentWindow?.postMessage({ type: "t3-widget-data", theme }, "*"); }, [theme]);
   if (doc === undefined) return <div className="widget-note muted">{feed.pageError ?? (feed.offline ? "Machine unreachable" : "Loading…")}</div>;
   return <iframe ref={frame} className="widget-frame" title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={doc} onLoad={post} />;
 }
@@ -106,6 +136,7 @@ export function ThreadWidgets({ envId, threadId }: { envId: string; threadId: st
 function WidgetCard({ envId, threadId, cwd, id }: { envId: string; threadId: string; cwd: string; id: string }) {
   const feed = useWidgetFeed(envId, cwd, id);
   const pin = useGame((s) => s.widgetPins.find((p) => p.envId === envId && p.cwd === cwd && p.widget === id));
+  const materials = useModule(envId);
   const title = feed.meta.title ?? id;
   const size = pinSize(feed.meta);
   const base = { id: pin?.id ?? crypto.randomUUID(), envId, threadId: pin?.threadId ?? threadId, cwd, widget: id, w: pin?.w ?? size.w, h: pin?.h ?? size.h };
@@ -151,25 +182,27 @@ function WidgetCard({ envId, threadId, cwd, id }: { envId: string; threadId: str
   };
 
   return (
-    <div className={`widget-card ${pin ? "pinned" : ""}`}>
-      <header className="widget-bar" title="Drag onto the map to pin it there"
-        onPointerDown={onPointerDown} onPointerMove={onPointerMove}
-        onPointerUp={(e) => endDrag(e, true)} onPointerCancel={(e) => endDrag(e, false)}>
-        <span className="widget-grab" aria-hidden>⠿</span>
-        <span className="widget-title" title={`${title} · .t3/widgets/${id}.html`}>{title}</span>
-        <WidgetAge feed={feed} />
-        <span className="spacer" />
-        {pin ? <>
-          {pin.mode === "map" && <button className="btn small" onClick={() => showPin(pin)} title="Go to it on the map">Show</button>}
-          <button className="btn small" onClick={() => void removePin(pin.id)} title={`Pinned ${pin.mode === "map" ? "to the map" : "on screen"}: take it off`}>Unpin</button>
-        </> : <>
-          <button className="btn small" onClick={() => pinHere("map")} title="Pin it to the map, where it moves with the map (or drag it there)">Pin to map</button>
-          <button className="btn small" onClick={() => pinHere("screen")} title="Pin it on screen, where it stays while the map moves">Pin to screen</button>
-        </>}
-      </header>
-      {pin
-        ? <div className="widget-note muted">Pinned {pin.mode === "map" ? "to the map" : "on screen"}. Drag the title bar onto the map to move it.</div>
-        : <div className="widget-body" style={{ height: Math.min(size.h, 300) }}><WidgetFrame feed={feed} title={title} /></div>}
+    <div className={`widget-card ${materials.silhouette} ${pin ? "pinned" : ""}`} style={materials.style}>
+      <div className="module-hull">
+        <header className="widget-bar" title="Drag onto the map to pin it there"
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+          onPointerUp={(e) => endDrag(e, true)} onPointerCancel={(e) => endDrag(e, false)}>
+          <span className="module-port" aria-hidden />
+          <span className="widget-title" title={`${title} · .t3/widgets/${id}.html`}><PixelLabel text={title} /></span>
+          <WidgetAge feed={feed} />
+          <span className="spacer" />
+          {pin ? <>
+            {pin.mode === "map" && <button className="btn small" onClick={() => showPin(pin)} title="Go to it on the map">Show</button>}
+            <button className="btn small" onClick={() => void removePin(pin.id)} title={`Pinned ${pin.mode === "map" ? "to the map" : "on screen"}: take it off`}>Unpin</button>
+          </> : <>
+            <button className="btn small" onClick={() => pinHere("map")} title="Pin it to the map, where it moves with the map (or drag it there)">Pin to map</button>
+            <button className="btn small" onClick={() => pinHere("screen")} title="Pin it on screen, where it stays while the map moves">Pin to screen</button>
+          </>}
+        </header>
+        {pin
+          ? <div className="widget-note">Pinned {pin.mode === "map" ? "to the map" : "on screen"}. Drag the title bar onto the map to move it.</div>
+          : <div className="widget-room" style={{ height: Math.min(size.h, 300) }}><WidgetFrame feed={feed} title={title} theme={materials.theme} /></div>}
+      </div>
       {ghost && createPortal(
         <div className={`widget-ghost ${ghost.over ? "" : "cannot"}`} style={{ left: ghost.x, top: ghost.y, width: base.w, height: base.h }}>
           <span>{ghost.over ? `Pin ${title} here` : "Drop it on the map"}</span>
@@ -200,6 +233,7 @@ function useViewport(): { w: number; h: number } {
 function PinnedWidget({ pin }: { pin: WidgetPin }) {
   const threadTitle = useGame((s) => s.envs[pin.envId]?.threads[pin.threadId]?.title);
   const feed = useWidgetFeed(pin.envId, pin.cwd, pin.widget);
+  const hudTheme = useHudTheme();
   const viewport = useViewport();
   const [moving, setMoving] = useState<WidgetPin>();
   const p = moving ?? pin;
@@ -302,7 +336,7 @@ function PinnedWidget({ pin }: { pin: WidgetPin }) {
         </button>
         <button className="icon-btn" onClick={() => void removePin(pin.id)} title="Unpin">✕</button>
       </header>
-      <div className="widget-body"><WidgetFrame feed={feed} title={title} /></div>
+      <div className="widget-body"><WidgetFrame feed={feed} title={title} theme={hudTheme} /></div>
       <div className="widget-grip" title="Resize" onPointerDown={begin("resize")} onPointerMove={onMove} onPointerUp={end} onPointerCancel={end} />
     </div>
     {offscreen && <button ref={marker} className="widget-marker" onClick={() => showPin(p)} title={`Go to ${title} on the map`}>⌖ {title}</button>}

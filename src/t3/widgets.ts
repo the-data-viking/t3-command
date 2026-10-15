@@ -159,14 +159,20 @@ function decodeEntities(text: string): string {
  */
 export const WIDGET_CSP = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; media-src data: blob: https:; connect-src 'none'; base-uri 'none'; form-action 'none'";
 
-/** The page with Command's policy and the t3widget API ahead of everything it has. */
-export function widgetDocument(html: string, data: unknown, updatedAt: string | undefined): string {
+/**
+ * The page with Command's policy, its theme (--t3-* colours for where it's shown) and the t3widget
+ * API ahead of everything it has. Data and theme changes are posted in later, without a reload.
+ */
+export function widgetDocument(html: string, data: unknown, updatedAt: string | undefined, theme = ""): string {
   const json = (v: unknown) => (JSON.stringify(v) ?? "undefined").replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
   const preamble = `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${WIDGET_CSP}">` +
+    `<style id="t3-theme">${theme.replace(/</g, "")}</style>` +
     `<script>(()=>{let data=${json(data)},at=${json(updatedAt)};const subs=[];` +
     `const call=(fn)=>{try{fn(data,at)}catch(e){console.error(e)}};` +
     `window.t3widget={get data(){return data},get updatedAt(){return at},onData(fn){subs.push(fn);if(data!==undefined)call(fn)}};` +
-    `addEventListener("message",(e)=>{const m=e.data;if(e.source!==parent||!m||m.type!=="t3-widget-data")return;data=m.data;at=m.updatedAt;subs.forEach(call)})})()</script>`;
+    `addEventListener("message",(e)=>{const m=e.data;if(e.source!==parent||!m||m.type!=="t3-widget-data")return;` +
+    `if(typeof m.theme==="string"){const t=document.getElementById("t3-theme");if(t&&t.textContent!==m.theme)t.textContent=m.theme}` +
+    `if(!("data" in m))return;data=m.data;at=m.updatedAt;subs.forEach(call)})})()</script>`;
   // Right after <head>, or the doctype: anything ahead of a doctype would put the page in quirks mode.
   const head = /<head(\s[^>]*)?>/i.exec(html);
   if (head) return html.slice(0, head.index + head[0].length) + preamble + html.slice(head.index + head[0].length);
