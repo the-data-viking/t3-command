@@ -125,6 +125,10 @@ export interface FleetLayout {
   trunks: Rect[];
   /** Junction boxes where a wing's corridor leaves the bus: housings over the lines' interchange. */
   junctions: Rect[];
+  /** Elbow fittings where a cased run turns a corner (its centre). */
+  fittings: Point[];
+  /** Bolted flanges where a run meets a deck's hatch or a station's port; `vertical` is the run's direction. */
+  flanges: Array<Point & { vertical: boolean }>;
 }
 
 export interface ControlCenterLayout {
@@ -538,7 +542,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   const hermes = envs.filter(env => env.summary.kind === 'hermes');
   const engineering = envs.filter(env => env.summary.kind !== 'hermes');
   const operators = hermes.length ? botOperators(state) : [];
-  const fleet: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, trunks: [], junctions: [] };
+  const fleet: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, trunks: [], junctions: [], fittings: [], flanges: [] };
   const groups = groupProjects(envs);
   if (envs.length === 0) return fleet;
   const crew: CrewLayout[] = [];
@@ -653,6 +657,7 @@ export function computeFleetLayout(state: GameState): FleetLayout {
   const bridgeH = HALL_HEAD + Math.max(1, Math.ceil(operators.length / 4)) * HERMES_BAY_PITCH + HALL_FOOT;
   const bridge = { x: -bridgeW / 2, y: -HALL_TO_DECKS - bridgeH, w: bridgeW, h: bridgeH };
 
+  const corridorDepth = new Map<number, number>();
   engineering.forEach((env, index) => {
     const key = env.summary.id;
     const deck = deckAt(index);
@@ -661,8 +666,6 @@ export function computeFleetLayout(state: GameState): FleetLayout {
     const k = busLane.get(key) ?? index;
     const busY = laneY(k);
     const projects = [...fleet.stations.values()].filter(station => station.members.some(m => m.envId === key));
-    // This machine's band of the bus trunk, under its run from its drop to its farthest corridor.
-    if (projects.length) fleet.trunks.push(snapRect(busLines[index].lo - TRUNK_PAD, busY - TRUNK_PAD, busLines[index].hi - busLines[index].lo + 2 * TRUNK_PAD, 2 * TRUNK_PAD));
     const links = projects.map(station => {
       const slot = placed.get(station.key)!;
       const members = [...new Set(station.members.map(m => m.envId))];
@@ -689,21 +692,25 @@ export function computeFleetLayout(state: GameState): FleetLayout {
         const sideX = station.bounds.x - 24 - (of - 1 - n) * LANE;
         via.push({ x: corridorX, y: turnY }, { x: sideX, y: turnY }, { x: sideX, y: portY });
       } else via.push({ x: corridorX, y: portY });
-      // The corridor trunk holds this line from the bus to where it turns off, out to the middle.
-      const mid = wingCentre(slot.wing);
+      // The wing's corridor holds this line down to where it turns off.
       const exitY = slot.side === "centre" ? via[via.length - 2].y : portY;
-      const left = Math.min(corridorX - TRUNK_PAD, mid - 2), right = Math.max(corridorX + TRUNK_PAD, mid + 2);
-      fleet.trunks.push(snapRect(left, laneY(0) - TRUNK_PAD, right - left, exitY - laneY(0) + 2 * TRUNK_PAD));
-      // And its own run out of the corridor into the port.
+      corridorDepth.set(slot.wing, Math.max(corridorDepth.get(slot.wing) ?? 0, exitY));
+      // And its own cased run out of the corridor into the port: an elbow at each corner, a
+      // flange where it meets the hull.
       const to = { x: station.port.x, y: portY };
       const out = [...via.slice(via.findIndex((p) => p.y === exitY && p.x === corridorX)), to];
       for (let n = 1; n < out.length; n++) fleet.trunks.push(segmentCase(out[n - 1], out[n]));
+      fleet.fittings.push(...out.slice(1, -1));
+      // (Just outside the hull's port plate, on the side the run comes from.)
+      fleet.flanges.push({ x: to.x - Math.sign(to.x - out[out.length - 2].x) * 10, y: to.y, vertical: false });
       return { stationKey: station.key, from, to, via };
     });
     // The deck's drop onto the bus, once for all its lines: from the hatch to its lane.
     if (links.length) {
       const drop = [links[0].from, ...links[0].via.slice(0, links[0].via.findIndex((p) => p.y === busY) + 1)];
       for (let n = 1; n < drop.length; n++) fleet.trunks.push(segmentCase(drop[n - 1], drop[n]));
+      fleet.fittings.push(...drop.slice(1, -1));
+      fleet.flanges.push({ x: links[0].from.x, y: links[0].from.y + 6, vertical: true });
     }
     const bay = { x: x + ENV_BAY.x, y: nodeY + ENV_BAY.y, w: ENV_BAY.w, h: ENV_BAY.h };
     const scratch = scratchProject(env);
@@ -718,12 +725,20 @@ export function computeFleetLayout(state: GameState): FleetLayout {
       plate: { x: x + 8, y: nodeY + ENV_NODE_H - 26, w: ENV_NODE_W - 16, h: 20 }, links, bay, hatchX: x + ENV_NODE_W / 2,
       ...(bayCrew ? { scratch: bayCrew } : {}) });
   });
-  // A junction box where each wing's corridor leaves the bus, over the lines' interchange.
+  // The bus: one straight trunk under the decks, end to end of every machine's run along it.
+  const used = busLines.filter((_, i) => fleet.environmentNodes.get(engineering[i].summary.id)?.links.length);
+  if (used.length) {
+    const lo = Math.min(...used.map((b) => b.lo)), hi = Math.max(...used.map((b) => b.hi));
+    fleet.trunks.push(snapRect(lo - TRUNK_PAD, laneY(0) - TRUNK_PAD, hi - lo + 2 * TRUNK_PAD, laneY(machines - 1) - laneY(0) + 2 * TRUNK_PAD));
+  }
+  // Each wing's corridor, one constant width down to its deepest turn-off, and a junction box where
+  // it leaves the bus, over the lines' interchange.
   if (machines) for (let w = 0; w < wings; w++) {
     const xs = [...fleet.stations.values()].filter((s) => placed.get(s.key)?.wing === w)
       .flatMap((s) => [...new Set(s.members.map((m) => m.envId))].map((envId) => corridorLane.get(`${envId}|${s.key}`)!));
     if (!xs.length) continue;
     const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    fleet.trunks.push(snapRect(x0 - TRUNK_PAD, laneY(0) - TRUNK_PAD, x1 - x0 + 2 * TRUNK_PAD, (corridorDepth.get(w) ?? laneY(0)) - laneY(0) + 2 * TRUNK_PAD));
     fleet.junctions.push(snapRect(x0 - 12, laneY(0) - 12, x1 - x0 + 24, laneY(machines - 1) - laneY(0) + 24));
   }
   if (hermes.length) {

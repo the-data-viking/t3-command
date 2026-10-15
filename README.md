@@ -19,9 +19,10 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   machines that serve it, a lone project centred under the keel. Terminal, files, comms, cryo
   bay, and archive chambers flank a central commons. Every machine runs a supply line in its team
   color down onto a bus under the decks and along a corridor to each project it serves, inside
-  cased trunks that narrow as lines turn off (every run is cased, from each deck's drop to each
-  line's entry into its port, with lit and shaded edges, clamps every few metres, and a junction
-  box where each corridor leaves the bus); lines cross only on the bus, packets keep one speed
+  armoured cable trays (every run, from each deck's drop to each line's entry into its port, and
+  the Hermes spine: a metal rim lit along its top and left, a dark channel the lines glow in, lit
+  brackets strapped across every 64 px, an elbow fitting at each corner, a bolted flange where a run
+  meets a deck or a port, and a junction box where each corridor leaves the bus); lines cross only on the bus, packets keep one speed
   round every bend, and shared repositories keep their crew together. A solid supply
   line means that machine has crew awake at the station; a project it merely has checked out is
   a dim dotted hairline. Lines thicken as you zoom out, so the network never vanishes, and deck
