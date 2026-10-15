@@ -296,10 +296,18 @@ export interface ProjectClone {
 export type ServerConfigEvent =
   | { type: "snapshot"; config: ServerConfig }
   | { type: "providerStatuses"; payload: { providers: Provider[] } }
+  | { type: "settingsUpdated"; payload: { settings: ServerSettings } }
   | { type: string };
 
 export interface ServerConfig {
   providers: Provider[];
+  settings?: ServerSettings;
+}
+
+/** The parts of T3's server settings Command reads. */
+export interface ServerSettings {
+  defaultModelSelection?: ModelSelection | null;
+  projectSettingsOverrides?: Record<string, { defaultModelSelection?: ModelSelection | null }>;
 }
 
 /** A pending approval or question, derived from a thread's activities. */

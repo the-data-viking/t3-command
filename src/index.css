@@ -993,6 +993,11 @@ select:focus {
   min-width: 0;
 }
 
+.recruit-options .default-mark {
+  align-self: center;
+  white-space: nowrap;
+}
+
 .recruit-workspace {
   display: flex;
   flex-direction: column;
@@ -1207,6 +1212,7 @@ select:focus {
 
 .env-list li {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
   align-items: center;
   border: 1px solid var(--hairline);
@@ -1214,9 +1220,30 @@ select:focus {
 }
 
 .env-info {
-  flex: 1;
+  flex: 1 1 220px;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.env-routing {
+  white-space: nowrap;
+}
+
+.default-model-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1h);
+  padding: var(--space-1) 0;
+}
+
+.default-model-row > label {
+  flex: 0 0 9rem;
+}
+
+.default-model-row select {
+  flex: 1 1 140px;
+  min-width: 0;
 }
 
 .steps {

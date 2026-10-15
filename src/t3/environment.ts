@@ -34,6 +34,7 @@ import type {
   VcsRemoteStatus,
   VcsStatusEvent,
 } from "./types";
+import { t3Defaults } from "./model-defaults";
 
 /** Close codes sent by the t3-command relay (server/index.ts). */
 const CLOSE_NEEDS_PAIRING = 4401;
@@ -187,6 +188,9 @@ export class EnvironmentClient {
         const providers = event.type === "snapshot" && "config" in event ? event.config.providers
           : event.type === "providerStatuses" && "payload" in event ? event.payload.providers : undefined;
         if (providers) updateEnv(this.id, (e) => ({ ...e, providers }));
+        const settings = event.type === "snapshot" && "config" in event ? event.config.settings
+          : event.type === "settingsUpdated" && "payload" in event ? event.payload.settings : undefined;
+        if (settings) updateEnv(this.id, (e) => ({ ...e, t3Defaults: t3Defaults(settings) }));
       }
     }, (err) => {
       if (!err || err.tag === "Disconnected" || this.disposed || this.rpc !== rpc || !rpc.isOpen) return;
@@ -199,7 +203,7 @@ export class EnvironmentClient {
   private async fetchConfig(): Promise<void> {
     try {
       const config = await this.rpc!.request<ServerConfig>("server.getConfig");
-      updateEnv(this.id, (e) => ({ ...e, providers: config.providers }));
+      updateEnv(this.id, (e) => ({ ...e, providers: config.providers, ...(config.settings ? { t3Defaults: t3Defaults(config.settings) } : {}) }));
     } catch (err) {
       console.warn(`[${this.summary.label}] server.getConfig failed`, err);
     }

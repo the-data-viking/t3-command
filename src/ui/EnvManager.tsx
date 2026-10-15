@@ -6,9 +6,13 @@ import { fetchJson, refreshEnvironments } from "../t3/environment";
 import { worldRef } from '../game/world';
 import { HermesMark } from './HermesControlCenter';
 import { timeAgo } from "./util";
+import { DefaultModels } from "./DefaultModels";
+import { ROUTING_LEVELS, type RoutingLevel } from "../../shared/prefs";
+import { patchPrefs } from "../t3/prefs";
 
 export function EnvManager() {
   const envs = useGame((s) => s.envs);
+  const routing = useGame((s) => s.prefs.routing);
   const [mode, setMode] = useState<"ssh" | "link" | "hermes">("ssh");
   const [workspaceRoot, setWorkspaceRoot] = useState("");
   const [sshTarget, setSshTarget] = useState("");
@@ -121,12 +125,22 @@ export function EnvManager() {
                   {` · added ${timeAgo(env.summary.addedAt)}`}
                 </div>
               </div>
+              <label className="small env-routing" title="How often a new request is routed here automatically. Manual only: never picked for you, still yours to pick.">
+                Auto-routing{" "}
+                <select value={routing[env.summary.id] ?? "normal"} onChange={(e) => {
+                  const level = e.target.value as RoutingLevel;
+                  patchPrefs({ routing: { [env.summary.id]: level === "normal" ? null : level } }).catch((err: Error) => setError(err.message));
+                }}>
+                  {ROUTING_LEVELS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                </select>
+              </label>
               <button className="btn danger" onClick={() => void remove(env.summary)}>
                 {env.summary.linked ? "Unlink" : "Remove"}
               </button>
             </li>
           ))}
         </ul>
+        <DefaultModels />
         {list.some(e => e.summary.kind === 'hermes') && <section className="hermes-connection"><h3>Operations</h3>
           {list.filter(e => e.summary.kind === 'hermes').map(env => <div className="hermes-actions" key={env.summary.id}><HermesMark />
             <div className="spacer"><strong>Hermes control center</strong><div className="muted small">{env.connection} · local operators</div></div>

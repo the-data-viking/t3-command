@@ -7,6 +7,7 @@ import type { StorageView } from "../../shared/storage";
 import { hostView, type HostState } from "../t3/host";
 import { storageSummary } from "../t3/storage";
 import { isHistory } from "../t3/derive";
+import { ROUTING_LEVELS, type RoutingLevel } from "../../shared/prefs";
 
 const LAST_KEY = "t3c:new-request:last";
 
@@ -31,15 +32,32 @@ export function rememberProject(key: string): void {
   try { localStorage.setItem(LAST_KEY, key); } catch { /* per-browser convenience */ }
 }
 
-export interface MachineChoice { envId: string; label: string; ok: boolean; reason: string; score: number }
+export interface MachineChoice {
+  envId: string;
+  label: string;
+  ok: boolean;
+  reason: string;
+  score: number;
+  /** How eagerly auto-routing picks this machine (see Machines). */
+  level: RoutingLevel;
+  /** Auto-routing may pick it: reachable, room on disk, and not set to Manual only. */
+  auto: boolean;
+  /** Its CPU load has been read (routing waits a moment for this). */
+  measured: boolean;
+}
+
+const WEIGHT = Object.fromEntries(ROUTING_LEVELS.map((l) => [l.id, l.weight])) as Record<RoutingLevel, number>;
+const LEVEL_NOTE: Partial<Record<RoutingLevel, string>> = { prefer: "preferred", less: "used less often", manual: "manual only" };
 
 /**
  * Every machine with this project checked out, best first: reachable, its disk not about to fill,
- * then the least busy (CPU, then crew working there). Each says why, so the pick is never a mystery.
+ * open to auto-routing, then the least busy (CPU, then crew working there) scaled by its routing
+ * level. Each says why, so the pick is never a mystery.
  */
-export function machineChoices(group: ProjectGroup, hosts: Record<string, HostState>, storage: Record<string, StorageView>, now = Date.now()): MachineChoice[] {
+export function machineChoices(group: ProjectGroup, hosts: Record<string, HostState>, storage: Record<string, StorageView>, routing: Record<string, RoutingLevel> = {}, now = Date.now()): MachineChoice[] {
   return group.members.map(({ env, project }) => {
     const id = env.summary.id;
+    const level = routing[id] ?? "normal";
     const live = env.connection === "live";
     const disk = storageSummary(storage[id], now);
     const cpu = hostView(hosts[id], env.connection, now).cpuFraction;
@@ -49,11 +67,16 @@ export function machineChoices(group: ProjectGroup, hosts: Record<string, HostSt
       cpu !== undefined ? `${Math.round(cpu * 100)}% CPU` : "CPU unknown",
       disk.usedFraction !== undefined ? `disk ${Math.round(disk.usedFraction * 100)}%${full ? " (nearly full)" : ""}` : undefined,
       working ? `${working} working here` : "nobody working here",
+      LEVEL_NOTE[level],
     ].filter(Boolean);
     const ok = live && !full;
     const reason = live ? parts.join(" · ") : "unreachable";
-    const score = (live ? 0 : 1000) + (full ? 100 : 0) + (cpu ?? 0.5) * 10 + working;
-    return { envId: id, label: env.summary.label, ok, reason, score };
+    // Tiers first (unreachable last, then a full disk, then Manual only), then load within a tier:
+    // Prefer halves a machine's load, Less often doubles it.
+    const tier = !live ? 3 : full ? 2 : level === "manual" ? 1 : 0;
+    const load = ((cpu ?? 0.5) * 10 + working) * (WEIGHT.normal / (WEIGHT[level] || WEIGHT.normal));
+    const score = tier * 1000 + load;
+    return { envId: id, label: env.summary.label, ok, reason, score, level, auto: ok && level !== "manual", measured: cpu !== undefined };
   }).sort((a, b) => a.score - b.score || a.label.localeCompare(b.label));
 }
 
