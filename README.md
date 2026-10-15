@@ -18,14 +18,15 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   project modules spread below in wings: two columns around a corridor, each module beside the
   machines that serve it, a lone project centred under the keel. Terminal, files, comms, cryo
   bay, and archive chambers flank a central commons. Every machine runs a supply line in its team
-  color down onto a bus under the decks and along a corridor to each project it serves, inside
-  armoured cable trays (every run, from each deck's drop to each line's entry into its port, and
-  the Hermes spine: a metal rim lit along its top and left, a dark channel the lines glow in, lit
-  brackets strapped across every 64 px, an elbow fitting at each corner, a bolted flange where a run
-  meets a deck or a port, and a junction box where each corridor leaves the bus); lines cross only on the bus, packets keep one speed
-  round every bend, and shared repositories keep their crew together. A solid supply
-  line means that machine has crew awake at the station; a project it merely has checked out is
-  a dim dotted hairline. Lines thicken as you zoom out, so the network never vanishes, and deck
+  color down onto a bus under the decks and along a corridor to each project it serves. Each line
+  is its own shaded pipe (lit band, base, shadow); pipes running side by side sit a pipe apart on
+  shared outlines, so a bundle is exactly as wide as the pipes in it, with metal straps clamping
+  just those pipes every 64 px, a junction box where each corridor leaves the bus, elbow couplers
+  and a bolted flange where a run meets a deck or a port. The Hermes spine is a pair of tan pipes.
+  Lines cross only on the bus, packets (light pulses) keep one speed round every bend, and shared
+  repositories keep their crew together. A full-colour pipe means that machine has crew awake at
+  the station; a project it merely has checked out is a dim pipe, and an unreachable machine's
+  lines are grey. Pipes thicken as you zoom out, so the network never vanishes, and deck
   callsigns shorten from the middle (TLS…01, TLS…02) so machines stay told apart.
 - **Truthful telemetry** (borrowed from [StarNet](https://starnetos.com/)): the map never shows
   activity T3 can't prove. Consoles light up only during a real turn; crew walk to the terminal,

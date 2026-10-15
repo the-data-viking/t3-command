@@ -263,39 +263,15 @@ test('bus lanes stack in the order with fewest crossings', () => {
   assert.deepEqual(orderLanes([b, a]), [0, 1]);
 });
 
-test('every line runs inside a trunk along the bus and down its corridor', () => {
-  for (const [machines, projects] of [[1, 1], [2, 3], [5, 5], [8, 15]]) {
-    const layout = computeFleetLayout(fleet(machines, projects));
-    const inside = (x: number, y: number) => layout.trunks.some(r => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h);
-    const decksBottom = Math.max(...[...layout.environmentNodes.values()].map(n => n.hull.y + n.hull.h));
-    for (const node of layout.environmentNodes.values()) for (const link of node.links) {
-      // The bus run starts where the drop lands, the first point under the decks; then the corridor.
-      const via = link.via!;
-      const i = via.findIndex(p => p.y > decksBottom);
-      const run = via.slice(i, i + 3);
-      assert.equal(run.length, 3);
-      for (let n = 1; n < run.length; n++) {
-        const a = run[n - 1], b = run[n];
-        const steps = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y)) / 2;
-        for (let s = 0; s <= steps; s++) {
-          const x = a.x + (b.x - a.x) * s / Math.max(1, steps), y = a.y + (b.y - a.y) * s / Math.max(1, steps);
-          assert.ok(inside(x, y), `${machines}×${projects}: ${node.envId} → ${link.stationKey} leaves its trunk at ${x},${y}`);
-        }
-      }
-    }
-  }
-});
-
-test('each wing gets a junction box over its corridor head, and every deck its cased drop', () => {
+test('each wing gets a junction box, every deck a flange under its hatch, every line one at its port', () => {
   for (const [machines, projects] of [[1, 1], [5, 5], [6, 15]]) {
     const layout = computeFleetLayout(fleet(machines, projects));
     assert.ok(layout.junctions.length >= 1, `${machines}×${projects}: a junction box`);
-    const inside = (x: number, y: number) => layout.trunks.some(r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
+    const near = (x: number, y: number, vertical: boolean) => layout.flanges.some(f => f.vertical === vertical && Math.abs(f.x - x) <= 12 && Math.abs(f.y - y) <= 8);
     for (const node of layout.environmentNodes.values()) {
       if (!node.links.length) continue;
-      const from = node.links[0].from;
-      assert.ok(inside(from.x, from.y + 2), `${node.envId}'s drop leaves its deck inside a casing`);
-      for (const link of node.links) assert.ok(inside(link.to.x - Math.sign(link.to.x - link.via!.at(-1)!.x) * 4, link.to.y), `${node.envId} → ${link.stationKey} enters its port inside a casing`);
+      assert.ok(near(node.links[0].from.x, node.links[0].from.y, true), `${node.envId}: a flange under its hatch`);
+      for (const link of node.links) assert.ok(near(link.to.x, link.to.y, false), `${node.envId} → ${link.stationKey}: a flange at its port`);
     }
   }
 });

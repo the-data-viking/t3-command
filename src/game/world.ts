@@ -121,7 +121,7 @@ export class World {
   private podsSeen = new Map<string, number[]>();
   /** Merged PRs leaving: the pod dropping away into space. */
   private launches: Array<{ x: number; y: number; at: number }> = [];
-  private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, trunks: [], junctions: [], fittings: [], flanges: [] };
+  private layout: FleetLayout = { stations: new Map(), bays: new Map(), environmentNodes: new Map(), crew: new Map(), bounds: { x: 0, y: 0, w: 0, h: 0 }, junctions: [], fittings: [], flanges: [] };
   private zoom = 1;
   private time = 0;
   /** Set once the user pans, zooms or jumps somewhere; until then the view keeps fitting the fleet. */
@@ -822,39 +822,37 @@ export class World {
     const width = linkWidth(this.zoomGoal ?? this.zoom);
     this.drawnLinkWidth = width;
     const staffed = this.staffed();
-    // The keel's spine: a stem down from the Hermes hall and a beam along the top deck row.
+    const metal = this.trunkTones();
+    // Every supply line is its own pipe in its machine's colour. Lines that run side by side (the
+    // bus, a corridor, the Hermes spine) sit a pipe's width apart, so they bundle on shared
+    // outlines: a bundle is exactly as wide as the pipes in it, never a tray with gaps.
+    const runs: Point[][] = [];
     const spine = this.layout.controlCenter?.manifold;
-    const collars = this.layout.controlCenter?.links ?? [];
-    // The spine's stem and beam, and each deck's docking collar, are cased like the trunks.
-    const spineRuns = spine ? [{ x: spine.stemX - 20, y: spine.top, w: 40, h: spine.y - spine.top + 8 }, { x: spine.x0 - 20, y: spine.y - 8, w: spine.x1 - spine.x0 + 40, h: 16 }] : [];
-    const collarRuns = collars.map((l) => ({ x: l.laneX - 20, y: l.from.y, w: 40, h: l.to.y - l.from.y }));
-    // The trunks the lines share (the bus, each corridor, each deck's drop, each run into a port)
-    // and the Hermes spine as one casing; brackets, fittings and junction boxes go on over the lines.
-    this.drawCasing(g, [...this.layout.trunks, ...spineRuns, ...collarRuns]);
     if (spine) {
       const online = this.layout.controlCenter!.links.some((l) => state.envs[l.envId]?.connection === "live");
-      for (const x of [spine.stemX - 12, spine.stemX + 12]) pixelPath(g, [{ x, y: spine.top }, { x, y: spine.y - 4 }], 2, HERMES_COLOR, online ? 0.8 : 0.2);
-      for (const y of [spine.y - 4, spine.y + 4]) pixelPath(g, [{ x: spine.x0 - 12, y }, { x: spine.x1 + 12, y }], 2, HERMES_COLOR, online ? 0.8 : 0.2);
+      const tan = this.pipeTones(HERMES_COLOR, online ? 0 : 0.6);
+      for (const x of [spine.stemX - 4, spine.stemX + 4]) runs.push(this.drawPipe(g, [{ x, y: spine.top }, { x, y: spine.y + 4 }], tan));
+      for (const y of [spine.y - 4, spine.y + 4]) runs.push(this.drawPipe(g, [{ x: spine.x0 - 12, y }, { x: spine.x1 + 12, y }], tan));
     }
-    for (const link of collars) {
-      const online = state.envs[link.envId]?.connection === 'live';
-      for (const x of [link.laneX - 12, link.laneX + 12]) pixelPath(g, [{ x, y: link.from.y }, { x, y: link.to.y }], 2, HERMES_COLOR, online ? 0.8 : 0.2);
+    for (const link of this.layout.controlCenter?.links ?? []) {
+      const tan = this.pipeTones(HERMES_COLOR, state.envs[link.envId]?.connection === "live" ? 0 : 0.6);
+      for (const x of [link.laneX - 4, link.laneX + 4]) runs.push(this.drawPipe(g, [{ x, y: link.from.y }, { x, y: link.to.y }], tan));
     }
     for (const node of this.layout.environmentNodes.values()) {
-      const live = state.envs[node.envId]?.connection === "live";
+      const connection = state.envs[node.envId]?.connection;
+      const live = connection === "live";
+      const reaching = live || connection === "connecting" || connection === "reconnecting";
       for (const link of node.links) {
-        // A run of art-pixel cells along the route; an unreachable machine's line is severed (dashed).
         const path = linkPath(link.from, link.to, link.via);
-        const reaching = live || state.envs[node.envId]?.connection === "connecting" || state.envs[node.envId]?.connection === "reconnecting";
-        // A solid line means crew from this machine are awake at that station; a project the
-        // machine merely has checked out, with nobody on it, is a dim dotted hairline.
+        // A full-colour pipe means crew from this machine are awake at that station; a project the
+        // machine merely has checked out, with nobody on it, is a dim one; an unreachable
+        // machine's lines are grey.
         const crewed = staffed.has(`${node.envId}|${link.stationKey}`);
-        if (live && !crewed) pixelPath(g, path, Math.max(2, width / 2), node.color, 0.4, 4);
-        // Bright in the casing's dark channel.
-        else pixelPath(g, path, width, node.color, live ? 0.9 : reaching ? 0.25 : 0.3, reaching ? 0 : 8);
+        const tones = live ? this.pipeTones(node.color, crewed ? 0 : 0.6) : this.pipeTones(SIGNAL_GREY, reaching ? 0.3 : 0.55);
+        runs.push(this.drawPipe(g, path, tones, Math.max(10, width + 2)));
         // Where a line that isn't carrying anything meets the station: a pulled plug, or a parted
         // link while the machine reconnects, just outside the port.
-        if (!live && state.envs[node.envId]?.connection !== "needs-update") {
+        if (!live && connection !== "needs-update") {
           const prev = path[path.length - 2] ?? link.from;
           const side = Math.sign(link.to.x - prev.x) || 1;
           const x = link.to.x - side * 14 - 7, y = link.to.y - 7;
@@ -862,101 +860,96 @@ export class World {
         }
       }
     }
-    this.drawHardware(g, [...this.layout.trunks, ...spineRuns], this.layout.fittings, this.layout.flanges);
+    this.drawStraps(g, runs, metal);
+    this.drawFittings(g, metal);
     for (const j of this.layout.junctions) this.drawJunction(g, j);
   }
 
-  /** The trunk material: its rim, the lit and shaded tones of its edges, and its dark channel. */
-  private trunkTones(): { fill: number; light: number; shade: number; channel: number; k: number } {
+  /** Metal for the hardware (straps, fittings, junction boxes): its face, its lit and shaded edges. */
+  private trunkTones(): { fill: number; light: number; shade: number; k: number } {
     const style = currentStyle(), fill = style.trunk ?? style.colors.D;
-    return { fill, light: mixColor(fill, 0xffffff, 0.3), shade: mixColor(fill, 0x000000, 0.35), channel: mixColor(fill, style.colors.k, 0.7), k: style.colors.k };
+    return { fill, light: mixColor(fill, 0xffffff, 0.3), shade: mixColor(fill, 0x000000, 0.35), k: style.colors.k };
+  }
+
+  /** A pipe's three bands from its colour, `dim` (0–1) of the way toward the world's metal. */
+  private pipeTones(color: number, dim: number): { k: number; hi: number; base: number; shade: number } {
+    const style = currentStyle();
+    const base = mixColor(color, style.trunk ?? style.colors.D, dim);
+    return { k: style.colors.k, hi: mixColor(base, 0xffffff, 0.35), base, shade: mixColor(base, 0x000000, 0.35) };
   }
 
   /**
-   * The cased runs as armoured cable trays, traced as one merged shape in art-pixel cells: a dark
-   * outline, a metal rim lit along its top and left edges and shaded along its bottom and right
-   * (upper-left light, as everywhere), and a dark channel down the middle the strands glow in.
+   * One pipe along an axis-aligned path, in art-pixel bands across it: outline, lit band (top, or
+   * left), base, shaded band, outline, `w` px in all (10 at 1×: two pipes 8 px apart share an
+   * outline). Every leg's outline goes down before any band, so corners join cleanly. Returns the
+   * snapped path, for the straps.
    */
-  private drawCasing(g: Graphics, rects: Rect[]): void {
-    if (!rects.length) return;
-    const { fill, light, shade, channel, k } = this.trunkTones();
-    for (const r of rects) g.rect(r.x - 2, r.y - 2, r.w + 4, r.h + 4).fill(k);
-    for (const r of rects) g.rect(r.x, r.y, r.w, r.h).fill(fill);
-    const C = 2;
-    const x0 = Math.min(...rects.map((r) => r.x)), y0 = Math.min(...rects.map((r) => r.y));
-    const cols = Math.ceil((Math.max(...rects.map((r) => r.x + r.w)) - x0) / C) + 2, rows = Math.ceil((Math.max(...rects.map((r) => r.y + r.h)) - y0) / C) + 2;
-    const mask = new Uint8Array(cols * rows);
-    for (const r of rects) {
-      for (let cy = Math.floor((r.y - y0) / C); cy < Math.ceil((r.y + r.h - y0) / C); cy++)
-        for (let cx = Math.floor((r.x - x0) / C); cx < Math.ceil((r.x + r.w - x0) / C); cx++) mask[cy * cols + cx] = 1;
-    }
-    const on = (cx: number, cy: number) => cx >= 0 && cy >= 0 && cx < cols && cy < rows && mask[cy * cols + cx] === 1;
-    // The channel: every cell two cells in from the casing's edge, in runs along each row.
-    for (let cy = 0; cy < rows; cy++) {
-      let start = -1;
-      for (let cx = 0; cx <= cols; cx++) {
-        let inner = on(cx, cy);
-        for (let d = 1; inner && d <= 2; d++) inner = on(cx - d, cy) && on(cx + d, cy) && on(cx, cy - d) && on(cx, cy + d);
-        if (inner && start < 0) start = cx;
-        if (!inner && start >= 0) { g.rect(x0 + start * C, y0 + cy * C, (cx - start) * C, C).fill(channel); start = -1; }
+  private drawPipe(g: Graphics, path: Point[], t: { k: number; hi: number; base: number; shade: number }, w = 10): Point[] {
+    const pts = path.map((p) => ({ x: Math.round(p.x / 2) * 2, y: Math.round(p.y / 2) * 2 }));
+    const lo = -4 - Math.round((w - 10) / 4) * 2, band = (w - 4) / 3;
+    const legs = pts.slice(1).map((b, i) => ({ a: pts[i], b }));
+    for (const pass of ["k", "bands"] as const) {
+      for (const { a, b } of legs) {
+        const horizontal = a.y === b.y;
+        const s0 = Math.min(horizontal ? a.x : a.y, horizontal ? b.x : b.y) + lo;
+        const len = Math.abs(horizontal ? b.x - a.x : b.y - a.y) + w;
+        const at = (horizontal ? a.y : a.x) + lo;
+        const rect = (off: number, thick: number, color: number) => horizontal ? g.rect(s0, at + off, len, thick).fill(color) : g.rect(at + off, s0, thick, len).fill(color);
+        if (pass === "k") { rect(0, w, t.k); continue; }
+        const b1 = Math.max(2, Math.round(band / 2) * 2), b3 = Math.max(2, w - 4 - 2 * b1);
+        rect(2, b1, t.hi);
+        rect(2 + b1, b3, t.base);
+        rect(2 + b1 + b3, w - 4 - b1 - b3, t.shade);
       }
     }
-    // The rim's outer edge: runs along each row (top lit, bottom shaded) and down each column.
-    for (let cy = 0; cy < rows; cy++) {
-      for (const [dy, color] of [[-1, light], [1, shade]] as const) {
-        let start = -1;
-        for (let cx = 0; cx <= cols; cx++) {
-          const edge = on(cx, cy) && !on(cx, cy + dy);
-          if (edge && start < 0) start = cx;
-          if (!edge && start >= 0) { g.rect(x0 + start * C, y0 + cy * C, (cx - start) * C, C).fill(color); start = -1; }
-        }
-      }
-    }
-    for (let cx = 0; cx < cols; cx++) {
-      for (const [dx, color] of [[-1, light], [1, shade]] as const) {
-        let start = -1;
-        for (let cy = 0; cy <= rows; cy++) {
-          const edge = on(cx, cy) && !on(cx + dx, cy);
-          if (edge && start < 0) start = cy;
-          if (!edge && start >= 0) { g.rect(x0 + cx * C, y0 + start * C, C, (cy - start) * C).fill(color); start = -1; }
-        }
-      }
-    }
+    return pts;
   }
 
   /**
-   * Hardware over the lines: a lit metal bracket strapped across each run every 64 px (on a shared
-   * grid, so overlapping runs share them), an elbow fitting at each corner, and a bolted flange
-   * where a run meets a deck's hatch or a station's port.
+   * Metal straps clamping the bundles every 64 px: at each strap position, the pipes running past it
+   * that sit side by side are clamped together, the strap spanning exactly them (never empty space).
    */
-  private drawHardware(g: Graphics, rects: Rect[], fittings: Point[], flanges: Array<Point & { vertical: boolean }>): void {
-    const { fill, light, shade, k } = this.trunkTones();
-    const face = mixColor(fill, 0xffffff, 0.12);
+  private drawStraps(g: Graphics, runs: Point[][], m: { light: number; k: number }): void {
     const STEP = 64;
-    for (const r of rects) {
-      const along = r.w >= r.h;
-      const from = along ? r.x : r.y, len = along ? r.w : r.h;
-      if (len < 48) continue;
-      for (let p = Math.ceil((from + 16) / STEP) * STEP; p <= from + len - 16; p += STEP) {
-        if (along) g.rect(p - 2, r.y - 4, 6, r.h + 8).fill(k).rect(p, r.y - 2, 2, r.h + 4).fill(light);
-        else g.rect(r.x - 4, p - 2, r.w + 8, 6).fill(k).rect(r.x - 2, p, r.w + 4, 2).fill(light);
+    const legs = runs.flatMap((pts) => pts.slice(1).map((b, i) => ({ a: pts[i], b })));
+    for (const horizontal of [true, false]) {
+      const along = legs.filter(({ a, b }) => (horizontal ? a.y === b.y : a.x === b.x) && (horizontal ? a.x !== b.x : a.y !== b.y))
+        .map(({ a, b }) => ({ across: horizontal ? a.y : a.x, from: Math.min(horizontal ? a.x : a.y, horizontal ? b.x : b.y), to: Math.max(horizontal ? a.x : a.y, horizontal ? b.x : b.y) }));
+      if (!along.length) continue;
+      const lo = Math.min(...along.map((l) => l.from)), hi = Math.max(...along.map((l) => l.to));
+      for (let p = Math.ceil(lo / STEP) * STEP; p <= hi; p += STEP) {
+        const across = [...new Set(along.filter((l) => p > l.from + 14 && p < l.to - 14).map((l) => l.across))].sort((x, y) => x - y);
+        // Neighbours a pipe apart are one bundle; a gap starts another strap.
+        for (let i = 0; i < across.length;) {
+          let j = i;
+          while (j + 1 < across.length && across[j + 1] - across[j] <= 10) j++;
+          const top = across[i] - 6, span = across[j] - across[i] + 14;
+          if (horizontal) g.rect(p - 2, top, 6, span).fill(m.k).rect(p, top + 2, 2, span - 4).fill(m.light);
+          else g.rect(top, p - 2, span, 6).fill(m.k).rect(top + 2, p, span - 4, 2).fill(m.light);
+          i = j + 1;
+        }
       }
     }
+  }
+
+  /** Metal elbow couplers at the single runs' corners, and a bolted flange where a run meets a deck or a port. */
+  private drawFittings(g: Graphics, m: { fill: number; light: number; shade: number; k: number }): void {
+    const face = mixColor(m.fill, 0xffffff, 0.12);
     const block = (x: number, y: number, w: number, h: number) => {
-      g.rect(x - 2, y - 2, w + 4, h + 4).fill(k);
+      g.rect(x - 2, y - 2, w + 4, h + 4).fill(m.k);
       g.rect(x, y, w, h).fill(face);
-      g.rect(x, y, w, 2).fill(light).rect(x, y, 2, h).fill(light);
-      g.rect(x, y + h - 2, w, 2).fill(shade).rect(x + w - 2, y, 2, h).fill(shade);
+      g.rect(x, y, w, 2).fill(m.light).rect(x, y, 2, h).fill(m.light);
+      g.rect(x, y + h - 2, w, 2).fill(m.shade).rect(x + w - 2, y, 2, h).fill(m.shade);
     };
-    for (const f of fittings) {
-      const x = Math.round(f.x / 2) * 2 - 10, y = Math.round(f.y / 2) * 2 - 10;
-      block(x, y, 20, 20);
-      for (const [bx, by] of [[x + 4, y + 4], [x + 14, y + 4], [x + 4, y + 14], [x + 14, y + 14]]) g.rect(bx, by, 2, 2).fill(k);
+    for (const f of this.layout.fittings) {
+      const x = Math.round(f.x / 2) * 2 - 6, y = Math.round(f.y / 2) * 2 - 6;
+      block(x, y, 14, 14);
+      g.rect(x + 6, y + 6, 2, 2).fill(m.k);
     }
-    for (const f of flanges) {
+    for (const f of this.layout.flanges) {
       const x = Math.round(f.x / 2) * 2, y = Math.round(f.y / 2) * 2;
-      if (f.vertical) { block(x - 12, y - 2, 24, 6); g.rect(x - 9, y, 2, 2).fill(k).rect(x + 7, y, 2, 2).fill(k); }
-      else { block(x - 2, y - 12, 6, 24); g.rect(x, y - 9, 2, 2).fill(k).rect(x, y + 7, 2, 2).fill(k); }
+      if (f.vertical) { block(x - 8, y - 2, 18, 6); g.rect(x - 6, y, 2, 2).fill(m.k).rect(x + 6, y, 2, 2).fill(m.k); }
+      else { block(x - 2, y - 8, 6, 18); g.rect(x, y - 6, 2, 2).fill(m.k).rect(x, y + 6, 2, 2).fill(m.k); }
     }
   }
 
@@ -1446,7 +1439,8 @@ export class World {
           const count = Math.max(2, Math.round(length / 160));
           for (let k = 0; k < count; k++) {
             const p = linkPoint(link.from, link.to, ((t * 160) / Math.max(1, length) + k / count) % 1, link.via);
-            l.rect(Math.round((p.x - 3) / 2) * 2, Math.round((p.y - 3) / 2) * 2, 6, 6).fill(node.color);
+            // A light pulse riding the pipe (the pipe is already the machine's colour).
+            l.rect(Math.round((p.x - 2) / 2) * 2, Math.round((p.y - 2) / 2) * 2, 4, 4).fill(mixColor(node.color, 0xffffff, 0.7));
           }
         }
       }
