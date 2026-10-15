@@ -86,6 +86,7 @@ function buildItems(state: GameState): Item[] {
     { id: "go:playbooks", group: "Go to", label: "Saved orders (/name shortcuts)", run: () => useGame.setState({ showPlaybooks: true }) },
     { id: "go:help", group: "Go to", label: "Keyboard and map help", detail: "?", run: () => useGame.setState({ showHelp: true }) },
     { id: "act:new", group: "Action", label: "New request: start a crew member on any project", detail: "N", run: () => useGame.setState({ showNewRequest: true }) },
+    { id: "act:new-project", group: "Action", label: "New project: add a folder, clone a repo, or start an empty one on a machine", run: () => useGame.setState({ showNewRequest: true, newProject: {} }) },
     { id: "act:fit", group: "Action", label: "Fit fleet", detail: "F", run: () => worldRef.current?.fitAll() },
     { id: "act:queue", group: "Action", label: "Work through the queue: approvals, questions, then reports", detail: "Q", run: () => startQueue() },
     { id: "act:alert", group: "Action", label: "Next crew waiting on you", detail: "Space", run: () => jumpTo("attention") },

@@ -42,6 +42,11 @@ export function HostPanel({ envId }: { envId: string }) {
         </>}
         {host?.error && s && <p className="orange small">{host.error}</p>}
         <p className="muted small">Includes all applications on this machine. RAM used is total minus reported availability; it does not measure memory pressure.</p>
+        {env && env.summary.kind !== "hermes" && <>
+          <h3>Projects</h3>
+          <p className="muted small">Add a folder, clone a repository, or start an empty project here. Retire one from its station panel.</p>
+          <button className="btn wide" disabled={env.connection !== "live"} onClick={() => useGame.setState({ showNewRequest: true, newProject: { envId } })}>New project on this machine</button>
+        </>}
         <ScratchBay envId={envId} />
         <StorageSection envId={envId} now={now} />
         {env?.summary.kind !== "hermes" && <T3Version envId={envId} />}

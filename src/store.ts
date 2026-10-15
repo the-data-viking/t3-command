@@ -94,6 +94,8 @@ export interface GameState {
   showDock: boolean;
   /** The New request sheet (N). */
   showNewRequest: boolean;
+  /** Open the New request sheet on adding a project instead, on this machine if given. */
+  newProject: { envId?: string } | null;
   /**
    * When a hotkey last jumped to a crew member (performance.now()). Selecting one puts the cursor
    * in their order box, except just after a jump, so the next hotkey still works; O or Enter (or a
@@ -312,6 +314,7 @@ export const useGame = create<GameState>()(() => ({
   showBoard: false,
   showDock: false,
   showNewRequest: false,
+  newProject: null,
   jumpedAt: -Infinity,
   notify: loadNotify(),
   event: null,

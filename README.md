@@ -235,6 +235,14 @@ Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-
   least busy, with its reason shown ("20% CPU · disk 48% · nobody working here"), and can be
   changed. The rest is the recruit form (model, permissions, plan first, workspace), and the
   request text is one draft, kept whichever project or machine you pick.
+- **New project** (**+ New project…** in New request's project list, **New project on this
+  machine** in a machine's panel, or the palette): add a project to a machine's T3 without
+  opening T3 Code there. Pick an existing folder by browsing that machine's folders, clone a
+  repository (git's progress shows live, with cancel and retry), or create an empty folder,
+  git-initialised by default. New projects start in the folder holding most of that machine's
+  projects. Once added, New request opens on it. **Retire project**, at the foot of a station's
+  panel, removes it from T3 on that machine and leaves the folder on disk. It asks first, says how
+  many conversations go with it, and waits while crew there are mid-turn.
 - **Work board** (**B**, or the palette): every crew member's current work as a card in the column
   for what it needs next, with missions and orders to several crew on top: **Needs you** (approvals, questions, failed turns),
   **Building**, **Report ready**, and **In review** (report read, PR still open). Cards show the
