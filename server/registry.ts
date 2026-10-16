@@ -42,8 +42,22 @@ export function selfUpdateOf(descriptor: EnvironmentDescriptor): T3SelfUpdate | 
   return { method, desktopAppUpdate: c?.desktopAppUpdate === true, continuesThreads: c?.serverUpdateThreadContinuation === true };
 }
 
-/** Scopes t3-command asks for: read and drive threads. No access management, terminals, or relay. */
-const REQUESTED_SCOPES = "orchestration:read orchestration:operate";
+/** v2 no longer implies diagnostics/files/maintenance from the broad orchestration scopes. */
+export function pairingScopes(version: number): string {
+  const legacy = "orchestration:read orchestration:operate";
+  return version === 2 ? `${legacy} diagnostics:read filesystem:read filesystem:write source-control:write providers:manage environment:maintain terminal:read terminal:operate` : legacy;
+}
+
+export function pairingNotice(permissions: readonly string[] | undefined, linked = false): string | undefined {
+  if (!permissions) return undefined; // Older servers don't report granular grants.
+  const features = [
+    ["diagnostics:read", "usage estimates"], ["filesystem:read", "file browsing"], ["filesystem:write", "new folders"],
+    ["source-control:write", "checkout changes"], ["providers:manage", "provider updates"],
+    ["environment:maintain", "T3 updates"], ["terminal:operate", "remote storage checks"],
+  ].filter(([scope]) => !permissions.includes(scope)).map(([, feature]) => feature);
+  if (!features.length) return undefined;
+  return `Pair this machine again to enable ${features.join(", ")}. ${linked ? "Reconnect it in T3 desktop." : "Create a new pairing link in T3 Settings → Connections and add it below, or run npm run pair:local for this host."}`;
+}
 const STATUS_TTL_MS = 10_000;
 const HTTP_TIMEOUT_MS = 5_000;
 
@@ -261,7 +275,7 @@ export class Registry {
       subject_token: credential.trim(),
       subject_token_type: "urn:t3:params:oauth:token-type:environment-bootstrap",
       requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
-      scope: REQUESTED_SCOPES,
+      scope: pairingScopes(version),
       client_label: "t3-command",
       client_device_type: "desktop",
     });
@@ -366,11 +380,12 @@ export class Registry {
       const res = await fetchWithTimeout(`${url}/api/auth/session`, {
         headers: { authorization: `Bearer ${token}` },
       });
-      const session = (await res.json()) as { authenticated?: boolean; expiresAt?: string };
+      const session = (await res.json()) as { authenticated?: boolean; expiresAt?: string; permissions?: string[] };
       if (!session.authenticated) {
         return set("needs-pairing", env.linked ? "T3 desktop's connection was revoked or expired; reconnect it in T3 desktop" : "Token expired or revoked");
       }
       if (env.linked) base.tokenExpiresAt = session.expiresAt;
+      if (base.protocolVersion === 2) base.permissionNotice = pairingNotice(session.permissions, !!env.linked);
     } catch (err) {
       return set("unreachable", (err as Error).message);
     }

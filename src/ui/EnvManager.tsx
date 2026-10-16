@@ -124,6 +124,7 @@ export function EnvManager() {
                   {env.summary.tokenExpiresAt ? ` · token expires ${new Date(env.summary.tokenExpiresAt).toLocaleDateString()}` : ""}
                   {` · added ${timeAgo(env.summary.addedAt)}`}
                 </div>
+                {env.summary.permissionNotice && <p className="orange small">{env.summary.permissionNotice}</p>}
               </div>
               <label className="small env-routing" title="How often a new request is routed here automatically. Manual only: never picked for you, still yours to pick.">
                 Auto-routing{" "}

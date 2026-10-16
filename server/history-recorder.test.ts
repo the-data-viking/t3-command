@@ -12,7 +12,7 @@ import type { Registry } from "./registry.ts";
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
-test("the recorder subscribes with the environment's token, acks chunks, and records turns finishing over the wire", async (t) => {
+for (const protocolVersion of [1, 2]) test(`the v${protocolVersion} recorder subscribes, reads replies, sends follow-ups, and records turns over the wire`, async (t) => {
   const server = http.createServer();
   const wss = new WebSocketServer({ server });
   const seen: { auth?: string; acks: number; requests: Array<{ tag: string; payload: unknown }> } = { acks: 0, requests: [] };
@@ -24,22 +24,33 @@ test("the recorder subscribes with the environment's token, acks chunks, and rec
       const msg = JSON.parse(data.toString());
       if (msg._tag === "Ack") seen.acks++;
       if (msg._tag === "Request") seen.requests.push({ tag: msg.tag, payload: msg.payload });
+      if (msg._tag === "Request" && msg.tag === "orchestration.subscribeThread") {
+        const thread = { id: "th", messages: [{ id: "reply", role: "assistant", text: "Done", runId: "turn-1", turnId: "turn-1", createdAt: iso(Date.now()), updatedAt: iso(Date.now()) }], activities: [], checkpoints: [] };
+        const value = protocolVersion === 1 ? { kind: "snapshot", snapshot: { thread } }
+          : { kind: "snapshot", snapshotSequence: 4, projection: { thread, messages: thread.messages, runs: [], turnItems: [] } };
+        ws.send(JSON.stringify({ _tag: "Chunk", requestId: msg.id, values: [value] }));
+      } else if (msg._tag === "Request" && msg.tag !== "orchestration.subscribeShell") {
+        ws.send(JSON.stringify({ _tag: "Exit", requestId: msg.id, exit: { _tag: "Success", value: { sequence: 5 } } }));
+      }
     });
   });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
-  t.after(() => { wss.close(); server.close(); });
   const port = (server.address() as { port: number }).port;
 
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "t3c-recorder-"));
-  t.after(() => fs.rm(dir, { recursive: true, force: true }));
   const history = new TurnHistory(dir);
   await history.load();
   const env = { id: "remote", label: "Remote", url: `http://127.0.0.1:${port}`, token: "secret", addedAt: "" };
-  const registry = { ids: () => ["remote"], get: () => env, resolveUrl: async () => env.url, tokenFor: async () => "secret", status: async () => ({ protocolVersion: 1 }) } as unknown as Registry;
+  const registry = { ids: () => ["remote"], get: () => env, resolveUrl: async () => env.url, tokenFor: async () => "secret", status: async () => ({ protocolVersion }) } as unknown as Registry;
   const recorder = new HistoryRecorder(registry, history, async () => { throw new Error("no Hermes here"); });
   recorder.start();
-  t.after(() => recorder.stop());
+  t.after(async () => {
+    await recorder.stop();
+    wss.close();
+    server.close();
+    await fs.rm(dir, { recursive: true, force: true });
+  });
 
   const until = async (check: () => boolean, ms = 2_000) => { for (let i = 0; i < ms / 10 && !check(); i++) await new Promise((r) => setTimeout(r, 10)); assert.ok(check()); };
   await until(() => seen.requests.length === 1);
@@ -48,16 +59,23 @@ test("the recorder subscribes with the environment's token, acks chunks, and rec
 
   const now = Date.now();
   const thread = (state: string, completedAt: string | null) => ({ id: "th", projectId: "p", title: "Fix it", modelSelection: { instanceId: "codex", model: "sol" },
-    session: null, latestTurn: { turnId: "turn-1", state, requestedAt: iso(now), startedAt: iso(now), completedAt, assistantMessageId: null } });
+    ...(protocolVersion === 2 ? { status: state, latestRunId: "turn-1", latestRunRequestedAt: iso(now), latestRunStartedAt: iso(now), latestRunCompletedAt: completedAt }
+      : { session: null, latestTurn: { turnId: "turn-1", state, requestedAt: iso(now), startedAt: iso(now), completedAt, assistantMessageId: null } }) });
   const chunk = (values: unknown[]) => socket!.send(JSON.stringify({ _tag: "Chunk", requestId: "1", values }));
   chunk([{ kind: "snapshot", snapshot: { snapshotSequence: 1, projects: [{ id: "p", title: "Project" }], threads: [thread("running", null)] } }, { kind: "synchronized" }]);
-  chunk([{ kind: "thread-upserted", sequence: 2, thread: thread("completed", iso(now + 42_000)) }]);
+  chunk([{ kind: protocolVersion === 2 ? "thread.updated" : "thread-upserted", location: "active", sequence: 2, thread: thread("completed", iso(now + 42_000)) }]);
   await until(() => history.summary(1, "UTC").recent.length === 1);
   const [record] = history.summary(1, "UTC").recent;
   assert.deepEqual([record.envLabel, record.projectTitle, record.threadTitle, record.durationMs], ["Remote", "Project", "Fix it", 42_000]);
   assert.equal(seen.acks, 2, "every chunk is acknowledged");
 
+  const reply = await recorder.peek<{ kind: string; snapshot: { thread: { messages: Array<{ text: string }> } } }>("remote", "orchestration.subscribeThread", { threadId: "th", turnLimit: 1 });
+  assert.equal(reply[0].snapshot.thread.messages[0].text, "Done");
+  await recorder.request("remote", "orchestration.dispatchCommand", { commandId: "follow", type: "thread.turn.start", threadId: "th", message: { messageId: "m", text: "Continue", attachments: [] } });
+  assert.equal((seen.requests.at(-1)?.payload as { type: string }).type, protocolVersion === 2 ? "message.dispatch" : "thread.turn.start");
+
   // If T3 ends the stream, the recorder reconnects (after its 5 s backoff) and subscribes again.
+  const previous = seen.requests.length;
   socket!.send(JSON.stringify({ _tag: "Exit", requestId: "1", exit: { _tag: "Success", value: null } }));
-  await until(() => seen.requests.length === 2, 8_000);
+  await until(() => seen.requests.length === previous + 1, 8_000);
 });

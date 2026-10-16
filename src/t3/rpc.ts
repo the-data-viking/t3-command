@@ -1,5 +1,6 @@
 // Minimal Effect RPC (JSON serialization) client, as spoken by T3 Code's /ws endpoint.
 // Wire format: docs/PROTOCOL.md §1.2. Every Chunk of a stream must be Acked before the server sends the next.
+import { protocolRequest, protocolStreamDecoder, protocolStreamPayload } from "../../shared/t3-protocol";
 
 type Cause =
   | { _tag: "Fail"; error: { _tag: string; message?: string } }
@@ -46,8 +47,10 @@ export class RpcConnection {
   private calls = new Map<string, Call>();
   private ping?: ReturnType<typeof setInterval>;
   private closed = false;
+  private protocolVersion: number;
 
-  constructor(url: string, handlers: RpcConnectionHandlers) {
+  constructor(url: string, handlers: RpcConnectionHandlers, protocolVersion = 1) {
+    this.protocolVersion = protocolVersion;
     this.ws = new WebSocket(url);
     this.ws.addEventListener("open", () => {
       this.ping = setInterval(() => this.send({ _tag: "Ping" }), PING_INTERVAL_MS);
@@ -111,6 +114,10 @@ export class RpcConnection {
   }
 
   request<T>(tag: string, payload: unknown = {}, timeoutMs?: number): Promise<T> {
+    return protocolRequest(this.protocolVersion, tag, payload, (nextTag, nextPayload) => this.rawRequest(nextTag, nextPayload, timeoutMs)) as Promise<T>;
+  }
+
+  private rawRequest<T>(tag: string, payload: unknown, timeoutMs?: number): Promise<T> {
     return new Promise((resolve, reject) => {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const id = this.start(tag, payload, { onExit: (value, err) => {
@@ -128,8 +135,9 @@ export class RpcConnection {
 
   /** Start a streaming RPC. Returns a function that cancels it. */
   stream<T>(tag: string, payload: unknown, onItems: (items: T[]) => void, onEnd: (err?: RpcError) => void): () => void {
-    const id = this.start(tag, payload, {
-      onChunk: (values) => onItems(values as T[]),
+    const decode = protocolStreamDecoder(this.protocolVersion, tag);
+    const id = this.start(tag, protocolStreamPayload(this.protocolVersion, tag, payload), {
+      onChunk: (values) => onItems(decode(values) as T[]),
       onExit: (_value, err) => onEnd(err),
     });
     return () => {

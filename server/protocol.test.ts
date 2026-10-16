@@ -17,8 +17,8 @@ test("Command connects to protocol v1 machines as before, with no protocol param
 });
 
 test("a machine on a newer protocol is refused with a clear reason instead of being sent v1 requests", async () => {
-  await assert.rejects(t3SocketUrl(registry(2), env, "t3-command"), (err: Error) =>
-    err instanceof ProtocolUnsupported && /T3 0\.0\.46 with orchestration protocol v2.*Update Command/.test(err.message));
+  await assert.rejects(t3SocketUrl(registry(3), env, "t3-command"), (err: Error) =>
+    err instanceof ProtocolUnsupported && /T3 0\.0\.46 with orchestration protocol v3.*Update Command/.test(err.message));
 });
 
 test("newer protocols are requested the way T3's own client does", () => {
@@ -31,7 +31,13 @@ test("T3 updates are announced once, loudly when the protocol moves past what Co
   assert.equal(versionChange("Box", { serverVersion: "0.0.45", protocolVersion: 1 }, { serverVersion: "0.0.45", protocolVersion: 1 }), undefined);
   assert.deepEqual(versionChange("Box", { serverVersion: "0.0.45", protocolVersion: 1 }, { serverVersion: "0.0.45.1", protocolVersion: 1 }),
     { tone: "info", text: "Box updated T3 0.0.45 → 0.0.45.1" });
-  const breaking = versionChange("Box", { serverVersion: "0.0.45", protocolVersion: 1 }, { serverVersion: "0.0.46", protocolVersion: 2 })!;
+  const breaking = versionChange("Box", { serverVersion: "0.0.45", protocolVersion: 1 }, { serverVersion: "0.0.46", protocolVersion: 3 })!;
   assert.equal(breaking.tone, "bad");
-  assert.match(breaking.text, /protocol v2\. Command can't follow it until Command is updated/);
+  assert.match(breaking.text, /protocol v3\. Command can't follow it until Command is updated/);
+});
+
+test("T3 Code 0.1.0 sockets explicitly negotiate protocol v2", async () => {
+  const url = await t3SocketUrl(registry(2), env, "t3-command");
+  assert.equal(url.searchParams.get("orchestrationProtocol"), "2");
+  assert.equal(versionChange("Box", { serverVersion: "0.0.45", protocolVersion: 1 }, { serverVersion: "0.1.0", protocolVersion: 2 })?.tone, "info");
 });

@@ -8,6 +8,7 @@ import type { HermesBridge } from "./hermes/bridge.ts";
 import type { TurnHistory } from "./history.ts";
 import type { Registry } from "./registry.ts";
 import { ProtocolUnsupported, t3SocketUrl } from "./t3-socket.ts";
+import { protocolRequest, protocolStreamDecoder, protocolStreamPayload } from "../shared/t3-protocol.ts";
 
 const SYNC_MS = 60_000;
 const PRUNE_MS = 6 * 3_600_000;
@@ -141,7 +142,8 @@ export class HistoryRecorder {
     let up = false;
     let label = registry.get(envId)?.label ?? envId;
     let nextRequest = 2;
-    const pending = new Map<string, { resolve: (value: unknown) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout>; peek?: boolean }>();
+    let protocolVersion = 1;
+    const pending = new Map<string, { resolve: (value: unknown) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout>; peek?: boolean; decode?: (values: unknown[]) => unknown[] }>();
     const failPending = (reason: string) => {
       for (const p of pending.values()) { clearTimeout(p.timer); p.reject(new Error(reason)); }
       pending.clear();
@@ -176,6 +178,8 @@ export class HistoryRecorder {
         return;
       }
       const socket = new WebSocket(url, { headers: { authorization: `Bearer ${token}` }, maxPayload: 64 * 1024 * 1024 });
+      protocolVersion = Number(url.searchParams.get("orchestrationProtocol") ?? 1);
+      const decodeShell = protocolStreamDecoder(protocolVersion, "orchestration.subscribeShell");
       ws = socket;
       let projects: Record<string, ProjectShell> = {};
       let threads = new Map<string, ThreadShell>();
@@ -201,7 +205,7 @@ export class HistoryRecorder {
           pending.delete(msg.requestId!);
           clearTimeout(call.timer);
           send({ _tag: "Interrupt", requestId: msg.requestId });
-          call.resolve(msg.values ?? []);
+          call.resolve(call.decode ? call.decode(msg.values ?? []) : msg.values ?? []);
           return;
         }
         if (msg._tag === "Exit" && call) {
@@ -214,7 +218,7 @@ export class HistoryRecorder {
         if (msg._tag === "Exit" && msg.requestId === "1") { socket.close(); return; } // The stream ended: reconnect and resubscribe.
         if (msg._tag !== "Chunk" || msg.requestId !== "1") return;
         send({ _tag: "Ack", requestId: "1" });
-        for (const item of msg.values ?? []) {
+        for (const item of decodeShell(msg.values ?? []) as ShellStreamItem[]) {
           if (item.kind === "snapshot") {
             projects = Object.fromEntries(item.snapshot.projects.map((p) => [p.id, p]));
             threads = new Map(item.snapshot.threads.map((t) => [t.id, t]));
@@ -244,6 +248,15 @@ export class HistoryRecorder {
       });
     };
 
+    const rawRequest = <T>(tag: string, payload: unknown, timeoutMs: number) => new Promise<T>((resolve, reject) => {
+      const socket = ws;
+      if (!socket || socket.readyState !== WebSocket.OPEN) { reject(new Error("Not connected")); return; }
+      const id = `r${nextRequest++}`;
+      const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${tag} timed out`)); }, timeoutMs);
+      timer.unref();
+      pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
+      socket.send(JSON.stringify({ _tag: "Request", id, tag, payload, headers: [] }));
+    });
     void connect();
     return {
       stop: () => {
@@ -260,18 +273,11 @@ export class HistoryRecorder {
         const id = `p${nextRequest++}`;
         const timer = setTimeout(() => { pending.delete(id); socket.send(JSON.stringify({ _tag: "Interrupt", requestId: id })); reject(new Error(`${tag} timed out`)); }, timeoutMs);
         timer.unref();
-        pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer, peek: true });
-        socket.send(JSON.stringify({ _tag: "Request", id, tag, payload, headers: [] }));
+        pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer, peek: true, decode: protocolStreamDecoder(protocolVersion, tag) });
+        socket.send(JSON.stringify({ _tag: "Request", id, tag, payload: protocolStreamPayload(protocolVersion, tag, payload), headers: [] }));
       }),
-      request: <T>(tag: string, payload: unknown, timeoutMs: number) => new Promise<T>((resolve, reject) => {
-        const socket = ws;
-        if (!socket || socket.readyState !== WebSocket.OPEN) { reject(new Error("Not connected")); return; }
-        const id = `r${nextRequest++}`;
-        const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${tag} timed out`)); }, timeoutMs);
-        timer.unref();
-        pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
-        socket.send(JSON.stringify({ _tag: "Request", id, tag, payload, headers: [] }));
-      }),
+      request: <T>(tag: string, payload: unknown, timeoutMs: number) => protocolRequest(protocolVersion, tag, payload,
+        (nextTag, nextPayload) => rawRequest(nextTag, nextPayload, timeoutMs)) as Promise<T>,
     };
   }
 }

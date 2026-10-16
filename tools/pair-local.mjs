@@ -11,7 +11,7 @@
 //      T3_CLI (path to a `t3` executable, for headless installs)
 
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { findT3Cli } from "../server/local-t3-cli.ts";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs, promisify } from "node:util";
@@ -28,29 +28,6 @@ const { values: args } = parseArgs({
 
 const t3Home = process.env.T3_HOME ?? path.join(os.homedir(), ".t3");
 const commandUrl = `http://127.0.0.1:${process.env.T3C_PORT ?? 4773}`;
-
-/** How to invoke T3's CLI on this machine: [executable, leadingArgs, extraEnv]. */
-function findT3Cli() {
-  if (process.env.T3_CLI) return [process.env.T3_CLI, [], {}];
-
-  const desktopInstalls = {
-    win32: [
-      path.join(process.env.LOCALAPPDATA ?? "", "Programs", "t3code", "T3 Code (Alpha).exe"),
-      path.join(process.env.LOCALAPPDATA ?? "", "Programs", "t3code", "resources", "server.asar"),
-    ],
-    darwin: [
-      "/Applications/T3 Code (Alpha).app/Contents/MacOS/T3 Code (Alpha)",
-      "/Applications/T3 Code (Alpha).app/Contents/Resources/app.asar",
-    ],
-  }[process.platform];
-
-  if (desktopInstalls && existsSync(desktopInstalls[0])) {
-    const [exe, asar] = desktopInstalls;
-    // The desktop app's Electron binary doubles as Node for its bundled server CLI.
-    return [exe, [path.join(asar, "apps", "server", "dist", "bin.mjs")], { ELECTRON_RUN_AS_NODE: "1" }];
-  }
-  return ["t3", [], {}]; // headless install on PATH
-}
 
 const [exe, leadingArgs, extraEnv] = findT3Cli();
 let pairing;

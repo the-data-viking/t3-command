@@ -140,7 +140,7 @@ export class EnvironmentClient {
     this.rpc = new RpcConnection(url, {
       onOpen: () => this.onOpen(),
       onClose: (code, reason) => this.onClose(code, reason),
-    });
+    }, this.summary.kind === "hermes" ? 1 : this.summary.protocolVersion ?? 1);
   }
 
   private setConnection(connection: Connection, error?: string): void {
@@ -826,7 +826,9 @@ export async function refreshEnvironments(): Promise<void> {
     const world = useGame.getState().envs[summary.id];
     // Re-create a client that was blocked (e.g. needs pairing) once the server says it's fine.
     const blocked = world && (world.connection === "needs-pairing" || world.connection === "needs-update");
-    if (existing && !(blocked && summary.status === "ok")) {
+    const protocolChanged = world && (world.summary.protocolVersion ?? 1) !== (summary.protocolVersion ?? 1);
+    const authorizationChanged = world && (world.summary.tokenExpiresAt !== summary.tokenExpiresAt || world.summary.permissionNotice !== summary.permissionNotice);
+    if (existing && !protocolChanged && !authorizationChanged && !(blocked && summary.status === "ok")) {
       updateEnv(summary.id, (e) => JSON.stringify(e.summary) === JSON.stringify(summary) ? e : { ...e, summary });
       continue;
     }

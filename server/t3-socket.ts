@@ -1,6 +1,6 @@
-// The one place Command builds a T3 WebSocket URL. It refuses machines whose orchestration protocol
-// this build doesn't speak (rather than sending v1 requests to a v2 server), and it is where a
-// supported newer protocol would be requested (`?orchestrationProtocol=N`, per T3's own client).
+// The one place Command builds a T3 WebSocket URL. It checks the machine's advertised
+// orchestration protocol and explicitly requests v2 (`?orchestrationProtocol=2`, like T3's
+// own client). Unsupported future versions are refused before any RPC is sent.
 
 import { SUPPORTED_PROTOCOL_VERSIONS } from "../shared/api.ts";
 import type { Registry, StoredEnv } from "./registry.ts";

@@ -2,7 +2,7 @@
 // Tokens never appear here: they stay on the server.
 
 /** Orchestration protocol versions this build of t3-command knows how to speak. */
-export const SUPPORTED_PROTOCOL_VERSIONS = [1] as const;
+export const SUPPORTED_PROTOCOL_VERSIONS = [1, 2] as const;
 
 export type EnvStatus =
   | "ok" // reachable, authenticated, supported protocol
@@ -23,6 +23,8 @@ export interface EnvSummary {
   /** How this machine's T3 can update itself remotely (absent: only by relaunching it there). */
   selfUpdate?: T3SelfUpdate;
   tokenExpiresAt?: string;
+  /** Valid older tokens may lack the granular permissions introduced in T3 0.1.0. */
+  permissionNotice?: string;
   addedAt: string;
   /** Uses T3 desktop's own saved connection on the t3-command host (no separate pairing). */
   linked?: boolean;
