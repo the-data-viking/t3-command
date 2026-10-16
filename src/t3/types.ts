@@ -54,6 +54,10 @@ export interface LatestTurn {
 }
 
 export interface ThreadShell {
+  creationSource?: string;
+  lineage?: { parentThreadId: string | null; relationshipToParent: string | null; rootThreadId: string };
+  /** Provider-native children have no app run; their lifecycle belongs to the parent. */
+  nativeSubagent?: NativeSubagent;
   hermesProfile?: string;
   hermesBotChat?: boolean;
   id: string;
@@ -87,6 +91,17 @@ export interface ThreadShell {
   pinnedAt: string | null;
   /** Pull requests T3 has linked to this thread, with its last synced snapshot of each. */
   pullRequests?: ThreadPullRequest[];
+}
+
+export interface NativeSubagent {
+  id: string;
+  parentThreadId: string;
+  childThreadId: string;
+  runId: string | null;
+  status: "idle" | "pending" | "running" | "waiting" | "completed" | "failed" | "cancelled" | "interrupted";
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
 }
 
 export interface ThreadPullRequest {
@@ -169,6 +184,7 @@ export interface Checkpoint {
 }
 
 export interface OrchestrationThread extends Omit<ThreadShell, "hasPendingApprovals" | "hasPendingUserInput"> {
+  nativeSubagents?: NativeSubagent[];
   messages: Message[];
   activities: Activity[];
   checkpoints: Checkpoint[];

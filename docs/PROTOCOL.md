@@ -26,6 +26,13 @@ The sections below remain the historical v1 reference; v2 differs as follows:
   `project.updated` / `project.removed` replace v1's hyphenated kinds. Archive moves remove
   active crew. Run status, activity-owning run, pending runtime requests, and background-task
   rosters supply Command's existing crew status and timers.
+- Provider-native child threads (`creationSource:"provider"`, subagent lineage) can report
+  `status:"idle"` with no app run or provider session while doing work. Their authoritative
+  lifecycle is the owning parent's `projection.subagents` record. Command shares one parent
+  detail subscription across those children, even with no panel open, and joins lifecycle
+  updates by child ID. Reconnect snapshots replace the cached lifecycle; ordinary child-shell
+  refreshes cannot overwrite it. Completion/failure settle the sprite without inventing a run.
+  Halt sends `subagent.stop` with the parent thread, owning run, and subagent IDs.
 - A snapshot carrying `resolvedRepositoryIdentityRoots` is a partial repository-metadata
   refresh, not a replacement fleet. Update only matching existing projects' repository identity;
   retain unrelated projects, threads, synchronization state, and the event cursor. Its sequence

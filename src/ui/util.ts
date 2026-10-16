@@ -1,5 +1,5 @@
 import type { EnvWorld } from "../store";
-import { isHistory, unitState, type UnitState } from "../t3/derive";
+import { isHistory, isNativeSubagent, unitState, type UnitState } from "../t3/derive";
 import type { ThreadShell } from "../t3/types";
 
 export const STATE_LABELS: Record<UnitState, string> = {
@@ -55,7 +55,7 @@ export function timeAgo(iso: string | null | undefined): string {
  * turn ended. Shown as Background so it doesn't read as a turn that's also "Last turn 28s".
  */
 export function isBackground(thread: ThreadShell, state: UnitState): boolean {
-  return state === "working" && thread.latestTurn?.state !== "running";
+  return state === "working" && !isNativeSubagent(thread) && thread.latestTurn?.state !== "running";
 }
 
 /** A crew member's state as shown in lists (adds Background to the map's states). */

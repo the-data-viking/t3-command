@@ -5,7 +5,8 @@ import { DEMO, demoFetch } from "../demo";
 import type { EnvSummary } from "../../shared/api";
 import { addLog, unitKey, updateEnv, useGame, type Connection, type EnvWorld } from "../store";
 import { withPrStates } from "../../shared/pr-states";
-import { unitState, type UnitState } from "./derive";
+import { isNativeSubagent, unitState, type UnitState } from "./derive";
+import { withNativeSubagents } from "./subagents";
 import { applyThreadEvent } from "./reducer";
 import { RpcConnection, RpcError } from "./rpc";
 import { assetProxyUrl } from "./assets";
@@ -85,6 +86,7 @@ export class EnvironmentClient {
   private rpc?: RpcConnection;
   private shellSequence = 0;
   private threadSubs = new Map<string, ThreadSub>();
+  private nativeParents = new Map<string, () => void>();
   private retries = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
   private disposed = false;
@@ -117,6 +119,8 @@ export class EnvironmentClient {
 
   dispose(): void {
     this.disposed = true;
+    for (const release of this.nativeParents.values()) release();
+    this.nativeParents.clear();
     clearTimeout(this.retryTimer);
     clearTimeout(this.usageTimer);
     clearTimeout(this.hostTimer);
@@ -338,13 +342,14 @@ export class EnvironmentClient {
             break;
           case "thread-upserted": {
             if (item.sequence <= this.shellSequence) break;
+            const thread = withNativeSubagents({ [item.thread.id]: item.thread }, this.nativeAgents())[item.thread.id];
             const prev = threads[item.thread.id];
             if (synced) {
               const from = prev ? unitState(prev) : "idle";
-              const to = unitState(item.thread);
-              if (from !== to || !prev) transitions.push({ envId: this.id, thread: item.thread, from, to });
+              const to = unitState(thread);
+              if (from !== to || !prev) transitions.push({ envId: this.id, thread, from, to });
             }
-            threads = { ...threads, [item.thread.id]: withPrStates(item.thread, useGame.getState().prStates) };
+            threads = { ...threads, [thread.id]: withPrStates(thread, useGame.getState().prStates) };
             this.shellSequence = item.sequence;
             break;
           }
@@ -356,7 +361,47 @@ export class EnvironmentClient {
             break;
         }
       }
+      threads = withNativeSubagents(threads, this.nativeAgents().filter((agent) => !!threads[agent.parentThreadId]));
       return { ...env, projects, threads, synced };
+    });
+    for (const t of transitions) for (const fn of transitionListeners) fn(t);
+    this.followNativeParents();
+  }
+
+  private nativeAgents() {
+    const details = useGame.getState().details;
+    return [...this.nativeParents.keys()].flatMap((id) => details[unitKey(this.id, id)]?.thread.nativeSubagents ?? []);
+  }
+
+  /** Native child shells carry no lifecycle. Follow each owning parent once, even with no panel open. */
+  private followNativeParents(): void {
+    if (this.summary.protocolVersion !== 2 || !this.rpc?.isOpen) return;
+    const threads = useGame.getState().envs[this.id]?.threads ?? {};
+    const parents = new Set(Object.values(threads).filter(isNativeSubagent).map((t) => t.lineage?.parentThreadId).filter((id): id is string => !!id && !!threads[id]));
+    for (const [id, release] of this.nativeParents) {
+      if (parents.has(id)) continue;
+      this.nativeParents.delete(id);
+      release();
+    }
+    for (const id of parents) {
+      if (this.nativeParents.has(id)) continue;
+      this.nativeParents.set(id, () => {});
+      this.nativeParents.set(id, this.watchThread(id));
+    }
+    this.refreshNativeChildren();
+  }
+
+  private refreshNativeChildren(): void {
+    const transitions: UnitTransition[] = [];
+    updateEnv(this.id, (env) => {
+      const threads = withNativeSubagents(env.threads, this.nativeAgents());
+      if (threads === env.threads) return env;
+      if (env.synced) for (const thread of Object.values(threads)) {
+        const from = unitState(env.threads[thread.id]);
+        const to = unitState(thread);
+        if (from !== to) transitions.push({ envId: this.id, thread, from, to });
+      }
+      return { ...env, threads };
     });
     for (const t of transitions) for (const fn of transitionListeners) fn(t);
   }
@@ -413,6 +458,7 @@ export class EnvironmentClient {
           }
           return detail ? { details: { ...state.details, [key]: detail } } : {};
         });
+        this.refreshNativeChildren();
       },
       (err) => {
         if (err && err.tag !== "Disconnected" && this.threadSubs.get(threadId) === sub && this.rpc?.isOpen) {
@@ -765,6 +811,11 @@ export class EnvironmentClient {
 
   interrupt(threadId: string): Promise<unknown> {
     const t = this.thread(threadId);
+    if (isNativeSubagent(t)) {
+      const agent = t.nativeSubagent;
+      if (!agent?.runId) return Promise.reject(new Error("The parent has not reported an interruptible subagent run"));
+      return this.dispatch({ type: "subagent.stop", threadId: agent.parentThreadId, runId: agent.runId, subagentId: agent.id });
+    }
     const turnId = t.latestTurn?.state === "running" ? t.latestTurn.turnId : undefined;
     return this.dispatch({
       type: "thread.turn.interrupt",
