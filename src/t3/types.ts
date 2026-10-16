@@ -1,4 +1,4 @@
-// T3 Code orchestration protocol v1 types — only the parts t3-command uses.
+// Command presentation types, matching v1 and normalized from v2 by shared/t3-protocol.ts.
 // See docs/PROTOCOL.md. Fields T3 sends that we don't read are left out (or typed loosely).
 
 export type RuntimeMode = "approval-required" | "auto-accept-edits" | "auto" | "full-access";

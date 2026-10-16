@@ -1,4 +1,4 @@
-# T3 Code local server protocol (installed build 0.0.44)
+# T3 Code local server protocol (0.0.44–0.0.45 and 0.1.0)
 
 Source of truth: the installed server bundle `resources/server.asar` → `apps/server/dist/bin.mjs`
 (extracted copy: `/tmp/t3probe/server/apps/server/dist/bin.mjs`), desktop app `app.asar`
@@ -8,24 +8,60 @@ Contracts live in the `//#region ../../packages/contracts/src/*.ts` sections of 
 
 Verified live against `http://127.0.0.1:3773` with a read-only probe (`/tmp/t3probe/probe/probe.mjs`), see §7.
 
-> **Upstream drift warning.** `pingdotgg/t3code@main` has already moved to **orchestration protocol v2**
-> (`packages/contracts/src/orchestrationV2.ts`, introduced 2026-10-02, PR #2829; nightlies are `v0.0.46-*`).
-> v2 keeps the same method *names* (`orchestration.subscribeShell`, `…subscribeThread`, `…dispatchCommand`)
-> but changes payload schemas and adds `getThreadProjection`, `launchThread`, `subscribeArchivedShell`,
-> `searchThread(Stream)`, `getTurnItem`, `stopWorkflow`. v2 clients append `?orchestrationProtocol=2` to the WS URL.
-> The installed 0.0.44 server advertises `orchestrationProtocolVersion: 1` (no query param needed).
-> **Your client must read `GET /.well-known/t3/environment` → `orchestrationProtocolVersion` (absent ⇒ 1) and refuse/branch
-> when it is not the version you implement.** The desktop app auto-updates, so expect v2 to arrive.
-> This document describes **v1** (what is installed).
->
-> **What Command does about it:** every T3 socket URL is built in `server/t3-socket.ts`. It reads the
-> machine's descriptor (cached 10 s) and refuses protocols outside `SUPPORTED_PROTOCOL_VERSIONS`
-> (`shared/api.ts`) with a "needs Command update" error rather than sending v1 requests to a v2 server.
-> This covers the browser relay, the history recorder (which retries such machines slowly) and the
-> storage terminal. When a supported version is above 1, it appends `?orchestrationProtocol=N` like
-> T3's own client. `server/t3-versions.ts` checks each machine every 5 minutes and logs T3 updates in
-> the comms log, with an explicit warning when the new protocol isn't supported. Adding v2 means
-> listing 2 as supported and decoding its payloads where the shell and thread streams are read.
+## T3 Code 0.1.0 compatibility
+
+Command supports orchestration protocols **1 and 2**. It reads each environment's
+`/.well-known/t3/environment` descriptor and explicitly requests `?orchestrationProtocol=2`
+for v2, including browser relays, the background recorder, and storage terminals. Unknown
+future protocols are still refused. A browser client is recreated when its machine's protocol changes.
+
+The v2 source of truth is `pingdotgg/t3code` tag **v0.1.0**, commit
+`81493efb71e8e8244f95d3e9f71d8369654ab151`, particularly
+`packages/contracts/src/orchestrationV2.ts`, `rpc.ts`, `project.ts`, and `checkpointDiff.ts`.
+The sections below remain the historical v1 reference; v2 differs as follows:
+
+- `shared/t3-protocol.ts` translates at the RPC boundary for both browser connections and
+  background recorder requests. Hermes continues to use v1 without translation.
+- Shell snapshots retain their envelope, but `thread.updated` / `thread.removed` and
+  `project.updated` / `project.removed` replace v1's hyphenated kinds. Archive moves remove
+  active crew. Run status, activity-owning run, pending runtime requests, and background-task
+  rosters supply Command's existing crew status and timers.
+- Thread snapshots are `{kind:"snapshot", snapshotSequence, projection}`. The projection contains
+  runs, messages, structured turn items, runtime requests, plans, and checkpoints. Live event
+  sequences sit on the stream envelope. Entity updates replace whole records, including
+  accumulated message text; they are never appended as v1 text deltas. Command keeps a projection
+  per subscription and rebuilds its transcript after each batch. Reconnects request a full snapshot
+  so the decoder never resumes without its projection. Bounded/compact snapshots are not requested.
+- Reasoning, images (including textless messages), tools, questions, approval choices, todo plans,
+  compactions, context usage, and checkpoints are projected into Command's presentation types.
+  Rolled-back runs are excluded. Unknown future event kinds do not break the stream.
+- Existing orders become `message.dispatch` with `createdBy:"user"`, `creationSource:"web"`,
+  and `deliveryIntent:"auto"`; T3 decides whether busy delivery steers or queues. Runtime and
+  interaction modes are separate thread commands. Recruitment uses `orchestration.launchThread`
+  with `root`, `existing_worktree`, or `worktree` workspace strategies and an initial message.
+- Approval/question answers use `runtime-request.respond` with the original request ID and
+  answers. Stop uses `run.interrupt` with an app run ID and `holdQueue:true`. Rollback resolves
+  the app-run ordinal to the native checkpoint ID and scope, then sends `checkpoint.rollback`
+  with `restoreFiles:true`. Diff RPCs still accept app turn counts.
+- Project create/delete commands use `projects.mutate`. Usage contract v6, config, host,
+  filesystem, assets, VCS, and terminal RPCs retain the contracts Command already uses.
+- v2 pairings explicitly request diagnostics, filesystem, source-control, provider-update,
+  maintenance, and terminal permissions needed by Command. Existing tokens still drive threads,
+  but may need to be paired again for these features; **Machines** names the missing capabilities.
+  Linked connections must be reconnected in T3 desktop. Direct connections can use a fresh pairing
+  link or `npm run pair:local` on the local host. Re-pairing reconnects browser clients automatically.
+- Local pairing discovers the renamed **T3 Code (Beta)** desktop app, while retaining Alpha,
+  headless `t3`, and `T3_CLI` support.
+
+Validation: `npm test`, `npm run lint`, `npm run build`. For a paired server,
+`npx tsx tools/check-t3-compat.ts [env-id]` checks live shells, sampled transcripts, and providers
+without printing credentials or transcript content. `--check-usage` verifies the authenticated usage
+RPC as well. `--exercise-actions` also creates and deletes
+a temporary local project and empty thread to check launch, modes, and settlement; it never
+starts an agent. Run that option only against a local environment (the temporary folder is local).
+
+Command does not expose every new v2 feature: native queue editing, lineage/fork controls,
+provider handoffs, and scheduled tasks remain available in the stock T3 UI.
 
 ---
 
@@ -404,7 +440,7 @@ live events up to `page.threadSequence`.
 1. **Ack every Chunk** (`{"_tag":"Ack","requestId"}`) — the server blocks the stream until you do. Per-subscription buffer
    limit 1000 items / 8 MiB; a slow/non-acking consumer gets the stream failed with
    `OrchestrationGetSnapshotError{"message":"The live event buffer is full. Resume from the last received sequence."}` → resubscribe with `afterSequence`.
-2. **Protocol version**: check `/.well-known/t3/environment` `orchestrationProtocolVersion` (installed = 1). Upstream main/nightlies are v2 (§0).
+2. **Protocol version**: check `/.well-known/t3/environment` `orchestrationProtocolVersion`. Command supports v1 and v2; see the compatibility section above.
 3. No Origin check on WS, permissive CORS (`*`), no rate limiting observed in the server; but no unauthenticated access either.
 4. Server binds `0.0.0.0` (LAN-reachable) in this install; prefer `127.0.0.1` in your client and keep tokens private.
 5. Request `id` must be a string or number; unknown tags / bad payloads come back as `Die` defects, not typed errors.

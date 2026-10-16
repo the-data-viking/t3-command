@@ -10,7 +10,11 @@ give it orders, watch it work, and respond to approval requests when they come u
 
 ## Status
 
-Playable, tested against T3 Code 0.0.44–0.0.45 across six environments. Fleet-command styling
+Playable, compatible with T3 Code **0.1.0** (orchestration v2) and **0.0.44–0.0.45** (v1).
+The v2 adapter is shared by the browser and background recorder; local Hermes keeps its existing
+protocol. Older connections may need a fresh pairing to restore v0.1.0’s new permissions;
+**Machines** shows which features need it. See [`docs/PROTOCOL.md`](docs/PROTOCOL.md) for checks and scope.
+Fleet-command styling
 (hand-authored pixel sprites, with Night Shift as the default world):
 
 - **Stations**: the fleet is laid out as a ship. The Hermes hall (or an operations hub) sits on
@@ -731,8 +735,8 @@ place when the service switches releases.
 Layout:
 
 - `server/`: the t3-command server (Node 22.18+ runs the TypeScript directly; no build step)
-- `src/t3/`: T3 protocol client. Everything protocol-specific lives here, so a T3 protocol
-  change should only touch this folder.
+- `src/t3/`: T3 protocol client and presentation types
+- `shared/t3-protocol.ts`: v2 compatibility adapter shared by browser and server clients
 - `src/game/`: the PixiJS map and sound effects
 - `src/ui/`: React HUD (panels, top bar, modals)
 - `shared/`: types shared by server and UI
