@@ -113,6 +113,8 @@ export interface ThreadPullRequest {
 export type ShellStreamItem =
   | { kind: "snapshot"; snapshot: { snapshotSequence: number; projects: ProjectShell[]; threads: ThreadShell[] } }
   | { kind: "synchronized" }
+  /** v2 repository refreshes are partial snapshots, independent of the event cursor. */
+  | { kind: "project-enrichment"; projects: ProjectShell[]; resolvedRoots: string[] }
   | { kind: "project-upserted"; sequence: number; project: ProjectShell }
   | { kind: "project-removed"; sequence: number; projectId: string }
   | { kind: "thread-upserted"; sequence: number; thread: ThreadShell }

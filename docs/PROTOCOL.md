@@ -26,6 +26,10 @@ The sections below remain the historical v1 reference; v2 differs as follows:
   `project.updated` / `project.removed` replace v1's hyphenated kinds. Archive moves remove
   active crew. Run status, activity-owning run, pending runtime requests, and background-task
   rosters supply Command's existing crew status and timers.
+- A snapshot carrying `resolvedRepositoryIdentityRoots` is a partial repository-metadata
+  refresh, not a replacement fleet. Update only matching existing projects' repository identity;
+  retain unrelated projects, threads, synchronization state, and the event cursor. Its sequence
+  can be ahead of pending live events, and its empty thread list does not remove crew.
 - Thread snapshots are `{kind:"snapshot", snapshotSequence, projection}`. The projection contains
   runs, messages, structured turn items, runtime requests, plans, and checkpoints. Live event
   sequences sit on the stream envelope. Entity updates replace whole records, including
