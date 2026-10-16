@@ -62,12 +62,20 @@ for (const protocolVersion of [1, 2]) test(`the v${protocolVersion} recorder sub
     ...(protocolVersion === 2 ? { status: state, latestRunId: "turn-1", latestRunRequestedAt: iso(now), latestRunStartedAt: iso(now), latestRunCompletedAt: completedAt }
       : { session: null, latestTurn: { turnId: "turn-1", state, requestedAt: iso(now), startedAt: iso(now), completedAt, assistantMessageId: null } }) });
   const chunk = (values: unknown[]) => socket!.send(JSON.stringify({ _tag: "Chunk", requestId: "1", values }));
-  chunk([{ kind: "snapshot", snapshot: { snapshotSequence: 1, projects: [{ id: "p", title: "Project" }], threads: [thread("running", null)] } }, { kind: "synchronized" }]);
+  chunk([{ kind: "snapshot", snapshot: { snapshotSequence: 1, projects: [{ id: "p", title: "Project", workspaceRoot: "/p" }, { id: "q", title: "Inactive project", workspaceRoot: "/q" }], threads: [thread("running", null)] } }, { kind: "synchronized" }]);
+  if (protocolVersion === 2) {
+    chunk([{ kind: "snapshot", snapshot: { snapshotSequence: 100, projects: [{ id: "p", title: "Old project title", workspaceRoot: "/p", repositoryIdentity: { canonicalKey: "github.com/test/p" } }], threads: [] }, resolvedRepositoryIdentityRoots: ["/p"] }]);
+    await until(() => recorder.snapshot("remote")?.projects.p.repositoryIdentity?.canonicalKey === "github.com/test/p");
+    const snapshot = recorder.snapshot("remote")!;
+    assert.equal(snapshot.threads.length, 1, "repository enrichment cannot clear running turns");
+    assert.equal(snapshot.projects.p.title, "Project");
+    assert.equal(snapshot.projects.q.title, "Inactive project", "unrelated projects remain available to history and storage");
+  }
   chunk([{ kind: protocolVersion === 2 ? "thread.updated" : "thread-upserted", location: "active", sequence: 2, thread: thread("completed", iso(now + 42_000)) }]);
   await until(() => history.summary(1, "UTC").recent.length === 1);
   const [record] = history.summary(1, "UTC").recent;
   assert.deepEqual([record.envLabel, record.projectTitle, record.threadTitle, record.durationMs], ["Remote", "Project", "Fix it", 42_000]);
-  assert.equal(seen.acks, 2, "every chunk is acknowledged");
+  assert.equal(seen.acks, protocolVersion === 2 ? 3 : 2, "every chunk is acknowledged");
 
   const reply = await recorder.peek<{ kind: string; snapshot: { thread: { messages: Array<{ text: string }> } } }>("remote", "orchestration.subscribeThread", { threadId: "th", turnLimit: 1 });
   assert.equal(reply[0].snapshot.thread.messages[0].text, "Done");

@@ -1,7 +1,7 @@
 // Compatibility boundary for T3 Code 0.1.0 (orchestration v2). The rest of Command and
 // the local Hermes bridge keep Command's existing shell/transcript representation.
 // Source: pingdotgg/t3code v0.1.0, packages/contracts/src/orchestrationV2.ts.
-import type { Activity, Checkpoint, LatestTurn, Message, ModelSelection, OrchestrationThread, ShellStreamItem, ThreadShell, ThreadStreamItem } from "../src/t3/types.ts";
+import type { Activity, Checkpoint, LatestTurn, Message, ModelSelection, OrchestrationThread, ProjectShell, ShellStreamItem, ThreadShell, ThreadStreamItem } from "../src/t3/types.ts";
 
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row => value && typeof value === "object" ? value as Row : {};
@@ -60,6 +60,10 @@ export function v2ShellItems(values: unknown[]): ShellStreamItem[] {
     switch (item.kind) {
       case "snapshot": {
         const snapshot = row(item.snapshot);
+        // T3 also sends snapshot-shaped repository enrichment frames, sometimes for just
+        // one workspace. Empty threads here do not mean that the fleet was removed.
+        if (Array.isArray(item.resolvedRepositoryIdentityRoots)) return [{ kind: "project-enrichment",
+          projects: snapshot.projects as ProjectShell[], resolvedRoots: item.resolvedRepositoryIdentityRoots as string[] }];
         return [{ kind: "snapshot", snapshot: {
           snapshotSequence: Number(snapshot.snapshotSequence), projects: snapshot.projects as Extract<ShellStreamItem, { kind: "snapshot" }>["snapshot"]["projects"],
           threads: rows(snapshot.threads).map(v2Shell),
@@ -74,6 +78,20 @@ export function v2ShellItems(values: unknown[]): ShellStreamItem[] {
       default: return [];
     }
   });
+}
+
+/** Metadata refreshes must not resurrect deleted projects or undo newer project edits. */
+export function enrichProjectRepositories(current: Record<string, ProjectShell>, projects: ProjectShell[], resolvedRoots: string[]): Record<string, ProjectShell> {
+  let next = current;
+  const roots = new Set(resolvedRoots);
+  for (const project of projects) {
+    const existing = current[project.id];
+    if (!existing || existing.workspaceRoot !== project.workspaceRoot || !roots.has(project.workspaceRoot)) continue;
+    if (JSON.stringify(existing.repositoryIdentity) === JSON.stringify(project.repositoryIdentity)) continue;
+    if (next === current) next = { ...current };
+    next[project.id] = { ...existing, repositoryIdentity: project.repositoryIdentity };
+  }
+  return next;
 }
 
 function activity(item: Row, kind: string, tone: Activity["tone"], summary: string, payload: Row, suffix = "", at?: string): Activity {

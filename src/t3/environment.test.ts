@@ -40,3 +40,45 @@ test('permission changes dispatch without starting a new turn', async () => {
   assert.equal(calls[0].payload.message, undefined);
   assert.equal(typeof calls[0].payload.commandId, 'string');
 });
+
+test("v2 repository refreshes preserve inactive project nodes, crew, and the live event cursor", async () => {
+  const { useGame } = await import("../store");
+  const { v2ShellItems } = await import("../../shared/t3-protocol");
+  const { computeFleetLayout } = await import("../game/layout");
+  const before = useGame.getState();
+  const summary = { id: "env", label: "Station", addedAt: "2026-10-15", protocolVersion: 2 } as EnvSummary;
+  const client = new EnvironmentClient(summary);
+  const apply = (values: unknown[]) => (client as unknown as { applyShell(items: unknown[]): void }).applyShell(v2ShellItems(values));
+  const project = (id: string) => ({ id, title: id, workspaceRoot: `/repos/${id}`, defaultModelSelection: null, createdAt: "2026-10-15", updatedAt: "2026-10-15" });
+  const a = project("alpha"), b = project("beta");
+  const thread = (id: string) => ({ id, projectId: id === "one" ? "alpha" : "beta", title: id, modelSelection: { instanceId: "codex", model: "sol" },
+    runtimeMode: "approval-required", interactionMode: "default", status: "completed", latestRunId: `run-${id}`, activeRunId: null,
+    latestUserMessageAt: "2026-10-15", createdAt: "2026-10-15", updatedAt: "2026-10-15", settledAt: "2026-10-15", pendingRuntimeRequest: null });
+  try {
+    useGame.setState({ envs: { env: { summary, connection: "live", synced: false, projects: {}, threads: {}, providers: [] } }, memory: {} });
+    apply([{ kind: "snapshot", snapshot: { snapshotSequence: 10, projects: [a, b], threads: [thread("one"), thread("two")] } }, { kind: "synchronized" }]);
+    const threads = useGame.getState().envs.env.threads;
+    apply([{ kind: "snapshot", snapshot: { snapshotSequence: 1000, projects: [{ ...a, title: "stale title", repositoryIdentity: { canonicalKey: "github.com/test/alpha", name: "alpha" } }], threads: [] },
+      resolvedRepositoryIdentityRoots: [a.workspaceRoot] }]);
+    let world = useGame.getState().envs.env;
+    assert.deepEqual(Object.keys(world.projects), ["alpha", "beta"]);
+    assert.equal(world.projects.alpha.title, "alpha", "metadata cannot undo newer project edits");
+    assert.equal(world.projects.alpha.repositoryIdentity?.canonicalKey, "github.com/test/alpha");
+    assert.equal(world.threads, threads);
+    assert.equal(world.synced, true);
+    const layout = computeFleetLayout(useGame.getState());
+    assert.equal(layout.stations.size, 2, "inactive project modules stay on the map");
+    assert.equal(layout.crew.size, 2, "settled crew stay in their quarters");
+    // Metadata can arrive ahead of the live tail; its sequence must not skip tail events.
+    apply([{ kind: "thread.updated", location: "active", sequence: 11, thread: { ...thread("one"), title: "fresh thread" } }]);
+    assert.equal(useGame.getState().envs.env.threads.one.title, "fresh thread");
+    apply([{ kind: "project.removed", sequence: 12, projectId: "beta" }]);
+    apply([{ kind: "snapshot", snapshot: { snapshotSequence: 1001, projects: [{ ...b, repositoryIdentity: { canonicalKey: "github.com/test/beta" } }], threads: [] }, resolvedRepositoryIdentityRoots: [b.workspaceRoot] }]);
+    assert.equal(useGame.getState().envs.env.projects.beta, undefined, "late enrichment cannot resurrect a deleted project");
+    // An unmarked reconnect snapshot is still authoritative, even if it is empty.
+    apply([{ kind: "snapshot", snapshot: { snapshotSequence: 20, projects: [], threads: [] } }]);
+    world = useGame.getState().envs.env;
+    assert.deepEqual(world.projects, {});
+    assert.deepEqual(world.threads, {});
+  } finally { useGame.setState(before, true); }
+});

@@ -35,6 +35,7 @@ import type {
   VcsStatusEvent,
 } from "./types";
 import { t3Defaults } from "./model-defaults";
+import { enrichProjectRepositories } from "../../shared/t3-protocol";
 
 /** Close codes sent by the t3-command relay (server/index.ts). */
 const CLOSE_NEEDS_PAIRING = 4401;
@@ -320,6 +321,9 @@ export class EnvironmentClient {
             break;
           case "synchronized":
             synced = true;
+            break;
+          case "project-enrichment":
+            projects = enrichProjectRepositories(projects, item.projects, item.resolvedRoots);
             break;
           case "project-upserted":
             if (item.sequence <= this.shellSequence) break;

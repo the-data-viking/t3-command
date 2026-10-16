@@ -8,7 +8,7 @@ import type { HermesBridge } from "./hermes/bridge.ts";
 import type { TurnHistory } from "./history.ts";
 import type { Registry } from "./registry.ts";
 import { ProtocolUnsupported, t3SocketUrl } from "./t3-socket.ts";
-import { protocolRequest, protocolStreamDecoder, protocolStreamPayload } from "../shared/t3-protocol.ts";
+import { enrichProjectRepositories, protocolRequest, protocolStreamDecoder, protocolStreamPayload } from "../shared/t3-protocol.ts";
 
 const SYNC_MS = 60_000;
 const PRUNE_MS = 6 * 3_600_000;
@@ -223,6 +223,7 @@ export class HistoryRecorder {
             projects = Object.fromEntries(item.snapshot.projects.map((p) => [p.id, p]));
             threads = new Map(item.snapshot.threads.map((t) => [t.id, t]));
           } else if (item.kind === "synchronized") synced = true;
+          else if (item.kind === "project-enrichment") projects = enrichProjectRepositories(projects, item.projects, item.resolvedRoots);
           else if (item.kind === "project-upserted") projects = { ...projects, [item.project.id]: item.project };
           else if (item.kind === "project-removed") { projects = { ...projects }; delete projects[item.projectId]; }
           else if (item.kind === "thread-upserted") threads.set(item.thread.id, item.thread);
