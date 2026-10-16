@@ -191,6 +191,11 @@ export function v2Thread(value: unknown): OrchestrationThread {
   const plan = [...activities].reverse().find((a) => a.kind === "turn.plan.updated" && a.turnId === current?.id);
   const steps = rows(plan?.payload?.plan);
   return { ...shell,
+    nativeSubagents: rows(p.subagents).filter((s) => s.origin === "provider_native" && typeof s.childThreadId === "string").map((s) => ({
+      id: text(s.id), parentThreadId: text(s.threadId) || shell.id, childThreadId: text(s.childThreadId),
+      runId: nullableText(s.runId), status: s.status as NonNullable<OrchestrationThread["nativeSubagents"]>[number]["status"],
+      startedAt: nullableText(s.startedAt), completedAt: nullableText(s.completedAt), updatedAt: text(s.updatedAt),
+    })),
     planProgress: current && active(current.status) && steps.length ? { step: text((steps.find((s) => s.status === "inProgress") ?? steps.find((s) => s.status === "pending") ?? steps.at(-1))?.step), totalSteps: steps.length, completedSteps: steps.filter((s) => s.status === "completed").length } : null,
     messages: [...messages.values()].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)), activities, checkpoints };
 }

@@ -38,3 +38,15 @@ test("last activity is the newest activity or message update", () => {
   assert.equal(lastActivityAt(thread), Date.parse("2026-10-12T10:05:00Z"));
   assert.equal(lastActivityAt({ activities: [], messages: [] } as unknown as OrchestrationThread), undefined);
 });
+
+test("provider-native children read Working and count as active crew without an app run", () => {
+  const child = t("child", { latestTurn: null, latestUserMessageAt: null, creationSource: "provider",
+    lineage: { parentThreadId: "parent", relationshipToParent: "subagent", rootThreadId: "parent" },
+    nativeSubagent: { id: "agent", parentThreadId: "parent", childThreadId: "child", runId: "run", status: "running", startedAt: null, completedAt: null, updatedAt: "2026-10-15" } });
+  assert.equal(stateLabel(child, "working"), "Working");
+  assert.equal(isBackground(child, "working"), false);
+  const counts = fleetCounts({ env: { summary: { id: "env" }, threads: { child } } } as unknown as Record<string, EnvWorld>);
+  assert.equal(counts.working, 1);
+  assert.equal(counts.background, 0);
+  assert.equal(counts.awake, 1);
+});

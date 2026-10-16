@@ -82,3 +82,60 @@ test("v2 repository refreshes preserve inactive project nodes, crew, and the liv
     assert.deepEqual(world.threads, {});
   } finally { useGame.setState(before, true); }
 });
+
+test("native children follow parent lifecycle streams without an open panel, across shell refreshes and reconnects", async () => {
+  const { useGame, unitKey } = await import("../store");
+  const { v2ShellItems, v2ThreadStream } = await import("../../shared/t3-protocol");
+  const { isHistory, unitState } = await import("./derive");
+  const before = useGame.getState();
+  const summary = { id: "native-env", label: "Station", protocolVersion: 2 } as EnvSummary;
+  const client = new EnvironmentClient(summary);
+  const streams: Array<{ payload: { threadId: string }; emit: (items: unknown[]) => void; cancelled: boolean }> = [];
+  const calls: Record<string, unknown>[] = [];
+  Object.defineProperty(client, "rpc", { value: { isOpen: true,
+    stream: (_tag: string, payload: { threadId: string }, emit: (items: unknown[]) => void) => {
+      const stream = { payload, emit, cancelled: false }; streams.push(stream);
+      return () => { stream.cancelled = true; };
+    },
+    request: async (_tag: string, payload: Record<string, unknown>) => { calls.push(payload); return {}; },
+  } });
+  const internals = client as unknown as { applyShell(items: unknown[]): void; subscribeThread(id: string, sub: unknown): void; threadSubs: Map<string, unknown> };
+  const apply = (values: unknown[]) => internals.applyShell(v2ShellItems(values));
+  const shell = (id: string, parent = false) => ({ id, projectId: "p", title: id, creationSource: parent ? "web" : "provider",
+    lineage: { parentThreadId: parent ? null : "parent", relationshipToParent: parent ? null : "subagent", rootThreadId: "parent" },
+    latestRunId: parent ? "run" : null, activeRunId: null, activeProviderThreadId: null, status: parent ? "completed" : "idle",
+    latestUserMessageAt: null, createdAt: "2026-10-15", updatedAt: "2026-10-15" });
+  const agent = { id: "agent", threadId: "parent", childThreadId: "child", origin: "provider_native", runId: "owner-run", status: "running", updatedAt: "2026-10-15T12:00:00Z" };
+  const getChild = () => useGame.getState().envs[summary.id].threads.child;
+  try {
+    useGame.setState({ envs: { [summary.id]: { summary, connection: "live", synced: false, projects: {}, threads: {}, providers: [] } }, details: {} });
+    apply([{ kind: "snapshot", snapshot: { snapshotSequence: 1, projects: [], threads: [shell("parent", true), shell("child"), shell("sibling")] } }, { kind: "synchronized" }]);
+    assert.equal(streams.length, 1, "siblings share one parent subscription");
+    assert.equal(streams[0].payload.threadId, "parent");
+    const decode = v2ThreadStream();
+    streams[0].emit(decode([{ kind: "snapshot", snapshotSequence: 1, projection: { thread: shell("parent", true), subagents: [agent] } }, { kind: "synchronized" }]));
+    assert.equal(unitState(getChild()), "working");
+    assert.equal(getChild().latestTurn, null, "a native task is not an app run");
+    assert.equal(isHistory(getChild()), false);
+    apply([{ kind: "thread.updated", sequence: 2, location: "active", thread: { ...shell("child"), title: "New tool output" } }]);
+    assert.equal(unitState(getChild()), "working", "child shell output cannot overwrite the parent lifecycle");
+    const closePanel = client.watchThread("parent"); closePanel();
+    assert.equal(streams[0].cancelled, false, "closing a panel does not stop observing native work");
+    await client.interrupt("child");
+    assert.equal(calls[0].type, "subagent.stop");
+    assert.equal(calls[0].threadId, "parent");
+    assert.equal(calls[0].runId, "owner-run");
+    assert.equal(calls[0].subagentId, "agent");
+    for (const [sequence, status, expected] of [[2, "waiting", "working"], [3, "completed", "done"], [4, "failed", "error"], [5, "cancelled", "idle"], [6, "interrupted", "idle"], [7, "idle", "idle"], [8, "pending", "working"]] as const) {
+      streams[0].emit(decode([{ kind: "event", sequence, event: { type: "subagent.updated", payload: { ...agent, status, updatedAt: `2026-10-15T12:00:0${sequence}Z` } } }]));
+      assert.equal(unitState(getChild()), expected, status);
+    }
+    internals.subscribeThread("parent", internals.threadSubs.get("parent"));
+    const reconnect = v2ThreadStream();
+    streams.at(-1)!.emit(reconnect([{ kind: "snapshot", snapshotSequence: 20, projection: { thread: shell("parent", true), subagents: [{ ...agent, status: "completed" }] } }]));
+    assert.equal(unitState(getChild()), "done", "reconnect replaces stale running state");
+    apply([{ kind: "snapshot", snapshot: { snapshotSequence: 30, projects: [], threads: [] } }]);
+    assert.equal(streams.at(-1)!.cancelled, true);
+    assert.equal(useGame.getState().details[unitKey(summary.id, "parent")], undefined);
+  } finally { useGame.setState(before, true); }
+});
