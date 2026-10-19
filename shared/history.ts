@@ -9,6 +9,8 @@ export interface TurnRecord {
   projectId: string;
   projectTitle: string;
   threadId: string;
+  /** Persist child identity so the timeline can exclude it after the shell disappears. */
+  isSubagent?: boolean;
   threadTitle: string;
   turnId: string;
   /** Provider instance (codex, claudeAgent, hermes…) and model slug. */

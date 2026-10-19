@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { GameState } from '../store';
+import { isHistory, unitState } from '../t3/derive';
 import { computeFleetLayout, fingerprint, nodeDrawKey, orderLanes, stationDrawKey, type Rect } from './layout';
 import { linkPath } from './map-common';
 
@@ -17,6 +18,46 @@ function fixture(crewCount=1): GameState {
   return {envs:{a:env('a',['shared','other']),b:env('b',['shared']),empty:env('empty',[])},memory:{}} as unknown as GameState;
 }
 const intersects=(a:Rect,b:Rect)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+
+test('finished subagents enter cryo and wake for follow-up work; ordinary crew keep their reports', () => {
+  for (const creationSource of ['provider', 'mcp']) {
+    const state = fixture();
+    const child = state.envs.a.threads['shared-0'];
+    child.creationSource = creationSource;
+    child.lineage = { parentThreadId: 'parent', relationshipToParent: 'subagent', rootThreadId: 'parent' };
+    child.latestTurn = { turnId: 'run', state: 'completed', requestedAt: '2026-10-19', startedAt: null, completedAt: '2026-10-19', assistantMessageId: null };
+    const placement = () => computeFleetLayout(state).crew.get('a:shared-0')!;
+    for (const outcome of ['completed', 'error', 'interrupted'] as const) {
+      child.latestTurn.state = outcome;
+      assert.equal(unitState(child), 'sleeping');
+      assert.equal(placement().homeRoom, 'quarters');
+      assert.equal(placement().sleeping, true);
+    }
+    child.latestTurn.state = 'running';
+    assert.equal(placement().homeRoom, 'bridge');
+    assert.equal(placement().sleeping, false);
+    child.latestTurn.state = 'completed';
+    child.hasPendingUserInput = true;
+    assert.equal(unitState(child), 'question');
+    child.hasPendingUserInput = false;
+    child.hasPendingApprovals = true;
+    assert.equal(unitState(child), 'alert');
+    child.hasPendingApprovals = false;
+    child.backgroundLiveness = 'working';
+    assert.equal(unitState(child), 'working');
+    child.backgroundLiveness = null;
+    child.lineage.relationshipToParent = 'fork';
+    assert.equal(unitState(child), 'done');
+    child.lineage.relationshipToParent = 'subagent';
+    child.latestTurn = null;
+    child.session = null;
+    child.latestUserMessageAt = null;
+    assert.equal(isHistory(child), false, 'new app-delegated children are crew, not imported transcripts');
+    assert.equal(unitState(child), 'idle', 'missing lifecycle is not proof of completion');
+    child.settledAt = '2026-10-19';
+    assert.equal(placement().homeRoom, 'quarters', 'released children rest even without a recorded turn');
+  }
+});
 
 test('each environment has one engineering node connected to every project it serves',()=>{
   const layout=computeFleetLayout(fixture());

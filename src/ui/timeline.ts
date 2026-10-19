@@ -4,6 +4,7 @@
 
 import type { TimelineView, TurnRecord } from "../../shared/history";
 import type { EnvWorld, GameState } from "../store";
+import { isSubagent } from "../t3/derive";
 import { waitingSince } from "./queue";
 import { allUnits } from "./util";
 
@@ -47,6 +48,7 @@ export function buildTimeline(view: TimelineView, envs: Record<string, EnvWorld>
   for (const r of view.turns) {
     const live = envs[r.envId];
     const thread = live?.threads[r.threadId];
+    if (r.isSubagent || (thread && isSubagent(thread))) continue;
     const l = lane(r.envId, r.threadId, thread?.title || r.threadTitle || "Untitled", live?.summary.label ?? r.envLabel,
       (thread && live.projects[thread.projectId]?.title) || r.projectTitle);
     const start = Math.max(view.from, Date.parse(r.startedAt)), end = Date.parse(r.completedAt);
@@ -56,6 +58,7 @@ export function buildTimeline(view: TimelineView, envs: Record<string, EnvWorld>
   }
   // The live fleet: a turn running or waiting on you now, unless history already closed it.
   for (const u of allUnits(envs)) {
+    if (isSubagent(u.thread)) continue;
     const turn = u.thread.latestTurn;
     if (!turn || seen.has(`${u.envId}:${u.thread.id}:${turn.turnId}`)) continue;
     if (turn.state !== "running" && u.state !== "alert" && u.state !== "question") continue;

@@ -31,6 +31,34 @@ async function setup() {
 
 const recorded = (h: TurnHistory) => h.summary(90, "UTC").recent;
 
+test("timeline hides delegated turns after removal and restart, while retaining their history", async () => {
+  const { history, clock, reload } = await setup();
+  const lineage = { parentThreadId: "parent", relationshipToParent: "subagent", rootThreadId: "parent" };
+  history.connected("env", "Station");
+  history.observe("env", projects, [thread("child", { id: "run", state: "running" }, { creationSource: "mcp", lineage })]);
+  clock.set(T0 + 60_000);
+  history.observe("env", projects, [thread("child", { id: "run", state: "completed", done: T0 + 60_000 }, { creationSource: "mcp", lineage }), thread("parent", { id: "main", state: "completed", done: T0 + 60_000 })]);
+  history.observe("env", projects, []);
+  assert.equal(recorded(history).find((r) => r.threadId === "child")?.isSubagent, true);
+  const restarted = await reload();
+  assert.equal(recorded(restarted).length, 2, "history retains both turns");
+  assert.deepEqual(restarted.timeline(24).turns.map((r) => r.threadId), ["parent"]);
+});
+
+test("a live lineage snapshot also hides legacy timeline records without child metadata", async () => {
+  const { history, clock, reload } = await setup();
+  history.connected("env", "Station");
+  history.observe("env", projects, [thread("old-child", { id: "run", state: "running" })]);
+  clock.set(T0 + 60_000);
+  const finished = thread("old-child", { id: "run", state: "completed", done: T0 + 60_000 });
+  history.observe("env", projects, [finished]);
+  assert.equal(history.timeline(24).turns.length, 1);
+  history.observe("env", projects, [{ ...finished, lineage: { parentThreadId: "parent", relationshipToParent: "subagent", rootThreadId: "parent" } }]);
+  assert.equal(history.timeline(24).turns.length, 0);
+  history.observe("env", projects, []);
+  assert.equal((await reload()).timeline(24).turns.length, 0, "legacy classification survives removal and restart");
+});
+
 test("the first start records nothing old, then records turns as they finish", async () => {
   const { history, clock } = await setup();
   history.connected("env", "Mac mini");
