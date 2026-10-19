@@ -49,13 +49,16 @@ export function unitState(t: ThreadShell): UnitState {
   const status = t.session?.status;
   if (status === "running" || status === "starting" || t.latestTurn?.state === "running") return "working";
   if (t.backgroundLiveness === "working") return "working";
-  if (t.backgroundLiveness === "monitoring") return "monitoring";
   const nativeStatus = t.nativeSubagent?.status;
   if (nativeStatus === "pending" || nativeStatus === "running" || nativeStatus === "waiting") return "working";
   // The host owns child results. Finished/released children rest without an operator debrief,
   // and wake naturally if another turn or native task starts (the checks above win).
   if (isSubagent(t) && (nativeStatus !== undefined || t.latestTurn)) return "sleeping";
-  if (isSettled(t) || (t.snoozedUntil && Date.parse(t.snoozedUntil) > Date.now())) return "sleeping";
+  // Explicit settlement sends crew to camp even if a passive watch or an old background
+  // command is still reported. Actual work and requests above still keep them awake.
+  if (isSettled(t)) return "sleeping";
+  if (t.backgroundLiveness === "monitoring") return "monitoring";
+  if (t.snoozedUntil && Date.parse(t.snoozedUntil) > Date.now()) return "sleeping";
   if (status === "error" || t.latestTurn?.state === "error" || nativeStatus === "failed") return "error";
   if (t.latestTurn?.state === "completed" || nativeStatus === "completed") return "done";
   return "idle";
