@@ -3,6 +3,51 @@ import test from "node:test";
 import { EnvironmentClient } from "./environment";
 import type { EnvSummary } from "../../shared/api";
 
+test("settled v2 crew with leftover background shells leave on duty for cryo and wake for new work", async () => {
+  const { useGame } = await import("../store");
+  const { v2ShellItems } = await import("../../shared/t3-protocol");
+  const { unitState } = await import("./derive");
+  const { fleetCounts } = await import("../ui/util");
+  const { computeFleetLayout } = await import("../game/layout");
+  const before = useGame.getState();
+  const summary = { id: "camp-env", label: "Station", protocolVersion: 2 } as EnvSummary;
+  const client = new EnvironmentClient(summary);
+  const apply = (values: unknown[]) => (client as unknown as { applyShell(items: unknown[]): void }).applyShell(v2ShellItems(values));
+  const shell = { id: "crew", projectId: "p", title: "Wrap and close", latestRunId: "run", activeRunId: null,
+    status: "completed", activityRunStatus: null, latestRunCompletedAt: "2026-10-19T07:53:12.365Z",
+    latestUserMessageAt: "2026-10-19", createdAt: "2026-10-19", updatedAt: "2026-10-19T07:53:12.365Z",
+    pendingBackgroundTasks: [{ kind: "background_shell", taskId: "old-command" }], pendingRuntimeRequest: null,
+    settledAt: null, unsettledAt: "2026-10-19T07:53:03.616Z" };
+  const state = () => useGame.getState();
+  const crew = () => state().envs[summary.id].threads.crew;
+  const place = () => computeFleetLayout(state()).crew.get(`${summary.id}:crew`)!;
+  try {
+    useGame.setState({ envs: { [summary.id]: { summary, connection: "live", synced: false, projects: {}, threads: {}, providers: [] } }, details: {}, memory: {} });
+    apply([{ kind: "snapshot", snapshot: { snapshotSequence: 1, projects: [{ id: "p", title: "Project", workspaceRoot: "/project" }], threads: [shell] } }, { kind: "synchronized" }]);
+    assert.equal(unitState(crew()), "monitoring");
+    const settled = { ...shell, settledAt: "2026-10-19T07:53:12.659Z", unsettledAt: null };
+    apply([{ kind: "thread.updated", sequence: 2, location: "active", thread: settled }]);
+    assert.equal(unitState(crew()), "sleeping");
+    assert.equal(fleetCounts(state().envs).awake, 0, "settlement removes the crew member from on duty");
+    assert.equal(fleetCounts(state().envs).monitoring, 0);
+    assert.equal(place().homeRoom, "quarters");
+    assert.equal(place().sleeping, true);
+    // A reconnect must agree with the live settlement event.
+    apply([{ kind: "snapshot", snapshot: { snapshotSequence: 3, projects: Object.values(state().envs[summary.id].projects), threads: [settled] } }]);
+    assert.equal(unitState(crew()), "sleeping");
+    for (const [sequence, changes, expected] of [
+      [4, { pendingRuntimeRequest: { id: "approval", kind: "tool_approval" } }, "alert"],
+      [5, { pendingRuntimeRequest: { id: "question", kind: "user_input" } }, "question"],
+      [6, { status: "running", activityRunStatus: "running", activeRunId: "next-run" }, "working"],
+      [7, { pendingBackgroundTasks: [{ kind: "subagent", taskId: "active-child" }] }, "working"],
+      [8, { unsettledAt: "2026-10-19T07:54:00Z" }, "monitoring"],
+    ] as const) {
+      apply([{ kind: "thread.updated", sequence, location: "active", thread: { ...settled, ...changes } }]);
+      assert.equal(unitState(crew()), expected);
+    }
+  } finally { useGame.setState(before, true); }
+});
+
 test("question responses dispatch against the original request without starting an unrelated turn", async () => {
   const client = new EnvironmentClient({ id: "env", label: "Station" } as EnvSummary);
   const calls: Array<{ tag: string; payload: Record<string, unknown> }> = [];

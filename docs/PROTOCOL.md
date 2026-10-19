@@ -26,6 +26,8 @@ The sections below remain the historical v1 reference; v2 differs as follows:
   `project.updated` / `project.removed` replace v1's hyphenated kinds. Archive moves remove
   active crew. Run status, activity-owning run, pending runtime requests, and background-task
   rosters supply Command's existing crew status and timers.
+  Explicitly settled crew enter camp even when a passive background shell or monitor remains
+  reported. Active work, approvals, and questions still take precedence over camp.
 - Provider-native child threads (`creationSource:"provider"`, subagent lineage) can report
   `status:"idle"` with no app run or provider session while doing work. Their authoritative
   lifecycle is the owning parent's `projection.subagents` record. Command shares one parent
