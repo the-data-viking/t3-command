@@ -141,6 +141,8 @@ Fleet-command styling
   then move and resize it. Pins are shared by every device and go when the thread is
   archived. See [`docs/WIDGETS.md`](docs/WIDGETS.md).
 - **Turn history**: **History** (or **H**) shows what the fleet got done over 7, 30 or 90 days.
+  The fleet timeline omits subagent sessions. Native and app-delegated subagents automatically
+  return to cryo when their work finishes or their host releases them, and wake for follow-up work.
   It covers turns per day (done, failed, interrupted), typical and slowest turn times, long-running
   turns (running over an hour right now, and the longest finished ones by agent time), failure rate
   and the most common failures, busiest projects and models, recent turns, and daily spend. The

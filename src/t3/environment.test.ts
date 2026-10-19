@@ -126,14 +126,14 @@ test("native children follow parent lifecycle streams without an open panel, acr
     assert.equal(calls[0].threadId, "parent");
     assert.equal(calls[0].runId, "owner-run");
     assert.equal(calls[0].subagentId, "agent");
-    for (const [sequence, status, expected] of [[2, "waiting", "working"], [3, "completed", "done"], [4, "failed", "error"], [5, "cancelled", "idle"], [6, "interrupted", "idle"], [7, "idle", "idle"], [8, "pending", "working"]] as const) {
+    for (const [sequence, status, expected] of [[2, "waiting", "working"], [3, "completed", "sleeping"], [4, "failed", "sleeping"], [5, "cancelled", "sleeping"], [6, "interrupted", "sleeping"], [7, "idle", "sleeping"], [8, "pending", "working"]] as const) {
       streams[0].emit(decode([{ kind: "event", sequence, event: { type: "subagent.updated", payload: { ...agent, status, updatedAt: `2026-10-15T12:00:0${sequence}Z` } } }]));
       assert.equal(unitState(getChild()), expected, status);
     }
     internals.subscribeThread("parent", internals.threadSubs.get("parent"));
     const reconnect = v2ThreadStream();
     streams.at(-1)!.emit(reconnect([{ kind: "snapshot", snapshotSequence: 20, projection: { thread: shell("parent", true), subagents: [{ ...agent, status: "completed" }] } }]));
-    assert.equal(unitState(getChild()), "done", "reconnect replaces stale running state");
+    assert.equal(unitState(getChild()), "sleeping", "reconnect replaces stale running state");
     apply([{ kind: "snapshot", snapshot: { snapshotSequence: 30, projects: [], threads: [] } }]);
     assert.equal(streams.at(-1)!.cancelled, true);
     assert.equal(useGame.getState().details[unitKey(summary.id, "parent")], undefined);

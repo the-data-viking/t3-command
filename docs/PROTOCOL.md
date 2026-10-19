@@ -31,7 +31,11 @@ The sections below remain the historical v1 reference; v2 differs as follows:
   lifecycle is the owning parent's `projection.subagents` record. Command shares one parent
   detail subscription across those children, even with no panel open, and joins lifecycle
   updates by child ID. Reconnect snapshots replace the cached lifecycle; ordinary child-shell
-  refreshes cannot overwrite it. Completion/failure settle the sprite without inventing a run.
+  refreshes cannot overwrite it. Terminal or idle native lifecycles send the child to cryo
+  without inventing a run. App-delegated children (the same subagent lineage, source `mcp`)
+  also enter cryo when their turn finishes or they are settled. Active work and pending requests
+  keep children awake; follow-up work wakes them again. Both kinds are excluded from live and
+  historical timeline lanes; history records retain child identity after shell removal.
   Halt sends `subagent.stop` with the parent thread, owning run, and subagent IDs.
 - A snapshot carrying `resolvedRepositoryIdentityRoots` is a partial repository-metadata
   refresh, not a replacement fleet. Update only matching existing projects' repository identity;

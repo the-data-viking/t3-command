@@ -34,6 +34,19 @@ test("a running turn that history already closed isn't drawn twice", () => {
   assert.equal(groups[0].lanes[0].bars.length, 1);
 });
 
+test("native and delegated subagents never create live or historical lanes, while forks remain", () => {
+  const threads = Object.fromEntries(["provider", "mcp", "fork"].map((source) => [source, {
+    ...envs.e.threads.t1, id: source, creationSource: source,
+    lineage: { parentThreadId: "parent", relationshipToParent: source === "fork" ? "fork" : "subagent", rootThreadId: "parent" },
+  }]));
+  const fleet = { e: { ...envs.e, threads } } as Record<string, EnvWorld>;
+  const turns = [rec("provider", "a", 3, 2), rec("mcp", "b", 3, 2), { ...rec("removed", "c", 3, 2), isSubagent: true }, rec("fork", "d", 3, 2)];
+  const lanes = buildTimeline({ from: now - 24 * H, to: now, turns }, fleet, now).flatMap((g) => g.lanes);
+  assert.deepEqual(lanes.map((l) => l.threadId), ["fork"]);
+  assert.equal(lanes[0].bars.length, 2, "ordinary fork retains history and live work");
+  assert.deepEqual(buildTimeline({ from: now - 24 * H, to: now, turns: [turns[2]] }, {}, now), [], "persisted identity works offline without a shell");
+});
+
 test("ticks land on whole hours, sparser for longer windows", () => {
   const six = ticks(now - 6 * H, now), day = ticks(now - 24 * H, now), three = ticks(now - 72 * H, now);
   assert.ok(six.length >= 5 && six.length <= 6);

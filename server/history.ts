@@ -9,6 +9,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { ProjectShell, ThreadShell } from "../src/t3/types.ts";
+import { isSubagent } from "../src/t3/derive.ts";
 import {
   GAP_THRESHOLD_MS, HISTORY_RETENTION_DAYS, summarizeHistory,
   type CoverageSpan, type HistorySummary, type TimelineView, type TurnOutcome, type TurnRecord,
@@ -20,7 +21,7 @@ const TERMINAL = new Set<string>(["completed", "error", "interrupted"]);
 const MAX_WAITS = 20;
 const DAY_MS = 86_400_000;
 
-interface EnvState { watermark: string; spans: Array<{ from: string; to: string }> }
+interface EnvState { watermark: string; spans: Array<{ from: string; to: string }>; subagentThreadIds?: string[] }
 interface State { envs: Record<string, EnvState> }
 
 /** The provider and model a turn ran on; Hermes reports its bot profile rather than "default". */
@@ -37,6 +38,8 @@ export class TurnHistory {
   private keys = new Set<string>();
   private state: State = { envs: {} };
   private labels: Record<string, string> = {};
+  /** Also classifies older records that predate persisted child metadata. */
+  private subagentThreads = new Set<string>();
   /** Environments currently being followed: their open span is extended as they report. */
   private live = new Set<string>();
   /** Per environment, each thread's last seen "turnId:state", since the latest (re)connect. */
@@ -66,6 +69,9 @@ export class TurnHistory {
     try {
       this.state = JSON.parse(await fs.readFile(this.stateFile, "utf8")) as State;
     } catch (err) { if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err; }
+    for (const [envId, env] of Object.entries(this.state.envs)) {
+      for (const id of env.subagentThreadIds ?? []) this.subagentThreads.add(`${envId}|${id}`);
+    }
     await this.prune();
   }
 
@@ -99,6 +105,11 @@ export class TurnHistory {
     const now = this.now();
     const present = new Set<string>();
     for (const t of threads) {
+      if (isSubagent(t) && !this.subagentThreads.has(`${envId}|${t.id}`)) {
+        this.subagentThreads.add(`${envId}|${t.id}`);
+        (env.subagentThreadIds ??= []).push(t.id);
+        this.stateDirty = true;
+      }
       const turn = t.latestTurn;
       present.add(t.id);
       const signature = turn ? `${turn.turnId}:${turn.state}` : "";
@@ -136,6 +147,7 @@ export class TurnHistory {
         envId, envLabel: this.labels[envId] ?? envId,
         projectId: t.projectId, projectTitle: projects[t.projectId]?.title ?? t.projectId,
         threadId: t.id, threadTitle: (t.title || "Untitled").slice(0, 160), turnId: turn.turnId,
+        ...(isSubagent(t) ? { isSubagent: true } : {}),
         provider, model,
         startedAt: started, completedAt: turn.completedAt,
         durationMs,
@@ -161,7 +173,7 @@ export class TurnHistory {
   /** Every turn that finished in the last `hours`, oldest first, for the fleet timeline. */
   timeline(hours: number): TimelineView {
     const to = this.now(), from = to - hours * 3_600_000;
-    return { from, to, turns: this.records.filter((r) => Date.parse(r.completedAt) >= from).sort((a, b) => a.startedAt.localeCompare(b.startedAt)) };
+    return { from, to, turns: this.records.filter((r) => !r.isSubagent && !this.subagentThreads.has(`${r.envId}|${r.threadId}`) && Date.parse(r.completedAt) >= from).sort((a, b) => a.startedAt.localeCompare(b.startedAt)) };
   }
 
   /** Each project copy's finished and failed turns over the retention window, for station memory. */

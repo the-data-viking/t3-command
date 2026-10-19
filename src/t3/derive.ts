@@ -18,11 +18,16 @@ export type UnitState =
  */
 export function isHistory(t: ThreadShell): boolean {
   // Canonical Hermes chats are writable even before their first Command turn.
-  return !t.hermesBotChat && !isNativeSubagent(t) && t.latestTurn === null && t.session === null && t.latestUserMessageAt === null;
+  return !t.hermesBotChat && !isSubagent(t) && t.latestTurn === null && t.session === null && t.latestUserMessageAt === null;
+}
+
+/** Native and app-delegated children share lineage; forks are ordinary crew. */
+export function isSubagent(t: ThreadShell): boolean {
+  return t.lineage?.relationshipToParent === "subagent";
 }
 
 export function isNativeSubagent(t: ThreadShell): boolean {
-  return t.creationSource === "provider" && t.lineage?.relationshipToParent === "subagent";
+  return t.creationSource === "provider" && isSubagent(t);
 }
 
 export function isSettled(t: ThreadShell): boolean {
@@ -47,6 +52,9 @@ export function unitState(t: ThreadShell): UnitState {
   if (t.backgroundLiveness === "monitoring") return "monitoring";
   const nativeStatus = t.nativeSubagent?.status;
   if (nativeStatus === "pending" || nativeStatus === "running" || nativeStatus === "waiting") return "working";
+  // The host owns child results. Finished/released children rest without an operator debrief,
+  // and wake naturally if another turn or native task starts (the checks above win).
+  if (isSubagent(t) && (nativeStatus !== undefined || t.latestTurn)) return "sleeping";
   if (isSettled(t) || (t.snoozedUntil && Date.parse(t.snoozedUntil) > Date.now())) return "sleeping";
   if (status === "error" || t.latestTurn?.state === "error" || nativeStatus === "failed") return "error";
   if (t.latestTurn?.state === "completed" || nativeStatus === "completed") return "done";
