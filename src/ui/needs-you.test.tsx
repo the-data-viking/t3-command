@@ -55,3 +55,21 @@ test("a working turn that may be stuck needs you, until you say this sign is fin
   markStuckOk(envId, thread.id, `${turnId}:fail:npm test`);
   assert.ok(!needsYou(useGame.getState()).some((n) => n.threadId === thread.id), "waved off");
 });
+
+test("waiting on a long tool or working without edits does not enter Needs you as stuck", () => {
+  loadDemoFleet();
+  const s = useGame.getState();
+  const [envId, thread] = Object.entries(s.envs).flatMap(([id, e]) => Object.values(e.threads).map((t) => [id, t] as const))
+    .find(([, t]) => t.latestTurn?.state === "running" && !t.hasPendingApprovals && !t.hasPendingUserInput)!;
+  const now = Date.now();
+  const turnId = thread.latestTurn!.turnId;
+  const key = `${envId}:${thread.id}`;
+  const failures = [3, 2, 1].map((min) => ({ id: `fail-${min}`, turnId, kind: "tool.completed", createdAt: new Date(now - min * 60_000).toISOString(), summary: "npm test", payload: { exitCode: 1, detail: "npm test" } }));
+  const started = { id: "script", turnId, kind: "tool.started", createdAt: new Date(now).toISOString(), summary: "npm test", payload: { status: "running", detail: "npm test" } };
+  for (const activities of [[], [started], [...failures, started]]) {
+    const detail = { ...thread, activities, messages: [], checkpoints: [] };
+    useGame.setState({ details: { ...s.details, [key]: { synced: true, thread: detail as never } }, stuckOk: {} });
+    assert.ok(!needsYou(useGame.getState(), now + 2 * 3_600_000).some((n) => n.threadId === thread.id && n.kind === "stuck"));
+    assert.ok(!needsYou(useGame.getState(), now).some((n) => n.threadId === thread.id && n.kind === "stuck"));
+  }
+});

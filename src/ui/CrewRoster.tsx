@@ -11,7 +11,6 @@ import { assessRisk } from "./risk";
 import { needsYou as needsYouList, needsYouCounts } from "./needs-you";
 import { useClock } from "./useClock";
 import type { OrchestrationThread, PendingRequest } from "../t3/types";
-import { elapsed } from "../t3/timing";
 import { pulseOf, pulseText } from "./pulse";
 import { pendingRequests } from "../t3/derive";
 import type { UnitState } from "../t3/derive";
@@ -244,11 +243,11 @@ function RosterAsk({ state, request }: { state: string; request: PendingRequest 
 
 /**
  * A running turn that may be spinning, from its own activity: the same command failing again and
- * again, or an hour with no file change. A prompt to look (the pulse on the board says more).
+ * again without intervening progress. A prompt to look (the pulse on the board says more).
  */
 function SpinLine({ thread }: { thread: OrchestrationThread }) {
   const p = pulseOf(thread, Date.now());
-  if (!p?.repeatFail && !p?.noChangeMs) return null;
-  const why = p.repeatFail ? `${p.repeatFail.command} failed ${p.repeatFail.count}×` : `no file changes in ${elapsed(p.noChangeMs!)}`;
+  if (!p?.repeatFail) return null;
+  const why = `${p.repeatFail.command} failed ${p.repeatFail.count}× without progress`;
   return <span className="crew-spin" title={`May be spinning: ${pulseText(p, Date.now())}`}><PixelIcon name="repeat" scale={1} /> may be spinning: {why}</span>;
 }

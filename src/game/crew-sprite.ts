@@ -354,7 +354,7 @@ export class CrewSprite extends Container {
         this.quietCheckedAt = now;
         this.quiet = quietness(this.thread, this.detail, now)?.kind === "quiet";
         const p = pulseOf(this.detail, now);
-        this.spin = !!(p?.repeatFail || p?.noChangeMs);
+        this.spin = !!p?.repeatFail;
       }
       if (this.spin) {
         // May be stuck: an amber ↻ (the gauge's warning, never a status colour) on a dark plate

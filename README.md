@@ -752,10 +752,11 @@ Layout:
 
 T3 Command can push fleet events to any device that turns it on, even with no tab open: approvals
 and questions, failed turns, turns that may be spinning (the same command failing three or more
-times, or an hour with no file change while it keeps working; the server reads the turn's own
-activity, and the roster shows it too), turns gone quiet (no update for 20 minutes) or running long, merged
-PRs, finished jobs, machines going offline and low disks. Open the bell menu in the top bar to
-turn push on for this device, choose which events come through, and set quiet hours (only the
+times within 15 minutes without a successful tool completion between failures, with no tool
+running), turns gone quiet (no update for 20 minutes) or running long, merged PRs, finished jobs,
+machines going offline and low disks. Testing, research and waiting without file edits do not
+count as spinning. The server reads the turn's own activity, and the roster shows it too.
+Open the bell menu in the top bar to turn push on for this device, choose which events come through, and set quiet hours (only the
 kinds you allow, approvals by default, get through overnight). Tapping a notification opens T3
 Command at that crew member.
 

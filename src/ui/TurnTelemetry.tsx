@@ -44,8 +44,8 @@ export function TurnTelemetry({ shell, detail }: { shell: ThreadShell; detail: O
           <span className="tele-val" title={quietText(quiet)}>{quietText(quiet)}</span>
         </div>
       )}
-      {pulse && (pulse.lastChangeAt || pulse.tests.length > 0 || pulse.repeatFail || pulse.noChangeMs) && (
-        <div className={`tele-row ${pulse.repeatFail || pulse.noChangeMs ? "quiet-row" : ""}`}>
+      {pulse && (pulse.lastChangeAt || pulse.tests.length > 0 || pulse.repeatFail) && (
+        <div className={`tele-row ${pulse.repeatFail ? "quiet-row" : ""}`}>
           <span className="tele-key">PULSE</span>
           <span className="tele-val" title="Is the turn moving? From its own activity. A sign to look at, not a ruling that it's stuck.">{pulseText(pulse, now)}</span>
         </div>
