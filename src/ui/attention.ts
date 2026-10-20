@@ -5,8 +5,7 @@ import { worldRef } from "../game/world";
 import { addLog, setSelection, useGame, type EnvWorld } from "../store";
 import { needsYou } from "./needs-you";
 import { isHistory, unitState } from "../t3/derive";
-import { contextWarning, quietness } from "../t3/progress";
-import { telemetry } from "../t3/telemetry";
+import { quietness } from "../t3/progress";
 import { elapsed } from "../t3/timing";
 import type { ThreadShell } from "../t3/types";
 
@@ -60,8 +59,7 @@ export function notifyAttention(envId: string, thread: ThreadShell, kind: "alert
  */
 export function installQuietWatch(): () => void {
   const announced = new Set<string>();
-  const full = new Set<string>();
-  const timer = setInterval(() => { announceQuiet(announced, Date.now()); announceFullContext(full); }, 30_000);
+  const timer = setInterval(() => announceQuiet(announced, Date.now()), 30_000);
   return () => clearInterval(timer);
 }
 
@@ -88,20 +86,5 @@ export function announceQuiet(announced: Set<string>, now: number): void {
       worldRef.current?.focus(sel);
       notification.close();
     };
-  }
-}
-
-/** Once per thread, a comms note when a followed crew member's context passes 90%. */
-export function announceFullContext(announced: Set<string>): void {
-  const state = useGame.getState();
-  for (const [key, detail] of Object.entries(state.details)) {
-    const info = telemetry(detail.thread);
-    const warning = contextWarning(info.context, info.compactsAutomatically);
-    if (!warning) { announced.delete(key); continue; } // Compacted back down: warn again next time.
-    if (announced.has(key)) continue;
-    announced.add(key);
-    const env = Object.values(state.envs).find((e) => key === `${e.summary.id}:${detail.thread.id}`);
-    if (!env) continue;
-    addLog({ tone: info.compactsAutomatically === false ? "bad" : "alert", text: `${detail.thread.title || "Untitled"}: ${warning}`, envId: env.summary.id, threadId: detail.thread.id });
   }
 }
