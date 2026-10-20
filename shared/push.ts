@@ -10,7 +10,7 @@ export const PUSH_LABELS: Record<PushKind, string> = {
   approval: "Needs your approval",
   question: "Has a question",
   failed: "A turn failed",
-  spinning: "A turn may be spinning (the same command failing, or no file changes for an hour)",
+  spinning: "A turn may be spinning (recent repeated failures without progress, with no tool running)",
   quiet: "A turn went quiet",
   "long-turn": "A turn is running long",
   merged: "A PR merged",

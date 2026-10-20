@@ -1,14 +1,13 @@
 // Long turns, noticed by the Command server: a comms note when a running turn passes 2, 6, 12 and
 // 24 hours, so a runaway agent stands out even if nobody is watching the map. And turns that may be
-// spinning: the same command failing again and again, or an hour without a file change while it
-// keeps working, read from the turn's own activity (a prompt to look, never a ruling).
+// spinning: recent repeated failures without progress, while no tool is running. Read from the
+// turn's own activity (a prompt to look, never a ruling).
 
 import type { CommsLog } from "./comms.ts";
 import type { HistoryRecorder } from "./history-recorder.ts";
 import type { Registry } from "./registry.ts";
 import type { OrchestrationThread, ThreadShell } from "../src/t3/types.ts";
 import { pulseOf } from "../src/ui/pulse.ts";
-import { elapsed } from "../src/t3/timing.ts";
 
 export const LONG_TURN_HOURS = [2, 6, 12, 24];
 /** A running turn with no update for this long (and not waiting on you) has gone quiet. */
@@ -25,12 +24,11 @@ const CHECK_MS = 5 * 60_000;
 export const SPIN_AFTER_MS = 15 * 60_000;
 
 /** What a turn's activity says, if it may be spinning: one line per sign, keyed so each is said once a turn. */
-export function spinSigns(thread: OrchestrationThread, now: number): Array<{ key: "fail" | "still"; text: string }> {
+export function spinSigns(thread: OrchestrationThread, now: number): Array<{ key: "fail"; text: string }> {
   const p = pulseOf(thread, now);
   const name = `"${thread.title || "Untitled"}"`;
   return [
-    ...(p?.repeatFail ? [{ key: "fail" as const, text: `${name} may be spinning: ${p.repeatFail.command} failed ${p.repeatFail.count}× this turn` }] : []),
-    ...(p?.noChangeMs ? [{ key: "still" as const, text: `${name} may be spinning: no file changes in ${elapsed(p.noChangeMs)} while it keeps working` }] : []),
+    ...(p?.repeatFail ? [{ key: "fail" as const, text: `${name} may be spinning: ${p.repeatFail.command} failed ${p.repeatFail.count}× without progress` }] : []),
   ];
 }
 
@@ -69,10 +67,11 @@ export class LongTurns {
     const started = Date.parse(turn.startedAt ?? turn.requestedAt);
     if (!Number.isFinite(started) || now - started < SPIN_AFTER_MS) return;
     const base = `${envId}:${thread.id}:${turn.turnId}:spin`;
-    if (this.reading.has(base) || (this.noted.has(`${base}:fail`) && this.noted.has(`${base}:still`))) return;
+    if (this.reading.has(base) || this.noted.has(`${base}:fail`)) return;
     this.reading.add(base);
     void this.read(envId, thread.id).then((full) => {
-      if (full.latestTurn?.turnId !== turn.turnId) return;
+      const current = this.recorder.snapshot(envId)?.threads.find((t) => t.id === thread.id);
+      if (current?.latestTurn?.turnId !== turn.turnId || current.latestTurn.state !== "running" || current.hasPendingApprovals || current.hasPendingUserInput || full.latestTurn?.turnId !== turn.turnId) return;
       for (const sign of spinSigns(full, now)) {
         const key = `${base}:${sign.key}`;
         if (this.noted.has(key)) continue;

@@ -104,7 +104,7 @@ function BoardCard({ card, onGo }: { card: Card; onGo: () => void }) {
         <span className="board-card-title">{thread.title || "Untitled"}</span>
         <span className="muted small">{project} · {env?.summary.label} · {modelName(env, thread)}</span>
         {ask && <span className={`board-card-ask st-${state}`}>{ask}</span>}
-        {pulse && <span className={`board-card-pulse small${pulse.repeatFail || pulse.noChangeMs ? " orange" : " muted"}`}>{pulseText(pulse, now)}</span>}
+        {pulse && <span className={`board-card-pulse small${pulse.repeatFail ? " orange" : " muted"}`}>{pulseText(pulse, now)}</span>}
         {state === "error" && thread.session?.lastError && <span className="board-card-ask st-error">{thread.session.lastError.split("\n")[0].slice(0, 90)}</span>}
       </button>
       <OpenPrs thread={thread} />
