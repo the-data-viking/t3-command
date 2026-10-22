@@ -686,9 +686,12 @@ npm run check:layout               # desktop + phone layout check against the bu
 In development, open the UI with `?demo` (for example `http://localhost:5173/?demo`) to load a fixed
 demo fleet straight into the store. It covers crew in every state, three machines, disk readings,
 history and host charts, with no server and no real agents. `npm run check:layout` drives that demo
-at 1440×900, 1280×800, iPhone 14 and iPhone SE with the system Chrome. It checks that panels stay below
-the top bar, History charts keep their height, the comms log doesn't cover the roster, phone sheets
-stay on screen, and nothing overflows sideways. Screenshots of each view are kept for a look.
+at 1440×900, 1280×800, iPhone 14, iPhone SE and a short phone viewport with the system Chrome.
+It checks that panels stay below the top bar, History charts keep their height, the comms log
+doesn't cover the roster, phone sheets stay on screen, and nothing overflows sideways. Phone
+crew panels keep secondary telemetry and controls behind **Details**, with status and Halt visible
+and questions and approvals in the conversation. The check covers that disclosure, long order drafts, offline
+reports, and room for the transcript and composer. Screenshots of each view are kept for a look.
 Never run it that way behind `tailscale serve`.
 
 `npm run pair:local` uses the installed T3 Code desktop app's own CLI to create a one-time
