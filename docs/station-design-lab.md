@@ -52,22 +52,31 @@ the same footprint whether crewed or empty. Supply lines grew with machines × p
 fits today's fleet below ½, in the flat fleet view.
 
 The lab draws the same made-up fleet twice: A with the live `computeFleetLayout`, B with the study in
-`src/game/fleet-tiers.ts`. Sliders set machines, projects, busy and recently active projects. Presets
-run from Today (7 × 5) to Stress (16 × 40). Three switches turn the study's ideas on and off one at a
-time, and stats compare world size, the fit zoom on a laptop or desktop screen, and lines drawn.
+`src/game/core-station.ts`. Sliders set machines, projects, busy and recently active projects; presets
+run from Today (7 × 5) to Stress (16 × 40). Stats compare world size, the fit zoom on a laptop or
+desktop screen, and freestanding pipes.
 
-- **Stations sized by activity.** A station with crew awake, or active in the last 30 minutes, stays full.
-  One active in the last three days becomes a cryo module (nameplate, three pods, machine chips;
-  about a fifth of the area), two to a wing slot. Older ones dock as capsules in a rack below the wings.
-  Busy stations sort to the top.
-- **Lines where work flows.** Each serving machine is a colour chip on the station's port plate, bright
-  while it has crew there. Only those pairs get a line and a corridor lane; the rest draw dashed on hover.
-- **Keel and shape.** Past six machines the decks split into two brick rows, offset half a deck, so every
-  upper deck drops straight through a gap below. The wing count (one to four) is chosen for the highest
-  crisp zoom on the chosen screen.
+A first pass shrank quiet projects into capsules in a dock rack and kept routed supply lines. The user
+turned it down: quiet projects must stay visible, and the map should read as an intentional space
+station, not loose modules joined by right-angle pipes. The current study:
 
-On the presets, the study fits a laptop one zoom step closer than live (Today ½ instead of 0.43,
-Growth ⅓ instead of ¼), at 44–71% of the area, with 4–15 lit lines instead of 10–57.
-`fleet-tiers.test.ts` checks placement, overlaps, lit lines, keel drops, and that the study never fits
-a screen worse than live. Not covered yet: tier transitions, a designed flat fleet view, a compact
-machine deck, and whether attention-needing projects should stay full size. The live map is unchanged.
+- **One station around a core.** Hermes's hall is the command module on the crown. The machines'
+  engineering decks hang under a manifold at the base as the engine room, in balanced brick rows past
+  six. The core rises between them through chamfered hubs, with symmetric arms branching off it level
+  by level. The study tries one to six levels and keeps the best crisp fit for the chosen screen.
+- **Every project docked.** Each project docks straight onto an arm through a short collar, above or below
+  it, mirrored either side of the core. Busy projects (crew awake, or active in the last 30 minutes)
+  keep their full station, nearest the core. Quiet ones stay aboard as cryo modules, with their name,
+  pods, machine chips and days quiet, further out. Nothing is hidden.
+- **Supply in the frame.** Each machine owns one light lane: up from its deck through the manifold, up the
+  core, and out along the arms it serves. A lane is lit while that machine has crew awake on that arm,
+  and dim otherwise. Hovering a project traces its machines' lanes from the engine room to its collar.
+  There are no freestanding pipes.
+
+On the presets, the station fits a laptop at least one zoom step closer than live (Today ½ instead of
+0.43; Growth ⅓ instead of ¼; Stress ¼ instead of ⅙), at about 50–75% of the area, with every project
+visible. `core-station.test.ts` checks placement, overlaps, collars meeting hull and arm, mirror
+symmetry, lanes, deck collars, and that the station never fits a screen worse than live. Not covered
+yet: how modules animate between full and cryo, a designed flat view below ½, exterior detail
+(radiators, solar wings, arm lights), and whether attention-needing projects stay full size. The live
+map is unchanged.
