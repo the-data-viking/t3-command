@@ -1,5 +1,5 @@
 import { useDraft } from "./drafts";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cancelFollowUp, followUpFor, followUpLabel, queueFollowUp } from "../t3/followups";
 import { standingNote } from "../../shared/followups";
 import { expandPlaybook } from "../../shared/playbooks";
@@ -41,6 +41,9 @@ import { ThreadWidgets } from './Widgets';
 
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
   const panelWidth = usePanelWidth();
+  const phone = usePhone();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsId = useId();
   const env = useGame((s) => s.envs[envId]);
   const readReports = useGame((s) => s.readReports);
   const thread = env?.threads[threadId];
@@ -63,7 +66,7 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
   useEffect(() => {
     const el = scroller.current;
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
-  }, [entries, pending]);
+  }, [entries, pending, detailsOpen, phone]);
 
   if (!env || !thread) {
     return (
@@ -88,6 +91,33 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
     fn()?.catch((err: unknown) => logError(what, err));
   };
 
+  const identity = <>
+    {bot && <div className="muted small">Hermes operator · {bot.name}{thread.hermesBotChat ? ' · ongoing conversation' : ' · task session'}</div>}
+    <div className="muted small">
+      {bot ? bot.model || 'Hermes configured model' : `${TIER_LABEL[modelTier(thread.modelSelection.model)]} · ${providerName(env, thread.modelSelection.instanceId)} · ${modelName(env, thread)}`}
+    </div>
+    <div className="muted small">
+      {bot ? bot.description || 'Hermes control center' : `${project?.title ?? '?'} @ ${env.summary.label}`}
+      {thread.branch ? ` · ⎇ ${thread.branch}` : ""}
+    </div>
+  </>;
+  const secondaryActions = <>
+    {!bot && (detail?.thread.checkpoints.length ?? 0) > 0 && (
+      <button className="btn" title="Its report beside its checks, tests and the branch's changes" onClick={() => openReview({ envId, threadId })}>Review</button>
+    )}
+    {!bot && state === "done" && thread.latestTurn && !reportRead(readReports, envId, thread) && (
+      <button className="btn" title="Take this report out of Needs you and the REPORTS count (this browser), until the thread's next turn"
+        onClick={() => markReportsRead([{ envId, threadId, turnId: thread.latestTurn!.turnId }])}>✓ Mark read</button>
+    )}
+    {!bot && live && state === "error" && <FailedActions envId={envId} thread={thread} className="btn" />}
+    {live && !canHalt && (
+      <button className="btn" onClick={() => run(state === "sleeping" ? "Wake" : "Send to camp", () => state === "sleeping" ? client?.unsettle(threadId) : client?.settle(threadId))}
+        title={state === "sleeping" ? undefined : "Mark the thread settled"}>
+        {state === "sleeping" ? (bot ? 'Reopen' : 'Wake') : bot ? 'Acknowledge' : <><PixelIcon name="camp" /> To camp</>}
+      </button>
+    )}
+  </>;
+
   return (
     <aside className={`panel unit-panel ${bot ? 'hermes-chat' : ''}`} style={{ width: panelWidth.width }}>
       <PanelResize {...panelWidth} />
@@ -96,16 +126,9 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         <div className="panel-title">
           <span className="title-tab panel-kind"><PixelLabel text={bot ? "Operator" : "Crew"} /></span>
           <h2 title={unitName}>{unitName}</h2>
-          {bot && <div className="muted small">Hermes operator · {bot.name}{thread.hermesBotChat ? ' · ongoing conversation' : ' · task session'}</div>}
-          <div className="muted small">
-            {bot ? bot.model || 'Hermes configured model' : `${TIER_LABEL[modelTier(thread.modelSelection.model)]} · ${providerName(env, thread.modelSelection.instanceId)} · ${modelName(env, thread)}`}
-          </div>
-          <div className="muted small">
-            {bot ? bot.description || 'Hermes control center' : `${project?.title ?? '?'} @ ${env.summary.label}`}
-            {thread.branch ? ` · ⎇ ${thread.branch}` : ""}
-          </div>
+          {!phone && identity}
         </div>
-        <button className="icon-btn" onClick={() => setSelection(null)} title="Close (Esc)">
+        <button className="icon-btn" onClick={() => setSelection(null)} title="Close (Esc)" aria-label="Close crew panel">
           ✕
         </button>
       </header>
@@ -118,87 +141,80 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
           <button className="btn" onClick={() => setSelection({ kind: "library", envId, projectId: thread.projectId })}>
             ← Archive
           </button>
+          {phone && <button className="btn" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen(!detailsOpen)}>Details {detailsOpen ? "▴" : "▾"}</button>}
         </div>
       ) : (
       <div className="status-row">
         <span className={`pill state-${live ? state : "sleeping"}`} title={live ? undefined : `${env.summary.label} is unreachable: this is how it was when Command last heard from it`}>
           {live ? "" : "Last known · "}{bot ? BOT_STATE_LABELS[state] : stateLabel(thread, state)}
         </span>
-        {env.summary.kind !== 'hermes' && live && <PostureControl envId={envId} thread={thread} />}
-        {live && <ThreadTiming thread={thread} detail={detail?.thread} />}
+        {!phone && env.summary.kind !== 'hermes' && live && <PostureControl envId={envId} thread={thread} />}
+        {!phone && live && <ThreadTiming thread={thread} detail={detail?.thread} />}
         <span className="spacer" />
-        {!bot && (detail?.thread.checkpoints.length ?? 0) > 0 && (
-          <button className="btn" title="Its report beside its checks, tests and the branch's changes" onClick={() => openReview({ envId, threadId })}>Review</button>
-        )}
-        {!bot && state === "done" && thread.latestTurn && !reportRead(readReports, envId, thread) && (
-          <button className="btn" title="Take this report out of Needs you and the REPORTS count (this browser), until the thread's next turn"
-            onClick={() => markReportsRead([{ envId, threadId, turnId: thread.latestTurn!.turnId }])}>✓ Mark read</button>
-        )}
-        {!bot && live && state === "error" && <FailedActions envId={envId} thread={thread} className="btn" />}
+        {!phone && secondaryActions}
         {canHalt && (
           <button className="btn danger" onClick={() => run("Interrupt", () => client?.interrupt(threadId))}>
             ■ Halt
           </button>
         )}
-        {!live ? null : state === "sleeping" ? (
-          <button className="btn" onClick={() => run("Wake", () => client?.unsettle(threadId))}>
-            {bot ? 'Reopen' : 'Wake'}
-          </button>
-        ) : (
-          !canHalt && (
-            <button className="btn" onClick={() => run("Send to camp", () => client?.settle(threadId))} title="Mark the thread settled">
-              {bot ? 'Acknowledge' : <><PixelIcon name="camp" /> To camp</>}
-            </button>
-          )
-        )}
+        {phone && <button className="btn" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen(!detailsOpen)}>Details {detailsOpen ? "▴" : "▾"}</button>}
       </div>
       )}
 
-      {!archived && env.summary.kind === 'hermes' && <HermesPermissions key={`${envId}:${threadId}`} envId={envId} threadId={threadId} />}
-
-      {info && !archived && (info.context !== undefined || info.tasks > 0 || (state === "working" && info.doing)) && (
-        <div className="telemetry">
-          {state === "working" && (
-            <div className="tele-row">
-              <span className="tele-key">AT</span>
-              <span className="tele-val">
-                {info.workstation === "console" ? "console · thinking" : info.workstation}
-                {info.doing && info.workstation !== "console" ? ` · ${info.doing.split("\n")[0].slice(0, 80)}` : ""}
-              </span>
-            </div>
-          )}
-          {info.context !== undefined && (
-            <div className="tele-row">
-              <span className="tele-key">CONTEXT</span>
-              <span className="hp">
-                <span
-                  className="hp-fill"
-                  style={{ width: `${Math.round((1 - info.context) * 100)}%`, background: `var(--gauge-${contextLevel(info.context)})` }}
-                />
-              </span>
-              <span className="tele-val">{Math.round((1 - info.context) * 100)}% left</span>
-            </div>
-          )}
-          {contextWarning(info.context, info.compactsAutomatically) && (
-            <div className="tele-row context-warning">
-              <span className="tele-key">WARNING</span>
-              <span className="tele-val" title={contextWarning(info.context, info.compactsAutomatically)}>{contextWarning(info.context, info.compactsAutomatically)}</span>
-            </div>
-          )}
-          {info.tasks > 0 && (
-            <div className="tele-row">
-              <span className="tele-key">DRONES</span>
-              <span className="tele-val">{info.tasks} background task{info.tasks === 1 ? "" : "s"} running</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {!archived && detail && <TurnTelemetry shell={thread} detail={detail.thread} />}
       {!archived && <FailureNote thread={thread} />}
-      {!archived && <PullRequestChips thread={thread} />}
-      {!archived && detail && !bot && <TurnChanges env={env} thread={thread} detail={detail.thread} state={state} />}
-      {!archived && env.summary.kind !== 'hermes' && <ThreadWidgets envId={envId} threadId={threadId} />}
+
+      <div className="unit-details" id={detailsId} hidden={phone && !detailsOpen}>
+        {phone && <div className="unit-identity">{identity}</div>}
+        {phone && !archived && <div className="status-row unit-detail-actions">
+          {env.summary.kind !== 'hermes' && live && <PostureControl envId={envId} thread={thread} />}
+          {live && <ThreadTiming thread={thread} detail={detail?.thread} />}
+          {secondaryActions}
+        </div>}
+        {!archived && env.summary.kind === 'hermes' && <HermesPermissions key={`${envId}:${threadId}`} envId={envId} threadId={threadId} />}
+
+        {info && !archived && (info.context !== undefined || info.tasks > 0 || (state === "working" && info.doing)) && (
+          <div className="telemetry">
+            {state === "working" && (
+              <div className="tele-row">
+                <span className="tele-key">AT</span>
+                <span className="tele-val">
+                  {info.workstation === "console" ? "console · thinking" : info.workstation}
+                  {info.doing && info.workstation !== "console" ? ` · ${info.doing.split("\n")[0].slice(0, 80)}` : ""}
+                </span>
+              </div>
+            )}
+            {info.context !== undefined && (
+              <div className="tele-row">
+                <span className="tele-key">CONTEXT</span>
+                <span className="hp">
+                  <span
+                    className="hp-fill"
+                    style={{ width: `${Math.round((1 - info.context) * 100)}%`, background: `var(--gauge-${contextLevel(info.context)})` }}
+                  />
+                </span>
+                <span className="tele-val">{Math.round((1 - info.context) * 100)}% left</span>
+              </div>
+            )}
+            {contextWarning(info.context, info.compactsAutomatically) && (
+              <div className="tele-row context-warning">
+                <span className="tele-key">WARNING</span>
+                <span className="tele-val" title={contextWarning(info.context, info.compactsAutomatically)}>{contextWarning(info.context, info.compactsAutomatically)}</span>
+              </div>
+            )}
+            {info.tasks > 0 && (
+              <div className="tele-row">
+                <span className="tele-key">DRONES</span>
+                <span className="tele-val">{info.tasks} background task{info.tasks === 1 ? "" : "s"} running</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!archived && detail && <TurnTelemetry shell={thread} detail={detail.thread} />}
+        {!archived && <PullRequestChips thread={thread} />}
+        {!archived && detail && !bot && <TurnChanges env={env} thread={thread} detail={detail.thread} state={state} />}
+        {!archived && env.summary.kind !== 'hermes' && <ThreadWidgets envId={envId} threadId={threadId} />}
+      </div>
 
       <div
         className="transcript"
@@ -336,6 +352,13 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
   const phone = usePhone();
 
   useEffect(() => {
+    const el = input.current;
+    if (!el) return;
+    el.style.height = phone ? "auto" : "";
+    if (phone) el.style.height = `${Math.min(el.scrollHeight, 112)}px`;
+  }, [text, phone]);
+
+  useEffect(() => {
     // Focusing on a phone would raise the keyboard over the reports; after a hotkey jump it would
     // swallow the next hotkey (O or Enter comes here instead).
     if (!isPhone() && performance.now() - useGame.getState().jumpedAt > 1000) input.current?.focus();
@@ -410,7 +433,8 @@ function OrderBox({ envId, threadId, disabled, working, busy }: { envId: string;
         value={text}
         placeholder={working ? "Busy: an order sent now starts a new turn (After turn ↻ waits)…" : phone ? "Give orders…" : "Give orders… (Enter to send, Shift+Enter for newline)"}
         disabled={disabled || sending}
-        rows={3}
+        rows={phone ? 1 : 3}
+        aria-label="Give orders"
         onChange={(e) => { setText(e.target.value); setPick(0); }}
         onKeyDown={(e) => {
           if (matches.length && (e.key === "ArrowDown" || e.key === "ArrowUp")) {

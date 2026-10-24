@@ -603,6 +603,9 @@ code {
   min-width: 0;
 }
 
+/* Desktop keeps its telemetry in the panel's normal flow. Phones reveal it on demand. */
+.unit-details:not([hidden]) { display: contents; }
+
 .panel h2,
 .modal h2 {
   font-family: var(--display);
@@ -2348,6 +2351,44 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 /* ---- Follow-ups: an order queued for when a busy crew member's turn ends ---- */
 .order-actions { display: flex; flex-direction: column; gap: var(--space-1); }
 .order-times { min-height: 28px; padding: 0 var(--space-1); background: var(--slot); color: var(--text); border: 1px solid var(--edge-strong); border-radius: var(--radius-control); font: inherit; font-size: var(--fs-sm); }
+
+@media (max-width: 700px) {
+  .unit-panel > .panel-head { align-items: center; gap: var(--space-2); flex: none; }
+  .unit-panel > .panel-head .portrait { width: 32px; height: 36px; }
+  .unit-panel .portrait .crew-portrait { width: 30px; height: auto; }
+  .unit-panel .panel-head .panel-kind { display: none; }
+  .unit-panel .panel-title h2 {
+    margin: 0; white-space: normal; display: -webkit-box;
+    -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .unit-panel > .panel-head .icon-btn { min-width: var(--touch-target); min-height: var(--touch-target); }
+  .unit-panel > .status-row { flex: none; flex-wrap: nowrap; }
+  .unit-panel > .status-row .pill { min-width: 0; overflow: hidden; text-overflow: ellipsis; letter-spacing: .8px; }
+  .unit-panel > .status-row .btn { flex: none; }
+  .unit-panel .btn, .unit-panel .order-times, .unit-panel .posture-mode { min-height: var(--touch-target); }
+  .unit-panel .unit-details:not([hidden]) {
+    display: flex; flex-direction: column; gap: var(--space-2); flex: 0 1 auto;
+    min-height: 0; max-height: 38dvh; overflow: auto; overscroll-behavior: contain;
+    padding: var(--space-2); background: var(--wash); border: 1px solid var(--edge);
+  }
+  .unit-details > * { flex-shrink: 0; }
+  .unit-identity { overflow-wrap: anywhere; }
+  .unit-panel .unit-detail-actions { white-space: normal; }
+  .unit-details .tele-key { width: 76px; }
+  .unit-details .hp { width: auto; flex: 1; min-width: 24px; max-width: 120px; }
+  .unit-details .tele-val { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+  .unit-panel .unit-details .pr-chips { flex-wrap: wrap; overflow: visible; }
+  .unit-panel .unit-details .pr-chip { max-width: 100%; flex-wrap: wrap; white-space: normal; min-height: var(--touch-target); }
+  .unit-panel .unit-details .turn-changes > summary { flex-wrap: wrap; }
+  .unit-panel .unit-details .turn-changes > summary .muted { min-width: 0; }
+  .unit-panel .transcript { min-height: min(120px, 20dvh); }
+  .unit-panel .order-box { flex-direction: column; gap: var(--space-1h); flex: none; }
+  .unit-panel .order-box textarea { width: 100%; min-height: var(--touch-target); max-height: 112px; resize: none; }
+  .unit-panel .order-actions { flex-direction: row; align-items: center; gap: var(--space-1h); }
+  .unit-panel .order-actions .btn { padding-inline: var(--space-2); letter-spacing: 1px; }
+  .unit-panel .order-actions .primary { order: 2; margin-left: auto; }
+  .unit-panel .order-times { order: -1; flex: none; width: 78px; font-size: var(--fs-xl); }
+}
 .follow-up { display: flex; align-items: center; gap: var(--space-2); margin: 0 var(--space-3) var(--space-1h); padding: var(--space-1h) var(--space-2); border: 1px dashed var(--edge-strong); background: var(--wash); font-size: var(--fs-md); }
 .follow-up-text { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .crew-queued { color: var(--muted); font-size: var(--fs-xs); }
@@ -2607,7 +2648,7 @@ kbd { font-family: var(--mono); font-size: var(--fs-sm); padding: 1px var(--spac
 
 /* The section gives way before the reports do: it shrinks and scrolls, the transcript keeps some room. */
 .widgets { flex: 0 1 auto; min-height: 30px; overflow: hidden; display: flex; flex-direction: column; }
-.unit-panel:has(.widgets[open]) .transcript { min-height: 140px; }
+@media (min-width: 701px) { .unit-panel:has(.widgets[open]) .transcript { min-height: 140px; } }
 .widgets > summary { cursor: pointer; padding: var(--space-1) 0; }
 .widget-list { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: var(--space-2); max-height: 38vh; overflow-y: auto; }
 .widget-bar { display: flex; align-items: center; gap: var(--space-1h); padding: var(--space-1) var(--space-1h); background: var(--surface); border-bottom: 2px solid var(--edge-strong); cursor: grab; touch-action: none; user-select: none; min-width: 0; }
