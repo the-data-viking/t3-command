@@ -19,6 +19,7 @@ const VIEWS = [
   { name: "desktop-1280", viewport: { width: 1280, height: 800 } },
   { name: "iphone-14", device: devices["iPhone 14"] },
   { name: "iphone-se", device: devices["iPhone SE"] },
+  { name: "phone-short", viewport: { width: 390, height: 500 }, phone: true },
 ];
 
 async function startVite() {
@@ -42,13 +43,13 @@ async function run(base) {
   await fs.mkdir(OUT, { recursive: true });
   const browser = await chromium.launch({ channel: "chrome" });
   for (const view of VIEWS) {
-    const context = await browser.newContext(view.device ?? { viewport: view.viewport });
+    const context = await browser.newContext(view.device ?? { viewport: view.viewport, hasTouch: !!view.phone });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
     await page.goto(`${base}?demo`);
     await page.waitForTimeout(2500);
-    const phone = !!view.device;
+    const phone = !!view.device || !!view.phone;
     const shot = (n) => page.screenshot({ path: path.join(OUT, `${view.name}-${n}.png`) });
     await shot("home");
     const vw = await page.evaluate(() => ({ w: innerWidth, h: innerHeight, scroll: document.documentElement.scrollWidth }));
@@ -77,6 +78,87 @@ async function run(base) {
     });
     check(view.name, spill === 0, `${spill} crew panel header controls run off the panel's right edge`);
     await shot("crew");
+
+    // A busy session's secondary details must never squeeze the phone conversation or composer
+    // away. Use a finished report with PRs and checkpoints, rather than an empty shell.
+    await page.evaluate(async () => {
+      const { useGame } = await import("/src/store.ts");
+      useGame.setState({ selection: { kind: "unit", envId: "mini", threadId: "a3" } });
+    });
+    const details = page.locator(".unit-details");
+    if (phone) {
+      const toggle = page.getByRole("button", { name: "Details ▾" });
+      await toggle.waitFor();
+      check(view.name, await details.isHidden(), "crew details should start collapsed on phones");
+      let transcript = await rect(page, ".transcript");
+      const panel = await rect(page, ".unit-panel");
+      check(view.name, transcript.height >= panel.height * .44, `collapsed conversation is squeezed (${transcript.height} px)`);
+      check(view.name, await page.getByRole("button", { name: "Review", exact: true }).isHidden(), "secondary controls leak out of collapsed details");
+      await shot("crew-compact");
+      await toggle.click();
+      check(view.name, await details.isVisible(), "Details toggle did not reveal the session details");
+      check(view.name, await page.locator(".pr-chip").isVisible(), "linked PRs missing from expanded details");
+      transcript = await rect(page, ".transcript");
+      check(view.name, transcript.height >= Math.min(118, vw.h * .2) - 1, `expanded details squeezed conversation (${transcript.height} px)`);
+      const composer = await rect(page, ".order-box");
+      check(view.name, composer.bottom <= panel.bottom, "expanded details push the composer off screen");
+      const overflow = await details.evaluate(el => el.scrollWidth > el.clientWidth + 1);
+      check(view.name, !overflow, "session details overflow sideways");
+      await shot("crew-details");
+      await page.getByRole("button", { name: "Details ▴" }).click();
+
+      // Growing a draft and opening/closing details keeps the draft and all order controls.
+      const draft = Array.from({ length: 12 }, (_, n) => `Draft line ${n}`).join("\n");
+      await page.getByRole("textbox", { name: "Give orders", exact: true }).fill(draft);
+      await toggle.click();
+      await page.getByRole("button", { name: "Details ▴" }).click();
+      check(view.name, await page.getByRole("textbox", { name: "Give orders", exact: true }).inputValue() === draft, "Details toggle lost the order draft");
+      check(view.name, (await rect(page, ".order-box textarea")).height <= 112, "long draft grows beyond its phone height limit");
+      check(view.name, (await rect(page, ".order-box")).bottom <= panel.bottom, "long draft pushes send controls off screen");
+      await page.getByRole("textbox", { name: "Give orders", exact: true }).fill("");
+
+      // Primary intervention stays in the conversation, even while details are collapsed.
+      await page.evaluate(async () => {
+        const { useGame } = await import("/src/store.ts");
+        useGame.setState({ selection: { kind: "unit", envId: "mini", threadId: "a2" } });
+      });
+      await page.locator(".pending.approval").waitFor();
+      check(view.name, await details.isHidden(), "a newly selected crew member inherited expanded details");
+      await shot("crew-approval");
+      await page.evaluate(async () => {
+        const { useGame } = await import("/src/store.ts");
+        useGame.setState({ selection: { kind: "unit", envId: "mini", threadId: "a1" } });
+      });
+      check(view.name, await page.getByRole("button", { name: "■ Halt", exact: true }).isVisible(), "Halt is hidden behind Details");
+      const actionSpill = await page.locator(".order-actions").evaluate(el => [...el.children].some(child => child.getBoundingClientRect().right > el.getBoundingClientRect().right + 1));
+      check(view.name, !actionSpill, "busy composer controls overflow the phone panel");
+      await page.evaluate(async () => {
+        const { useGame } = await import("/src/store.ts");
+        useGame.setState({ selection: { kind: "unit", envId: "agent1", threadId: "b2" } });
+      });
+      await page.locator(".pending.question").waitFor();
+      check(view.name, await details.isHidden(), "question requires expanding session details");
+
+      // Offline sessions still expose reports and PRs, while sending stays disabled.
+      await page.evaluate(async () => {
+        const { useGame } = await import("/src/store.ts");
+        const { envs } = useGame.getState();
+        useGame.setState({ envs: { ...envs, mini: { ...envs.mini, connection: "reconnecting" } },
+          selection: { kind: "unit", envId: "mini", threadId: "a3" } });
+      });
+      await page.getByRole("button", { name: "Details ▾" }).click();
+      check(view.name, await page.locator(".pr-chip").isVisible(), "offline session loses linked PRs");
+      check(view.name, await page.getByRole("textbox", { name: "Give orders", exact: true }).isDisabled(), "offline composer should remain disabled");
+      check(view.name, (await rect(page, ".unit-panel > .status-row")).right <= panel.right, "offline status overflows phone panel");
+      await page.evaluate(async () => {
+        const { useGame } = await import("/src/store.ts");
+        const { envs } = useGame.getState();
+        useGame.setState({ envs: { ...envs, mini: { ...envs.mini, connection: "live" } } });
+      });
+    } else {
+      check(view.name, await page.locator(".pr-chip").isVisible(), "desktop should keep session telemetry visible");
+      check(view.name, await page.getByRole("button", { name: "Details ▾" }).count() === 0, "phone disclosure appears on desktop");
+    }
     await page.keyboard.press("Escape");
 
     // History: the charts keep their height when the dialog overflows.
