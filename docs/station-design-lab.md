@@ -43,3 +43,31 @@ Validation: 24 tests pass, including door crossing samples on all generated room
 ## Shared engineering correction
 
 The live station now has exactly one engineering chassis per environment, including unassigned environments. These nodes occupy a central service spine and connect directly to every participating project via side conduits. A shared repository and multiple projects never duplicate an environment node. Clicking a node frames that environment and all served projects. Node indicators aggregate real environment activity; packets remain specific to work in the project at the other end of each conduit. Original sprites and project room layouts remain unchanged.
+
+## Scale study (2026-10-23)
+
+Review at `/scalelab.html`. The map stopped scaling as machines and projects grew. Every station kept
+the same footprint whether crewed or empty. Supply lines grew with machines × projects (9 today, 46 at
+12 machines × 30 projects). A seventh machine wrapped alone under the first deck. A laptop already
+fits today's fleet below ½, in the flat fleet view.
+
+The lab draws the same made-up fleet twice: A with the live `computeFleetLayout`, B with the study in
+`src/game/fleet-tiers.ts`. Sliders set machines, projects, busy and recently active projects. Presets
+run from Today (7 × 5) to Stress (16 × 40). Three switches turn the study's ideas on and off one at a
+time, and stats compare world size, the fit zoom on a laptop or desktop screen, and lines drawn.
+
+- **Stations sized by activity.** A station with crew awake, or active in the last 30 minutes, stays full.
+  One active in the last three days becomes a cryo module (nameplate, three pods, machine chips;
+  about a fifth of the area), two to a wing slot. Older ones dock as capsules in a rack below the wings.
+  Busy stations sort to the top.
+- **Lines where work flows.** Each serving machine is a colour chip on the station's port plate, bright
+  while it has crew there. Only those pairs get a line and a corridor lane; the rest draw dashed on hover.
+- **Keel and shape.** Past six machines the decks split into two brick rows, offset half a deck, so every
+  upper deck drops straight through a gap below. The wing count (one to four) is chosen for the highest
+  crisp zoom on the chosen screen.
+
+On the presets, the study fits a laptop one zoom step closer than live (Today ½ instead of 0.43,
+Growth ⅓ instead of ¼), at 44–71% of the area, with 4–15 lit lines instead of 10–57.
+`fleet-tiers.test.ts` checks placement, overlaps, lit lines, keel drops, and that the study never fits
+a screen worse than live. Not covered yet: tier transitions, a designed flat fleet view, a compact
+machine deck, and whether attention-needing projects should stay full size. The live map is unchanged.

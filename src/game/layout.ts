@@ -272,7 +272,7 @@ interface CrewRef {
   thread: ThreadShell;
 }
 
-function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLayout[]): StationLayout {
+export function layoutStation(group: ProjectGroup, x0: number, y0: number, crew: CrewLayout[]): StationLayout {
   const T = TILE;
   const all: CrewRef[] = group.members.flatMap((ref) =>
     Object.values(ref.env.threads)
