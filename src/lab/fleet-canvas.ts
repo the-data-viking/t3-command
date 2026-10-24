@@ -1,5 +1,5 @@
-// Draws a fleet layout (the live one or the tiered study) on a 2D canvas with the Flight Deck kit in
-// Night Shift, for the scale lab. A review renderer: static frames, no animation, no live data.
+// Draws a fleet layout (the live one or the core-station study) on a 2D canvas with the Flight Deck kit
+// in Night Shift, for the scale lab. A review renderer: static frames, no animation, no live data.
 
 import { ENGINEERING_SPOTS, FLIGHT_KIT as KIT, flightCrew } from "../art/flightdeck";
 import { STYLES } from "../art/palettes";
@@ -10,7 +10,7 @@ import type { GameState } from "../store";
 import { unitState, type UnitState } from "../t3/derive";
 import type { FleetLayout, Point, Rect, StationLayout } from "../game/layout";
 import { podAt, QUARTERS_SHOWN, sortedEnvs, systemFixtureX } from "../game/layout";
-import type { SmallStation, TieredLayout } from "../game/fleet-tiers";
+import { COMPACT, type CoreStation, type Lane, type QuietModule } from "../game/core-station";
 import { HERMES_COLOR, STATUS, teamColor } from "../game/theme";
 
 const style = STYLES["flightdeck-nightshift"];
@@ -20,19 +20,31 @@ const SCREEN_OFF = 0x1c2a33;
 const css = (n: number, a = 1) => a === 1 ? `#${n.toString(16).padStart(6, "0")}` : `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
 const img = (grid: Grid, fill: { team?: number; visor?: number; screen?: number } = {}) => rasterize(grid, style, fill);
 
-export interface DrawLink { envId: string; stationKey: string; points: Point[]; lit: boolean; color: number }
-export interface DrawSmall extends SmallStation { colors: number[]; litColors: number[] }
+export interface DrawLink { envId: string; stationKey: string; points: Point[]; color: number }
+export interface DrawQuiet extends QuietModule { colors: number[]; litColors: number[] }
+export interface Structure {
+  core: Rect;
+  arms: Rect[];
+  hubs: Rect[];
+  manifold?: Rect;
+  collars: Array<{ stationKey: string; rect: Rect }>;
+  deckCollars: Rect[];
+  lanes: Array<Lane & { color: number }>;
+  command?: Rect;
+  /** The arm each station docks on, and the machines serving it (for hover). */
+  armOf: Map<string, number>;
+  envsOf: Map<string, string[]>;
+}
 export interface DrawModel {
   decks: Array<{ envId: string; rect: Rect; color: number; name: string; working: number }>;
   hall?: { hull: Rect; operators: Array<{ rect: Rect; name: string }>; collars: Point[][]; manifold?: { y: number; x0: number; x1: number; stemX: number; stemTop: number } };
   stations: Array<{ layout: StationLayout; colors: number[]; litColors: number[]; awake: number; settled: number }>;
-  modules: DrawSmall[];
-  capsules: DrawSmall[];
-  rack?: Rect;
+  modules: DrawQuiet[];
+  /** Freestanding supply lines (the live layout). */
   links: DrawLink[];
+  /** The study's station frame: core, arms, hubs, collars and the lanes inside them. */
+  structure?: Structure;
   crew: Array<{ key: string; at: Point; color: number; sleeping: boolean; state: UnitState }>;
-  /** Machine colour chips on hulls (the tiered study) instead of a port plate per line. */
-  chips: boolean;
   bounds: Rect;
 }
 
@@ -77,32 +89,34 @@ export function fromLive(state: GameState, f: FleetLayout): DrawModel {
       collars: cc.links.map((l) => [l.from, l.to]),
       manifold: cc.manifold && { y: cc.manifold.y, x0: cc.manifold.x0, x1: cc.manifold.x1, stemX: cc.manifold.stemX, stemTop: cc.manifold.top } },
     stations: [...f.stations.values()].map((s) => stationEntry(state, s, meta)),
-    modules: [], capsules: [],
-    links: [...f.environmentNodes.values()].flatMap((n) => n.links.map((l) => ({ envId: n.envId, stationKey: l.stationKey, points: [l.from, ...(l.via ?? []), l.to], lit: true, color: n.color }))),
+    modules: [],
+    links: [...f.environmentNodes.values()].flatMap((n) => n.links.map((l) => ({ envId: n.envId, stationKey: l.stationKey, points: [l.from, ...(l.via ?? []), l.to], color: n.color }))),
     crew: crewOf(state, f.crew.values()),
-    chips: false,
     bounds: f.bounds,
   };
 }
 
-export function fromTiered(state: GameState, t: TieredLayout): DrawModel {
+export function fromCore(state: GameState, t: CoreStation): DrawModel {
   const meta = envMeta(state);
-  const small = (s: SmallStation): DrawSmall => {
+  const quiet = (s: QuietModule): DrawQuiet => {
     const ids = [...new Set(s.members.map((m) => m.envId))];
     return { ...s, colors: ids.map(meta.color), litColors: ids.filter((id) => meta.working(id, s.members) > 0).map(meta.color) };
   };
-  const hall = t.hall;
+  const envsOf = new Map<string, string[]>();
+  for (const s of t.stations.values()) envsOf.set(s.key, [...new Set(s.members.map((m) => m.envId))]);
+  for (const s of t.modules.values()) envsOf.set(s.key, [...new Set(s.members.map((m) => m.envId))]);
   return {
     decks: t.decks.map((d) => ({ envId: d.envId, rect: d.rect, color: d.color, name: meta.label(d.envId), working: meta.working(d.envId) })),
-    hall: hall && { hull: hall.layout.hull, operators: hall.layout.operators.map((o) => ({ rect: o.workstation, name: o.bot.title ?? o.bot.name })),
-      collars: hall.collars, manifold: { y: hall.manifold.y, x0: hall.manifold.x0, x1: hall.manifold.x1, stemX: 0, stemTop: hall.manifold.stemTop } },
+    hall: t.hall && { hull: t.hall.hull, operators: t.hall.operators.map((o) => ({ rect: o.workstation, name: o.bot.title ?? o.bot.name })), collars: [] },
     stations: [...t.stations.values()].map((s) => stationEntry(state, s, meta)),
-    modules: [...t.modules.values()].map(small),
-    capsules: [...t.capsules.values()].map(small),
-    rack: t.rack,
-    links: t.links.map((l) => ({ ...l, color: meta.color(l.envId) })),
+    modules: [...t.modules.values()].map(quiet),
+    links: [],
+    structure: {
+      core: t.core, arms: t.arms.map((a) => a.rect), hubs: t.hubs, manifold: t.manifold, collars: t.collars, deckCollars: t.deckCollars,
+      lanes: t.lanes.map((l) => ({ ...l, color: meta.color(l.envId) })), command: t.command,
+      armOf: new Map([...t.berths].map(([k, b]) => [k, b.arm])), envsOf,
+    },
     crew: crewOf(state, t.crew.values()),
-    chips: true,
     bounds: t.bounds,
   };
 }
@@ -111,8 +125,7 @@ export function hits(m: DrawModel): Hit[] {
   return [
     ...m.decks.map((d) => ({ kind: "deck" as const, key: d.envId, rect: d.rect, label: d.name })),
     ...m.stations.map((s) => ({ kind: "station" as const, key: s.layout.key, rect: s.layout.bounds, label: s.layout.name })),
-    ...m.modules.map((s) => ({ kind: "station" as const, key: s.key, rect: { x: s.hull.x, y: s.hull.y - 26, w: s.hull.w, h: s.hull.h + 26 }, label: s.name })),
-    ...m.capsules.map((s) => ({ kind: "station" as const, key: s.key, rect: s.hull, label: s.name })),
+    ...m.modules.map((s) => ({ kind: "station" as const, key: s.key, rect: { x: s.hull.x, y: s.labelBelow ? s.hull.y : s.hull.y - COMPACT.plate, w: s.hull.w, h: s.hull.h + COMPACT.plate }, label: s.name })),
   ];
 }
 
@@ -132,6 +145,7 @@ function stepped(g: Ctx, x: number, y: number, w: number, h: number, cut: number
   }
 }
 
+/** Hull plating: outline, fill, highlight along the top, shade along the bottom (light from the upper left). */
 function plate(g: Ctx, r: Rect, cut: number, fill = c.H) {
   stepped(g, r.x - PX, r.y - PX, r.w + 2 * PX, r.h + 2 * PX, cut + PX, c.k);
   stepped(g, r.x, r.y, r.w, r.h, cut, fill);
@@ -180,27 +194,34 @@ function glyph(g: Ctx, rows: string[], x: number, y: number, color: number, unit
   rows.forEach((row, ry) => [...row].forEach((v, rx) => { if (v === "#") g.fillRect(x + rx * unit, y + ry * unit, unit, unit); }));
 }
 
-function path(g: Ctx, pts: Point[], width: number, color: string, dash = 0) {
+function path(g: Ctx, pts: Point[], width: number, color: string) {
   g.fillStyle = color;
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i];
     const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
-    const horizontal = y0 === y1;
-    const len = horizontal ? x1 - x0 : y1 - y0;
-    for (let d = 0; d < len + width; d += dash ? dash * 2 : len + width) {
-      const run = dash ? Math.min(dash, len + width - d) : len + width;
-      if (horizontal) g.fillRect(x0 - width / 2 + d, y0 - width / 2, run, width);
-      else g.fillRect(x0 - width / 2, y0 - width / 2 + d, width, run);
-    }
+    if (y0 === y1) g.fillRect(x0 - width / 2, y0 - width / 2, x1 - x0 + width, width);
+    else g.fillRect(x0 - width / 2, y0 - width / 2, width, y1 - y0 + width);
   }
 }
 
-function chips(g: Ctx, colors: number[], lit: number[], x: number, y: number, vertical: boolean) {
+function chips(g: Ctx, colors: number[], lit: number[], x: number, y: number) {
   colors.forEach((col, k) => {
-    const cx = vertical ? x : x + k * 10, cy = vertical ? y + k * 10 : y;
-    g.fillStyle = css(c.k); g.fillRect(cx - 2, cy - 2, 12, 12);
-    g.fillStyle = css(col, lit.includes(col) ? 1 : 0.45); g.fillRect(cx, cy, 8, 8);
+    const cx = x + k * 12;
+    g.fillStyle = css(c.k); g.fillRect(cx - 2, y - 2, 12, 12);
+    g.fillStyle = css(col, lit.includes(col) ? 1 : 0.4); g.fillRect(cx, y, 8, 8);
   });
+}
+
+/** A structural member: plating, a dark lane channel down its length, struts across it. */
+function truss(g: Ctx, r: Rect, vertical: boolean) {
+  plate(g, r, 6);
+  const inset = 8;
+  g.fillStyle = css(c.k, 0.85);
+  if (vertical) g.fillRect(r.x + inset, r.y + 6, r.w - 2 * inset, r.h - 12);
+  else g.fillRect(r.x + 6, r.y + inset, r.w - 12, r.h - 2 * inset);
+  g.fillStyle = css(c.D);
+  if (vertical) for (let y = r.y + 24; y < r.y + r.h - 12; y += 48) g.fillRect(r.x + inset, y, r.w - 2 * inset, 2);
+  else for (let x = r.x + 24; x < r.x + r.w - 12; x += 48) g.fillRect(x, r.y + inset, 2, r.h - 2 * inset);
 }
 
 // ---- Scene -----------------------------------------------------------------------------------
@@ -216,25 +237,20 @@ export function render(g: Ctx, m: DrawModel, cam: Camera, size: { w: number; h: 
   const unit = Math.max(PX, 1 / cam.z);
   const ink = style.mapInk ?? { text: 0xd8e2ea, muted: 0x8695a5 };
 
-  // Hall collars and manifold (Hermes tan), under the decks.
-  if (m.hall) {
+  // The live layout: hall collars and manifold (Hermes tan), then freestanding supply lines.
+  if (m.hall?.manifold) {
     const pipe = css(HERMES_COLOR, 0.75);
-    if (m.hall.manifold) {
-      const mf = m.hall.manifold;
-      path(g, [{ x: mf.stemX, y: mf.stemTop }, { x: mf.stemX, y: mf.y }], 8, css(c.k));
-      path(g, [{ x: mf.x0, y: mf.y }, { x: mf.x1, y: mf.y }], 8, css(c.k));
-      path(g, [{ x: mf.stemX, y: mf.stemTop }, { x: mf.stemX, y: mf.y }], 4, pipe);
-      path(g, [{ x: mf.x0, y: mf.y }, { x: mf.x1, y: mf.y }], 4, pipe);
+    const mf = m.hall.manifold;
+    for (const seg of [[{ x: mf.stemX, y: mf.stemTop }, { x: mf.stemX, y: mf.y }], [{ x: mf.x0, y: mf.y }, { x: mf.x1, y: mf.y }], ...m.hall.collars]) {
+      path(g, seg, 8, css(c.k)); path(g, seg, 4, pipe);
     }
-    for (const col of m.hall.collars) { path(g, col, 8, css(c.k)); path(g, col, 4, pipe); }
   }
-
-  // Supply lines: lit ones always, the rest only for what's hovered.
-  const shown = (l: DrawLink) => l.lit || (hover && (hover.key === l.stationKey || hover.key === l.envId));
   const trunk = style.trunk ?? c.D;
-  for (const l of m.links) if (l.lit) path(g, l.points, 12, css(trunk));
-  for (const l of m.links) if (l.lit) path(g, l.points, 4, css(l.color, hover && hover.key !== l.stationKey && hover.key !== l.envId ? 0.35 : 1));
-  if (hover) for (const l of m.links) if (!l.lit && shown(l)) { path(g, l.points, 8, css(c.k, 0.8)); path(g, l.points, 4, css(l.color), 8); }
+  const near = (l: { envId: string; stationKey: string }) => !hover || hover.key === l.stationKey || hover.key === l.envId;
+  for (const l of m.links) path(g, l.points, 12, css(trunk));
+  for (const l of m.links) path(g, l.points, 4, css(l.color, near(l) ? 1 : 0.3));
+
+  if (m.structure) frameOf(g, m.structure, hover, unit, ink);
 
   // Hall.
   if (m.hall) {
@@ -259,25 +275,25 @@ export function render(g: Ctx, m: DrawModel, cam: Camera, size: { w: number; h: 
       g.fillRect(d.rect.x + cell.x * PX, d.rect.y + cell.y * PX, cell.w * PX, cell.h * PX);
     });
     const w = Math.min(d.rect.w - 16, d.name.length * 6 * unit + 12);
-    g.fillStyle = css(c.k); g.fillRect(d.rect.x + 8, d.rect.y - 10, w, 7 * unit + 10);
-    frame(g, { x: d.rect.x + 8, y: d.rect.y - 10, w, h: 7 * unit + 10 }, d.color, 2);
-    text(g, d.name, d.rect.x + 14, d.rect.y - 5, d.color, unit, w - 12);
+    // In the study the nameplate sits under the deck, clear of its collar.
+    const ty = m.structure ? d.rect.y + d.rect.h + 4 : d.rect.y - 10;
+    g.fillStyle = css(c.k); g.fillRect(d.rect.x + 8, ty, w, 7 * unit + 10);
+    frame(g, { x: d.rect.x + 8, y: ty, w, h: 7 * unit + 10 }, d.color, 2);
+    text(g, d.name, d.rect.x + 14, ty + 5, d.color, unit, w - 12);
   }
 
-  // Full stations.
+  // Full stations, then their crew (above the room shadow).
   for (const s of m.stations) station(g, s, m, unit, ink);
-  const crewAt = new Map<string, Array<DrawModel["crew"][number]>>();
-  for (const cr of m.crew) crewAt.set(`${cr.at.x},${cr.at.y}`, [...(crewAt.get(`${cr.at.x},${cr.at.y}`) ?? []), cr]);
   for (const cr of m.crew) {
     if (cr.sleeping) { draw(g, KIT.CRYO_SLEEPER, cr.at.x, cr.at.y, 0.5, 0.5, { team: cr.color }); continue; }
     draw(g, flightCrew("round", "standard", "behind", "typeA"), cr.at.x, cr.at.y, 0.5, 1, { team: cr.color, visor: 0xc8b48c });
     glyph(g, STATUS_GLYPHS[cr.state], cr.at.x - 5, cr.at.y - 62, STATUS[cr.state], PX);
   }
 
-  // Cryo modules.
+  // Cryo modules: quiet projects, still aboard.
   for (const s of m.modules) {
-    const room = s.room!;
-    text(g, s.name, s.hull.x, s.hull.y - 22, ink.text, unit, s.hull.w);
+    const room = s.room;
+    text(g, s.name, s.hull.x, s.labelBelow ? s.hull.y + s.hull.h + 8 : s.hull.y - 22, ink.text, unit, s.hull.w);
     plate(g, s.hull, 12);
     tile(g, KIT.FLOOR_QUARTERS, room);
     for (let k = 0; k < QUARTERS_SHOWN; k++) { const at = podAt(room, k); draw(g, KIT.CRYO_EMPTY, at.x, at.y, 0.5, 0.5); }
@@ -287,30 +303,11 @@ export function render(g: Ctx, m: DrawModel, cam: Camera, size: { w: number; h: 
       if (cr.sleeping && cr.at.x >= room.x && cr.at.x <= room.x + room.w && cr.at.y >= room.y && cr.at.y <= room.y + room.h) draw(g, KIT.CRYO_SLEEPER, cr.at.x, cr.at.y, 0.5, 0.5, { team: cr.color });
     }
     frame(g, { x: room.x - 4, y: room.y - 4, w: room.w + 8, h: room.h + 8 }, style.wall);
-    g.fillStyle = css(c.k); g.fillRect(s.port.x - 8, s.hull.y - 6, 16, 8);
     const foot = room.y + room.h + 8;
-    chips(g, s.colors, s.litColors, s.hull.x + 16, foot + 3, false);
-    if (unit <= PX) text(g, `${s.settled} settled`, s.hull.x + s.hull.w - 14 - `${s.settled} settled`.length * 6 * unit, foot, ink.muted, unit);
-  }
-
-  // The dock.
-  if (m.rack) {
-    const r = m.rack;
-    plate(g, r, 12, c.D);
-    if (unit <= PX) text(g, `Dock · ${m.capsules.length} quiet projects`, r.x + 16, r.y + 10, ink.muted, unit);
-    for (const s of m.capsules) {
-      const h = s.hull;
-      stepped(g, h.x - PX, h.y - PX, h.w + 2 * PX, h.h + 2 * PX, 8, c.k);
-      stepped(g, h.x, h.y, h.w, h.h, 6, c.H);
-      g.fillStyle = css(c.h); g.fillRect(h.x + 6, h.y + 2, h.w - 12, 2);
-      chips(g, s.colors, s.litColors, h.x + 8, h.y + 8, true);
-      const days = Math.max(1, Math.round((Date.now() - s.lastActive) / 86_400_000));
-      // Capsule text is small deck text: it hides once a font pixel outgrows the capsule.
-      if (unit <= PX) {
-        text(g, s.name, h.x + 22, h.y + 8, ink.text, unit, h.w - 30);
-        text(g, s.lastActive ? `quiet ${days}d` : "no runs", h.x + 22, h.y + 24, ink.muted, unit, h.w - 30);
-      }
-    }
+    chips(g, s.colors, s.litColors, s.hull.x + 16, foot + 3);
+    const days = Math.round((Date.now() - s.lastActive) / 86_400_000);
+    const note = !s.lastActive ? "no runs" : days < 1 ? `${s.settled} settled` : `quiet ${days}d`;
+    if (unit <= PX) text(g, note, s.hull.x + s.hull.w - 14 - note.length * 6 * unit, foot, ink.muted, unit);
   }
 
   // Hover outline: white on a dark art-pixel outline (the map's selection rule).
@@ -318,6 +315,54 @@ export function render(g: Ctx, m: DrawModel, cam: Camera, size: { w: number; h: 
     const r = hover.rect;
     frame(g, { x: r.x - 8, y: r.y - 8, w: r.w + 16, h: r.h + 16 }, c.k, 6);
     frame(g, { x: r.x - 6, y: r.y - 6, w: r.w + 12, h: r.h + 12 }, 0xffffff, 2);
+  }
+}
+
+/** The study's frame: core, arms and manifold as trusses, hubs over their joints, collars, lanes. */
+function frameOf(g: Ctx, s: Structure, hover: Hit | undefined, unit: number, ink: { text: number; muted: number }) {
+  truss(g, s.core, true);
+  for (const a of s.arms) {
+    truss(g, a, false);
+    // End caps: a docking node with a white beacon (decoration in materials, never a status colour).
+    for (const x of [a.x - 6, a.x + a.w - 34]) {
+      plate(g, { x, y: a.y - 10, w: 40, h: a.h + 20 }, 8, c.H);
+      g.fillStyle = css(c.D); g.fillRect(x + 12, a.y + 4, 16, a.h - 8);
+      g.fillStyle = css(c.w ?? 0xffffff); g.fillRect(x + 16, a.y - 6, 8, 4);
+    }
+  }
+  if (s.manifold) truss(g, s.manifold, false);
+  for (const r of s.deckCollars) { plate(g, r, 0); g.fillStyle = css(c.D); for (let y = r.y + 6; y < r.y + r.h - 4; y += 8) g.fillRect(r.x + 4, y, r.w - 8, 2); }
+  for (const { rect } of s.collars) { plate(g, rect, 0); g.fillStyle = css(c.D); g.fillRect(rect.x + 4, rect.y + rect.h / 2 - 2, rect.w - 8, 4); }
+
+  // Lanes: lit while that machine has crew awake where the lane leads. Hovering a station or a deck
+  // traces its machines' lanes from the engine room to the collar.
+  const hoverEnvs = hover?.kind === "deck" ? [hover.key] : hover ? s.envsOf.get(hover.key) ?? [] : [];
+  const hoverArm = hover?.kind === "station" ? s.armOf.get(hover.key) : undefined;
+  const collar = hover?.kind === "station" ? s.collars.find((k) => k.stationKey === hover.key)?.rect : undefined;
+  for (const l of s.lanes) {
+    const traced = hover && hoverEnvs.includes(l.envId) && (l.kind !== "arm" || hover.kind === "deck" || l.arm === hoverArm);
+    let b = l.b;
+    if (traced && l.kind === "arm" && collar) {
+      // A traced arm lane stops at the hovered project's collar.
+      b = { x: collar.x + collar.w / 2 - 2, y: l.b.y };
+      g.fillStyle = css(l.color, 0.12);
+      g.fillRect(Math.min(b.x, l.b.x), l.b.y, Math.abs(l.b.x - b.x) + 4, 4);
+    }
+    g.fillStyle = css(l.color, hover ? (traced ? 1 : 0.12) : l.lit ? 1 : 0.3);
+    const x0 = Math.min(l.a.x, b.x), y0 = Math.min(l.a.y, b.y);
+    if (l.a.y === b.y) g.fillRect(x0, y0, Math.abs(b.x - l.a.x) + 4, 4);
+    else g.fillRect(x0, y0, 4, Math.abs(b.y - l.a.y) + 4);
+  }
+
+  // Hubs over every joint: chamfered octagons with a ring.
+  for (const h of s.hubs) {
+    plate(g, h, 12);
+    frame(g, { x: h.x + 8, y: h.y + 8, w: h.w - 16, h: h.h - 16 }, c.D, 2);
+    g.fillStyle = css(c.m); g.fillRect(h.x + h.w / 2 - 6, h.y + h.h / 2 - 6, 12, 12);
+  }
+  if (s.command) {
+    plate(g, s.command, 16);
+    text(g, "COMMAND", s.command.x + 24, s.command.y + 24, ink.text, Math.max(unit, 3));
   }
 }
 
@@ -357,11 +402,10 @@ function station(g: Ctx, entry: DrawModel["stations"][number], m: DrawModel, uni
     g.fillStyle = css(c.m);
     if (d.vertical) g.fillRect(d.x - 4, d.y - 16, 8, 32); else g.fillRect(d.x - 16, d.y - 4, 32, 8);
   }
-  if (m.chips) {
-    // One chip per serving machine on the port plate; bright while that machine has crew here.
-    const n = entry.colors.length;
-    g.fillStyle = css(c.k); g.fillRect(s.port.x - 8, s.port.y - n * 5 - 6, 16, n * 10 + 12);
-    chips(g, entry.colors, entry.litColors, s.port.x - 4, s.port.y - n * 5, true);
+  if (m.structure) {
+    // Docked: the serving machines' chips sit on the hull band beside the collar.
+    const below = s.port.y >= i.y + i.h;
+    chips(g, entry.colors, entry.litColors, s.port.x + 20, below ? s.port.y - 16 : s.port.y + 6);
   } else {
     const plateH = Math.max(40, Math.round((12 * s.members.length + 16) / 4) * 4);
     g.fillStyle = css(c.k); g.fillRect(s.port.x - 6, s.port.y - plateH / 2, 12, plateH);
