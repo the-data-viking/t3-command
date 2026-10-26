@@ -531,6 +531,13 @@ On connect, t3-command reads each environment's `GET /.well-known/t3/environment
 `orchestrationProtocolVersion`. Environments running an unsupported version are shown as
 "needs update" instead of being driven with the wrong message format.
 
+For T3 v2, conversations open through bounded HTTP snapshots and resume live events from the
+snapshot cursor. **Load earlier history** reveals older cached rows, then fetches older pages on
+demand while preserving the reading position. Background subagent tracking follows lifecycle
+records without retaining parent transcripts in the browser. A failed history load offers a local
+retry and leaves the machine connected; an upstream protocol handshake is required before its
+status becomes live.
+
 Supported: **orchestration protocol v1** (T3 Code 0.0.44). T3 Code moved to v2 upstream on
 2026-10-02, so expect to need a t3-command update when your T3 instances auto-update.
 

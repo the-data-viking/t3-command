@@ -7,6 +7,8 @@ import type { ProjectShell, ShellStreamItem, ThreadShell } from "../src/t3/types
 import type { HermesBridge } from "./hermes/bridge.ts";
 import type { TurnHistory } from "./history.ts";
 import type { Registry } from "./registry.ts";
+import { readThreadData } from "./thread-history.ts";
+import type { BoundedThreadSnapshot } from "../shared/thread-history.ts";
 import { ProtocolUnsupported, t3SocketUrl } from "./t3-socket.ts";
 import { enrichProjectRepositories, protocolRequest, protocolStreamDecoder, protocolStreamPayload } from "../shared/t3-protocol.ts";
 
@@ -49,7 +51,11 @@ export class HistoryRecorder {
   }
 
   /** A one-off snapshot from a followed T3 machine's stream (its first chunk), e.g. one thread's detail. */
-  peek<T>(envId: string, tag: string, payload: unknown, timeoutMs = 15_000): Promise<T[]> {
+  async peek<T>(envId: string, tag: string, payload: unknown, timeoutMs = 15_000): Promise<T[]> {
+    if (tag === "orchestration.subscribeThread" && (await this.registry.status(envId))?.protocolVersion === 2) {
+      const snapshot = await readThreadData(this.registry, envId, String((payload as { threadId: string }).threadId), "bounded", undefined, AbortSignal.timeout(timeoutMs)) as BoundedThreadSnapshot;
+      return protocolStreamDecoder(2, tag)([{ kind: "snapshot", ...snapshot }]) as T[];
+    }
     const follower = this.followers.get(envId);
     if (!follower?.peek) return Promise.reject(new Error("Not connected"));
     return follower.peek<T>(tag, payload, timeoutMs);

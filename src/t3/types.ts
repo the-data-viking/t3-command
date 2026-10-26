@@ -1,3 +1,4 @@
+import type { ThreadHistory } from "../../shared/thread-history.ts";
 // Command presentation types, matching v1 and normalized from v2 by shared/t3-protocol.ts.
 // See docs/PROTOCOL.md. Fields T3 sends that we don't read are left out (or typed loosely).
 
@@ -200,7 +201,7 @@ export interface OrchestrationEvent {
 }
 
 export type ThreadStreamItem =
-  | { kind: "snapshot"; snapshot: { snapshotSequence: number; thread: OrchestrationThread } }
+  | { kind: "snapshot"; snapshot: { snapshotSequence: number; thread: OrchestrationThread; history?: ThreadHistory } }
   | { kind: "synchronized" }
   | { kind: "event"; event: OrchestrationEvent };
 

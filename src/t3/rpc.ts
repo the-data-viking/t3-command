@@ -47,19 +47,32 @@ export class RpcConnection {
   private calls = new Map<string, Call>();
   private ping?: ReturnType<typeof setInterval>;
   private closed = false;
+  private ready = false;
+  private handshake?: ReturnType<typeof setTimeout>;
   private protocolVersion: number;
 
   constructor(url: string, handlers: RpcConnectionHandlers, protocolVersion = 1) {
     this.protocolVersion = protocolVersion;
     this.ws = new WebSocket(url);
     this.ws.addEventListener("open", () => {
+      // Opening the local relay does not prove that upstream T3 is reachable.
+      this.send({ _tag: "Ping" });
+      this.handshake = setTimeout(() => this.ws.close(4502, "T3 handshake timed out"), 15_000);
       this.ping = setInterval(() => this.send({ _tag: "Ping" }), PING_INTERVAL_MS);
-      handlers.onOpen();
     });
-    this.ws.addEventListener("message", (e) => this.receive(JSON.parse(e.data as string) as ServerMessage));
+    this.ws.addEventListener("message", (e) => {
+      const message = JSON.parse(e.data as string) as ServerMessage;
+      if (message._tag === "Pong" && !this.ready && !this.closed) {
+        this.ready = true;
+        clearTimeout(this.handshake);
+        handlers.onOpen();
+      }
+      this.receive(message);
+    });
     this.ws.addEventListener("close", (e) => {
       this.closed = true;
       clearInterval(this.ping);
+      clearTimeout(this.handshake);
       const err = new RpcError("Disconnected", "Connection closed");
       for (const call of this.calls.values()) call.onExit(undefined, err);
       this.calls.clear();
@@ -136,8 +149,14 @@ export class RpcConnection {
   /** Start a streaming RPC. Returns a function that cancels it. */
   stream<T>(tag: string, payload: unknown, onItems: (items: T[]) => void, onEnd: (err?: RpcError) => void): () => void {
     const decode = protocolStreamDecoder(this.protocolVersion, tag);
-    const id = this.start(tag, protocolStreamPayload(this.protocolVersion, tag, payload), {
-      onChunk: (values) => onItems(decode(values) as T[]),
+    return this.rawStream(tag, protocolStreamPayload(this.protocolVersion, tag, payload),
+      (values) => onItems(decode(values) as T[]), onEnd);
+  }
+
+  /** Raw v2 events can resume from an HTTP snapshot decoded by the caller. */
+  rawStream(tag: string, payload: unknown, onItems: (items: unknown[]) => void, onEnd: (err?: RpcError) => void): () => void {
+    const id = this.start(tag, payload, {
+      onChunk: onItems,
       onExit: (_value, err) => onEnd(err),
     });
     return () => {

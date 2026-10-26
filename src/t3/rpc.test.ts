@@ -35,3 +35,18 @@ test("timed out telemetry requests are interrupted and late responses cannot set
     globalThis.WebSocket = previous;
   }
 });
+
+test("a local relay open is not live until an upstream protocol Pong arrives", () => {
+  const previous = globalThis.WebSocket;
+  globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+  let opened = 0;
+  const rpc = new RpcConnection("ws://test", { onOpen: () => opened++, onClose: () => {} });
+  try {
+    const ws = FakeWebSocket.latest;
+    ws.dispatchEvent(new Event("open"));
+    assert.equal(opened, 0, "failed upstream opens cannot reset environment retry backoff");
+    assert.deepEqual(ws.sent[0], { _tag: "Ping" });
+    for (let n = 0; n < 2; n++) ws.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({ _tag: "Pong" }) }));
+    assert.equal(opened, 1);
+  } finally { rpc.close(); globalThis.WebSocket = previous; }
+});

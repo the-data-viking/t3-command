@@ -53,3 +53,26 @@ test("pairing exchanges the right scopes for each protocol and reports legacy gr
     } finally { server.close(); await fs.rm(dir, { recursive: true, force: true }); }
   }
 });
+
+test("a failed descriptor probe retains known protocol metadata for reconnects", async (t) => {
+  let fail = false;
+  const server = http.createServer((req, res) => {
+    if (req.url === "/.well-known/t3/environment" && fail) { res.writeHead(503); res.end(); return; }
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(req.url === "/.well-known/t3/environment"
+      ? { orchestrationProtocolVersion: 2, serverVersion: "0.1.0" } : { authenticated: true }));
+  });
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "t3c-probe-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  await fs.writeFile(path.join(dir, "environments.json"), JSON.stringify([{ id: "env", label: "T3", url: `http://127.0.0.1:${(server.address() as { port: number }).port}`, token: "test" }]));
+  const registry = new Registry(dir); await registry.load();
+  const initial = await registry.status("env"); assert.equal(initial?.protocolVersion, 2);
+  const cache = (registry as unknown as { statusCache: Map<string, { at: number }> }).statusCache;
+  cache.get("env")!.at = 0; fail = true;
+  const failed = await registry.status("env");
+  assert.equal(failed?.status, "unreachable");
+  assert.equal(failed.protocolVersion, 2);
+  assert.equal(failed.serverVersion, "0.1.0");
+});

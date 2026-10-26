@@ -30,9 +30,9 @@ The sections below remain the historical v1 reference; v2 differs as follows:
   reported. Active work, approvals, and questions still take precedence over camp.
 - Provider-native child threads (`creationSource:"provider"`, subagent lineage) can report
   `status:"idle"` with no app run or provider session while doing work. Their authoritative
-  lifecycle is the owning parent's `projection.subagents` record. Command shares one parent
-  detail subscription across those children, even with no panel open, and joins lifecycle
-  updates by child ID. Reconnect snapshots replace the cached lifecycle; ordinary child-shell
+  lifecycle is the owning parent's `projection.subagents` record. Command shares one lifecycle-only
+  subscription across those children. It bootstraps through bounded HTTP, strips transcript,
+  prompt, and result data at the Command relay, and joins lifecycle updates by child ID. Reconnect snapshots replace the cached lifecycle; ordinary child-shell
   refreshes cannot overwrite it. Terminal or idle native lifecycles send the child to cryo
   without inventing a run. App-delegated children (the same subagent lineage, source `mcp`)
   also enter cryo when their turn finishes or they are settled. Active work and pending requests
@@ -47,8 +47,18 @@ The sections below remain the historical v1 reference; v2 differs as follows:
   runs, messages, structured turn items, runtime requests, plans, and checkpoints. Live event
   sequences sit on the stream envelope. Entity updates replace whole records, including
   accumulated message text; they are never appended as v1 text deltas. Command keeps a projection
-  per subscription and rebuilds its transcript after each batch. Reconnects request a full snapshot
-  so the decoder never resumes without its projection. Bounded/compact snapshots are not requested.
+  per subscription and rebuilds its transcript after each batch. Chat opens and reconnects fetch
+  `/api/orchestration/threads/:id/bounded?compactTurnItems=1` with `x-t3-orchestration-protocol: 2`,
+  restore compact local visible turn items, then subscribe with `afterSequence = snapshotSequence`.
+  Bounded/compact socket fallbacks are explicitly accepted. Older history comes from the `/history`
+  HTTP endpoint using its opaque cursor, merging by source thread/item identity without overwriting
+  newer live values. Closing a panel cancels pending reads; failures stay local to that panel and
+  never fall back to an unbounded socket projection. The recorder uses bounded HTTP for one-off
+  thread reads too. The relay keeps the 64 MiB frame cap and disables upstream deflate after
+  observed invalid deflate frames from T3 0.1.0. A connection becomes live only after T3 answers
+  the initial protocol Ping, not when Command's local relay accepts the browser socket. Failed
+  health probes retain known protocol/auth metadata, so a transient HTTP timeout cannot recreate
+  an otherwise live client or clear its selected chat.
 - Reasoning, images (including textless messages), tools, questions, approval choices, todo plans,
   compactions, context usage, and checkpoints are projected into Command's presentation types.
   Rolled-back runs are excluded. Unknown future event kinds do not break the stream.

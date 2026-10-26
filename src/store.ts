@@ -37,6 +37,8 @@ export interface T3ModelDefaults {
 }
 
 export interface ThreadDetail {
+  history?: import("../shared/thread-history").ThreadHistory;
+  error?: string;
   thread: OrchestrationThread;
   synced: boolean;
 }
