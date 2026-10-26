@@ -56,7 +56,9 @@ The sections below remain the historical v1 reference; v2 differs as follows:
   never fall back to an unbounded socket projection. The recorder uses bounded HTTP for one-off
   thread reads too. The relay keeps the 64 MiB frame cap and disables upstream deflate after
   observed invalid deflate frames from T3 0.1.0. A connection becomes live only after T3 answers
-  the initial protocol Ping, not when Command's local relay accepts the browser socket.
+  the initial protocol Ping, not when Command's local relay accepts the browser socket. Failed
+  health probes retain known protocol/auth metadata, so a transient HTTP timeout cannot recreate
+  an otherwise live client or clear its selected chat.
 - Reasoning, images (including textless messages), tools, questions, approval choices, todo plans,
   compactions, context usage, and checkpoints are projected into Command's presentation types.
   Rolled-back runs are excluded. Unknown future event kinds do not break the stream.

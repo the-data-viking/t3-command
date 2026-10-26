@@ -990,10 +990,17 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 export async function refreshEnvironments(): Promise<void> {
   const summaries = await fetchJson<EnvSummary[]>("/api/envs");
   const seen = new Set<string>();
-  for (const summary of summaries) {
-    seen.add(summary.id);
-    const existing = clients.get(summary.id);
-    const world = useGame.getState().envs[summary.id];
+  for (const probe of summaries) {
+    seen.add(probe.id);
+    const existing = clients.get(probe.id);
+    const world = useGame.getState().envs[probe.id];
+    // A failed HTTP probe is not evidence of protocol downgrade or revoked permissions.
+    // Retain metadata across this refresh and the following successful one.
+    const summary = world && probe.status === "unreachable" ? { ...probe,
+      protocolVersion: probe.protocolVersion ?? world.summary.protocolVersion,
+      tokenExpiresAt: probe.tokenExpiresAt ?? world.summary.tokenExpiresAt,
+      permissionNotice: probe.permissionNotice ?? world.summary.permissionNotice,
+    } : probe;
     // Re-create a client that was blocked (e.g. needs pairing) once the server says it's fine.
     const blocked = world && (world.connection === "needs-pairing" || world.connection === "needs-update");
     const protocolChanged = world && (world.summary.protocolVersion ?? 1) !== (summary.protocolVersion ?? 1);

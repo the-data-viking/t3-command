@@ -335,7 +335,12 @@ export class Registry {
       url: env.hermes ? env.hermes.workspaceRoot : env.ssh ? `ssh://${env.ssh.target}${env.ssh.port ? `:${env.ssh.port}` : ""}` : env.url!,
       ...(env.hermes ? { kind: "hermes" as const } : {}),
       status: "ok",
-      tokenExpiresAt: env.tokenExpiresAt,
+      // Failed probes do not mean a known protocol or linked credential changed.
+      serverVersion: cached?.summary.serverVersion,
+      protocolVersion: cached?.summary.protocolVersion,
+      selfUpdate: cached?.summary.selfUpdate,
+      permissionNotice: cached?.summary.permissionNotice,
+      tokenExpiresAt: env.tokenExpiresAt ?? cached?.summary.tokenExpiresAt,
       addedAt: env.addedAt,
       ...(env.linked ? { linked: true } : {}),
     };
