@@ -3,6 +3,8 @@
 // Source: pingdotgg/t3code v0.1.0, packages/contracts/src/orchestrationV2.ts.
 import type { Activity, Checkpoint, LatestTurn, Message, ModelSelection, OrchestrationThread, ProjectShell, ShellStreamItem, ThreadShell, ThreadStreamItem } from "../src/t3/types.ts";
 
+import type { ThreadHistory } from "./thread-history.ts";
+
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row => value && typeof value === "object" ? value as Row : {};
 const rows = (value: unknown): Row[] => Array.isArray(value) ? value.map(row) : [];
@@ -191,13 +193,40 @@ export function v2Thread(value: unknown): OrchestrationThread {
   const plan = [...activities].reverse().find((a) => a.kind === "turn.plan.updated" && a.turnId === current?.id);
   const steps = rows(plan?.payload?.plan);
   return { ...shell,
-    nativeSubagents: rows(p.subagents).filter((s) => s.origin === "provider_native" && typeof s.childThreadId === "string").map((s) => ({
-      id: text(s.id), parentThreadId: text(s.threadId) || shell.id, childThreadId: text(s.childThreadId),
-      runId: nullableText(s.runId), status: s.status as NonNullable<OrchestrationThread["nativeSubagents"]>[number]["status"],
-      startedAt: nullableText(s.startedAt), completedAt: nullableText(s.completedAt), updatedAt: text(s.updatedAt),
-    })),
+    nativeSubagents: v2NativeSubagents(p.subagents, shell.id),
     planProgress: current && active(current.status) && steps.length ? { step: text((steps.find((s) => s.status === "inProgress") ?? steps.find((s) => s.status === "pending") ?? steps.at(-1))?.step), totalSteps: steps.length, completedSteps: steps.filter((s) => s.status === "completed").length } : null,
     messages: [...messages.values()].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)), activities, checkpoints };
+}
+
+/** Lifecycle-only projection, independent of conversation history. */
+export function v2NativeSubagents(value: unknown, parentThreadId: string) {
+  return rows(value).filter((s) => s.origin === "provider_native" && typeof s.childThreadId === "string").map((s) => ({
+    id: text(s.id), parentThreadId: text(s.threadId) || parentThreadId, childThreadId: text(s.childThreadId),
+    runId: nullableText(s.runId), status: s.status as NonNullable<OrchestrationThread["nativeSubagents"]>[number]["status"],
+    startedAt: nullableText(s.startedAt), completedAt: nullableText(s.completedAt), updatedAt: text(s.updatedAt),
+  }));
+}
+
+/** Compact snapshots omit duplicate local visible items; restore them before live updates/paging. */
+function snapshotProjection(item: Row): Row {
+  const p = row(item.projection);
+  if (item.turnItemsOmitLocalVisible !== true) return p;
+  return { ...p, turnItems: [...rows(p.visibleTurnItems).filter((r) => r.visibility === "local" || r.sourceThreadId === row(p.thread).id).map((r) => r.item), ...rows(p.turnItems)] };
+}
+
+function mergeHistory(projection: Row, older: Row[]): Row {
+  const key = (r: Row) => `${text(r.sourceThreadId)}:${text(r.sourceItemId)}`;
+  const current = new Map(rows(projection.visibleTurnItems).map((r) => [key(r), r]));
+  const local = new Map(rows(projection.turnItems).map((i) => [i.id, i]));
+  const page = new Map<string, Row>();
+  for (const r of older) {
+    if (page.has(key(r))) continue;
+    const localRow = r.visibility === "local" || r.sourceThreadId === row(projection.thread).id;
+    const liveItem = localRow ? local.get(r.sourceItemId) : undefined;
+    page.set(key(r), current.get(key(r)) ?? (liveItem ? { ...r, item: liveItem } : r));
+    if (localRow && !local.has(r.sourceItemId)) local.set(r.sourceItemId, row(r.item));
+  }
+  return { ...projection, turnItems: [...local.values()], visibleTurnItems: [...page.values(), ...rows(projection.visibleTurnItems).filter((r) => !page.has(key(r)))] };
 }
 
 const EVENT_TABLES: Record<string, string> = {
@@ -212,11 +241,19 @@ export function v2ThreadStream(): (values: unknown[]) => ThreadStreamItem[] {
   let projection: Row | undefined;
   let sequence = -1;
   let synced = false;
+  let history: ThreadHistory | undefined;
   return (values) => {
     let changed = false;
     for (const value of values) {
       const item = row(value);
-      if (item.kind === "snapshot") { projection = row(item.projection); sequence = Number(item.snapshotSequence); changed = true; }
+      if (item.kind === "snapshot" && Number(item.snapshotSequence) >= sequence) {
+        projection = snapshotProjection(item); sequence = Number(item.snapshotSequence); changed = true;
+        history = { cursor: nullableText(item.historyCursor), hasMore: item.hasMoreHistory === true };
+      }
+      else if (item.kind === "history-page" && projection) {
+        projection = mergeHistory(projection, rows(item.items)); changed = true;
+        history = { cursor: nullableText(item.nextCursor), hasMore: item.hasMoreHistory === true };
+      }
       else if (item.kind === "synchronized") synced = true;
       else if (item.kind === "event" && projection && Number(item.sequence) > sequence) {
         sequence = Number(item.sequence);
@@ -232,16 +269,19 @@ export function v2ThreadStream(): (values: unknown[]) => ThreadStreamItem[] {
         }
       }
     }
-    return [...(changed && projection ? [{ kind: "snapshot" as const, snapshot: { snapshotSequence: sequence, thread: v2Thread(projection) } }] : []),
+    return [...(changed && projection ? [{ kind: "snapshot" as const, snapshot: { snapshotSequence: sequence, thread: v2Thread(projection), history } }] : []),
       ...(synced ? [{ kind: "synchronized" as const }] : [])];
   };
 }
 
 export function protocolStreamPayload(version: number, tag: string, payload: unknown): unknown {
   if (version !== 2 || tag !== "orchestration.subscribeThread") return payload;
-  // A new decoder needs a snapshot. Shell streams can still resume incrementally.
   const p = row(payload);
-  return { threadId: p.threadId, requestCompletionMarker: p.requestCompletionMarker };
+  return { threadId: p.threadId, requestCompletionMarker: p.requestCompletionMarker,
+    acceptBoundedSnapshot: true, acceptCompactTurnItems: true,
+    ...(typeof p.afterSequence === "number" ? { afterSequence: p.afterSequence } : {}),
+    ...(p.commandSubagentsOnly === true ? { commandSubagentsOnly: true } : {}),
+  };
 }
 
 export function protocolStreamDecoder(version: number, tag: string): (values: unknown[]) => unknown[] {

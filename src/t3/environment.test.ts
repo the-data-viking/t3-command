@@ -128,59 +128,67 @@ test("v2 repository refreshes preserve inactive project nodes, crew, and the liv
   } finally { useGame.setState(before, true); }
 });
 
-test("native children follow parent lifecycle streams without an open panel, across shell refreshes and reconnects", async () => {
+test("native siblings share lifecycle-only tracking without loading their parent's transcript", async () => {
   const { useGame, unitKey } = await import("../store");
-  const { v2ShellItems, v2ThreadStream } = await import("../../shared/t3-protocol");
-  const { isHistory, unitState } = await import("./derive");
-  const before = useGame.getState();
+  const { v2ShellItems } = await import("../../shared/t3-protocol");
+  const { unitState } = await import("./derive");
+  const before = useGame.getState(), originalFetch = globalThis.fetch;
   const summary = { id: "native-env", label: "Station", protocolVersion: 2 } as EnvSummary;
   const client = new EnvironmentClient(summary);
-  const streams: Array<{ payload: { threadId: string }; emit: (items: unknown[]) => void; cancelled: boolean }> = [];
-  const calls: Record<string, unknown>[] = [];
+  const streams: Array<{ payload: Record<string, unknown>; emit: (items: unknown[]) => void; cancelled: boolean }> = [];
+  const requests: string[] = [], calls: Record<string, unknown>[] = [];
+  let status = "running";
+  const agent = () => ({ id: "agent", threadId: "parent", childThreadId: "child", origin: "provider_native", runId: "owner-run", status, updatedAt: "2026-10-15T12:00:00Z" });
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    return new Response(JSON.stringify({ snapshotSequence: 42, projection: { thread: { id: "parent" }, subagents: [agent()] } }));
+  };
   Object.defineProperty(client, "rpc", { value: { isOpen: true,
-    stream: (_tag: string, payload: { threadId: string }, emit: (items: unknown[]) => void) => {
+    rawStream: (_tag: string, payload: Record<string, unknown>, emit: (items: unknown[]) => void) => {
       const stream = { payload, emit, cancelled: false }; streams.push(stream);
       return () => { stream.cancelled = true; };
     },
     request: async (_tag: string, payload: Record<string, unknown>) => { calls.push(payload); return {}; },
   } });
-  const internals = client as unknown as { applyShell(items: unknown[]): void; subscribeThread(id: string, sub: unknown): void; threadSubs: Map<string, unknown> };
-  const apply = (values: unknown[]) => internals.applyShell(v2ShellItems(values));
+  const internal = client as unknown as { applyShell(items: unknown[]): void; nativeParents: Map<string, { cancel?: () => void }>; subscribeNativeParent(id: string, sub: unknown): void };
+  const apply = (values: unknown[]) => internal.applyShell(v2ShellItems(values));
   const shell = (id: string, parent = false) => ({ id, projectId: "p", title: id, creationSource: parent ? "web" : "provider",
     lineage: { parentThreadId: parent ? null : "parent", relationshipToParent: parent ? null : "subagent", rootThreadId: "parent" },
-    latestRunId: parent ? "run" : null, activeRunId: null, activeProviderThreadId: null, status: parent ? "completed" : "idle",
-    latestUserMessageAt: null, createdAt: "2026-10-15", updatedAt: "2026-10-15" });
-  const agent = { id: "agent", threadId: "parent", childThreadId: "child", origin: "provider_native", runId: "owner-run", status: "running", updatedAt: "2026-10-15T12:00:00Z" };
-  const getChild = () => useGame.getState().envs[summary.id].threads.child;
+    latestRunId: null, activeRunId: null, status: "idle", createdAt: "2026-10-15", updatedAt: "2026-10-15" });
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  const child = () => useGame.getState().envs[summary.id].threads.child;
   try {
     useGame.setState({ envs: { [summary.id]: { summary, connection: "live", synced: false, projects: {}, threads: {}, providers: [] } }, details: {} });
     apply([{ kind: "snapshot", snapshot: { snapshotSequence: 1, projects: [], threads: [shell("parent", true), shell("child"), shell("sibling")] } }, { kind: "synchronized" }]);
-    assert.equal(streams.length, 1, "siblings share one parent subscription");
-    assert.equal(streams[0].payload.threadId, "parent");
-    const decode = v2ThreadStream();
-    streams[0].emit(decode([{ kind: "snapshot", snapshotSequence: 1, projection: { thread: shell("parent", true), subagents: [agent] } }, { kind: "synchronized" }]));
-    assert.equal(unitState(getChild()), "working");
-    assert.equal(getChild().latestTurn, null, "a native task is not an app run");
-    assert.equal(isHistory(getChild()), false);
-    apply([{ kind: "thread.updated", sequence: 2, location: "active", thread: { ...shell("child"), title: "New tool output" } }]);
-    assert.equal(unitState(getChild()), "working", "child shell output cannot overwrite the parent lifecycle");
-    const closePanel = client.watchThread("parent"); closePanel();
-    assert.equal(streams[0].cancelled, false, "closing a panel does not stop observing native work");
+    await flush();
+    assert.deepEqual(requests, ["/env/native-env/threads/parent/subagents"]);
+    assert.equal(streams.length, 1);
+    assert.equal(streams[0].payload.afterSequence, 42);
+    assert.equal(streams[0].payload.commandSubagentsOnly, true);
+    assert.equal(useGame.getState().details[unitKey(summary.id, "parent")], undefined, "background tracking stores no transcript");
+    assert.equal(unitState(child()), "working");
+    apply([{ kind: "thread.updated", sequence: 2, location: "active", thread: shell("child") }]);
+    assert.equal(unitState(child()), "working", "shell refreshes preserve parent authority");
     await client.interrupt("child");
     assert.equal(calls[0].type, "subagent.stop");
-    assert.equal(calls[0].threadId, "parent");
     assert.equal(calls[0].runId, "owner-run");
-    assert.equal(calls[0].subagentId, "agent");
-    for (const [sequence, status, expected] of [[2, "waiting", "working"], [3, "completed", "sleeping"], [4, "failed", "sleeping"], [5, "cancelled", "sleeping"], [6, "interrupted", "sleeping"], [7, "idle", "sleeping"], [8, "pending", "working"]] as const) {
-      streams[0].emit(decode([{ kind: "event", sequence, event: { type: "subagent.updated", payload: { ...agent, status, updatedAt: `2026-10-15T12:00:0${sequence}Z` } } }]));
-      assert.equal(unitState(getChild()), expected, status);
+    let sequence = 42;
+    for (const [next, expected] of [["waiting", "working"], ["completed", "sleeping"], ["failed", "sleeping"], ["idle", "sleeping"], ["pending", "working"]]) {
+      status = next;
+      streams[0].emit([{ kind: "event", sequence: ++sequence, event: { type: "subagent.updated", payload: agent() } }]);
+      assert.equal(unitState(child()), expected);
     }
-    internals.subscribeThread("parent", internals.threadSubs.get("parent"));
-    const reconnect = v2ThreadStream();
-    streams.at(-1)!.emit(reconnect([{ kind: "snapshot", snapshotSequence: 20, projection: { thread: shell("parent", true), subagents: [{ ...agent, status: "completed" }] } }]));
-    assert.equal(unitState(getChild()), "sleeping", "reconnect replaces stale running state");
-    apply([{ kind: "snapshot", snapshot: { snapshotSequence: 30, projects: [], threads: [] } }]);
+    status = "completed";
+    streams[0].emit([{ kind: "event", sequence: 41, event: { type: "subagent.updated", payload: agent() } }]);
+    assert.equal(unitState(child()), "working", "old replay events cannot undo newer native status");
+    internal.subscribeNativeParent("parent", internal.nativeParents.get("parent"));
+    await flush();
+    assert.equal(streams[0].cancelled, true);
+    assert.equal(unitState(child()), "sleeping", "reconnect replaces stale native status");
+    apply([{ kind: "snapshot", snapshot: { snapshotSequence: 50, projects: [], threads: [] } }]);
     assert.equal(streams.at(-1)!.cancelled, true);
-    assert.equal(useGame.getState().details[unitKey(summary.id, "parent")], undefined);
-  } finally { useGame.setState(before, true); }
+  } finally {
+    for (const sub of internal.nativeParents.values()) sub.cancel?.();
+    globalThis.fetch = originalFetch; useGame.setState(before, true);
+  }
 });

@@ -51,6 +51,9 @@ test('HTTP image relay authenticates, selects the environment, and preserves ima
   const base = `http://127.0.0.1:${port}`;
   const headers = { 'Tailscale-User-Login': 'test@example.com' };
   assert.equal((await fetch(`${base}/env/remote/assets/token/map.png`)).status, 403);
+  assert.equal((await fetch(`${base}/env/remote/threads/th/bounded`)).status, 403);
+  assert.equal((await fetch(`${base}/env/remote/threads/th/subagents`)).status, 403);
+  assert.equal((await fetch(`${base}/env/remote/threads/th/history?cursor=test`)).status, 403);
   assert.equal(requests.length, 0);
   assert.equal((await fetch(`${base}/env/unknown/assets/token/map.png`, { headers })).status, 404);
   const image = await fetch(`${base}/env/remote/assets/token/map.png`, { headers: { ...headers, range: 'bytes=0-15' } });

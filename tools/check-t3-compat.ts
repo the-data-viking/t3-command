@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { WebSocket } from "ws";
 import { Registry } from "../server/registry.ts";
+import { readThreadData } from "../server/thread-history.ts";
 import { t3SocketUrl } from "../server/t3-socket.ts";
 import { protocolRequest, protocolStreamDecoder, protocolStreamPayload } from "../shared/t3-protocol.ts";
 import type { ShellStreamItem, ThreadStreamItem } from "../src/t3/types.ts";
@@ -42,7 +43,10 @@ const request = (tag: string, payload: unknown) => new Promise<unknown>((resolve
   });
   ws.send(JSON.stringify({ _tag: "Request", id, tag, payload, headers: [] }));
 });
-const snapshot = <T>(tag: string, payload: unknown) => new Promise<T[]>((resolve, reject) => {
+const snapshot = <T>(tag: string, payload: unknown): Promise<T[]> => {
+  if (version === 2 && tag === "orchestration.subscribeThread") return readThreadData(registry, env.id, (payload as { threadId: string }).threadId, "bounded")
+    .then((value) => protocolStreamDecoder(2, tag)([{ kind: "snapshot", ...value }]) as T[]);
+  return new Promise<T[]>((resolve, reject) => {
   const id = String(next++);
   const decode = protocolStreamDecoder(version, tag);
   const timer = setTimeout(() => { calls.delete(id); reject(new Error(`${tag} timed out`)); }, 30_000);
@@ -55,7 +59,8 @@ const snapshot = <T>(tag: string, payload: unknown) => new Promise<T[]>((resolve
     ws.send(JSON.stringify({ _tag: "Interrupt", requestId: id })); resolve(values);
   });
   ws.send(JSON.stringify({ _tag: "Request", id, tag, payload: protocolStreamPayload(version, tag, payload), headers: [] }));
-});
+  });
+};
 try {
   const shell = (await snapshot<ShellStreamItem>("orchestration.subscribeShell", { requestCompletionMarker: true })).find((i) => i.kind === "snapshot");
   assert.ok(shell?.kind === "snapshot");

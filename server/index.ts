@@ -9,6 +9,8 @@ import type { AddEnvRequest, MeResponse } from "../shared/api.ts";
 import { loadConfig, type Config } from "./config.ts";
 import { Registry, UserError } from "./registry.ts";
 import { serveEnvironmentAsset } from "./assets.ts";
+import { serveThreadData } from "./thread-history.ts";
+import { SubagentRelay } from "./subagent-relay.ts";
 import { HermesBridge } from "./hermes/bridge.ts";
 import { HermesManager, acquireBot } from "./hermes/manager.ts";
 import type { HermesAction } from "../shared/hermes.ts";
@@ -257,6 +259,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (assetMatch && (method === "GET" || method === "HEAD")) {
     const search = new URL(req.url ?? "/", "http://localhost").search;
     return serveEnvironmentAsset(req, res, registry, decodeURIComponent(assetMatch[1]), `/api/assets/${assetMatch[2]}${search}`);
+  }
+
+  const threadMatch = pathname.match(/^\/env\/([^/]+)\/threads\/([^/]+)\/(bounded|subagents|history)$/);
+  if (threadMatch && method === "GET") {
+    const cursor = new URL(req.url ?? "/", "http://localhost").searchParams.get("cursor") ?? undefined;
+    return serveThreadData(req, res, registry, decodeURIComponent(threadMatch[1]), decodeURIComponent(threadMatch[2]),
+      threadMatch[3] as "bounded" | "subagents" | "history", cursor);
   }
 
   if (pathname === "/api/me" && method === "GET") {
@@ -533,23 +542,37 @@ async function relay(client: WebSocket, envId: string): Promise<void> {
   }
   client.off("message", hold);
   if (client.readyState !== WebSocket.OPEN) return;
+  const subagents = new SubagentRelay();
   const upstream = new WebSocket(upstreamUrl, {
     headers: { authorization: `Bearer ${token}` },
+    // T3 0.1.0 can emit invalid deflate data while multiplexing large thread streams.
+    perMessageDeflate: false,
+    handshakeTimeout: 15_000,
     maxPayload: 64 * 1024 * 1024,
   });
 
   // Frames the browser sends before the upstream connection is open.
   const pending: Array<[RawData, boolean]> = early;
 
+  const forward = (data: RawData, isBinary: boolean) => {
+    if (!isBinary) {
+      try { data = Buffer.from(JSON.stringify(subagents.request(JSON.parse(data.toString())))); } catch { /* T3 validates malformed RPC frames. */ }
+    }
+    upstream.send(data, { binary: isBinary });
+  };
   client.on("message", (data, isBinary) => {
-    if (upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary });
+    if (upstream.readyState === WebSocket.OPEN) forward(data, isBinary);
     else if (upstream.readyState === WebSocket.CONNECTING) pending.push([data, isBinary]);
   });
   upstream.on("open", () => {
-    for (const [data, isBinary] of pending.splice(0)) upstream.send(data, { binary: isBinary });
+    for (const [data, isBinary] of pending.splice(0)) forward(data, isBinary);
   });
   upstream.on("message", (data, isBinary) => {
-    if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
+    if (client.readyState !== WebSocket.OPEN) return;
+    if (!isBinary) {
+      try { data = Buffer.from(JSON.stringify(subagents.response(JSON.parse(data.toString())))); } catch { /* Preserve protocol errors for the client. */ }
+    }
+    client.send(data, { binary: isBinary });
   });
 
   upstream.on("unexpected-response", (_req, res) => {

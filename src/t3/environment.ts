@@ -7,6 +7,8 @@ import { addLog, unitKey, updateEnv, useGame, type Connection, type EnvWorld } f
 import { withPrStates } from "../../shared/pr-states";
 import { isNativeSubagent, unitState, type UnitState } from "./derive";
 import { withNativeSubagents } from "./subagents";
+import { protocolStreamPayload, v2NativeSubagents, v2ThreadStream } from "../../shared/t3-protocol";
+import type { BoundedThreadSnapshot, ThreadHistoryPage } from "../../shared/thread-history";
 import { applyThreadEvent } from "./reducer";
 import { RpcConnection, RpcError } from "./rpc";
 import { assetProxyUrl } from "./assets";
@@ -16,6 +18,7 @@ import type { HostResources } from "./host";
 import { defaultBranch, latestWorktree, type ProjectRefs, type RecruitWorkspace } from "./workspace";
 import { SCRATCH_ROOT, SCRATCH_TITLE } from "./scratch";
 import type {
+  NativeSubagent,
   AssetUrl,
   ImageResource,
   ApprovalDecision,
@@ -78,6 +81,12 @@ interface ThreadSub {
   refs: number;
   sequence: number;
   cancel?: () => void;
+  emit?: (values: unknown[]) => void;
+  historyAbort?: AbortController;
+}
+interface NativeParentSub {
+  agents: NativeSubagent[];
+  cancel?: () => void;
 }
 
 export class EnvironmentClient {
@@ -86,7 +95,7 @@ export class EnvironmentClient {
   private rpc?: RpcConnection;
   private shellSequence = 0;
   private threadSubs = new Map<string, ThreadSub>();
-  private nativeParents = new Map<string, () => void>();
+  private nativeParents = new Map<string, NativeParentSub>();
   private retries = 0;
   private retryTimer?: ReturnType<typeof setTimeout>;
   private disposed = false;
@@ -119,7 +128,9 @@ export class EnvironmentClient {
 
   dispose(): void {
     this.disposed = true;
-    for (const release of this.nativeParents.values()) release();
+    for (const sub of this.nativeParents.values()) sub.cancel?.();
+    for (const sub of this.threadSubs.values()) { sub.cancel?.(); sub.historyAbort?.abort(); }
+    this.threadSubs.clear();
     this.nativeParents.clear();
     clearTimeout(this.retryTimer);
     clearTimeout(this.usageTimer);
@@ -160,6 +171,7 @@ export class EnvironmentClient {
     void this.loadHost();
     this.subscribeShell();
     for (const [threadId, sub] of this.threadSubs) this.subscribeThread(threadId, sub);
+    for (const [threadId, sub] of this.nativeParents) this.subscribeNativeParent(threadId, sub);
   }
 
   private onClose(code: number, reason: string): void {
@@ -167,7 +179,8 @@ export class EnvironmentClient {
     clearTimeout(this.hostTimer);
     useGame.setState((s) => s.hosts[this.id] ? { hosts: { ...s.hosts,
       [this.id]: { ...s.hosts[this.id], error: "Host connection lost." } } } : {});
-    for (const sub of this.threadSubs.values()) sub.cancel = undefined;
+    for (const sub of this.threadSubs.values()) { sub.cancel?.(); sub.cancel = undefined; sub.emit = undefined; sub.historyAbort?.abort(); }
+    for (const sub of this.nativeParents.values()) { sub.cancel?.(); sub.cancel = undefined; }
     if (this.disposed) return;
     if (code === CLOSE_NEEDS_PAIRING) {
       this.setConnection("needs-pairing", reason || "T3 rejected t3-command's token");
@@ -369,8 +382,7 @@ export class EnvironmentClient {
   }
 
   private nativeAgents() {
-    const details = useGame.getState().details;
-    return [...this.nativeParents.keys()].flatMap((id) => details[unitKey(this.id, id)]?.thread.nativeSubagents ?? []);
+    return [...this.nativeParents.values()].flatMap((sub) => sub.agents);
   }
 
   /** Native child shells carry no lifecycle. Follow each owning parent once, even with no panel open. */
@@ -378,17 +390,59 @@ export class EnvironmentClient {
     if (this.summary.protocolVersion !== 2 || !this.rpc?.isOpen) return;
     const threads = useGame.getState().envs[this.id]?.threads ?? {};
     const parents = new Set(Object.values(threads).filter(isNativeSubagent).map((t) => t.lineage?.parentThreadId).filter((id): id is string => !!id && !!threads[id]));
-    for (const [id, release] of this.nativeParents) {
+    for (const [id, sub] of this.nativeParents) {
       if (parents.has(id)) continue;
       this.nativeParents.delete(id);
-      release();
+      sub.cancel?.();
     }
     for (const id of parents) {
       if (this.nativeParents.has(id)) continue;
-      this.nativeParents.set(id, () => {});
-      this.nativeParents.set(id, this.watchThread(id));
+      const sub: NativeParentSub = { agents: [] };
+      this.nativeParents.set(id, sub);
+      this.subscribeNativeParent(id, sub);
     }
     this.refreshNativeChildren();
+  }
+
+  /** Bootstrap lifecycle state over HTTP, then follow only subagent events on the relay. */
+  private subscribeNativeParent(threadId: string, sub: NativeParentSub): void {
+    sub.cancel?.();
+    const rpc = this.rpc;
+    if (!rpc?.isOpen) return;
+    const controller = new AbortController();
+    let sequence = -1;
+    let cancel: (() => void) | undefined;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    sub.cancel = () => { controller.abort(); cancel?.(); clearTimeout(retry); };
+    const current = () => !controller.signal.aborted && !this.disposed && this.rpc === rpc && rpc.isOpen && this.nativeParents.get(threadId) === sub;
+    const again = () => { if (current()) retry = setTimeout(() => this.subscribeNativeParent(threadId, sub), 5_000); };
+    const apply = (values: unknown[]) => {
+      if (!current()) return;
+      for (const value of values) {
+        const item = value as { kind: string; sequence?: number; snapshotSequence?: number; projection?: { subagents?: unknown }; event?: { type: string; payload: unknown } };
+        if (item.kind === "snapshot" && Number(item.snapshotSequence) >= sequence) {
+          sequence = Number(item.snapshotSequence);
+          sub.agents = v2NativeSubagents(item.projection?.subagents, threadId);
+        }
+        else if (item.kind === "event" && Number(item.sequence) > sequence && item.event?.type === "subagent.updated") {
+          sequence = Number(item.sequence);
+          const next = v2NativeSubagents([item.event.payload], threadId)[0];
+          if (next) sub.agents = [...sub.agents.filter((a) => a.id !== next.id), next];
+        }
+      }
+      this.refreshNativeChildren();
+    };
+    void fetchJson<BoundedThreadSnapshot>(this.threadPath(threadId, "subagents"), { signal: controller.signal }).then((snapshot) => {
+      if (!current()) return;
+      apply([{ kind: "snapshot", ...snapshot }]);
+      cancel = rpc.rawStream("orchestration.subscribeThread", protocolStreamPayload(2, "orchestration.subscribeThread", {
+        threadId, afterSequence: snapshot.snapshotSequence, requestCompletionMarker: true, commandSubagentsOnly: true,
+      }), apply, again);
+    }).catch(again);
+  }
+
+  private threadPath(threadId: string, kind: string): string {
+    return `/env/${encodeURIComponent(this.id)}/threads/${encodeURIComponent(threadId)}/${kind}`;
   }
 
   private refreshNativeChildren(): void {
@@ -421,6 +475,7 @@ export class EnvironmentClient {
     return () => {
       if (--s.refs > 0) return;
       s.cancel?.();
+      s.historyAbort?.abort();
       this.threadSubs.delete(threadId);
       useGame.setState((state) => {
         const details = { ...state.details };
@@ -430,43 +485,103 @@ export class EnvironmentClient {
     };
   }
 
-  private subscribeThread(threadId: string, sub: ThreadSub): void {
+  private applyThreadItems(threadId: string, sub: ThreadSub, items: ThreadStreamItem[]): void {
     const key = unitKey(this.id, threadId);
-    const payload = {
-      threadId,
-      reasoningMessages: true,
-      requestCompletionMarker: true,
-      turnLimit: THREAD_TURN_LIMIT,
-      ...(sub.sequence > 0 ? { afterSequence: sub.sequence } : {}),
-    };
-    sub.cancel = this.rpc!.stream<ThreadStreamItem>(
-      "orchestration.subscribeThread",
-      payload,
-      (items) => {
-        useGame.setState((state) => {
-          let detail = state.details[key];
-          for (const item of items) {
-            if (item.kind === "snapshot") {
-              detail = { thread: item.snapshot.thread, synced: false };
-              sub.sequence = item.snapshot.snapshotSequence;
-            } else if (item.kind === "synchronized") {
-              if (detail) detail = { ...detail, synced: true };
-            } else if (detail && item.event.sequence > sub.sequence) {
-              detail = { ...detail, thread: applyThreadEvent(detail.thread, item.event) };
-              sub.sequence = item.event.sequence;
-            }
-          }
-          return detail ? { details: { ...state.details, [key]: detail } } : {};
-        });
-        this.refreshNativeChildren();
-      },
-      (err) => {
-        if (err && err.tag !== "Disconnected" && this.threadSubs.get(threadId) === sub && this.rpc?.isOpen) {
-          console.warn(`[${this.summary.label}] thread stream ended`, err);
-          setTimeout(() => this.threadSubs.get(threadId) === sub && this.rpc?.isOpen && this.subscribeThread(threadId, sub), 1000);
+    useGame.setState((state) => {
+      let detail = state.details[key];
+      for (const item of items) {
+        if (item.kind === "snapshot") {
+          detail = { thread: item.snapshot.thread, synced: false,
+            ...(item.snapshot.history ? { history: { ...item.snapshot.history,
+              loading: detail?.history?.cursor === item.snapshot.history.cursor ? detail.history.loading : false,
+              error: detail?.history?.cursor === item.snapshot.history.cursor ? detail.history.error : undefined,
+            } } : {}) };
+          sub.sequence = item.snapshot.snapshotSequence;
+        } else if (item.kind === "synchronized") {
+          if (detail) detail = { ...detail, synced: true };
+        } else if (detail && item.event.sequence > sub.sequence) {
+          detail = { ...detail, thread: applyThreadEvent(detail.thread, item.event) };
+          sub.sequence = item.event.sequence;
         }
-      },
-    );
+      }
+      return detail ? { details: { ...state.details, [key]: detail } } : {};
+    });
+  }
+
+  private subscribeThread(threadId: string, sub: ThreadSub): void {
+    sub.cancel?.();
+    sub.historyAbort?.abort();
+    const rpc = this.rpc;
+    if (!rpc?.isOpen) return;
+    const controller = new AbortController();
+    let cancel: (() => void) | undefined;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    sub.emit = undefined;
+    sub.cancel = () => { controller.abort(); cancel?.(); clearTimeout(retry); };
+    const current = () => !controller.signal.aborted && !this.disposed && this.rpc === rpc && rpc.isOpen && this.threadSubs.get(threadId) === sub;
+    const ended = (err?: RpcError) => {
+      if (current() && err?.tag !== "Disconnected") retry = setTimeout(() => this.subscribeThread(threadId, sub), 5_000);
+    };
+    if (this.summary.protocolVersion !== 2) {
+      cancel = rpc.stream<ThreadStreamItem>("orchestration.subscribeThread", {
+        threadId, reasoningMessages: true, requestCompletionMarker: true, turnLimit: THREAD_TURN_LIMIT,
+        ...(sub.sequence > 0 ? { afterSequence: sub.sequence } : {}),
+      }, (items) => { if (current()) this.applyThreadItems(threadId, sub, items); }, ended);
+      return;
+    }
+    const key = unitKey(this.id, threadId);
+    const shell = useGame.getState().envs[this.id]?.threads[threadId];
+    if (shell) useGame.setState((state) => ({ details: { ...state.details, [key]: {
+      thread: state.details[key]?.thread ?? { ...shell, messages: [], activities: [], checkpoints: [] }, synced: false,
+    } } }));
+    void fetchJson<BoundedThreadSnapshot>(this.threadPath(threadId, "bounded"), { signal: controller.signal }).then((snapshot) => {
+      if (!current()) return;
+      const decode = v2ThreadStream();
+      sub.emit = (values) => { if (current()) this.applyThreadItems(threadId, sub, decode(values)); };
+      sub.emit([{ kind: "snapshot", ...snapshot }]);
+      cancel = rpc.rawStream("orchestration.subscribeThread", protocolStreamPayload(2, "orchestration.subscribeThread", {
+        threadId, afterSequence: snapshot.snapshotSequence, requestCompletionMarker: true,
+      }), sub.emit, ended);
+    }).catch((err) => {
+      if (!current()) return;
+      useGame.setState((state) => {
+        const detail = state.details[key];
+        return detail ? { details: { ...state.details, [key]: { ...detail, error: (err as Error).message } } } : {};
+      });
+      // An explicit retry keeps unsupported/oversized snapshots from becoming a download loop.
+    });
+  }
+
+  retryThread(threadId: string): void {
+    const sub = this.threadSubs.get(threadId);
+    if (sub) this.subscribeThread(threadId, sub);
+  }
+
+  async loadOlderHistory(threadId: string): Promise<void> {
+    const sub = this.threadSubs.get(threadId);
+    const key = unitKey(this.id, threadId);
+    const history = useGame.getState().details[key]?.history;
+    if (!sub?.emit || !history?.hasMore || !history.cursor || history.loading) return;
+    const cursor = history.cursor;
+    const emit = sub.emit;
+    const controller = new AbortController();
+    sub.historyAbort?.abort();
+    sub.historyAbort = controller;
+    const update = (changes: { loading: boolean; error?: string }) => useGame.setState((state) => {
+      const detail = state.details[key];
+      return detail?.history?.cursor === cursor && this.threadSubs.get(threadId) === sub && sub.emit === emit
+        ? { details: { ...state.details, [key]: { ...detail, history: { ...detail.history, ...changes } } } } : {};
+    });
+    update({ loading: true });
+    try {
+      const page = await fetchJson<ThreadHistoryPage>(`${this.threadPath(threadId, "history")}?cursor=${encodeURIComponent(cursor)}`, { signal: controller.signal });
+      if (controller.signal.aborted || this.threadSubs.get(threadId) !== sub || sub.emit !== emit || useGame.getState().details[key]?.history?.cursor !== cursor) return;
+      emit([{ kind: "history-page", ...page }]);
+      useGame.setState((state) => {
+        const detail = state.details[key];
+        return detail?.history ? { details: { ...state.details, [key]: { ...detail, history: { ...detail.history, loading: false } } } } : {};
+      });
+    } catch (err) { if (!controller.signal.aborted) update({ loading: false, error: (err as Error).message }); }
   }
 
   // ---- Commands ------------------------------------------------------------------

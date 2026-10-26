@@ -4,7 +4,7 @@
 
 import { unitKey, useGame, type GameState } from "../store";
 import { envClient } from "../t3/environment";
-import { isHistory, unitState } from "../t3/derive";
+import { isHistory, isNativeSubagent, unitState } from "../t3/derive";
 
 // Failed ones too: their last order is what Retry sends again.
 const ACTIVE = new Set(["working", "monitoring", "alert", "question", "error"]);
@@ -20,7 +20,8 @@ export function installActiveWatches(): () => void {
       if (env.connection !== "live") continue;
       for (const t of Object.values(env.threads)) {
         if (wanted.size >= MAX_WATCHED) break;
-        if (!isHistory(t) && ACTIVE.has(unitState(t))) wanted.set(unitKey(env.summary.id, t.id), { envId: env.summary.id, threadId: t.id });
+        // Parent lifecycle tracking already covers native children; do not fetch their transcripts for sprites.
+        if (!isNativeSubagent(t) && !isHistory(t) && ACTIVE.has(unitState(t))) wanted.set(unitKey(env.summary.id, t.id), { envId: env.summary.id, threadId: t.id });
       }
     }
     for (const [key, stop] of watching) {

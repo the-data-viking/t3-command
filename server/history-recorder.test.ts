@@ -13,7 +13,16 @@ import type { Registry } from "./registry.ts";
 const iso = (ms: number) => new Date(ms).toISOString();
 
 for (const protocolVersion of [1, 2]) test(`the v${protocolVersion} recorder subscribes, reads replies, sends follow-ups, and records turns over the wire`, async (t) => {
-  const server = http.createServer();
+  let boundedReads = 0;
+  const server = http.createServer((req, res) => {
+    assert.equal(protocolVersion, 2);
+    assert.equal(req.url, "/api/orchestration/threads/th/bounded?compactTurnItems=1");
+    assert.equal(req.headers.authorization, "Bearer secret");
+    boundedReads++;
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ snapshotSequence: 4, projection: { thread: { id: "th" }, runs: [],
+      messages: [{ id: "reply", role: "assistant", text: "Done", createdAt: iso(Date.now()), updatedAt: iso(Date.now()) }] } }));
+  });
   const wss = new WebSocketServer({ server });
   const seen: { auth?: string; acks: number; requests: Array<{ tag: string; payload: unknown }> } = { acks: 0, requests: [] };
   let socket: WebSocket | undefined;
@@ -79,6 +88,8 @@ for (const protocolVersion of [1, 2]) test(`the v${protocolVersion} recorder sub
 
   const reply = await recorder.peek<{ kind: string; snapshot: { thread: { messages: Array<{ text: string }> } } }>("remote", "orchestration.subscribeThread", { threadId: "th", turnLimit: 1 });
   assert.equal(reply[0].snapshot.thread.messages[0].text, "Done");
+  assert.equal(boundedReads, protocolVersion === 2 ? 1 : 0);
+  if (protocolVersion === 2) assert.ok(!seen.requests.some((r) => r.tag === "orchestration.subscribeThread"), "one-off reads must not load full projections on the shared recorder socket");
   await recorder.request("remote", "orchestration.dispatchCommand", { commandId: "follow", type: "thread.turn.start", threadId: "th", message: { messageId: "m", text: "Continue", attachments: [] } });
   assert.equal((seen.requests.at(-1)?.payload as { type: string }).type, protocolVersion === 2 ? "message.dispatch" : "thread.turn.start");
 

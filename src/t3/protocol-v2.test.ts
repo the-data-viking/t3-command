@@ -91,9 +91,9 @@ test("rolled-back runs disappear from the transcript and checkpoint list", () =>
   assert.equal(t.latestTurn, null);
 });
 
-test("v2 thread reconnect requests a fresh snapshot while v1/Hermes payloads pass through", () => {
+test("v2 thread streams resume HTTP snapshots and opt into bounded fallbacks while v1 passes through", () => {
   const payload = { threadId: "th", afterSequence: 99, turnLimit: 6, reasoningMessages: true, requestCompletionMarker: true };
-  assert.deepEqual(protocolStreamPayload(2, "orchestration.subscribeThread", payload), { threadId: "th", requestCompletionMarker: true });
+  assert.deepEqual(protocolStreamPayload(2, "orchestration.subscribeThread", payload), { threadId: "th", requestCompletionMarker: true, afterSequence: 99, acceptBoundedSnapshot: true, acceptCompactTurnItems: true });
   assert.equal(protocolStreamPayload(1, "orchestration.subscribeThread", payload), payload);
   assert.deepEqual(protocolStreamDecoder(1, "orchestration.subscribeThread")([payload]), [payload]);
 });

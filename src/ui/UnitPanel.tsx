@@ -53,12 +53,15 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
   // Follow this thread's messages while the panel is open.
   useEffect(() => envClient(envId)?.watchThread(threadId), [envId, threadId]);
 
-  const entries = useMemo(() => detail ? transcriptEntries(detail.thread) : [], [detail]);
+  const [entryLimit, setEntryLimit] = useState(120);
+  const allEntries = useMemo(() => detail ? transcriptEntries(detail.thread, Number.MAX_SAFE_INTEGER) : [], [detail]);
+  const entries = allEntries.slice(-entryLimit);
 
   const pending = useMemo(() => (detail ? pendingRequests(detail.thread) : []), [detail]);
 
   const scroller = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+  useEffect(() => { setEntryLimit(120); stickToBottom.current = true; }, [envId, threadId]);
   const onImageLoad = useCallback(() => {
     const el = scroller.current;
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
@@ -218,14 +221,29 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
 
       <div
         className="transcript"
+        data-thread-key={`${envId}:${threadId}`}
         ref={scroller}
         onScroll={(e) => {
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
         }}
       >
-        {!detail && <p className="muted">Loading reports…</p>}
-        {detail && entries.length === 0 && <p className="muted">No reports yet.</p>}
+        {(!detail || (!detail.synced && !detail.error)) && <p className="muted">Loading reports…</p>}
+        {detail?.error && <p role="alert">{detail.error} <button className="btn" onClick={() => client?.retryThread(threadId)}>Retry</button></p>}
+        {(allEntries.length > entryLimit || detail?.history?.hasMore) && <button className="btn" disabled={detail?.history?.loading} onClick={async () => {
+          const el = scroller.current;
+          const height = el?.scrollHeight ?? 0;
+          const top = el?.scrollTop ?? 0;
+          const key = el?.dataset.threadKey;
+          stickToBottom.current = false;
+          if (allEntries.length <= entryLimit) await client?.loadOlderHistory(threadId);
+          setEntryLimit((limit) => limit + 120);
+          requestAnimationFrame(() => {
+            if (el && scroller.current === el && el.dataset.threadKey === key) el.scrollTop = top + el.scrollHeight - height;
+          });
+        }}>{detail?.history?.loading ? "Loading earlier history…" : "Load earlier history"}</button>}
+        {detail?.history?.error && <p role="alert">{detail.history.error}</p>}
+        {detail?.synced && entries.length === 0 && <p className="muted">No reports yet.</p>}
         {entries.map((e) =>
           e.kind === "message" ? (
             <MessageView key={e.message.id} message={e.message} unitName={unitName} envId={envId} threadId={threadId}
