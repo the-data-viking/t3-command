@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { DEFAULT_PUSH_RULES, deviceWants, inQuietHours, sanitizeDeviceKinds, sanitizeRules, shouldPush, type PushRules } from "../shared/push.ts";
 import { quietSince, QUIET_MS } from "./long-turns.ts";
-import { notificationFor, PushNotifier } from "./push.ts";
+import { notificationFor, PushKeyChanged, PushNotifier } from "./push.ts";
 import type { ThreadShell } from "../src/t3/types.ts";
 
 const rules = (over: Partial<PushRules["quiet"]> = {}): PushRules => ({ ...DEFAULT_PUSH_RULES, quiet: { ...DEFAULT_PUSH_RULES.quiet, enabled: true, timeZone: "UTC", ...over } });
@@ -150,6 +150,34 @@ test("rotating the key signs with the new one at once, keeps it owner-only, and 
     await again.load();
     assert.equal(again.status().publicKey, publicKey);
     assert.deepEqual(again.status().devices.map((d) => d.stale), [true, false], "staleness survives a restart");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a subscription made with a key replaced meanwhile is refused, overlapping rotations settle on one key, and a failed rotation keeps the old signer", async () => {
+  const webpush = (await import("web-push")).default;
+  const signerKey = () => String(webpush.generateRequestDetails({ endpoint: "https://push.example/x", keys: { p256dh: "k", auth: "a" } }, null).headers.Authorization).split("k=")[1];
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "push-"));
+  try {
+    const push = new PushNotifier(dir);
+    await push.load();
+    const k0 = push.status().publicKey;
+    await push.rotate();
+    assert.throws(() => push.subscribe({ endpoint: "https://push.example/late", keys: { p256dh: "k", auth: "a" } }, "Phone", undefined, k0), PushKeyChanged);
+    assert.equal(push.status().devices.length, 0);
+
+    const [a, b] = await Promise.all([push.rotate(), push.rotate()]);
+    assert.notEqual(a.publicKey, b.publicKey);
+    const onDisk = JSON.parse(await fs.readFile(path.join(dir, "push-vapid.json"), "utf8")).publicKey;
+    assert.equal(onDisk, b.publicKey, "the last rotation wins on disk");
+    assert.equal(push.status().publicKey, b.publicKey, "and in memory");
+    assert.equal(signerKey(), b.publicKey, "and in the live signer");
+
+    await fs.chmod(dir, 0o500);
+    try { await assert.rejects(push.rotate()); } finally { await fs.chmod(dir, 0o700); }
+    assert.equal(push.status().publicKey, b.publicKey, "a rotation that couldn't be saved changes nothing");
+    assert.equal(signerKey(), b.publicKey);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

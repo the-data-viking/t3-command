@@ -84,6 +84,9 @@ async function writeJson(file: string, value: unknown): Promise<void> {
  */
 export const DEFAULT_PUSH_SUBJECT = "https://github.com/the-data-viking/t3-command";
 
+/** A device subscribed with a server key that has since been replaced. */
+export class PushKeyChanged extends Error {}
+
 export class PushNotifier {
   private readonly dir: string;
   private keys?: { publicKey: string; privateKey: string };
@@ -128,21 +131,26 @@ export class PushNotifier {
 
   /**
    * Replace the signing key (say it leaked) and start signing with the new one right away. The old
-   * private key is overwritten, never kept. Every existing subscription was made with the old key,
-   * so it's marked stale: nothing is sent to it, and its device has to turn push on again (which
-   * unsubscribes the old subscription at the push service and makes one for the new key).
+   * private key is replaced in the key file, never copied. Every existing subscription was made
+   * with the old key, so it's marked stale: nothing is sent to it, and its device has to turn push
+   * on again (which unsubscribes the old subscription at the push service and makes a new one).
    */
-  async rotate(): Promise<{ publicKey: string; stale: number }> {
-    const previous = this.keys?.publicKey;
-    const keys = webpush.generateVAPIDKeys();
-    // On disk first: if that fails, the server keeps signing with the key it has and says so.
-    await writeJson(this.file("push-vapid.json"), keys);
-    webpush.setVapidDetails(this.subject, keys.publicKey, keys.privateKey);
-    this.keys = keys;
-    for (const s of this.subs) if (!s.key) s.key = previous;
-    this.save();
-    await this.flush();
-    return { publicKey: keys.publicKey, stale: this.subs.filter((s) => !this.current(s)).length };
+  rotate(): Promise<{ publicKey: string; stale: number }> {
+    // One at a time, after any pending writes, so the key and subscriptions on disk always agree.
+    const run = this.writes.then(async () => {
+      const previous = this.keys?.publicKey;
+      // Record the current key on older subscriptions first: if anything below fails, that changes nothing.
+      for (const s of this.subs) if (!s.key) s.key = previous;
+      await writeJson(this.file("push-subscriptions.json"), this.subs);
+      const keys = webpush.generateVAPIDKeys();
+      // On disk before it signs anything: if that fails, the server keeps the key it has and says so.
+      await writeJson(this.file("push-vapid.json"), keys);
+      webpush.setVapidDetails(this.subject, keys.publicKey, keys.privateKey);
+      this.keys = keys;
+      return { publicKey: keys.publicKey, stale: this.subs.filter((s) => !this.current(s)).length };
+    });
+    this.writes = run.then(() => undefined, () => undefined);
+    return run;
   }
 
   private save(): void {
@@ -156,9 +164,12 @@ export class PushNotifier {
   /**
    * Register a device's subscription. `replaces` is the endpoint it had before (a subscription the
    * device just dropped because the server's key changed): its filter carries over and it's removed.
+   * `key` is the server key the browser subscribed with; if the server's key changed meanwhile,
+   * the subscription is refused (it couldn't receive anything) and the device tries again.
    */
-  subscribe(subscription: PushSubscription, label: string, replaces?: string): void {
+  subscribe(subscription: PushSubscription, label: string, replaces?: string, key?: string): void {
     if (!subscription?.endpoint || !/^https:\/\//.test(subscription.endpoint) || !subscription.keys?.p256dh || !subscription.keys?.auth) throw new Error("Not a push subscription");
+    if (key && key !== this.keys?.publicKey) throw new PushKeyChanged("The server's push key just changed. Turn push on again.");
     // Re-subscribing (a new key, a reinstall) keeps the device's own filter.
     const same = (s: Saved) => s.subscription.endpoint === subscription.endpoint || (!!replaces && s.subscription.endpoint === replaces);
     const kinds = (this.subs.find((s) => s.subscription.endpoint === subscription.endpoint) ?? this.subs.find(same))?.kinds;

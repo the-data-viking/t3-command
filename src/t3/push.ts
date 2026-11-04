@@ -68,14 +68,27 @@ export async function enablePush(label: string): Promise<PushStatus> {
   const reg = await navigator.serviceWorker.register("/sw.js");
   await navigator.serviceWorker.ready;
   let subscription = await reg.pushManager.getSubscription();
-  let replaces: string | undefined;
+  // The subscription this device dropped, remembered until the server has the new one (so a retry
+  // after a failure still hands its place and filter over).
+  let replaces = remembered();
   if (subscription && !sameKey(subscription.options?.applicationServerKey, publicKey)) {
     replaces = subscription.endpoint;
+    remember(replaces);
     if (!await subscription.unsubscribe()) throw new Error("Couldn't drop this device's old push subscription. Try again.");
     subscription = null;
   }
   subscription ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
-  return fetchJson<PushStatus>("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription: subscription.toJSON(), label, replaces }) });
+  const status = await fetchJson<PushStatus>("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription: subscription.toJSON(), label, replaces, key: publicKey }) });
+  remember(undefined);
+  return status;
+}
+
+const REPLACED = "t3c.push.replaces";
+function remembered(): string | undefined {
+  try { return localStorage.getItem(REPLACED) ?? undefined; } catch { return undefined; }
+}
+function remember(endpoint: string | undefined): void {
+  try { if (endpoint) localStorage.setItem(REPLACED, endpoint); else localStorage.removeItem(REPLACED); } catch { /* private mode: no retry memory */ }
 }
 
 export async function disablePush(): Promise<PushStatus> {
