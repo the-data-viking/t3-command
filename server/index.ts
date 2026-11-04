@@ -369,8 +369,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (pathname === "/api/push" && method === "GET") return sendJson(res, 200, push.status());
   if (pathname === "/api/push/subscribe" && method === "POST") {
-    const body = await readJson<{ subscription?: unknown; label?: string }>(req);
-    try { push.subscribe(body?.subscription as never, String(body?.label ?? "")); } catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
+    const body = await readJson<{ subscription?: unknown; label?: string; replaces?: unknown }>(req);
+    try { push.subscribe(body?.subscription as never, String(body?.label ?? ""), typeof body?.replaces === "string" ? body.replaces : undefined); } catch (err) { return sendJson(res, 400, { error: (err as Error).message }); }
+    return sendJson(res, 200, push.status());
+  }
+  // A new signing key, live at once (say the old one leaked). Every device then turns push on again.
+  if (pathname === "/api/push/rotate" && method === "POST") {
+    try { await push.rotate(); } catch (err) { return sendJson(res, 500, { error: `Couldn't replace the push key: ${(err as Error).message}` }); }
     return sendJson(res, 200, push.status());
   }
   if (pathname === "/api/push/unsubscribe" && method === "POST") {

@@ -100,3 +100,57 @@ test("pushes are signed with an https contact by default (Apple rejects mailto:�
   const { DEFAULT_PUSH_SUBJECT } = await import("./push.ts");
   assert.match(DEFAULT_PUSH_SUBJECT, /^https:\/\//);
 });
+
+test("rotating the key signs with the new one at once, keeps it owner-only, and leaves old subscriptions stale until their device subscribes again", async (t) => {
+  const webpush = (await import("web-push")).default;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "push-"));
+  try {
+    const push = new PushNotifier(dir);
+    await push.load();
+    const before = push.status().publicKey;
+    const old = { endpoint: "https://push.example/old", keys: { p256dh: "k", auth: "a" } };
+    push.subscribe(old, "iPhone · Safari");
+    push.setDeviceKinds(old.endpoint, ["approval"]);
+    // A device from before keys were recorded: made with the only key there was.
+    push.subscribe({ endpoint: "https://push.example/legacy", keys: { p256dh: "k", auth: "a" } }, "Mac · Chrome");
+    await push.flush();
+    const legacy = JSON.parse(await fs.readFile(path.join(dir, "push-subscriptions.json"), "utf8")) as Array<{ key?: string }>;
+    delete legacy[1].key;
+    await fs.writeFile(path.join(dir, "push-subscriptions.json"), JSON.stringify(legacy));
+    await push.load();
+    assert.equal(push.status().devices.some((d) => d.stale), false, "nothing is stale before a rotation");
+
+    const { publicKey, stale } = await push.rotate();
+    assert.notEqual(publicKey, before);
+    assert.equal(stale, 2, "both the stamped and the unstamped subscription were made with the old key");
+    assert.equal(push.status().publicKey, publicKey);
+    const signer = webpush.generateRequestDetails({ endpoint: "https://push.example/x", keys: { p256dh: "k", auth: "a" } }, null);
+    assert.match(String(signer.headers.Authorization), new RegExp(`k=${publicKey}$`), "the live signer is the new key, not just the file");
+    const file = path.join(dir, "push-vapid.json");
+    assert.equal((await fs.stat(file)).mode & 0o777, 0o600);
+    assert.equal((await fs.readdir(dir)).some((f) => f.endsWith(".tmp")), false);
+    assert.equal(JSON.parse(await fs.readFile(file, "utf8")).publicKey, publicKey);
+
+    const sent = t.mock.method(webpush, "sendNotification", async () => ({}));
+    assert.equal(push.wants({ id: 1, at: Date.now(), tone: "alert", kind: "approval", text: "x" }), false, "nothing can reach a stale device");
+    assert.deepEqual(await push.test(), { sent: 0, errors: [] });
+    assert.equal(sent.mock.callCount(), 0);
+
+    // The phone turns push on again: a new subscription replaces the old one and keeps its filter.
+    const fresh = { endpoint: "https://push.example/new", keys: { p256dh: "k2", auth: "a2" } };
+    push.subscribe(fresh, "iPhone · Safari", old.endpoint);
+    const devices = push.status().devices;
+    assert.deepEqual(devices.map((d) => [d.endpoint, d.stale]), [["https://push.example/legacy", true], [fresh.endpoint, false]]);
+    assert.deepEqual(devices[1].kinds, ["approval"]);
+    assert.deepEqual(await push.test(), { sent: 1, errors: [] });
+    assert.equal(sent.mock.calls[0]?.arguments[0]?.endpoint, fresh.endpoint);
+
+    await push.flush();
+    const again = new PushNotifier(dir);
+    await again.load();
+    assert.equal(again.status().publicKey, publicKey);
+    assert.deepEqual(again.status().devices.map((d) => d.stale), [true, false], "staleness survives a restart");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

@@ -17,7 +17,9 @@ export function AlertsMenu() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
   const root = useRef<HTMLDivElement>(null);
-  const pushOn = !!endpoint && !!status?.devices.some((d) => d.endpoint === endpoint);
+  const pushOn = !!endpoint && !!status?.devices.some((d) => d.endpoint === endpoint && !d.stale);
+  // Subscribed with a push key the server has since replaced: nothing arrives until it's turned on again.
+  const stale = !!endpoint && !!status?.devices.some((d) => d.endpoint === endpoint && d.stale);
 
   useEffect(() => {
     if (!open) return;
@@ -76,7 +78,7 @@ export function AlertsMenu() {
             <p className="muted small">On iPhone and iPad: tap Share, then <strong>Add to Home Screen</strong>, and open T3 Command from the Home Screen to turn on push.</p>
           ) : (
             <div className="alerts-row">
-              <span className={pushOn ? "st-done" : "muted"}>{pushOn ? "On for this device" : "Off for this device"}</span>
+              <span className={pushOn ? "st-done" : stale ? "orange" : "muted"}>{pushOn ? "On for this device" : stale ? "Push key changed: turn on again" : "Off for this device"}</span>
               <span className="spacer" />
               {pushOn
                 ? <><button className="btn small" disabled={busy} onClick={() => void run(async () => { const { sent, errors } = await testPush(endpoint); setMessage(sent ? "Test sent: it should arrive in a few seconds." : `Not delivered${errors.length ? `: ${errors.join("; ")}` : "."}`); })}>Send test</button>
@@ -110,7 +112,7 @@ export function AlertsMenu() {
                     {status.devices.map((d) => (
                       <li key={d.endpoint}>
                         <span>{d.label}{d.endpoint === endpoint ? " (this one)" : ""}</span>
-                        <span className="muted small">{!d.kinds ? "everything" : d.kinds.length ? `only ${d.kinds.length} kind${d.kinds.length === 1 ? "" : "s"}` : "muted"}</span>
+                        <span className="muted small">{d.stale ? "turn on again on that device" : !d.kinds ? "everything" : d.kinds.length ? `only ${d.kinds.length} kind${d.kinds.length === 1 ? "" : "s"}` : "muted"}</span>
                         {d.endpoint !== endpoint && <button className="icon-btn small" aria-label={`Stop pushing to ${d.label}`} title="Stop pushing to this device"
                           disabled={busy} onClick={() => void run(async () => { setStatus(await forgetDevice(d.endpoint)); })}>✕</button>}
                       </li>
