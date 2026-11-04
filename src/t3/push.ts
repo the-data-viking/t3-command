@@ -72,7 +72,8 @@ export async function enablePush(label: string): Promise<PushStatus> {
   // after a failure still hands its place and filter over).
   let replaces = remembered();
   if (subscription && !sameKey(subscription.options?.applicationServerKey, publicKey)) {
-    replaces = subscription.endpoint;
+    // Keep the first one dropped: a retry's subscription never reached the server.
+    replaces ??= subscription.endpoint;
     remember(replaces);
     if (!await subscription.unsubscribe()) throw new Error("Couldn't drop this device's old push subscription. Try again.");
     subscription = null;
@@ -96,6 +97,7 @@ export async function disablePush(): Promise<PushStatus> {
   const subscription = await reg?.pushManager.getSubscription();
   const endpoint = subscription?.endpoint;
   await subscription?.unsubscribe();
+  remember(undefined);
   return fetchJson<PushStatus>("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) });
 }
 

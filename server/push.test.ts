@@ -174,6 +174,14 @@ test("a subscription made with a key replaced meanwhile is refused, overlapping 
     assert.equal(push.status().publicKey, b.publicKey, "and in memory");
     assert.equal(signerKey(), b.publicKey, "and in the live signer");
 
+    // The subscriptions are saved but the key file can't be: still the same key, on disk and live.
+    await fs.mkdir(path.join(dir, "push-vapid.json.tmp"));
+    await assert.rejects(push.rotate());
+    assert.equal(push.status().publicKey, b.publicKey);
+    assert.equal(signerKey(), b.publicKey);
+    assert.equal(JSON.parse(await fs.readFile(path.join(dir, "push-vapid.json"), "utf8")).publicKey, b.publicKey);
+    await fs.rmdir(path.join(dir, "push-vapid.json.tmp"));
+
     await fs.chmod(dir, 0o500);
     try { await assert.rejects(push.rotate()); } finally { await fs.chmod(dir, 0o700); }
     assert.equal(push.status().publicKey, b.publicKey, "a rotation that couldn't be saved changes nothing");
