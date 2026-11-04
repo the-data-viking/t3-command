@@ -7,7 +7,8 @@ import { fetchJson } from "./environment";
 
 export interface PushStatus {
   publicKey: string;
-  devices: Array<{ label: string; addedAt: number; endpoint: string; kinds: DeviceKinds }>;
+  /** stale: made with a push key the server has since replaced; nothing reaches it until it's turned on again. */
+  devices: Array<{ label: string; addedAt: number; endpoint: string; kinds: DeviceKinds; stale?: boolean }>;
   rules: PushRules;
 }
 
@@ -48,16 +49,47 @@ export async function currentEndpoint(): Promise<string | undefined> {
   return (await reg?.pushManager.getSubscription())?.endpoint;
 }
 
-/** Ask permission, subscribe this device, and register it with the Command server. */
+/** Whether a browser subscription was made with this server key (unknown counts as no). */
+export function sameKey(subscriptionKey: ArrayBuffer | null | undefined, publicKey: string): boolean {
+  if (!subscriptionKey || !publicKey) return false;
+  const a = new Uint8Array(subscriptionKey), b = keyBytes(publicKey);
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
+/**
+ * Ask permission, subscribe this device, and register it with the Command server. A subscription
+ * made with another key (the server's was replaced) is unsubscribed at the push service first, so
+ * the old one stops working, and the new one takes over its place and filter on the server.
+ */
 export async function enablePush(label: string): Promise<PushStatus> {
   if (!pushSupported()) throw new Error("This browser can't receive push notifications.");
   if (await Notification.requestPermission() !== "granted") throw new Error("Notifications are blocked for this site.");
   const { publicKey } = await pushStatus();
   const reg = await navigator.serviceWorker.register("/sw.js");
   await navigator.serviceWorker.ready;
-  const subscription = (await reg.pushManager.getSubscription())
-    ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
-  return fetchJson<PushStatus>("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription: subscription.toJSON(), label }) });
+  let subscription = await reg.pushManager.getSubscription();
+  // The subscription this device dropped, remembered until the server has the new one (so a retry
+  // after a failure still hands its place and filter over).
+  let replaces = remembered();
+  if (subscription && !sameKey(subscription.options?.applicationServerKey, publicKey)) {
+    // Keep the first one dropped: a retry's subscription never reached the server.
+    replaces ??= subscription.endpoint;
+    remember(replaces);
+    if (!await subscription.unsubscribe()) throw new Error("Couldn't drop this device's old push subscription. Try again.");
+    subscription = null;
+  }
+  subscription ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
+  const status = await fetchJson<PushStatus>("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription: subscription.toJSON(), label, replaces, key: publicKey }) });
+  remember(undefined);
+  return status;
+}
+
+const REPLACED = "t3c.push.replaces";
+function remembered(): string | undefined {
+  try { return localStorage.getItem(REPLACED) ?? undefined; } catch { return undefined; }
+}
+function remember(endpoint: string | undefined): void {
+  try { if (endpoint) localStorage.setItem(REPLACED, endpoint); else localStorage.removeItem(REPLACED); } catch { /* private mode: no retry memory */ }
 }
 
 export async function disablePush(): Promise<PushStatus> {
@@ -65,6 +97,7 @@ export async function disablePush(): Promise<PushStatus> {
   const subscription = await reg?.pushManager.getSubscription();
   const endpoint = subscription?.endpoint;
   await subscription?.unsubscribe();
+  remember(undefined);
   return fetchJson<PushStatus>("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) });
 }
 

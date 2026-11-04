@@ -15,6 +15,13 @@ interface Saved {
   addedAt: number;
   /** This device's own filter on top of the fleet's rules; absent or null: everything they allow. */
   kinds?: DeviceKinds;
+  /**
+   * The server's public key this subscription was made with. A push service only accepts pushes
+   * signed by that key, so after a key rotation the subscription is stale until the device
+   * subscribes again. Absent: made before keys were recorded, i.e. with the key in use until the
+   * first rotation.
+   */
+  key?: string;
 }
 
 const TITLES: Partial<Record<NonNullable<CommsEntry["kind"]>, string>> = {
@@ -65,7 +72,9 @@ async function readJson<T>(file: string): Promise<T | undefined> {
 
 async function writeJson(file: string, value: unknown): Promise<void> {
   const tmp = `${file}.tmp`;
+  await fs.rm(tmp, { force: true });
   await fs.writeFile(tmp, JSON.stringify(value, null, 2), { mode: 0o600 });
+  await fs.chmod(tmp, 0o600);
   await fs.rename(tmp, file);
 }
 
@@ -74,6 +83,9 @@ async function writeJson(file: string, value: unknown): Promise<void> {
  * non-routable one ("mailto:…@localhost": 403 BadJwtToken), so it's an https URL unless set.
  */
 export const DEFAULT_PUSH_SUBJECT = "https://github.com/the-data-viking/t3-command";
+
+/** A device subscribed with a server key that has since been replaced. */
+export class PushKeyChanged extends Error {}
 
 export class PushNotifier {
   private readonly dir: string;
@@ -104,12 +116,41 @@ export class PushNotifier {
     this.rules = sanitizeRules(await readJson(this.file("push-rules.json"))) ?? DEFAULT_PUSH_RULES;
   }
 
-  status(): { publicKey: string; devices: Array<{ label: string; addedAt: number; endpoint: string; kinds: DeviceKinds }>; rules: PushRules } {
+  /** Whether a subscription was made with the key the server signs with now (so a push can reach it). */
+  private current(s: Saved): boolean {
+    return !s.key || s.key === this.keys?.publicKey;
+  }
+
+  status(): { publicKey: string; devices: Array<{ label: string; addedAt: number; endpoint: string; kinds: DeviceKinds; stale: boolean }>; rules: PushRules } {
     return {
       publicKey: this.keys?.publicKey ?? "",
-      devices: this.subs.map((s) => ({ label: s.label, addedAt: s.addedAt, endpoint: s.subscription.endpoint, kinds: s.kinds ?? null })),
+      devices: this.subs.map((s) => ({ label: s.label, addedAt: s.addedAt, endpoint: s.subscription.endpoint, kinds: s.kinds ?? null, stale: !this.current(s) })),
       rules: this.rules,
     };
+  }
+
+  /**
+   * Replace the signing key (say it leaked) and start signing with the new one right away. The old
+   * private key is replaced in the key file, never copied. Every existing subscription was made
+   * with the old key, so it's marked stale: nothing is sent to it, and its device has to turn push
+   * on again (which unsubscribes the old subscription at the push service and makes a new one).
+   */
+  rotate(): Promise<{ publicKey: string; stale: number }> {
+    // One at a time, after any pending writes, so the key and subscriptions on disk always agree.
+    const run = this.writes.then(async () => {
+      const previous = this.keys?.publicKey;
+      // Record the current key on older subscriptions first: if anything below fails, that changes nothing.
+      for (const s of this.subs) if (!s.key) s.key = previous;
+      await writeJson(this.file("push-subscriptions.json"), this.subs);
+      const keys = webpush.generateVAPIDKeys();
+      // On disk before it signs anything: if that fails, the server keeps the key it has and says so.
+      await writeJson(this.file("push-vapid.json"), keys);
+      webpush.setVapidDetails(this.subject, keys.publicKey, keys.privateKey);
+      this.keys = keys;
+      return { publicKey: keys.publicKey, stale: this.subs.filter((s) => !this.current(s)).length };
+    });
+    this.writes = run.then(() => undefined, () => undefined);
+    return run;
   }
 
   private save(): void {
@@ -120,12 +161,20 @@ export class PushNotifier {
     }).catch((err) => console.warn("[push] write failed", (err as Error).message));
   }
 
-  subscribe(subscription: PushSubscription, label: string): void {
+  /**
+   * Register a device's subscription. `replaces` is the endpoint it had before (a subscription the
+   * device just dropped because the server's key changed): its filter carries over and it's removed.
+   * `key` is the server key the browser subscribed with; if the server's key changed meanwhile,
+   * the subscription is refused (it couldn't receive anything) and the device tries again.
+   */
+  subscribe(subscription: PushSubscription, label: string, replaces?: string, key?: string): void {
     if (!subscription?.endpoint || !/^https:\/\//.test(subscription.endpoint) || !subscription.keys?.p256dh || !subscription.keys?.auth) throw new Error("Not a push subscription");
+    if (key && key !== this.keys?.publicKey) throw new PushKeyChanged("The server's push key just changed. Turn push on again.");
     // Re-subscribing (a new key, a reinstall) keeps the device's own filter.
-    const kinds = this.subs.find((s) => s.subscription.endpoint === subscription.endpoint)?.kinds;
-    this.subs = this.subs.filter((s) => s.subscription.endpoint !== subscription.endpoint);
-    this.subs.push({ subscription, label: label.slice(0, 80) || "Device", addedAt: Date.now(), ...(kinds !== undefined ? { kinds } : {}) });
+    const same = (s: Saved) => s.subscription.endpoint === subscription.endpoint || (!!replaces && s.subscription.endpoint === replaces);
+    const kinds = (this.subs.find((s) => s.subscription.endpoint === subscription.endpoint) ?? this.subs.find(same))?.kinds;
+    this.subs = this.subs.filter((s) => !same(s));
+    this.subs.push({ subscription, label: label.slice(0, 80) || "Device", addedAt: Date.now(), key: this.keys?.publicKey, ...(kinds !== undefined ? { kinds } : {}) });
     this.save();
   }
 
@@ -154,12 +203,12 @@ export class PushNotifier {
 
   /** Whether anything would be pushed for this entry (so the server only reads a request when it'll be used). */
   wants(entry: CommsEntry): boolean {
-    return this.subs.length > 0 && shouldPush(this.rules, entry.kind, new Date(entry.at));
+    return this.subs.some((s) => this.current(s)) && shouldPush(this.rules, entry.kind, new Date(entry.at));
   }
 
   /** Push a comms entry to every device whose filter wants it, if the fleet's rules let it through. */
   async notify(entry: CommsEntry, machine?: string, decision?: PendingDecision): Promise<void> {
-    if (!this.subs.length || !shouldPush(this.rules, entry.kind, new Date(entry.at))) return;
+    if (!this.subs.some((s) => this.current(s)) || !shouldPush(this.rules, entry.kind, new Date(entry.at))) return;
     await this.send(notificationFor(entry, machine, decision), (s) => deviceWants(s.kinds, entry.kind));
   }
 
@@ -173,7 +222,8 @@ export class PushNotifier {
   private async send(payload: PushPayload, to: (s: Saved) => boolean, errors: string[] = []): Promise<number> {
     let sent = 0;
     const gone: string[] = [];
-    await Promise.all(this.subs.filter(to).map(async (s) => {
+    // A stale subscription can't take this key's pushes; it waits for its device to subscribe again.
+    await Promise.all(this.subs.filter((s) => this.current(s) && to(s)).map(async (s) => {
       try {
         await webpush.sendNotification(s.subscription, JSON.stringify(payload), { TTL: 3600, urgency: payload.tag.startsWith("approval") ? "high" : "normal" });
         sent++;

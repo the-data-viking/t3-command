@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { DEFAULT_PUSH_RULES, deviceWants, inQuietHours, sanitizeDeviceKinds, sanitizeRules, shouldPush, type PushRules } from "../shared/push.ts";
 import { quietSince, QUIET_MS } from "./long-turns.ts";
-import { notificationFor, PushNotifier } from "./push.ts";
+import { notificationFor, PushKeyChanged, PushNotifier } from "./push.ts";
 import type { ThreadShell } from "../src/t3/types.ts";
 
 const rules = (over: Partial<PushRules["quiet"]> = {}): PushRules => ({ ...DEFAULT_PUSH_RULES, quiet: { ...DEFAULT_PUSH_RULES.quiet, enabled: true, timeZone: "UTC", ...over } });
@@ -99,4 +99,94 @@ test("a finished squad order's notification opens its replies", () => {
 test("pushes are signed with an https contact by default (Apple rejects mailto:…@localhost)", async () => {
   const { DEFAULT_PUSH_SUBJECT } = await import("./push.ts");
   assert.match(DEFAULT_PUSH_SUBJECT, /^https:\/\//);
+});
+
+test("rotating the key signs with the new one at once, keeps it owner-only, and leaves old subscriptions stale until their device subscribes again", async (t) => {
+  const webpush = (await import("web-push")).default;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "push-"));
+  try {
+    const push = new PushNotifier(dir);
+    await push.load();
+    const before = push.status().publicKey;
+    const old = { endpoint: "https://push.example/old", keys: { p256dh: "k", auth: "a" } };
+    push.subscribe(old, "iPhone · Safari");
+    push.setDeviceKinds(old.endpoint, ["approval"]);
+    // A device from before keys were recorded: made with the only key there was.
+    push.subscribe({ endpoint: "https://push.example/legacy", keys: { p256dh: "k", auth: "a" } }, "Mac · Chrome");
+    await push.flush();
+    const legacy = JSON.parse(await fs.readFile(path.join(dir, "push-subscriptions.json"), "utf8")) as Array<{ key?: string }>;
+    delete legacy[1].key;
+    await fs.writeFile(path.join(dir, "push-subscriptions.json"), JSON.stringify(legacy));
+    await push.load();
+    assert.equal(push.status().devices.some((d) => d.stale), false, "nothing is stale before a rotation");
+
+    const { publicKey, stale } = await push.rotate();
+    assert.notEqual(publicKey, before);
+    assert.equal(stale, 2, "both the stamped and the unstamped subscription were made with the old key");
+    assert.equal(push.status().publicKey, publicKey);
+    const signer = webpush.generateRequestDetails({ endpoint: "https://push.example/x", keys: { p256dh: "k", auth: "a" } }, null);
+    assert.match(String(signer.headers.Authorization), new RegExp(`k=${publicKey}$`), "the live signer is the new key, not just the file");
+    const file = path.join(dir, "push-vapid.json");
+    assert.equal((await fs.stat(file)).mode & 0o777, 0o600);
+    assert.equal((await fs.readdir(dir)).some((f) => f.endsWith(".tmp")), false);
+    assert.equal(JSON.parse(await fs.readFile(file, "utf8")).publicKey, publicKey);
+
+    const sent = t.mock.method(webpush, "sendNotification", async () => ({}));
+    assert.equal(push.wants({ id: 1, at: Date.now(), tone: "alert", kind: "approval", text: "x" }), false, "nothing can reach a stale device");
+    assert.deepEqual(await push.test(), { sent: 0, errors: [] });
+    assert.equal(sent.mock.callCount(), 0);
+
+    // The phone turns push on again: a new subscription replaces the old one and keeps its filter.
+    const fresh = { endpoint: "https://push.example/new", keys: { p256dh: "k2", auth: "a2" } };
+    push.subscribe(fresh, "iPhone · Safari", old.endpoint);
+    const devices = push.status().devices;
+    assert.deepEqual(devices.map((d) => [d.endpoint, d.stale]), [["https://push.example/legacy", true], [fresh.endpoint, false]]);
+    assert.deepEqual(devices[1].kinds, ["approval"]);
+    assert.deepEqual(await push.test(), { sent: 1, errors: [] });
+    assert.equal(sent.mock.calls[0]?.arguments[0]?.endpoint, fresh.endpoint);
+
+    await push.flush();
+    const again = new PushNotifier(dir);
+    await again.load();
+    assert.equal(again.status().publicKey, publicKey);
+    assert.deepEqual(again.status().devices.map((d) => d.stale), [true, false], "staleness survives a restart");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a subscription made with a key replaced meanwhile is refused, overlapping rotations settle on one key, and a failed rotation keeps the old signer", async () => {
+  const webpush = (await import("web-push")).default;
+  const signerKey = () => String(webpush.generateRequestDetails({ endpoint: "https://push.example/x", keys: { p256dh: "k", auth: "a" } }, null).headers.Authorization).split("k=")[1];
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "push-"));
+  try {
+    const push = new PushNotifier(dir);
+    await push.load();
+    const k0 = push.status().publicKey;
+    await push.rotate();
+    assert.throws(() => push.subscribe({ endpoint: "https://push.example/late", keys: { p256dh: "k", auth: "a" } }, "Phone", undefined, k0), PushKeyChanged);
+    assert.equal(push.status().devices.length, 0);
+
+    const [a, b] = await Promise.all([push.rotate(), push.rotate()]);
+    assert.notEqual(a.publicKey, b.publicKey);
+    const onDisk = JSON.parse(await fs.readFile(path.join(dir, "push-vapid.json"), "utf8")).publicKey;
+    assert.equal(onDisk, b.publicKey, "the last rotation wins on disk");
+    assert.equal(push.status().publicKey, b.publicKey, "and in memory");
+    assert.equal(signerKey(), b.publicKey, "and in the live signer");
+
+    // The subscriptions are saved but the key file can't be: still the same key, on disk and live.
+    await fs.mkdir(path.join(dir, "push-vapid.json.tmp"));
+    await assert.rejects(push.rotate());
+    assert.equal(push.status().publicKey, b.publicKey);
+    assert.equal(signerKey(), b.publicKey);
+    assert.equal(JSON.parse(await fs.readFile(path.join(dir, "push-vapid.json"), "utf8")).publicKey, b.publicKey);
+    await fs.rmdir(path.join(dir, "push-vapid.json.tmp"));
+
+    await fs.chmod(dir, 0o500);
+    try { await assert.rejects(push.rotate()); } finally { await fs.chmod(dir, 0o700); }
+    assert.equal(push.status().publicKey, b.publicKey, "a rotation that couldn't be saved changes nothing");
+    assert.equal(signerKey(), b.publicKey);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });
