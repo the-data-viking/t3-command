@@ -9,6 +9,7 @@ export interface PrefsPatch {
   provider?: string | null;
   models?: Record<string, ModelChoice | null>;
   routing?: Record<string, RoutingLevel | null>;
+  mutedThreads?: Record<string, boolean>;
 }
 
 export async function patchPrefs(patch: PrefsPatch): Promise<void> {

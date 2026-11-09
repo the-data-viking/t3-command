@@ -4,12 +4,15 @@ import { sfx } from "../game/sfx";
 import { worldRef } from "../game/world";
 import { clearLog, setSelection, useGame } from "../store";
 import { ROUTINE_KINDS } from "../../shared/comms";
-import { entryKind } from "./away";
+import { threadNotificationsEnabled } from "../../shared/thread-notifications";
+import { entryKind } from "./comms-kind";
 
 const VISIBLE_MS = 12_000;
 
 export function EventLog() {
   const log = useGame((s) => s.log);
+  const envs = useGame((s) => s.envs);
+  const prefs = useGame((s) => s.prefs);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -28,7 +31,13 @@ export function EventLog() {
   }, [log]);
 
   // The ticker skips routine lines (work starting, background watching): they'd bury the rest.
-  const recent = log.filter((e) => now - e.at < VISIBLE_MS && !ROUTINE_KINDS.has(entryKind(e))).slice(-6);
+  const recent = log.filter((e) => {
+    const kind = entryKind(e);
+    if (now - e.at >= VISIBLE_MS || ROUTINE_KINDS.has(kind) || kind === "quiet" || kind === "long-turn") return false;
+    if (!e.threadId) return true;
+    const thread = e.envId ? envs[e.envId]?.threads[e.threadId] : undefined;
+    return !!thread && !!e.envId && threadNotificationsEnabled(prefs, e.envId, thread);
+  }).slice(-6);
   return (
     <div className="event-log">
       {recent.map((e) => (

@@ -90,3 +90,18 @@ test("host samples are kept as fractions and long ranges are bucketed with peaks
   assert.deepEqual(points[0], { at: 10, cpu: 0.5, cpuPeak: 0.8, mem: 0.5 });
   assert.deepEqual(bucket(samples, 0, 100, 50)[1], { at: 10, cpu: 0.8, cpuPeak: 0.8, mem: 0.5 }, "short ranges pass through");
 });
+
+test("native and delegated children never announce transitions or merged PRs, while forks still do", async (t) => {
+  const { dir, log } = await tempLog();
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const child = (creationSource: string) => running(creationSource, { creationSource,
+    lineage: { relationshipToParent: "subagent", parentThreadId: "p", rootThreadId: "p" } });
+  const fork = running("fork", { lineage: { relationshipToParent: "fork", parentThreadId: "p", rootThreadId: "p" } });
+  const threads = [child("provider"), child("app"), fork];
+  log.observe("e", threads);
+  log.observe("e", threads.map((th) => ({ ...th, hasPendingApprovals: true,
+    pullRequests: [{ number: 42, snapshot: { state: "merged" } }] as ThreadShell["pullRequests"] })));
+  assert.ok(log.since().length > 0);
+  assert.ok(log.since().every((e) => e.threadId === "fork"));
+  await log.flush();
+});

@@ -1,3 +1,4 @@
+import { threadNotificationsEnabled } from "../../shared/thread-notifications";
 import { useEffect } from "react";
 import { openEvent, useGame } from "../store";
 import { STATE_LABELS } from "./util";
@@ -11,6 +12,7 @@ const SHOW_MS = 4000;
  * open the card.
  */
 export function IncomingToast() {
+  const prefs = useGame((s) => s.prefs);
   const incoming = useGame((s) => s.incoming);
   const thread = useGame((s) => (incoming ? s.envs[incoming.envId]?.threads[incoming.threadId] : undefined));
 
@@ -22,7 +24,7 @@ export function IncomingToast() {
     return () => clearTimeout(timer);
   }, [incoming]);
 
-  if (!incoming || !thread) return null;
+  if (!incoming || !thread || !threadNotificationsEnabled(prefs, incoming.envId, thread)) return null;
   const state = unitState(thread);
   return (
     <button className="incoming-toast hud-frame" onClick={() => openEvent({ envId: incoming.envId, threadId: incoming.threadId })}>

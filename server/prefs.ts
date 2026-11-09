@@ -11,6 +11,7 @@ export interface PrefsPatch {
   provider?: string | null;
   models?: Record<string, unknown>;
   routing?: Record<string, unknown>;
+  mutedThreads?: Record<string, unknown>;
 }
 
 export class Prefs {
@@ -52,16 +53,29 @@ export class Prefs {
         else if (id in valid[key]) (next[key] as Record<string, unknown>)[id] = valid[key][id];
       }
     }
+    if (patch.mutedThreads && typeof patch.mutedThreads === "object" && !Array.isArray(patch.mutedThreads)) {
+      const muted = { ...next.mutedThreads };
+      for (const [key, value] of Object.entries(patch.mutedThreads)) {
+        if (!key || key.length > 500) continue;
+        if (value === true) muted[key] = true;
+        else if (value === false || value === null) delete muted[key];
+      }
+      if (Object.keys(muted).length) next.mutedThreads = muted;
+      else delete next.mutedThreads;
+    }
     this.save(next);
     return this.all();
   }
 
   /** A machine was removed: its routing level goes with it. */
   forget(envId: string): void {
-    if (!(envId in this.prefs.routing)) return;
-    const routing = { ...this.prefs.routing };
-    delete routing[envId];
-    this.save({ ...this.prefs, routing });
+    const next = this.all();
+    delete next.routing[envId];
+    if (next.mutedThreads) {
+      for (const key of Object.keys(next.mutedThreads)) if (key.startsWith(`${envId}:`)) delete next.mutedThreads[key];
+      if (!Object.keys(next.mutedThreads).length) delete next.mutedThreads;
+    }
+    this.save(next);
   }
 
   subscribe(listener: (prefs: CommandPrefs) => void): () => void {

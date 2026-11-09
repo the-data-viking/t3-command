@@ -10,7 +10,7 @@ import { allowedDecisions, assessRisk } from "./risk";
 import { sfx } from "../game/sfx";
 import { markReportsRead, setSelection, unitKey, useGame } from "../store";
 import { FailedActions } from "./FailedActions";
-import { isHistory, pendingRequests, turnBusy, unitState } from "../t3/derive";
+import { isSubagent, isHistory, pendingRequests, turnBusy, unitState } from "../t3/derive";
 import { telemetry } from "../t3/telemetry";
 import { contextLevel, modelTier, TIER_LABEL } from "../game/theme";
 import { envClient, logError } from "../t3/environment";
@@ -37,11 +37,22 @@ import { HermesPermissions } from './HermesPermissions';
 import { isPhone, usePhone } from './phone';
 import { TurnTelemetry } from './TurnTelemetry';
 import { contextWarning } from '../t3/progress';
+import { patchPrefs } from "../t3/prefs";
 import { ThreadWidgets } from './Widgets';
 
 export function UnitPanel({ envId, threadId }: { envId: string; threadId: string }) {
   const panelWidth = usePanelWidth();
   const phone = usePhone();
+  const notificationsMuted = useGame((s) => !!s.prefs.mutedThreads?.[unitKey(envId, threadId)]);
+  const [savingMute, setSavingMute] = useState(false);
+  const [muteError, setMuteError] = useState<string>();
+  const toggleMute = async () => {
+    setSavingMute(true);
+    setMuteError(undefined);
+    try { await patchPrefs({ mutedThreads: { [unitKey(envId, threadId)]: !notificationsMuted } }); }
+    catch { setMuteError("Couldn't save notification setting. Try again."); }
+    finally { setSavingMute(false); }
+  };
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = useId();
   const env = useGame((s) => s.envs[envId]);
@@ -131,10 +142,18 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
           <h2 title={unitName}>{unitName}</h2>
           {!phone && identity}
         </div>
+        {!archived && <button className="icon-btn" disabled={savingMute || isSubagent(thread)}
+          aria-pressed={notificationsMuted || isSubagent(thread)}
+          aria-label={isSubagent(thread) ? "Subagent notifications are suppressed" : notificationsMuted ? "Unmute thread notifications" : "Mute thread notifications"}
+          title={isSubagent(thread) ? "Subagent notifications are suppressed" : notificationsMuted ? "Unmute thread notifications on all devices" : "Mute thread notifications on all devices"}
+          onClick={() => void toggleMute()}>
+          <PixelIcon name={notificationsMuted || isSubagent(thread) ? "bellOff" : "bell"} />
+        </button>}
         <button className="icon-btn" onClick={() => setSelection(null)} title="Close (Esc)" aria-label="Close crew panel">
           ✕
         </button>
       </header>
+      {muteError && <p role="alert" className="small orange">{muteError}</p>}
       {bot && <button className="btn ops-back" onClick={() => { const selection = { kind: 'hermes' as const, envId, profile: bot.name }; setSelection(selection); worldRef.current?.focus(selection); }}>← Control center</button>}
 
       {archived ? (

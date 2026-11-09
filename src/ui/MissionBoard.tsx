@@ -32,10 +32,11 @@ function span(ms: number): string {
 export function MissionBoard() {
   const envs = useGame((s) => s.envs);
   const readReports = useGame((s) => s.readReports);
+  const prefs = useGame((s) => s.prefs);
   const details = useGame((s) => s.details);
   const stuckOk = useGame((s) => s.stuckOk);
   const now = useClock(true, 10000);
-  const board = useMemo(() => boardOf(envs, readReports, { details, stuckOk }, now), [envs, readReports, details, stuckOk, now]);
+  const board = useMemo(() => boardOf(envs, readReports, { details, stuckOk, prefs }, now), [envs, readReports, details, stuckOk, prefs, now]);
   const close = () => useGame.setState({ showBoard: false });
 
 

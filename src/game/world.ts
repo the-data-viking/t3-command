@@ -11,6 +11,7 @@
 // icons light up only for real work, crew walk only for real tool calls, and supply lines carry
 // packets only while crew are working. Engineering gauges show measured whole-host load.
 
+import { threadNotificationsEnabled } from "../../shared/thread-notifications";
 import { Application, Container, Graphics, Rectangle, Sprite, type FederatedPointerEvent } from "pixi.js";
 import { cells, MORE_GLYPH, QUIET_GLYPH, STATUS_GLYPHS } from "../art/pixelfont";
 import * as A from "../art/sprites";
@@ -1046,13 +1047,17 @@ export class World {
     // Merged just now: one Command learned of later (a correction from GitHub) that merged long
     // ago leaves quietly, without a launch.
     const merged = new Set<number>();
+    const audible = new Set<number>();
     const now = Date.now();
     for (const { envId, projectId } of s.members) {
       for (const t of Object.values(state.envs[envId]?.threads ?? {})) {
         if (t.projectId !== projectId) continue;
         for (const pr of t.pullRequests ?? []) {
           const at = pr.snapshot?.mergedAt ? Date.parse(pr.snapshot.mergedAt) : NaN;
-          if (pr.snapshot?.state === "merged" && !(now - at > 10 * 60_000)) merged.add(pr.number);
+          if (pr.snapshot?.state === "merged" && !(now - at > 10 * 60_000)) {
+            merged.add(pr.number);
+            if (threadNotificationsEnabled(state.prefs, envId, t)) audible.add(pr.number);
+          }
         }
       }
     }
@@ -1061,7 +1066,7 @@ export class World {
       if (open.includes(n) || !merged.has(n)) return;
       const spot = podSpot(s.interior, hullBottom, k);
       this.launches.push({ x: spot.x, y: spot.y, at: performance.now() });
-      sfx.done();
+      if (audible.has(n)) sfx.done();
     });
   }
 

@@ -26,6 +26,8 @@ export interface CommandPrefs {
   provider?: string;
   /** Each provider's default model, by provider instance id ("codex", "claudeAgent", …). */
   models: Record<string, ModelChoice>;
+  /** Threads silenced on every device, keyed by "environment:thread". */
+  mutedThreads?: Record<string, true>;
   /** Machines not at Normal, by environment id. */
   routing: Record<string, RoutingLevel>;
 }
@@ -64,5 +66,8 @@ export function sanitizePrefs(input: unknown): CommandPrefs {
       if (short(id) && typeof level === "string" && LEVELS.has(level) && level !== "normal") routing[id] = level as RoutingLevel;
     }
   }
-  return { ...(short(raw.provider) ? { provider: raw.provider } : {}), models, routing };
+  const mutedThreads = Object.fromEntries(Object.entries(
+    raw.mutedThreads && typeof raw.mutedThreads === "object" ? raw.mutedThreads : {},
+  ).filter(([key, value]) => short(key, 500) && value === true));
+  return { ...(Object.keys(mutedThreads).length ? { mutedThreads } : {}), ...(short(raw.provider) ? { provider: raw.provider } : {}), models, routing };
 }

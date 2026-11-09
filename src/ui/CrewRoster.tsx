@@ -1,3 +1,4 @@
+import { threadNotificationsEnabled } from "../../shared/thread-notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { stationColor } from "../game/layout";
 import { sfx } from "../game/sfx";
@@ -80,10 +81,11 @@ export function CrewRoster() {
   // The same count as the top bar's Needs you: everything waiting on you, reports included.
   const readReports = useGame((s) => s.readReports);
   const stuckOk = useGame((s) => s.stuckOk);
+  const prefs = useGame((s) => s.prefs);
   const showBoard = useGame((s) => s.showBoard);
   const showDock = useGame((s) => s.showDock);
   const now = useClock(true, 10000);
-  const waiting = useMemo(() => needsYouCounts(needsYouList({ envs, details, readReports, stuckOk }, now)).total, [envs, details, readReports, stuckOk, now]);
+  const waiting = useMemo(() => needsYouCounts(needsYouList({ envs, details, readReports, stuckOk, prefs }, now)).total, [envs, details, readReports, stuckOk, prefs, now]);
   useEffect(() => {
     if (!phone || openedForYou.current || waiting === 0) return;
     openedForYou.current = true;
@@ -93,11 +95,11 @@ export function CrewRoster() {
   const read = (u: UnitRef) => (u.state === "done" || u.state === "error") && reportRead(readReports, u.envId, u.thread);
   // The same list, in the same order, as the top bar, board and queue (needs-you.ts): approvals
   // and questions by longest wait, then plans, failures, turns that may be stuck, and reports.
-  const order = new Map(needsYouList({ envs, readReports, details, stuckOk }, now).map((n, i) => [unitKey(n.envId, n.threadId), i]));
+  const order = new Map(needsYouList({ envs, readReports, details, stuckOk, prefs }, now).map((n, i) => [unitKey(n.envId, n.threadId), i]));
   const needsYou = crew.filter((u) => order.has(unitKey(u.envId, u.thread.id)))
     .sort((a, b) => order.get(unitKey(a.envId, a.thread.id))! - order.get(unitKey(b.envId, b.thread.id))!);
   // A turn that may be stuck is listed under Needs you, not twice.
-  const onDuty = crew.filter((u) => !order.has(unitKey(u.envId, u.thread.id)) && (ON_DUTY.includes(u.state) || read(u)));
+  const onDuty = crew.filter((u) => !order.has(unitKey(u.envId, u.thread.id)) && (ON_DUTY.includes(u.state) || read(u) || !threadNotificationsEnabled(prefs, u.envId, u.thread)));
 
   const squad = useGame((s) => s.squad);
   const picked = squadKeys(squad);

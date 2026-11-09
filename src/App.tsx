@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { sanitizePrefs } from "../shared/prefs";
 import type { MeResponse } from "../shared/api";
 import { sfx } from "./game/sfx";
 import { installActiveWatches } from "./game/watch";
@@ -9,7 +10,6 @@ import { EnvManager } from "./ui/EnvManager";
 import { CommsLog, EventLog } from "./ui/EventLog";
 import { HistoryPanel } from "./ui/HistoryPanel";
 import { SquadBar } from "./ui/SquadBar";
-import { AwayDigest } from "./ui/AwayDigest";
 import { IncomingToast } from "./ui/IncomingToast";
 import { DebriefCard } from "./ui/DebriefCard";
 import { PhotoMode } from "./ui/PhotoMode";
@@ -44,9 +44,11 @@ import { refreshStorage, STORAGE_REFRESH_MS } from "./t3/storage";
 import { connectComms } from "./t3/comms";
 import { DEMO, loadDemoFleet } from "./demo";
 import { installDeepLinks } from "./ui/deeplink";
-import { installQuietWatch, installTitleBadge, notifyAttention } from "./ui/attention";
+import { installTitleBadge, notifyAttention } from "./ui/attention";
 import { WidgetLayer } from "./ui/Widgets";
 import { installWidgetDiscovery } from "./t3/widgets";
+
+import { threadNotificationsEnabled } from "../shared/thread-notifications";
 
 const ENV_REFRESH_MS = 30_000;
 
@@ -56,6 +58,7 @@ const ENV_REFRESH_MS = 30_000;
  */
 function announceTransitions(): () => void {
   return onUnitTransition(({ envId, thread, from, to }) => {
+    if (!threadNotificationsEnabled(useGame.getState().prefs, envId, thread)) return;
     const at = { envId, threadId: thread.id };
     if (to === "alert" || to === "question") {
       if (to === "alert") sfx.alert(); else sfx.question();
@@ -105,6 +108,7 @@ export default function App() {
       try {
         const me = await fetchJson<MeResponse>("/api/me");
         useGame.setState({ me });
+        useGame.setState({ prefs: sanitizePrefs(await fetchJson("/api/prefs")) });
         await refreshEnvironments();
         void refreshHermesBots();
         void refreshStorage().catch(() => {});
@@ -127,7 +131,6 @@ export default function App() {
     const offTransitions = announceTransitions();
     const offTitle = installTitleBadge();
     const offWatches = installActiveWatches();
-    const offQuiet = installQuietWatch();
     const offComms = DEMO ? () => {} : connectComms();
     const offLinks = installDeepLinks();
     const offWidgets = DEMO ? () => {} : installWidgetDiscovery();
@@ -142,7 +145,6 @@ export default function App() {
       offTransitions();
       offTitle();
       offWatches();
-      offQuiet();
       offComms();
       offLinks();
       offWidgets();
@@ -182,7 +184,6 @@ export default function App() {
       {showDock && <ShippingDock />}
       {showNewRequest && <NewRequest />}
       <SquadBar />
-      <AwayDigest />
       <IncomingToast />
       <DebriefCard />
       <QueueClear />
