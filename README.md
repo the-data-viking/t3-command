@@ -122,9 +122,6 @@ Fleet-command styling
   arrive live from T3's provider status stream. When only part of the fleet reports (Claude doesn't
   report quotas, and a provider's probe can fail), the chip adds how many provider sign-ins the
   number covers (for example "1/6"), and the breakdown lists which are silent and which failed.
-- **Long turns**: the Command server notes in the comms log when a running turn passes 2, 6, 12
-  and 24 hours, so a runaway agent stands out with nobody watching. Per-turn cost isn't shown,
-  because T3 only prices usage per day and model.
 - **Mission telemetry**: the crew panel shows why a failed turn failed (also on hover in the
   roster) and the thread's linked pull requests with state, checks and review. A collapsible
   **Changes** list shows each recent turn's files and +/- counts, with a full-screen diff per turn.
@@ -221,7 +218,7 @@ Fleet-command styling
   roster's Needs you group, the work board's Blocked on you column (with reports in their own), the queue run and the tab title all count the same list, in the same order:
   approvals and questions (longest wait first), plans waiting for approval, failed turns, turns
   that may be stuck, then reports. A turn that may be stuck (the same command failing three times,
-  or an hour with no file change) gets an amber ↻ on the map and an amber underline in the fleet
+  without progress, while no tool is running) gets an amber ↻ on the map and an amber underline in the fleet
   view, and its card offers Halt, Halt and ask what's blocking, Open the crew log, or It's fine:
   that sign leaves Needs you until a new one shows up. A failed turn is a triage card: ask the crew member to find and fix the cause, open
   its log, dismiss it ("I've seen it"), or send it to camp; a dismissed failure or read report
@@ -320,8 +317,7 @@ Fleet-command styling
   `#station/…`), so a link opens the same crew member, machine or station on any device once that
   machine connects. **Mark read** on a crew member's report takes it out of Needs you and the
   Needs you count in this browser until the thread's next turn (also "Mark all reports read" in the
-  palette). After 30 minutes or more away, a **While you were away** card sums up the comms log:
-  jobs done, failures, crew waiting on you, and lost machines, disk and long-turn warnings. A
+  palette). The comms log is available when you choose to open it. A
   thread's pull request for its current branch is listed first. Threads that share a title show
   their branch in the palette, and History shows when each turn started.
 - **Navigation**: sector minimap, station chips in the top bar that jump to their station, and
@@ -763,9 +759,13 @@ Layout:
 T3 Command can push fleet events to any device that turns it on, even with no tab open: approvals
 and questions, failed turns, turns that may be spinning (the same command failing three or more
 times within 15 minutes without a successful tool completion between failures, with no tool
-running), turns gone quiet (no update for 20 minutes) or running long, merged PRs, finished jobs,
+running), merged PRs, finished jobs,
 machines going offline and low disks. Testing, research and waiting without file edits do not
 count as spinning. The server reads the turn's own activity, and the roster shows it too.
+Elapsed time and inactivity never trigger notifications. Subagent threads are silent. Use the bell
+in a thread's panel to mute or unmute it on every device: push, desktop alerts, sounds, automatic
+popups, the event ticker and Needs you counts all respect the setting. Muting survives restarts.
+
 Open the bell menu in the top bar to turn push on for this device, choose which events come through, and set quiet hours (only the
 kinds you allow, approvals by default, get through overnight). Tapping a notification opens T3
 Command at that crew member.

@@ -11,10 +11,11 @@ export function QueueButton() {
   const details = useGame((s) => s.details);
   const read = useGame((s) => s.readReports);
   const stuckOk = useGame((s) => s.stuckOk);
+  const prefs = useGame((s) => s.prefs);
   const running = useGame((s) => !!s.queueRun);
-  // A spin sign can appear with nothing else changing (an hour without a file change): re-check.
+  // Re-check recent failure signals as their time window changes.
   const now = useClock(true, 10000);
-  const counts = useMemo(() => needsYouCounts(needsYou({ envs, details, readReports: read, stuckOk }, now)), [envs, details, read, stuckOk, now]);
+  const counts = useMemo(() => needsYouCounts(needsYou({ envs, details, readReports: read, stuckOk, prefs }, now)), [envs, details, read, stuckOk, prefs, now]);
   if (!counts.total || running) return null;
   const parts = [
     counts.approval && `${counts.approval} approval${counts.approval === 1 ? "" : "s"}`,

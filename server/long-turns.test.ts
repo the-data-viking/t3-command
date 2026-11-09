@@ -4,7 +4,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import test from "node:test";
 import { CommsLog } from "./comms.ts";
-import { LongTurns, passed, spinSigns } from "./long-turns.ts";
+import { LongTurns, spinSigns } from "./long-turns.ts";
 import type { HistoryRecorder } from "./history-recorder.ts";
 import type { Registry } from "./registry.ts";
 import type { ThreadShell } from "../src/t3/types.ts";
@@ -12,25 +12,22 @@ import type { ThreadShell } from "../src/t3/types.ts";
 const H = 3_600_000;
 const running = (id: string, startedAt: number) => ({ id, title: id, latestTurn: { turnId: `${id}-t`, state: "running", requestedAt: new Date(startedAt).toISOString(), startedAt: new Date(startedAt).toISOString() } }) as unknown as ThreadShell;
 
-test("thresholds passed are counted from the turn's start", () => {
-  assert.deepEqual(passed(running("a", 0), 7 * H), [2, 6]);
-  assert.deepEqual(passed(running("a", 0), H), []);
-  assert.deepEqual(passed({ latestTurn: { state: "completed" } } as unknown as ThreadShell, 30 * H), []);
-});
-
-test("each threshold is noted once; what had already passed before a restart stays quiet", async () => {
-  const comms = new CommsLog(await fs.mkdtemp(path.join(os.tmpdir(), "long-")));
-  let threads = [running("glass", 0)];
+test("elapsed time and inactivity never produce alerts, including after restart", async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "long-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const comms = new CommsLog(dir);
+  const threads = [running("glass", 0)];
+  threads[0].updatedAt = new Date(0).toISOString();
   const recorder = { snapshot: () => ({ projects: {}, threads }) } as unknown as HistoryRecorder;
   const registry = { ids: () => ["e"] } as unknown as Registry;
-  const long = new LongTurns(registry, recorder, comms);
-  long.check(3 * H); // First pass after start: 2h already passed, recorded silently.
-  long.check(4 * H);
-  long.check(7 * H); // 6h crossed while watching.
-  long.check(8 * H);
-  threads = [running("glass", 0), running("new", 7 * H)];
-  long.check(9.5 * H);
-  assert.deepEqual(comms.since().map((e) => e.text), ['"glass" has been running for 6 hours', '"new" has been running for 2 hours']);
+  const long = new LongTurns(registry, recorder, comms, async () => ({ ...threads[0], activities: [] }) as never);
+  for (const h of [1, 3, 7, 13, 25, 100]) {
+    long.check(h * H);
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  new LongTurns(registry, recorder, comms).check(101 * H);
+  assert.deepEqual(comms.since(), []);
+  await comms.flush();
 });
 
 test("a long turn that may be spinning is said once per sign, read from its own activity", async () => {
@@ -83,4 +80,20 @@ test("a completed turn cannot announce a stale spinning read", async () => {
   finish(full as never);
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(comms.since().filter((e) => e.kind === "spinning").length, 0);
+});
+
+test("subagents never trigger spinning reads or alerts", async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "child-alerts-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const comms = new CommsLog(dir);
+  const child = { ...running("child", 0), lineage: { relationshipToParent: "subagent", parentThreadId: "parent", rootThreadId: "parent" } };
+  const registry = { ids: () => ["e"] } as unknown as Registry;
+  const recorder = { snapshot: () => ({ threads: [child] }) } as unknown as HistoryRecorder;
+  let reads = 0;
+  const long = new LongTurns(registry, recorder, comms, async () => { reads++; throw new Error("Should not read children"); });
+  long.check(0);
+  long.check(25 * H);
+  assert.equal(reads, 0);
+  assert.deepEqual(comms.since(), []);
+  await comms.flush();
 });

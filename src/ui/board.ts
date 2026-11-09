@@ -1,6 +1,7 @@
 // The mission board's model: every crew member's current work in one column, by what it needs
 // next — you, a plan, building, review of an open PR, or reading its report.
 
+import { threadNotificationsEnabled } from "../../shared/thread-notifications";
 import type { EnvWorld, GameState } from "../store";
 import type { UnitState } from "../t3/derive";
 import type { ThreadShell } from "../t3/types";
@@ -38,11 +39,12 @@ export function columnOf(thread: ThreadShell, state: UnitState, read: boolean): 
  * order, with turns that may be stuck moved into it from Building. Hermes operators aren't missions.
  */
 export function boardOf(envs: Record<string, EnvWorld>, readReports: Record<string, string>,
-  watch: Partial<Pick<GameState, "details" | "stuckOk">> = {}, now = Date.now()): Record<Column, Card[]> {
+  watch: Partial<Pick<GameState, "details" | "stuckOk" | "prefs">> = {}, now = Date.now()): Record<Column, Card[]> {
   const board: Record<Column, Card[]> = { "needs-you": [], building: [], review: [], report: [] };
   for (const u of allUnits(envs)) {
     if (envs[u.envId]?.summary.kind === "hermes") continue;
     const column = columnOf(u.thread, u.state, reportRead(readReports, u.envId, u.thread));
+    if (column === "needs-you" && !threadNotificationsEnabled(watch.prefs, u.envId, u.thread)) continue;
     if (column) board[column].push({ envId: u.envId, thread: u.thread, state: u.state, column });
   }
   const since = (c: Card) => Date.parse(c.thread.latestTurn?.completedAt ?? c.thread.latestTurn?.startedAt ?? c.thread.updatedAt) || 0;

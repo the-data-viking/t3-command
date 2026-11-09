@@ -5,6 +5,7 @@
 // seen (marked read, or dismissed) stops needing you until that crew member's next turn; a spin
 // sign you've let run, until a new sign.
 
+import { threadNotificationsEnabled } from "../../shared/thread-notifications";
 import type { GameState } from "../store";
 import { allUnits, reportRead } from "./util";
 import { byWait, waitingSince } from "./queue";
@@ -14,13 +15,14 @@ export type NeedKind = "approval" | "question" | "plan" | "failure" | "stuck" | 
 
 export interface Need { envId: string; threadId: string; kind: NeedKind }
 
-type Inputs = Pick<GameState, "envs" | "readReports"> & Partial<Pick<GameState, "details" | "stuckOk">>;
+type Inputs = Pick<GameState, "envs" | "readReports"> & Partial<Pick<GameState, "details" | "stuckOk" | "prefs">>;
 
 /** Everything that needs you, in the order to handle it. */
 export function needsYou(state: Inputs, now = Date.now()): Need[] {
   const blocked: Array<Need & { since: number; key: string }> = [];
   const rest: Array<Need & { at: string }> = [];
   for (const u of allUnits(state.envs)) {
+    if (!threadNotificationsEnabled(state.prefs, u.envId, u.thread)) continue;
     const key = `${u.envId}:${u.thread.id}`;
     if (u.state === "alert" || u.state === "question") {
       blocked.push({ envId: u.envId, threadId: u.thread.id, kind: u.state === "alert" ? "approval" : "question", key,

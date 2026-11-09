@@ -48,7 +48,8 @@ export function TopBar() {
   }, []);
 
   const readReports = useGame((s) => s.readReports);
-  const counts = useMemo(() => fleetCounts(envs, readReports), [envs, readReports]);
+  const prefs = useGame((s) => s.prefs);
+  const counts = useMemo(() => fleetCounts(envs, readReports, prefs), [envs, readReports, prefs]);
   const totals = { working: counts.working + counts.background, monitoring: counts.monitoring, crew: counts.crew, awake: counts.awake };
 
   const views = (

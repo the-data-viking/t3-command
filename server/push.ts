@@ -28,8 +28,6 @@ const TITLES: Partial<Record<NonNullable<CommsEntry["kind"]>, string>> = {
   approval: "Approval needed",
   question: "Question waiting",
   failed: "Turn failed",
-  quiet: "Turn gone quiet",
-  "long-turn": "Long-running turn",
   merged: "PR merged",
   done: "Job finished",
   mission: "Squad order finished",
@@ -95,10 +93,12 @@ export class PushNotifier {
   private writes: Promise<void> = Promise.resolve();
 
   private readonly subject: string;
+  private readonly allows: (entry: CommsEntry) => boolean;
 
-  constructor(dataDir: string, subject = DEFAULT_PUSH_SUBJECT) {
+  constructor(dataDir: string, subject = DEFAULT_PUSH_SUBJECT, allows: (entry: CommsEntry) => boolean = () => true) {
     this.dir = dataDir;
     this.subject = subject;
+    this.allows = allows;
   }
 
   private file(name: string): string {
@@ -203,12 +203,12 @@ export class PushNotifier {
 
   /** Whether anything would be pushed for this entry (so the server only reads a request when it'll be used). */
   wants(entry: CommsEntry): boolean {
-    return this.subs.some((s) => this.current(s)) && shouldPush(this.rules, entry.kind, new Date(entry.at));
+    return this.allows(entry) && this.subs.some((s) => this.current(s)) && shouldPush(this.rules, entry.kind, new Date(entry.at));
   }
 
   /** Push a comms entry to every device whose filter wants it, if the fleet's rules let it through. */
   async notify(entry: CommsEntry, machine?: string, decision?: PendingDecision): Promise<void> {
-    if (!this.subs.some((s) => this.current(s)) || !shouldPush(this.rules, entry.kind, new Date(entry.at))) return;
+    if (!this.wants(entry)) return;
     await this.send(notificationFor(entry, machine, decision), (s) => deviceWants(s.kinds, entry.kind));
   }
 

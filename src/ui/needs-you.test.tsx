@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadDemoFleet } from "../demo";
-import { useGame } from "../store";
+import { useGame, type GameState } from "../store";
 import { parseHash } from "./deeplink";
 import { needsYou, needsYouCounts } from "./needs-you";
 import { fleetCounts } from "./util";
@@ -72,4 +72,20 @@ test("waiting on a long tool or working without edits does not enter Needs you a
     assert.ok(!needsYou(useGame.getState(), now + 2 * 3_600_000).some((n) => n.threadId === thread.id && n.kind === "stuck"));
     assert.ok(!needsYou(useGame.getState(), now).some((n) => n.threadId === thread.id && n.kind === "stuck"));
   }
+});
+
+test("muted threads and children leave attention counts and the queue without hiding their threads", () => {
+  loadDemoFleet();
+  const s = useGame.getState();
+  const env = s.envs.mini;
+  const approval = env.threads.a2;
+  const child = { ...approval, id: "child", lineage: { parentThreadId: approval.id, rootThreadId: approval.id, relationshipToParent: "subagent" } };
+  const state: GameState = { ...s, prefs: { models: {}, routing: {}, mutedThreads: { "mini:a2": true as const } },
+    envs: { ...s.envs, mini: { ...env, threads: { ...env.threads, child } } } };
+  const needs = needsYou(state);
+  assert.ok(!needs.some((n) => n.threadId === "a2" || n.threadId === "child"));
+  assert.equal(fleetCounts(state.envs, state.readReports, state.prefs).waiting, 1, "the unmuted question remains");
+  assert.ok(state.envs.mini.threads.a2, "muting leaves the thread accessible");
+  delete state.prefs.mutedThreads!["mini:a2"];
+  assert.ok(needsYou(state).some((n) => n.threadId === "a2"), "unmute restores attention");
 });

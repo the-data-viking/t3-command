@@ -4,9 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { DEFAULT_PUSH_RULES, deviceWants, inQuietHours, sanitizeDeviceKinds, sanitizeRules, shouldPush, type PushRules } from "../shared/push.ts";
-import { quietSince, QUIET_MS } from "./long-turns.ts";
 import { notificationFor, PushKeyChanged, PushNotifier } from "./push.ts";
-import type { ThreadShell } from "../src/t3/types.ts";
 
 const rules = (over: Partial<PushRules["quiet"]> = {}): PushRules => ({ ...DEFAULT_PUSH_RULES, quiet: { ...DEFAULT_PUSH_RULES.quiet, enabled: true, timeZone: "UTC", ...over } });
 const at = (hhmm: string) => new Date(`2026-10-13T${hhmm}:00Z`);
@@ -44,16 +42,6 @@ test("a notification says what happened and where, and links straight to the cre
   const n = notificationFor({ id: 1, at: 0, tone: "alert", kind: "approval", text: "\"Fix CI\" needs your approval", envId: "mini", threadId: "t 1" }, "Mac mini");
   assert.deepEqual(n, { title: "Approval needed", body: "\"Fix CI\" needs your approval · Mac mini", url: "/#decide/mini/t%201", tag: "approval:mini:t 1" });
   assert.equal(notificationFor({ id: 2, at: 0, tone: "bad", kind: "offline", text: "Lost contact with Box", envId: "box" }).url, "/#host/box");
-});
-
-test("a running turn with no update for a while, and not waiting on you, has gone quiet", () => {
-  const now = Date.parse("2026-10-13T12:00:00Z");
-  const t = (updatedMinAgo: number, over: Partial<ThreadShell> = {}) => ({ updatedAt: new Date(now - updatedMinAgo * 60_000).toISOString(), hasPendingApprovals: false, hasPendingUserInput: false,
-    latestTurn: { state: "running" }, ...over }) as unknown as ThreadShell;
-  assert.equal(quietSince(t(5), now), undefined);
-  assert.equal(quietSince(t(QUIET_MS / 60_000 + 1), now), now - (QUIET_MS / 60_000 + 1) * 60_000);
-  assert.equal(quietSince(t(60, { hasPendingApprovals: true }), now), undefined, "waiting on you isn't quiet");
-  assert.equal(quietSince(t(60, { latestTurn: { state: "completed" } } as Partial<ThreadShell>), now), undefined);
 });
 
 test("each device can narrow what it gets: everything, only some kinds, or nothing", () => {
@@ -189,4 +177,46 @@ test("a subscription made with a key replaced meanwhile is refused, overlapping 
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
+});
+
+test("old saved rules cannot re-enable elapsed-time or inactivity pushes", () => {
+  const legacy = sanitizeRules({ kinds: { quiet: true, "long-turn": true, approval: true } })!;
+  for (const r of [DEFAULT_PUSH_RULES, legacy]) {
+    assert.equal(shouldPush(r, "quiet", new Date()), false);
+    assert.equal(shouldPush(r, "long-turn", new Date()), false);
+  }
+});
+
+test("muted threads and all subagent kinds cannot send push, including a mute during an approval read", async (t) => {
+  const { threadNotificationsEnabled } = await import("../shared/thread-notifications.ts");
+  const webpush = (await import("web-push")).default;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "push-mute-"));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  let muted = false;
+  let child = false;
+  const push = new PushNotifier(dir, undefined, () => threadNotificationsEnabled(
+    { mutedThreads: muted ? { "e:t": true } : {} }, "e",
+    { id: "t", lineage: { relationshipToParent: child ? "subagent" : "fork" } } as never,
+  ));
+  await push.load();
+  push.subscribe({ endpoint: "https://push.example/phone", keys: { p256dh: "k", auth: "a" } }, "Phone");
+  const send = t.mock.method(webpush, "sendNotification", async () => ({}));
+  const entry = { id: 1, at: Date.now(), tone: "alert" as const, kind: "approval" as const, text: "Approve", envId: "e", threadId: "t" };
+  assert.equal(push.wants(entry), true);
+  muted = true; // An approval read was in flight when another device muted this thread.
+  await push.notify(entry);
+  assert.equal(push.wants(entry), false);
+  assert.equal(send.mock.callCount(), 0);
+  muted = false;
+  child = true;
+  for (const kind of ["approval", "question", "failed", "spinning", "merged", "done"] as const) {
+    push.setRules({ kinds: { ...DEFAULT_PUSH_RULES.kinds, done: true } });
+    assert.equal(push.wants({ ...entry, kind }), false);
+    await push.notify({ ...entry, kind });
+  }
+  assert.equal(send.mock.callCount(), 0);
+  child = false; // Forks are ordinary threads and can notify after unmuting.
+  await push.notify(entry);
+  assert.equal(send.mock.callCount(), 1);
+  await push.flush();
 });

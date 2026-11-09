@@ -1,6 +1,7 @@
 // t3-command server: serves the UI, keeps the environment registry, and relays each
 // browser WebSocket to the right T3 environment with that environment's token attached.
 
+import { threadNotificationsEnabled } from "../shared/thread-notifications.ts";
 import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
@@ -64,7 +65,14 @@ await comms.load();
 const readState = new ReadState(config.dataDir);
 await readState.load();
 // Fleet events pushed to subscribed devices, filtered by the push rules and quiet hours.
-const push = new PushNotifier(config.dataDir, process.env.T3C_PUSH_SUBJECT || undefined);
+const prefs = new Prefs(config.dataDir);
+await prefs.load();
+const push = new PushNotifier(config.dataDir, process.env.T3C_PUSH_SUBJECT || undefined, (entry) => {
+  if (!entry.threadId) return true;
+  if (!entry.envId) return false;
+  const thread = recorder.snapshot(entry.envId)?.threads.find((t) => t.id === entry.threadId);
+  return !!thread && threadNotificationsEnabled(prefs.all(), entry.envId, thread);
+});
 await push.load();
 // An approval's push says what's being asked (the server reads the request itself), and an
 // unflagged one can be approved or denied from the notification.
@@ -102,8 +110,6 @@ const playbooks = new Playbooks(config.dataDir);
 await playbooks.load();
 const widgetPins = new WidgetPins(config.dataDir);
 await widgetPins.load();
-const prefs = new Prefs(config.dataDir);
-await prefs.load();
 const prDetails = new PrDetails();
 const prStates = new PrStatesWatcher(prDetails);
 const dispatches = new Dispatches(config.dataDir);
@@ -129,7 +135,7 @@ const t3Versions = new T3Versions(config.dataDir, registry, comms);
 const t3Latest = new T3LatestVersion();
 await t3Versions.load();
 t3Versions.start();
-// Note runaway turns (2/6/12/24 h) in the comms log.
+// Note recent repeated failures; elapsed time alone never produces alerts.
 const longTurns = new LongTurns(registry, recorder, comms, readThread);
 longTurns.start();
 // Whole-host CPU/RAM history per machine.

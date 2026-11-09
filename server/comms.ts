@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import type http from "node:http";
 import path from "node:path";
 import { COMMS_BACKLOG, COMMS_RETENTION_DAYS, type CommsEntry } from "../shared/comms.ts";
-import { isHistory, unitState, type UnitState } from "../src/t3/derive.ts";
+import { isSubagent, isHistory, unitState, type UnitState } from "../src/t3/derive.ts";
 import type { ThreadShell } from "../src/t3/types.ts";
 
 const DAY_MS = 86_400_000;
@@ -97,7 +97,7 @@ export class CommsLog {
     const next = new Map<string, UnitState>();
     const nextMerged = new Map<string, Set<number>>();
     for (const thread of threads) {
-      if (isHistory(thread) || thread.archivedAt) continue;
+      if (isHistory(thread) || isSubagent(thread) || thread.archivedAt) continue;
       const to = unitState(thread);
       next.set(thread.id, to);
       // What landed: a PR this thread links that T3 now reports merged.

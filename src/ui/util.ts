@@ -1,3 +1,5 @@
+import { threadNotificationsEnabled } from "../../shared/thread-notifications";
+import type { CommandPrefs } from "../../shared/prefs";
 import type { EnvWorld } from "../store";
 import { isHistory, isNativeSubagent, unitState, type UnitState } from "../t3/derive";
 import type { ThreadShell } from "../t3/types";
@@ -74,7 +76,7 @@ export function reportRead(readReports: Record<string, string>, envId: string, t
 }
 
 /** One count for the top bar, the phone dock and the tab title: Hermes sessions included. */
-export function fleetCounts(envs: Record<string, EnvWorld>, readReports: Record<string, string> = {}): FleetCounts {
+export function fleetCounts(envs: Record<string, EnvWorld>, readReports: Record<string, string> = {}, prefs?: CommandPrefs): FleetCounts {
   const c: FleetCounts = { working: 0, background: 0, monitoring: 0, waiting: 0, reports: 0, failed: 0, crew: 0, awake: 0 };
   for (const u of allUnits(envs)) {
     if (envs[u.envId]?.summary.kind !== "hermes") {
@@ -83,6 +85,7 @@ export function fleetCounts(envs: Record<string, EnvWorld>, readReports: Record<
     }
     if (u.state === "working") { if (isBackground(u.thread, u.state)) c.background++; else c.working++; }
     else if (u.state === "monitoring") c.monitoring++;
+    else if (!threadNotificationsEnabled(prefs, u.envId, u.thread)) continue;
     else if (u.state === "alert" || u.state === "question") c.waiting++;
     // Reports and failures count as needs-you.ts does: not once seen (Hermes operators' included).
     else if (u.state === "done") { if (u.thread.latestTurn && !reportRead(readReports, u.envId, u.thread)) c.reports++; }
