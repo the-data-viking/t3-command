@@ -15,8 +15,14 @@ import { chromium, devices } from "playwright";
 
 const OUT = path.join(os.tmpdir(), "t3c-layout");
 const VIEWS = [
+  { name: "desktop-1920", viewport: { width: 1920, height: 1080 } },
   { name: "desktop-1440", viewport: { width: 1440, height: 900 } },
+  { name: "laptop-1366", viewport: { width: 1366, height: 768 } },
   { name: "desktop-1280", viewport: { width: 1280, height: 800 } },
+  { name: "laptop-short", viewport: { width: 1280, height: 600 } },
+  { name: "tablet-1024", viewport: { width: 1024, height: 768 } },
+  { name: "tablet-768", viewport: { width: 768, height: 1024 } },
+  { name: "desktop-701", viewport: { width: 701, height: 700 } },
   { name: "iphone-14", device: devices["iPhone 14"] },
   { name: "iphone-se", device: devices["iPhone SE"] },
   { name: "phone-short", viewport: { width: 390, height: 500 }, phone: true },
@@ -55,6 +61,17 @@ async function run(base) {
     const vw = await page.evaluate(() => ({ w: innerWidth, h: innerHeight, scroll: document.documentElement.scrollWidth }));
     check(view.name, vw.scroll <= vw.w, `page is wider than the screen (${vw.scroll} > ${vw.w})`);
 
+    const compact = vw.w <= 1439;
+    if (compact && !phone) {
+      check(view.name, (await rect(page, ".topbar")).height <= 60, "compact desktop toolbar wraps over the workspace");
+      check(view.name, await page.locator(".topbar-more").isHidden(), "secondary navigation should start collapsed");
+      await page.getByRole("button", { name: "Open menu", exact: true }).click();
+      const menu = await rect(page, ".topbar-more");
+      check(view.name, menu.left >= 0 && menu.right <= vw.w && menu.bottom <= vw.h, "desktop menu extends outside the viewport");
+      check(view.name, await page.getByRole("button", { name: "Board", exact: true }).isVisible(), "work views are missing from desktop menu");
+      await shot("menu");
+      await page.getByRole("button", { name: "Close menu", exact: true }).click();
+    }
     if (phone) {
       // The dock's "need you" and the top bar's Needs you are the same number.
       const counts = await page.evaluate(() => ({
@@ -78,18 +95,31 @@ async function run(base) {
     });
     check(view.name, spill === 0, `${spill} crew panel header controls run off the panel's right edge`);
     await shot("crew");
+    if (compact && !phone) {
+      await page.evaluate(async () => {
+        const { useGame } = await import("/src/store.ts");
+        useGame.setState({ event: null });
+      });
+      await page.getByRole("button", { name: "Open menu", exact: true }).click();
+      await page.getByRole("button", { name: /^Theme:/ }).click();
+      const world = await rect(page, ".theme-list");
+      check(view.name, world && world.top >= 0 && world.bottom <= vw.h, "theme menu is cut off inside the desktop menu");
+      await page.keyboard.press("Escape");
+      check(view.name, await page.locator(".unit-panel").isVisible(), "dismissing desktop menu also closed the crew panel");
+      check(view.name, await page.locator(".topbar-more").isHidden(), "Escape did not close desktop menu");
+    }
 
-    // A busy session's secondary details must never squeeze the phone conversation or composer
+    // A busy session's secondary details must never squeeze the conversation or composer
     // away. Use a finished report with PRs and checkpoints, rather than an empty shell.
     await page.evaluate(async () => {
       const { useGame } = await import("/src/store.ts");
-      useGame.setState({ selection: { kind: "unit", envId: "mini", threadId: "a3" } });
+      useGame.setState({ event: null, selection: { kind: "unit", envId: "mini", threadId: "a3" } });
     });
     const details = page.locator(".unit-details");
-    if (phone) {
+    {
       const toggle = page.getByRole("button", { name: "Details ▾" });
       await toggle.waitFor();
-      check(view.name, await details.isHidden(), "crew details should start collapsed on phones");
+      check(view.name, await details.isHidden(), "crew details should start collapsed");
       let transcript = await rect(page, ".transcript");
       const panel = await rect(page, ".unit-panel");
       check(view.name, transcript.height >= panel.height * .44, `collapsed conversation is squeezed (${transcript.height} px)`);
@@ -113,7 +143,7 @@ async function run(base) {
       await toggle.click();
       await page.getByRole("button", { name: "Details ▴" }).click();
       check(view.name, await page.getByRole("textbox", { name: "Give orders", exact: true }).inputValue() === draft, "Details toggle lost the order draft");
-      check(view.name, (await rect(page, ".order-box textarea")).height <= 112, "long draft grows beyond its phone height limit");
+      check(view.name, (await rect(page, ".order-box textarea")).height <= (phone ? 112 : Math.min(160, vw.h * .22)) + 1, "long draft grows beyond its height limit");
       check(view.name, (await rect(page, ".order-box")).bottom <= panel.bottom, "long draft pushes send controls off screen");
       await page.getByRole("textbox", { name: "Give orders", exact: true }).fill("");
 
@@ -123,6 +153,7 @@ async function run(base) {
         useGame.setState({ selection: { kind: "unit", envId: "mini", threadId: "a2" } });
       });
       await page.locator(".pending.approval").waitFor();
+      check(view.name, await page.locator(".pending.approval").isVisible(), "approval is missing from the primary conversation");
       check(view.name, await details.isHidden(), "a newly selected crew member inherited expanded details");
       await shot("crew-approval");
       await page.evaluate(async () => {
@@ -131,7 +162,7 @@ async function run(base) {
       });
       check(view.name, await page.getByRole("button", { name: "■ Halt", exact: true }).isVisible(), "Halt is hidden behind Details");
       const actionSpill = await page.locator(".order-actions").evaluate(el => [...el.children].some(child => child.getBoundingClientRect().right > el.getBoundingClientRect().right + 1));
-      check(view.name, !actionSpill, "busy composer controls overflow the phone panel");
+      check(view.name, !actionSpill, "busy composer controls overflow the crew panel");
       await page.evaluate(async () => {
         const { useGame } = await import("/src/store.ts");
         useGame.setState({ selection: { kind: "unit", envId: "agent1", threadId: "b2" } });
@@ -149,20 +180,17 @@ async function run(base) {
       await page.getByRole("button", { name: "Details ▾" }).click();
       check(view.name, await page.locator(".pr-chip").isVisible(), "offline session loses linked PRs");
       check(view.name, await page.getByRole("textbox", { name: "Give orders", exact: true }).isDisabled(), "offline composer should remain disabled");
-      check(view.name, (await rect(page, ".unit-panel > .status-row")).right <= panel.right, "offline status overflows phone panel");
+      check(view.name, (await rect(page, ".unit-panel > .status-row")).right <= panel.right, "offline status overflows crew panel");
       await page.evaluate(async () => {
         const { useGame } = await import("/src/store.ts");
         const { envs } = useGame.getState();
         useGame.setState({ envs: { ...envs, mini: { ...envs.mini, connection: "live" } } });
       });
-    } else {
-      check(view.name, await page.locator(".pr-chip").isVisible(), "desktop should keep session telemetry visible");
-      check(view.name, await page.getByRole("button", { name: "Details ▾" }).count() === 0, "phone disclosure appears on desktop");
     }
     await page.keyboard.press("Escape");
 
     // History: the charts keep their height when the dialog overflows.
-    if (phone) { await page.tap(".menu-btn"); await page.waitForTimeout(200); await page.tap("button:has-text('History')"); }
+    if (compact) { await page.click(".menu-btn"); await page.waitForTimeout(200); await page.click("button:has-text('History')"); }
     else { await page.click("button:has-text('More')"); await page.waitForTimeout(200); await page.click("button:has-text('History')"); }
     await page.waitForTimeout(800);
     const bars = await rect(page, ".history-bars");

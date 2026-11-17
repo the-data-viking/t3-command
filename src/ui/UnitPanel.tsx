@@ -140,7 +140,6 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
         <div className="panel-title">
           <span className="title-tab panel-kind"><PixelLabel text={bot ? "Operator" : "Crew"} /></span>
           <h2 title={unitName}>{unitName}</h2>
-          {!phone && identity}
         </div>
         {!archived && <button className="icon-btn" disabled={savingMute || isSubagent(thread)}
           aria-pressed={notificationsMuted || isSubagent(thread)}
@@ -163,31 +162,28 @@ export function UnitPanel({ envId, threadId }: { envId: string; threadId: string
           <button className="btn" onClick={() => setSelection({ kind: "library", envId, projectId: thread.projectId })}>
             ← Archive
           </button>
-          {phone && <button className="btn" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen(!detailsOpen)}>Details {detailsOpen ? "▴" : "▾"}</button>}
+          <button className="btn" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen(!detailsOpen)}>Details {detailsOpen ? "▴" : "▾"}</button>
         </div>
       ) : (
       <div className="status-row">
         <span className={`pill state-${live ? state : "sleeping"}`} title={live ? undefined : `${env.summary.label} is unreachable: this is how it was when Command last heard from it`}>
           {live ? "" : "Last known · "}{bot ? BOT_STATE_LABELS[state] : stateLabel(thread, state)}
         </span>
-        {!phone && env.summary.kind !== 'hermes' && live && <PostureControl envId={envId} thread={thread} />}
-        {!phone && live && <ThreadTiming thread={thread} detail={detail?.thread} />}
         <span className="spacer" />
-        {!phone && secondaryActions}
         {canHalt && (
           <button className="btn danger" onClick={() => run("Interrupt", () => client?.interrupt(threadId))}>
             ■ Halt
           </button>
         )}
-        {phone && <button className="btn" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen(!detailsOpen)}>Details {detailsOpen ? "▴" : "▾"}</button>}
+        <button className="btn" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen(!detailsOpen)}>Details {detailsOpen ? "▴" : "▾"}</button>
       </div>
       )}
 
       {!archived && <FailureNote thread={thread} />}
 
-      <div className="unit-details" id={detailsId} hidden={phone && !detailsOpen}>
-        {phone && <div className="unit-identity">{identity}</div>}
-        {phone && !archived && <div className="status-row unit-detail-actions">
+      <div className="unit-details" id={detailsId} hidden={!detailsOpen}>
+        <div className="unit-identity">{identity}</div>
+        {!archived && <div className="status-row unit-detail-actions">
           {env.summary.kind !== 'hermes' && live && <PostureControl envId={envId} thread={thread} />}
           {live && <ThreadTiming thread={thread} detail={detail?.thread} />}
           {secondaryActions}
