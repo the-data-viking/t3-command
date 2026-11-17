@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 
 export const PHONE_QUERY = "(max-width: 700px)";
 
-const media = () => (typeof matchMedia === "undefined" ? undefined : matchMedia(PHONE_QUERY));
+const media = (query = PHONE_QUERY) => (typeof matchMedia === "undefined" ? undefined : matchMedia(query));
 
 export function isPhone(): boolean {
   return media()?.matches ?? false;
@@ -17,13 +17,22 @@ export function isCoarsePointer(): boolean {
 }
 
 export function usePhone(): boolean {
+  return useMediaQuery(PHONE_QUERY);
+}
+
+/** Laptops use the same secondary navigation disclosure as phones. */
+export function useCompactToolbar(): boolean {
+  return useMediaQuery("(max-width: 1439px)");
+}
+
+function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
     (change) => {
-      const m = media();
+      const m = media(query);
       m?.addEventListener("change", change);
       return () => m?.removeEventListener("change", change);
     },
-    isPhone,
+    () => media(query)?.matches ?? false,
     () => false,
   );
 }

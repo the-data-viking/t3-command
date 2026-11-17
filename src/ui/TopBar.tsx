@@ -16,7 +16,7 @@ import { UpdatePanel } from "./UpdatePanel";
 import { HermesMark } from './HermesControlCenter';
 import { botOperators } from '../t3/bots';
 import { PixelIcon } from "./PixelArt";
-import { usePhone } from "./phone";
+import { useCompactToolbar, usePhone } from "./phone";
 import { ThemePicker } from "./ThemePicker";
 import { SoundMenu } from "./SoundMenu";
 import { AlertsMenu } from "./AlertsMenu";
@@ -33,9 +33,25 @@ export function TopBar() {
   const operators = botOperators({ envs, hermesCatalog });
   const stations = useMemo(() => sortedEnvs(useGame.getState()), [envs]); // eslint-disable-line react-hooks/exhaustive-deps
   const phone = usePhone();
-  // On phones everything past the counters lives in a menu under the bar.
+  const compact = useCompactToolbar();
+  // Secondary navigation is on demand on phones and smaller desktops.
   const [menu, setMenu] = useState(false);
-  const menuOpen = phone && menu;
+  const menuOpen = compact && menu;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const outside = (e: PointerEvent) => { if (!bar.current?.contains(e.target as Node)) setMenu(false); };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Consume the menu dismissal before the workspace's Escape handler closes a crew panel.
+      e.preventDefault();
+      setMenu(false);
+      bar.current?.querySelector<HTMLButtonElement>(".menu-btn")?.focus();
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape, true);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape, true); };
+  }, [menuOpen]);
 
   useEffect(() => {
     const element = bar.current;
@@ -54,13 +70,13 @@ export function TopBar() {
 
   const views = (
     <>
-      <button className="btn menu-closes" role={phone ? undefined : "menuitem"} title="Comms log (L)" aria-expanded={showLog} onClick={() => useGame.setState({ showLog: !showLog })}>
+      <button className="btn menu-closes" role={compact ? undefined : "menuitem"} title="Comms log (L)" aria-expanded={showLog} onClick={() => useGame.setState({ showLog: !showLog })}>
         Log
       </button>
-      <button className="btn menu-closes" role={phone ? undefined : "menuitem"} title="Turn and spend history (H)" onClick={() => useGame.setState({ showHistory: true })}>
+      <button className="btn menu-closes" role={compact ? undefined : "menuitem"} title="Turn and spend history (H)" onClick={() => useGame.setState({ showHistory: true })}>
         History
       </button>
-      <button className="btn menu-closes" role={phone ? undefined : "menuitem"} title="The T3 machines in the fleet: add, pair, remove" onClick={() => useGame.setState({ showEnvManager: true })}>
+      <button className="btn menu-closes" role={compact ? undefined : "menuitem"} title="The T3 machines in the fleet: add, pair, remove" onClick={() => useGame.setState({ showEnvManager: true })}>
         Machines
       </button>
     </>
@@ -87,11 +103,12 @@ export function TopBar() {
         </span>
       </div>
       <QueueButton />
-      {phone && <button className="icon-btn menu-btn" aria-expanded={menuOpen} aria-controls="topbar-more" aria-label={menuOpen ? "Close menu" : "Open menu"}
-        title="Menu" onClick={() => setMenu(!menu)}><PixelIcon name="menu" /></button>}
-      {/* Going somewhere from the phone menu closes it, so the map or panel it opens is in view;
+      {!phone && compact && <button className="btn new-request-btn toolbar-new" title="New request (N)" onClick={() => { setMenu(false); useGame.setState({ showNewRequest: true }); }}>+ New</button>}
+      {compact && <button className="icon-btn menu-btn" aria-expanded={menuOpen} aria-controls="topbar-more" aria-label={menuOpen ? "Close menu" : "Open menu"}
+        title="Menu" onClick={() => setMenu(!menu)}><PixelIcon name="menu" />{!phone && <span>Menu</span>}</button>}
+      {/* Going somewhere from the compact menu closes it, so the map or panel it opens is in view;
           toggles and the spend, limits and update popovers keep it open. */}
-      <div id="topbar-more" className="topbar-more" onClick={(e) => { if (phone && (e.target as HTMLElement).closest(".station-chip, .operations-chip, .menu-closes")) setMenu(false); }}>
+      <div id="topbar-more" className="topbar-more" onClick={(e) => { if (compact && (e.target as HTMLElement).closest(".station-chip, .operations-chip, .menu-closes")) setMenu(false); }}>
       <SpendTelemetry />
       <LimitsTelemetry />
       <div className="spacer" />
@@ -149,7 +166,7 @@ export function TopBar() {
       <button className="btn menu-closes" title="Fleet timeline: every crew member's turns (T)" onClick={() => useGame.setState({ showTimeline: true })}>
         Timeline
       </button>
-      {phone ? views : <MoreMenu>{views}</MoreMenu>}
+      {compact ? views : <MoreMenu>{views}</MoreMenu>}
       <UpdatePanel />
       {phone && <button className="btn menu-closes" onClick={() => useGame.setState({ showPalette: true })}>Search</button>}
       {phone && <button className="btn menu-closes" onClick={() => useGame.setState({ showHelp: true })}>Help</button>}

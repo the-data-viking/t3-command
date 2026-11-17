@@ -74,6 +74,7 @@ export function installHotkeys(): () => void {
     const state = useGame.getState();
     if (state.showPalette || state.showHelp) return; // They handle their own keys.
     if (e.key === "Escape") {
+      if (e.defaultPrevented) return;
       if (state.photo) useGame.setState({ photo: false });
       else if (state.showNewRequest) useGame.setState({ showNewRequest: false });
       else if (state.event) { stopQueue(); openEvent(null); }
